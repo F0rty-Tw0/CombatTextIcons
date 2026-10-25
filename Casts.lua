@@ -39,6 +39,7 @@ local log = {}           -- harmful player casts, oldest first: { spellID, base,
 -- cast's icon; Claim only reads, Accept is the only writer.
 local SLACK = 0.05      -- a window edge may be this far off
 local LATE = 2          -- a cast with no hit yet takes a late one up to this times its window top
+local PAD_LO, PAD_HI = 0.5, 2 -- a sized hit fits a cast's band from half its smallest to twice its biggest learned size
 local RECORD_MAX = 20   -- open records at most; the oldest is dropped
 local records = {}      -- oldest first: { spellID, base, at, plate, hops, plates, last }
 
@@ -118,17 +119,28 @@ local function UnlearnedCastAt(plate, now)
     return false
 end
 
--- Whose hit is this? "learned", record: the open records that fit are all casts of one spell
--- (the oldest answers; Void Blast can fire twice in one frame) and no unlearned cast is on the
--- plate. Records that fit late answer only when none fits in its window. "ambiguous": records of two spells fit, or an unlearned cast is on the plate (spec 6.1
--- read literally: that alone spoils the answer, fit or not). nil: nothing to say. Changes
--- nothing; Accept is the only writer.
-function Casts.Claim(plate, school, now)
+-- Does a hit of normal-scale `size` fit the record's learned size band (padded)? A Shadow DoT
+-- tick (0.9-6K) is not Mind Blast (18-25K) though it lands in its window. No size (nil, 0) or no
+-- band (saved before sizes were kept) fits.
+local function InBand(record, size)
+    if not (IsNumber(size) and size > 0) then return true end
+    local low, high = Fingerprints.Band(record.base, record.spellID)
+    if not low then return true end
+
+    return size >= PAD_LO * low and size <= PAD_HI * high
+end
+
+-- Whose hit is this? "learned", record: the open records that fit (InBand, then Fits) are all
+-- casts of one spell (the oldest answers; Void Blast can fire twice in one frame) and no
+-- unlearned cast is on the plate. Records that fit late answer only when none fits in its window. "ambiguous": records of two spells fit, or an unlearned cast is on the plate (spec 6.1
+-- read literally: that alone spoils the answer, fit or not). nil: nothing to say. `size` is the
+-- hit's normal-scale size (Streams.NormalAmount), nil when unknown. Changes nothing; Accept is the only writer.
+function Casts.Claim(plate, school, now, size)
     if not (Plain(plate) and Plain(school) and Plain(now)) then return nil end
     local found, fits, late, lateFits = nil, 0, nil, 0
     for _, record in ipairs(records) do
         local fp = Live(record, now)
-        local fit = fp and Fits(record, fp, plate, school, now)
+        local fit = fp and InBand(record, size) and Fits(record, fp, plate, school, now)
         if fit == "in" then
             found, fits = Count(found, fits, record)
         elseif fit == "late" then

@@ -292,7 +292,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         return Display.Plate(plate, SpellTexture(spellID), text, flagText, school)
     end
     local fightsYou = FightsYou(unit, now)
-    local kind, record = Casts.Claim(plate, school, now)
+    local kind, record = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText))
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
         Casts.Accept(record, plate, now)

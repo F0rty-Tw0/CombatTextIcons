@@ -363,6 +363,51 @@ do -- Phase 3: records and Claim
         return #samples == 3 and samples[1].size == 20000 and samples[2].size == nil and samples[3].size == nil
     end)
 
+    -- Run 125009Z: Mind Blast learned at 18-25K, 0.17-0.23 s after the cast (padded band 9000-50000).
+    local MindBlast = function(ns) LearnSized(ns, 8092, 8092, { 18000, 21000, 25000 }, { 0.17, 0.2, 0.23 }) end
+    Scenario("band: a small DoT tick in Mind Blast's window is not claimed; the real hit in the same frame is", function()
+        local ns, S = Rig(MindBlast)
+        Cast(ns, S, 8092, 10, "nameplate1")
+        local tick = ns.Casts.Claim(Plate("nameplate1"), 32, 10.224, 894)
+        local kind, record = ns.Casts.Claim(Plate("nameplate1"), 32, 10.224, 19102)
+        return tick == nil and kind == "learned" and record.spellID == 8092
+    end)
+    Scenario("band: a crit tick (5048, normal-scale 2524) is not claimed; the 18444 hit after it is", function()
+        local ns, S = Rig(MindBlast)
+        Cast(ns, S, 8092, 20, "nameplate1")
+        local tick = ns.Casts.Claim(Plate("nameplate1"), 32, 20.146, 5048 / 2)
+        local kind = ns.Casts.Claim(Plate("nameplate1"), 32, 20.177, 18444)
+        return tick == nil and kind == "learned"
+    end)
+    Scenario("band: the top edge is twice the biggest size", function()
+        local ns, S = Rig(MindBlast)
+        Cast(ns, S, 8092, 60, "nameplate1")
+        return ns.Casts.Claim(Plate("nameplate1"), 32, 60.2, 50001) == nil
+            and ns.Casts.Claim(Plate("nameplate1"), 32, 60.2, 50000) == "learned"
+    end)
+    Scenario("band: no size, a 0 size or no band claims on time alone", function()
+        local ns, S = Rig(function(n) MindBlast(n); Wand(n) end)
+        Cast(ns, S, 8092, 40, "nameplate1")
+        local unsized = ns.Casts.Claim(Plate("nameplate1"), 32, 40.2, nil)
+        Cast(ns, S, 8092, 50, "nameplate1")
+        local zero = ns.Casts.Claim(Plate("nameplate1"), 32, 50.2, 0)
+        Cast(ns, S, WAND, 70, "nameplate2")
+        local wand = ns.Casts.Claim(Plate("nameplate2"), 4, 70.2, 5)
+        return unsized == "learned" and zero == "learned" and wand == "learned"
+    end)
+    Scenario("band: a crit through Core is compared at normal scale (60000 crit -> 30000 fits)", function()
+        local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+        local S = T.State()
+        MindBlast(ns)
+        local drawn
+        ns.Display.Plate = function(_, texture) drawn = texture end
+        S.now, S.target = 30, "nameplate1"
+        ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 8092)
+        S.now = 30.2
+        ns.Core.UNIT_COMBAT("nameplate1", "WOUND", "CRITICAL", 60000, 32)
+        return drawn == "tex:8092"
+    end)
+
     Scenario("claim: a hit inside a learned cast's window, on its plate, is 'learned' with that record", function()
         local ns, S = Rig(Wand)
         Cast(ns, S, WAND, 10, "nameplate1")
