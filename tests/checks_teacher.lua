@@ -47,11 +47,12 @@ return function(T)
             S.now, S.target = t, unit
             ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c" .. t, spellID)
         end
-        -- One UNIT_COMBAT WOUND at t (area clear); returns the texture drawn, or nil when nothing was drawn.
-        function rig.Hit(t, unit, amount, school)
+        -- One UNIT_COMBAT WOUND at t (area clear, flag "" unless given); returns the texture drawn, or nil
+        -- when nothing was drawn.
+        function rig.Hit(t, unit, amount, school, flag)
             S.now = t
             local before = #rig.draws
-            ns.Core.UNIT_COMBAT(unit, "WOUND", "", amount, school)
+            ns.Core.UNIT_COMBAT(unit, "WOUND", flag or "", amount, school)
             return #rig.draws > before and rig.draws[#rig.draws] or nil
         end
         -- Teacher fight without Core: tally = { [spellID] = { amount, ... } }, each hit drawn and seen; the
@@ -410,9 +411,71 @@ return function(T)
         S.now = 199
         ns.Core.PLAYER_REGEN_DISABLED()
         rig.Cast(200, "nameplate5", WAND)
-        local drawn = rig.Hit(200.5, "nameplate5", 91, 4)
+        local drawn = rig.Hit(200.5, "nameplate5", 30, 4)
         Check("teacher learn: the wand learned from '?' hits now draws its own icon and is tallied",
-            drawn == "tex:5019" and Teacher.fight.tally[WAND] == 91)
+            drawn == "tex:5019" and Teacher.fight.tally[WAND] == 30)
+        Check("teacher learn: samples learned from '?' hits keep the hit size",
+            F.Get(MIND_BLAST).samples[1].size == 120 and F.Get(MIND_BLAST).samples[3].size == 98
+            and F.Get(WAND).samples[1].size == 20)
+    end
+
+    do -- Teacher.Unknown keeps the hit's normal-scale size
+        local rig = Rig({})
+        local ns = rig.ns
+        local cast = { base = MIND_BLAST, at = 10, spellID = MIND_BLAST }
+        ns.Teacher.Start(10)
+        ns.Teacher.Unknown(rig.Plate("nameplate1"), 32, 40000, 10.2, cast, "CRITICAL")
+        ns.Teacher.Unknown(rig.Plate("nameplate1"), 32, 40000, 10.3, cast)
+        ns.Teacher.Unknown(rig.Plate("nameplate1"), 32, 0, 10.4, cast, "")
+        local unknown = ns.Teacher.fight.unknown
+        Check("teacher size: a crit '?' hit keeps its normal-scale size; no flag keeps none; 0 stays 0 (Add drops it)",
+            unknown[1].size == 20000 and unknown[2].size == nil and unknown[3].size == 0)
+    end
+
+    -- Short real-mob fights: each kill takes one Mind Blast, the meter row carries overkill. Returns
+    -- the texture each hit drew.
+    local function ShortFight(rig, t, session, hits, total, overkill)
+        local S, Core = rig.S, rig.ns.Core
+        S.now = t - 1
+        Core.PLAYER_REGEN_DISABLED()
+        rig.Cast(t, "nameplate1", MIND_BLAST)
+        local drawn = {}
+        for index, hit in ipairs(hits) do drawn[index] = rig.Hit(t + 0.2, "nameplate1", hit[1], 32, hit[2]) end
+        S.now = t + 5
+        Core.PLAYER_REGEN_ENABLED()
+        S.sessions = { Session(session, { Row(MIND_BLAST, total, overkill) }) }
+        pcall(rig.Fire)
+        return drawn
+    end
+
+    do -- short fights add to learning (memory cti-short-fights)
+        local rig = Rig({}, true)
+        local F = rig.ns.Fingerprints
+        ShortFight(rig, 100, 301, { { 19000 } }, 19000, 4000)
+        ShortFight(rig, 200, 302, { { 40000, "CRITICAL" } }, 40000, 6000)
+        local entry = F.Get(MIND_BLAST)
+        Check("teacher short fights: two one-cast kills add sized samples (crit at normal scale) and strike nothing",
+            entry and not entry.learned and #entry.samples == 2 and entry.samples[1].size == 19000
+            and entry.samples[2].size == 20000 and entry.over == 0)
+        ShortFight(rig, 300, 303, { { 21000 } }, 21000, 3000)
+        local low, high = F.Band(MIND_BLAST, MIND_BLAST)
+        Check("teacher short fights: the third kill teaches Mind Blast with band 19000-21000",
+            F.IsLearned(MIND_BLAST) and low == 19000 and high == 21000)
+        local drawn = ShortFight(rig, 400, 304, { { 900 }, { 22000 } }, 22900, 0)
+        Check("teacher short fights: then a 900 tick in its window is not Mind Blast, the 22000 hit is",
+            drawn[1] ~= "tex:8092" and drawn[2] == "tex:8092")
+    end
+
+    do -- a learned spell's killing blow: tally above the meter total, within its overkill
+        local rig = Rig({})
+        local F = rig.ns.Fingerprints
+        for castAt, size in ipairs({ 18000, 21000, 25000 }) do
+            F.Add(MIND_BLAST, { school = 32, delay = 0.2, castAt = castAt, hops = 1, spell = MIND_BLAST, size = size })
+        end
+        local drawn = ShortFight(rig, 10, 501, { { 25000 } }, 20000, 5000)
+        Check("teacher short fights: a killing blow (25000 drawn, meter 20000 + 5000 overkill) agrees and strikes nothing",
+            drawn[1] == "tex:8092" and Find(rig.ns.Teacher.last, MIND_BLAST).verdict == "agree"
+            and F.Get(MIND_BLAST).fights == 1 and F.Get(MIND_BLAST).strikes == 0)
     end
 
     do -- a sum that does not match the row teaches nothing

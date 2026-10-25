@@ -23,7 +23,7 @@
 -- last is judged on that session's growth since (Growth).
 
 local _, ns = ...
-local Meter, Fingerprints, Procs, Ledger = ns.Meter, ns.Fingerprints, ns.Procs, ns.Ledger
+local Meter, Fingerprints, Procs, Ledger, Streams = ns.Meter, ns.Fingerprints, ns.Procs, ns.Ledger, ns.Streams
 
 local Teacher = {}
 ns.Teacher = Teacher
@@ -305,7 +305,7 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
             if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Pairs(group, way, row, owners) then
                 for _, hit in ipairs(way.hits) do
                     Fingerprints.Add(group.castID, { school = hit.school, delay = hit.at - hit.castAt,
-                        castAt = hit.castAt, hops = 1, spell = hit.castSpell })
+                        castAt = hit.castAt, hops = 1, spell = hit.castSpell, size = hit.size })
                 end
                 if row.spellID ~= group.castID then Fingerprints.SetAlias(row.spellID, group.castID) end
                 learned[#learned + 1] = way
@@ -546,12 +546,13 @@ end
 -- the area is crowded). `cast` is Casts.SoleCast at the hit's time. `castID` (the cast's base
 -- spell) / `castAt` name it when it is unlearned, for the teacher to learn from after the
 -- fight. `crit` (from the hit's flag text, as Streams.Size) feeds Procs: true, false, or nil
--- when the flag is unknown.
+-- when the flag is unknown. `size` is the hit's normal-scale size for the cast's band.
 function Teacher.Unknown(plate, school, amount, now, cast, flagText)
     local fight = Teacher.fight
     if not (fight and plate ~= nil and IsNumber(school) and IsNumber(amount) and IsNumber(now)) then return end
 
-    local entry = { school = school, amount = amount, at = now, plate = plate, crit = Procs.Crit(flagText) }
+    local entry = { school = school, amount = amount, at = now, plate = plate, crit = Procs.Crit(flagText),
+        size = Streams.NormalAmount(amount, flagText) }
     if cast and not Fingerprints.IsLearned(cast.base) then
         entry.castID, entry.castAt, entry.castSpell = cast.base, cast.at, cast.spellID
     end
