@@ -1893,12 +1893,15 @@ do -- steady learning (2026-10-25): run 140233Z, /cti forget then 3 dummy fights
 end
 
 do -- own seen (2026-10-25): run 153349Z, strangers on 8 nearby dummies made both in-game reads crowded
-    local parts, clearOk = {}, true
+    local parts, clearOk, noVolley = {}, true, true
     local ok, err = pcall(function()
         for _, haste in ipairs(DOT_HASTES) do
             local runs = ReplayFights(REPLAY_CROWD, { haste = haste })
             clearOk = clearOk and #runs >= 2 and runs[1].last.area == "clear" and runs[2].last.area == "clear"
             for index, run in ipairs(runs) do
+                -- a holy proc's lone hit in one Void Volley frame never teaches Void Volley (F3 is a skip: no learned)
+                noVolley = noVolley and (run.last and run.last.learned or {})[1242173] == nil
+                    and ((run.info.charDB or {}).castAliases or {})[1260076] == nil
                 local learned = {}
                 for id, count in pairs(run.last and run.last.learned or {}) do learned[#learned + 1] = id .. "=" .. count end
                 table.sort(learned)
@@ -1909,8 +1912,8 @@ do -- own seen (2026-10-25): run 153349Z, strangers on 8 nearby dummies made bot
         end
     end)
     if not ok then Check("own-seen criterion ran without error: " .. tostring(err), false) end
-    Criterion(23, "own-seen replay (haste 25 and 0): run 153349Z reads both fights clear (strangers' dummies add nothing to seen)",
-        ok and clearOk, table.concat(parts, "\n     "))
+    Criterion(23, "own-seen replay (haste 25 and 0): run 153349Z reads both fights clear (strangers' dummies add nothing to seen); Void Volley 1242173 never learns the proc 1260076",
+        ok and clearOk and noVolley, table.concat(parts, "\n     "))
 end
 
 -- Last replay done: no replay of the run reset the meter.

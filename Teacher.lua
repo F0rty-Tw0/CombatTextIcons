@@ -227,11 +227,15 @@ end
 -- fixed order. A group { castID, school, sum, hits } also keeps `top`, the same for only each
 -- cast's largest hit: the meter row holds one direct hit per cast, while a cast's window may
 -- also take untracked DoT ticks on its target. A group is learned when one way's sum agrees with
--- exactly one still-unpaired row and that row agrees with no other group.
+-- exactly one still-unpaired row and that row agrees with no other group. A group also counts the
+-- casts it covers (`covered`, distinct cast times) of all its cast's casts this fight (`casts`, over
+-- every '?' hit of that cast, any school), for Pairs.
 local function Groups(unknown)
-    local byKey, list = {}, {}
+    local byKey, list, castTimes = {}, {}, {}
     for _, hit in ipairs(unknown) do
         if hit.castID then
+            castTimes[hit.castID] = castTimes[hit.castID] or {}
+            castTimes[hit.castID][hit.castAt] = true
             local key = hit.castID .. ":" .. hit.school
             local group = byKey[key]
             if not group then
@@ -246,6 +250,9 @@ local function Groups(unknown)
         end
     end
     for _, group in ipairs(list) do
+        group.covered, group.casts = 0, 0
+        for _ in pairs(group.topOf) do group.covered = group.covered + 1 end
+        for _ in pairs(castTimes[group.castID]) do group.casts = group.casts + 1 end
         group.top = { castID = group.castID, sum = 0, hits = {} }
         for _, hit in ipairs(group.hits) do
             if group.topOf[hit.castAt] == hit then
@@ -268,10 +275,13 @@ end
 -- spec 3.1 Rev 4), the cast has no row of its own this session, and the row is not the own row
 -- of another cast this fight (`owners.rows`, `owners.casts`; Rev 5). A cast's own row still pairs.
 -- A `top` pairs only with the cast's own row: one largest hit often equals some other spell's
--- one-hit row by chance.
+-- one-hit row by chance. A row of another ID also needs the group in at least half the cast's casts:
+-- a castless proc's lone hit in one of many cast frames is no hit of the cast (run 153349Z: one holy
+-- 2364 after 1 of 6 Void Volley casts equalled the proc's row 1260076).
 local function Pairs(group, way, row, owners)
     if row.spellID ~= group.castID
-        and (way ~= group or Procs.Has(row.spellID) or owners.rows[group.castID] or owners.casts[row.spellID]) then
+        and (way ~= group or Procs.Has(row.spellID) or owners.rows[group.castID] or owners.casts[row.spellID]
+            or 2 * group.covered < group.casts) then
         return false
     end
 

@@ -1110,6 +1110,40 @@ return function(T)
                 rig.ns.Fingerprints.Alias(Z) == nil and rig.ns.Fingerprints.Get(MIND_BLAST) == nil)
         end
 
+        do -- coverage (run 153349Z): a cross-ID pair needs the group in at least half the cast's casts
+            local function Cast(id, at) return { spellID = id, base = id, at = at } end
+            local Z, W = 1234567, 1234568
+            -- Z cast at 60 .. last, a school-32 hit 100 after each; a holy 2364 lands only after the cast at 61
+            local function Volley(last)
+                local hits = {}
+                for t = 60, last do hits[#hits + 1] = { 32, 100, "", Cast(Z, t), t + 0.25 } end
+                hits[#hits + 1] = { 2, 2364, "", Cast(Z, 61), 61.25 }
+                return hits
+            end
+
+            local rig = Rig({})
+            ReadWith(rig, Volley(63), { { Y, 2364 } })
+            local F = rig.ns.Fingerprints
+            Check("cast pass coverage: one holy hit after 1 of 4 casts makes no alias and no fingerprint; the row stays unpaired",
+                F.Alias(Y) == nil and F.Get(Z) == nil and Find(rig.ns.Teacher.last, Y).verdict == "unpaired")
+
+            rig = Rig({})
+            ReadWith(rig, Volley(61), { { Y, 2364 } })
+            Check("cast pass coverage: 1 of 2 casts is half and still pairs under another ID",
+                rig.ns.Fingerprints.Alias(Y) == Z)
+
+            rig = Rig({})
+            ReadWith(rig, Volley(62), { { Y, 2364 } })
+            Check("cast pass coverage: 1 of 3 casts is below half: no alias", rig.ns.Fingerprints.Alias(Y) == nil)
+
+            rig = Rig({})
+            local hits = Volley(63)
+            hits[#hits + 1] = { 2, 2364, "", Cast(W, 70), 70.25 }
+            ReadWith(rig, hits, { { Y, 2364 } })
+            Check("cast pass coverage: a blocked group is no agreement, so the one cast that covers its casts pairs alone",
+                rig.ns.Fingerprints.Alias(Y) == W)
+        end
+
         do -- base spell (in-game forget5): the meter files Void Blast under Mind Blast's row 8092
             local VOID_BLAST = 450983
             local rig = Rig({})
