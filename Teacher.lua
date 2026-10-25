@@ -221,23 +221,37 @@ local function Groups(unknown)
     return list
 end
 
--- Whether the cast pass may pair a group with a row: the sum agrees, and the row is not one
--- Procs tracks (a castless proc's own meter ID, so never aliased to a cast; a cast's own row
--- still pairs; spec 3.1 Rev 4).
-local function Pairs(group, row)
-    if row.spellID ~= group.castID and Procs.Has(row.spellID) then return false end
+-- Whether the cast pass may pair a group with a row: the sum agrees, and a row of another ID
+-- belongs to no one else. It is not a row Procs tracks (a castless proc's own; spec 3.1 Rev 4),
+-- the cast has no row of its own this session, and the row is not the own row of another cast
+-- this fight (`owners.rows`, `owners.casts`; Rev 5). A cast's own row still pairs.
+local function Pairs(group, row, owners)
+    if row.spellID ~= group.castID
+        and (Procs.Has(row.spellID) or owners.rows[group.castID] or owners.casts[row.spellID]) then
+        return false
+    end
 
     return Judge(group.sum, row.total, row.overkill) == "agree"
 end
 
--- Learning from '?' hits (spec 6.5): fills `last.learned` and rewrites the learned rows.
--- Returns the learned groups and the set of `open` positions rewritten.
-local function Learn(run, results, open, last)
+-- The IDs that own a meter row this session and the cast IDs of this fight's groups.
+local function Owners(groups, rows)
+    local owners = { rows = {}, casts = {} }
+    for _, row in ipairs(rows) do owners.rows[row.spellID] = true end
+    for _, group in ipairs(groups) do owners.casts[group.castID] = true end
+
+    return owners
+end
+
+-- Learning from '?' hits (spec 6.5): rewrites the learned rows of `results` against the
+-- session's meter `rows`. Returns the learned groups and the set of `open` positions rewritten.
+local function Learn(run, results, open, rows)
     local groups = Groups(run.unknown)
+    local owners = Owners(groups, rows)
     local groupsOf, rowsOf = {}, {}
     for position, item in ipairs(open) do
         for groupIndex, group in ipairs(groups) do
-            if Pairs(group, item.row) then
+            if Pairs(group, item.row, owners) then
                 groupsOf[position] = (groupsOf[position] or 0) + 1
                 rowsOf[groupIndex] = (rowsOf[groupIndex] or 0) + 1
             end
@@ -248,13 +262,12 @@ local function Learn(run, results, open, last)
     for position, item in ipairs(open) do
         for groupIndex, group in ipairs(groups) do
             local row = item.row
-            if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Pairs(group, row) then
+            if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Pairs(group, row, owners) then
                 for _, hit in ipairs(group.hits) do
                     Fingerprints.Add(group.castID, { school = hit.school, delay = hit.at - hit.castAt,
                         castAt = hit.castAt, hops = 1 })
                 end
                 if row.spellID ~= group.castID then Fingerprints.SetAlias(row.spellID, group.castID) end
-                last.learned[group.castID] = #group.hits
                 learned[#learned + 1] = group
                 rewritten[position] = true
                 results[item.index] = { spellID = group.castID, meterID = row.spellID, tally = group.sum,
@@ -365,7 +378,8 @@ local function Read(run)
         ns.Debug("TEACH clean seen=%d meter=%d -> %s", math.floor(run.seen), math.floor(total), area)
     end
     if area == "clear" then
-        local learnedGroups, rewritten = Learn(run, results, open, Teacher.last)
+        local learnedGroups, rewritten = Learn(run, results, open, rows)
+        for _, group in ipairs(learnedGroups) do Teacher.last.learned[group.castID] = #group.hits end
         local hits, openRows = Leftover(run.unknown, learnedGroups), StillOpen(open, rewritten)
         Procs.Read(hits, openRows, results, rows, run.at)
     end

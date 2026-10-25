@@ -965,6 +965,23 @@ return function(T)
             Check("procs alias pass: with no proc the same saved alias pairs the row (control)",
                 drawn and drawn.verdict == "agree" and drawn.meterID == Y)
 
+        do -- Rev 5 (in-game 2026-10-25): a row belongs to its own spell, so the cast pass never aliases it away
+            local function Cast(id, at) return { spellID = id, at = at } end
+
+            -- Holy Retributor's Order: one holy proc hit 2364 inside a Mind Blast cast window, Mind Blast's own row present
+            local rig = Rig({})
+            ReadWith(rig, { { 2, 2364, "", Cast(MIND_BLAST, 60), 60.25 } }, { { MIND_BLAST, 192182 }, { Y, 2364 } })
+            Check("cast pass: a cast whose own ID is a row this session gets no alias (proc 2364 is not Mind Blast's)",
+                rig.ns.Fingerprints.Alias(Y) == nil and rig.ns.Fingerprints.Get(MIND_BLAST) == nil)
+
+            -- Void Torrent: Void Blast's hits sum to the row of Void Torrent, which was cast in the same fight
+            local Z = 1234567
+            rig = Rig({})
+            ReadWith(rig, { { 32, 5551, "", Cast(MIND_BLAST, 60), 60.25 }, { 32, 999, "", Cast(Z, 61), 61.25 } }, { { Z, 5551 } })
+            Check("cast pass: the own row of another cast this fight is never aliased (Void Torrent's row is not Void Blast's)",
+                rig.ns.Fingerprints.Alias(Z) == nil and rig.ns.Fingerprints.Get(MIND_BLAST) == nil)
+        end
+
             rig = Rig({})
             SeedProc(rig, Y, false) -- candidate, streak 2
             _, last = Meter(rig, Y)
