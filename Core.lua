@@ -289,9 +289,13 @@ local function Wound(plate, unit, flagText, amount, school, now)
     end
     local spellID = Tracker.Identify(plate, school, amount, flagText, now)
     if fightsYou or (spellID and spellID ~= Tracker.UNKNOWN) then Teacher.Seen(amount) end
+    -- A learned proc (exact meter sums) outranks a learned DoT's answer (votes) or an ambiguous one.
+    local voted = spellID == Tracker.UNKNOWN or (spellID and Learn.Get(spellID))
+    if voted and fightsYou and not InGroup() and ProcWound(plate, school, amount, flagText) then return end
     if spellID and spellID ~= Tracker.UNKNOWN then
         if ns.Debug then ns.Debug("  -> tracker %s", ShowValue(spellID)) end
         Teacher.Drawn(spellID, amount)
+        if Learn.Get(spellID) then Teacher.Ticked(school, amount, flagText) end
         Ledger.Add("damage", spellID, amount)
         return Display.Plate(plate, SpellTexture(spellID), text, flagText, school)
     end

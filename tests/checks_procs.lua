@@ -187,6 +187,14 @@ return function(T)
         procs = Once(stepped, { { id = 1287663, total = 2264 } })
         Check("procs read step: one school's groups spanning less than a crit (343-412) also count as one group",
             Is(procs[1287663], 106, 343, 412, 1) and Count(procs) == 1)
+        -- Run 20261025T194314Z: a vote-learned DoT (Wither) drew half of proc 1287663's ticks, so no '?' group summed to the row.
+        local ns, store = Rig()
+        local world = World({ { id = 1287663, total = 2265 } })
+        local unknownHalf, drawnHalf = { N(106, 343), N(106, 343), N(106, 412) }, { N(106, 343), N(106, 412), N(106, 412) }
+        ns.Procs.Read(unknownHalf, world.open, world.results, world.rows, AT, drawnHalf)
+        local withTicks = Is(store[1287663], 106, 343, 412, 1)
+        Check("procs read ticks: a learned DoT's drawn ticks join their school's '?' hits in one more group (343-412, 2265);"
+            .. " without them nothing matches", withTicks and next((Once(unknownHalf, { { id = 1287663, total = 2265 } }))) == nil)
         procs = Once({ N(106, 1000), N(106, 1000), N(106, 1800) }, { { id = 1, total = 3800 } })
         Check("procs read step: groups a crit apart or more (1000, 1800 = 1000 x 1.8) stay apart (no 3800 group)",
             next(procs) == nil)

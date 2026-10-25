@@ -1430,8 +1430,24 @@ return function(T)
         end
         rig.ns.Tracker.Identify = function() return rig.ns.Tracker.UNKNOWN end
         local trackerUnknown = Wound(rig, 700, "CRITICAL")
-        Check("procs route: the Tracker UNKNOWN path draws ? (never the proc) and hands flagText to Teacher.Unknown",
-            trackerUnknown == UNKNOWN and flagSeen == "CRITICAL" and rig.ns.Teacher.fight.tally[X] == nil)
+        local unnamed = Wound(rig, 5000, "CRITICAL")
+        Check("procs route: a learned proc beats the Tracker UNKNOWN answer (700 crit); a hit it does not name draws ? and hands flagText to Teacher.Unknown",
+            trackerUnknown == ICON and rig.ns.Teacher.fight.tally[X] == 700 and unnamed == UNKNOWN and flagSeen == "CRITICAL")
+
+        -- Run 20261025T194314Z: Wither 445468, cast in the opener's frame, learned castless proc X's ticks by votes;
+        -- the tracker then drew them before the proc could, so the proc's row went unpaired.
+        rig = ProcRig()
+        local VOTED, OTHER = 445468, 446285
+        rig.ns.Learn.Get = function(id) if id == VOTED then return { school = 106, period = 1, kind = "dot", misses = 0 } end end
+        rig.ns.Tracker.Identify = function() return VOTED end
+        local stolen, ticked = Wound(rig, 350), Wound(rig, 5000)
+        rig.ns.Tracker.Identify = function() return OTHER end
+        local kept = Wound(rig, 350)
+        local ticks = rig.ns.Teacher.fight.ticks
+        Check("procs route: a learned proc beats a vote-learned DoT's answer (350); the DoT draws what the proc does not name (5000)"
+            .. " and keeps it as a tick for Procs; a tracker answer Learn does not hold still draws",
+            stolen == ICON and ticked == "tex:" .. VOTED and #ticks == 1 and ticks[1].amount == 5000 and ticks[1].school == 106
+            and kept == "tex:" .. OTHER)
 
         rig = ProcRig() -- X learned; add a candidate
         CombatTextIconsCharDB.procs[900001] = { school = 106, lo = 100, hi = 110, streak = 1, learned = false, unpaired = 0, seen = 0 }

@@ -170,7 +170,7 @@ end
 
 -- Groups per school ascending. A crit adds to the one group it fits; a hit whose crit flag is not plain
 -- true or false is an orphan, like a crit that fits none or two. A hit of 0 or less joins no group.
-local function Groups(hits)
+local function Groups(hits, ticks)
     local bySchool, schools = {}, {}
     for _, hit in ipairs(hits) do
         local school, amount, crit = hit.school, hit.amount, hit.crit
@@ -200,6 +200,30 @@ local function Groups(hits)
             for _, group in ipairs(walked) do all.sum = all.sum + group.sum end
             groups[#groups + 1] = all
         end
+        bySchool[school].walked = walked
+    end
+    -- A learned DoT's drawn ticks were named by votes, not the meter: one more group per school sums them with its
+    -- '?' groups (Wither 445468 learned castless proc 1287663's ticks from the opener's frame, run 20261025T194314Z).
+    local drawn, drawnSchools = {}, {}
+    for _, tick in ipairs(ticks or {}) do
+        local school, amount = tick.school, tick.amount
+        if IsNumber(school) and IsNumber(amount) and amount > 0 then
+            local extra = drawn[school]
+            if not extra then
+                extra = { school = school, sum = 0 }
+                drawn[school], drawnSchools[#drawnSchools + 1] = extra, school
+                for _, group in ipairs(bySchool[school] and bySchool[school].walked or {}) do
+                    extra.sum = extra.sum + group.sum
+                    extra.lo, extra.hi = math.min(extra.lo or group.lo, group.lo), math.max(extra.hi or group.hi, group.hi)
+                end
+            end
+            extra.sum = extra.sum + amount
+            if tick.crit == false then extra.lo, extra.hi = math.min(extra.lo or amount, amount), math.max(extra.hi or amount, amount) end
+        end
+    end
+    table.sort(drawnSchools)
+    for _, school in ipairs(drawnSchools) do
+        if drawn[school].lo then groups[#groups + 1] = drawn[school] end
     end
 
     return groups
@@ -298,9 +322,9 @@ local function Evict()
     end
 end
 
-function Procs.Read(hits, open, results, rows, at)
+function Procs.Read(hits, open, results, rows, at, ticks)
     local targets = Targets(open, results, rows)
-    local groups = Groups(hits)
+    local groups = Groups(hits, ticks)
     local matches = Matches(groups, targets)
     for index, target in ipairs(targets) do
         local group, isNew = matches[index], procs[target.id] == nil

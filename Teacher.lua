@@ -462,6 +462,7 @@ end
 local function Carry(run, into)
     for spellID, amount in pairs(run.tally) do into.tally[spellID] = (into.tally[spellID] or 0) + amount end
     for index, hit in ipairs(run.unknown) do table.insert(into.unknown, index, hit) end
+    for index, tick in ipairs(run.ticks or {}) do table.insert(into.ticks, index, tick) end
     into.seen = into.seen + run.seen
     into.group = into.group or run.group
     if ns.Debug then ns.Debug("TEACH carry %d hits seen=%d", #run.unknown, math.floor(run.seen)) end
@@ -534,7 +535,7 @@ local function Read(run)
         local learnedGroups, rewritten = Learn(run, results, open, rows)
         for _, group in ipairs(learnedGroups) do Teacher.last.learned[group.castID] = #group.hits end
         local hits, openRows = Leftover(run.unknown, learnedGroups), StillOpen(open, rewritten)
-        Procs.Read(hits, openRows, results, rows, run.at)
+        Procs.Read(hits, openRows, results, rows, run.at, run.ticks)
     end
     Ledger.SetVerdicts(Teacher.last.rows, run.at)
     Done()
@@ -543,7 +544,7 @@ end
 
 -- Combat began: open a fight (an unfinished one is replaced).
 function Teacher.Start(now, group)
-    Teacher.fight = { at = now, tally = {}, unknown = {}, seen = 0, group = group }
+    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, seen = 0, group = group }
 end
 
 -- A wound of this size that may be yours was seen, drawn or not (Core's Wound decides which count).
@@ -563,6 +564,13 @@ function Teacher.Drawn(spellID, amount)
     local fight = Teacher.fight
     if not (fight and IsNumber(spellID) and IsNumber(amount)) then return end
     fight.tally[spellID] = (fight.tally[spellID] or 0) + amount
+end
+
+-- A hit a learned DoT drew: its votes named it, not the meter, so Procs.Read also sums it with its school's '?' hits.
+function Teacher.Ticked(school, amount, flagText)
+    local fight = Teacher.fight
+    if not (fight and IsNumber(school) and IsNumber(amount)) then return end
+    fight.ticks[#fight.ticks + 1] = { school = school, amount = amount, crit = Procs.Crit(flagText) }
 end
 
 -- A solo unexplained hit on a mob fighting you (drawn '?', or hidden while the meter is off or
