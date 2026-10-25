@@ -215,22 +215,25 @@ return function(T)
         Check("fingerprints: a later sample of another school is ignored",
             #F.Get(592).samples == before and F.Get(592).delayHi == 0.2)
 
-        -- delay ring of 8 and samples of 8: new delays widen at once, old ones age out
+        -- delay ring of 8 and samples of 16: new delays widen at once, old ones age out
         for index = 1, 8 do F.Add(593, Sample(2, 0.2, index)) end
         F.Add(593, Sample(2, 0.5, 9))
         Check("fingerprints: a slower delay widens the range at once",
             F.Get(593).delayHi == 0.5 and F.Get(593).delayLo == 0.2 and #F.Get(593).delays == 8)
         for index = 10, 17 do F.Add(593, Sample(2, 0.2, index)) end
-        Check("fingerprints: after 8 more samples the slow delay has aged out",
-            F.Get(593).delayHi == 0.2 and #F.Get(593).delays == 8 and #F.Get(593).samples == 8)
+        Check("fingerprints: after 8 more samples the slow delay has aged out of the delays; 16 samples kept",
+            F.Get(593).delayHi == 0.2 and #F.Get(593).delays == 8 and #F.Get(593).samples == 16
+            and F.Get(593).samples[1].castAt == 2)
 
-        -- pattern: chain while a sample with hops >= 2 is among the last 8
+        -- pattern: chain while a sample with hops >= 2 is among the last 16
         for index = 1, 3 do F.Add(594, Sample(2, 0.2, index)) end
         Check("fingerprints: single hops -> pattern single", F.Get(594).pattern == "single")
         F.Add(594, Sample(2, 0.2, 4, 3))
         Check("fingerprints: a sample with 3 hops -> pattern chain", F.Get(594).pattern == "chain")
-        for index = 5, 12 do F.Add(594, Sample(2, 0.2, index)) end
-        Check("fingerprints: the chain sample aged out of the 8 -> pattern single again", F.Get(594).pattern == "single")
+        for index = 5, 19 do F.Add(594, Sample(2, 0.2, index)) end
+        Check("fingerprints: the chain sample is still among the last 16 -> pattern chain", F.Get(594).pattern == "chain")
+        F.Add(594, Sample(2, 0.2, 20))
+        Check("fingerprints: the chain sample aged out of the 16 -> pattern single again", F.Get(594).pattern == "single")
 
         -- teacher verdicts: strikes in a row
         F.Agree(591)
@@ -361,6 +364,16 @@ do -- Phase 3: records and Claim
         end)
         local samples = CombatTextIconsCharDB.casts[8092].samples
         return #samples == 3 and samples[1].size == 20000 and samples[2].size == nil and samples[3].size == nil
+    end)
+    Scenario("samples: a saved entry with 20 samples loads as its last 16", function()
+        local saved = {}
+        for castAt = 1, 20 do saved[castAt] = { school = 32, delay = 0.2, castAt = castAt, hops = 1 } end
+        T.Boot(function()
+            CombatTextIconsCharDB = { casts = { [8092] = { learned = true, pattern = "single", school = 32, delays = { 0.2 },
+                samples = saved } } }
+        end)
+        local samples = CombatTextIconsCharDB.casts[8092].samples
+        return #samples == 16 and samples[1].castAt == 5 and samples[16].castAt == 20
     end)
 
     -- Run 125009Z: Mind Blast learned at 18-25K, 0.17-0.23 s after the cast (padded band 9000-50000).

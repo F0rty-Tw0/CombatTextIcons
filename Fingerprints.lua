@@ -15,7 +15,7 @@ local Fingerprints = {}
 ns.Fingerprints = Fingerprints
 
 local CAP = 64        -- entries kept; the least useful one goes first
-local SAMPLES = 8     -- samples kept per entry, oldest dropped
+local SAMPLES = 16    -- samples kept per entry, oldest dropped (one steady fight can add 11: Void Blast + Mind Blast)
 local DELAYS = 8      -- delays kept per learned entry, oldest dropped
 local LEARN_CASTS = 3 -- samples from this many different casts, one school, teach a spell
 local STRIKES = 2     -- teacher overshoots in a row that delete an entry
