@@ -151,6 +151,14 @@ return function(T)
         local override = Casts.SoleCast(P1, 80.25) or {}
         Check("soleCast: an override cast keeps its own spellID and names its base (Void Blast 450983 -> base 8092)",
             override.spellID == 450983 and override.base == 8092 and sole.base == 591)
+
+        -- In game (2026-10-25) two Mind Blasts or Void Blasts within 1.5 s left their hit castless, so 8092 never paired.
+        rig.Cast(90, "nameplate1", 8092); rig.Cast(90.4, "nameplate1", 8092)
+        local twice = Casts.SoleCast(P1, 90.6) or {}
+        rig.Cast(100, "nameplate1", 8092); rig.Cast(100.4, "nameplate1", 450983)
+        local mixed = Casts.SoleCast(P1, 100.6) or {}
+        Check("soleCast: casts of one base in the window count as one, the newest answers (8092 twice; 8092 then 450983)",
+            twice.at == 90.4 and mixed.spellID == 450983 and mixed.base == 8092)
     end
 
     do -- base spell: Casts.Base asks the client which spell a cast overrides; any doubt answers the cast itself

@@ -125,15 +125,15 @@ function Casts.Accept(record, plate, now)
     record.hops, record.plates[plate], record.last = record.hops + 1, true, now
 end
 
--- The one harmful cast that can explain a hit on `plate` at `at`: exactly one log
--- entry in [at - UNKNOWN_WAIT, at], not a tracker spell, cast at `plate`. Else nil.
--- The teacher learns under the entry's `base`.
+-- The one harmful cast that can explain a hit on `plate` at `at`: the log entries in
+-- [at - UNKNOWN_WAIT, at] share one base spell (the newest of them answers), not a tracker
+-- spell, cast at `plate`. Else nil. The teacher learns under the entry's `base`.
 function Casts.SoleCast(plate, at)
     if plate == nil then return nil end
     local found
     for _, entry in ipairs(log) do
         if at - UNKNOWN_WAIT <= entry.at and entry.at <= at then
-            if found then return nil end
+            if found and found.base ~= entry.base then return nil end
             found = entry
         end
     end
