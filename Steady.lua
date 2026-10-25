@@ -39,6 +39,29 @@ local function BaseFits(castID, spell, hit)
     return hit.school == Fingerprints.Get(castID).school and Casts.InBand(castID, spell, hit.size)
 end
 
+-- Whether an unlearned base may take `hit` as a hit of `spell`: with two or more sized samples kept
+-- (an exact sum left them), the hit needs their school and their padded size band, so co-hits in the
+-- cast frame (Haunt 48181 beside a 1.6K tick, run 20261025T180045Z) are no pairs. Fewer: any hit.
+local function NewFits(castID, spell, hit)
+    local entry = Fingerprints.Get(castID)
+    if not entry then return true end
+    local low, high, school, sized
+    for _, ofSpell in ipairs({ true, false }) do
+        low, high, school, sized = nil, nil, nil, 0
+        for _, sample in ipairs(entry.samples) do
+            if sample.size and (sample.spell == spell or not ofSpell) then
+                if school and sample.school ~= school then return true end
+                school, sized = sample.school, sized + 1
+                low, high = math.min(low or sample.size, sample.size), math.max(high or sample.size, sample.size)
+            end
+        end
+        if sized > 0 then break end
+    end
+    if sized < 2 then return true end
+
+    return hit.school == school and Casts.InSizes(low, high, hit.size)
+end
+
 -- The considered hits' pairs by cast spell: { castAt, delay, hit }, plus each cast spell's casts
 -- (distinct castAt), base and mode.
 local function PairsBySpell(hits, learnedNow)
@@ -52,7 +75,7 @@ local function PairsBySpell(hits, learnedNow)
                 castsOf[spell] = castsOf[spell] or {}
                 baseOf[spell], modeOf[spell] = castID, mode
                 castsOf[spell][candidate.castAt] = true
-                if mode == "new" or BaseFits(castID, spell, hit) then
+                if (mode == "new" and NewFits(castID, spell, hit)) or (mode == "base" and BaseFits(castID, spell, hit)) then
                     local list = pairsOf[spell]
                     list[#list + 1] = { castAt = candidate.castAt, delay = hit.at - candidate.castAt, hit = hit }
                 end

@@ -1714,6 +1714,24 @@ return function(T)
             last.area == "clear" and Learned(last) == 3 and #voidDelays == 3 and voidDelays[1] == 0 and voidDelays[3] == 0
             and based and Outcome(VOID_BLAST) == "learned" and drawn == "tex:" .. VOID_BLAST)
 
+        -- Haunt 48181 in run 20261025T180045Z's first log: an exact sum left 2 samples (22336, 27095); the next
+        -- fight's casts each had a 1.6K tick in the hit's frame. Two kept sized samples band the pairs.
+        local function TwoSamples(r)
+            for castAt, size in ipairs({ 19000, 22000 }) do
+                r.ns.Fingerprints.Add(MIND_BLAST, { school = 32, delay = 0.30, castAt = castAt, hops = 1, spell = MIND_BLAST,
+                    size = size })
+            end
+        end
+        rig, last = SteadyFight(Rotation(VARIED, 1655), { Row(MIND_BLAST, 98620) }, TwoSamples)
+        Check("steady (n): an unlearned base with 2 sized samples pairs only hits in their school and padded band -> 8092 learns 4",
+            last.area == "clear" and Learned(last) == 4 and rig.ns.Fingerprints.IsLearned(MIND_BLAST)
+            and Outcome(MIND_BLAST) == "learned")
+        rig, last = SteadyFight(Rotation(VARIED, 5000), { Row(MIND_BLAST, 112000) }, function(r)
+            r.ns.Fingerprints.Add(MIND_BLAST, { school = 32, delay = 0.30, castAt = 1, hops = 1, spell = MIND_BLAST, size = 19000 })
+        end)
+        Check("steady (n2): with 1 sized sample a co-hit in every frame still blocks every cast",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "none")
+
         rig, last = SteadyFight(blasts, { Row(MIND_BLAST, 79642) }, FarMindBlast,
             function(r) r.ns.Teacher.Drawn(MIND_BLAST, 79642) end)
         Check("steady (i): a learned base whose drawn tally already fills its row -> meter, nothing learned",
