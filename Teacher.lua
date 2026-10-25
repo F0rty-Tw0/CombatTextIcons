@@ -229,7 +229,9 @@ end
 -- also take untracked DoT ticks on its target. A group is learned when one way's sum agrees with
 -- exactly one still-unpaired row and that row agrees with no other group. A group also counts the
 -- casts it covers (`covered`, distinct cast times) of all its cast's casts this fight (`casts`, over
--- every '?' hit of that cast, any school), for Pairs.
+-- every '?' hit of that cast, any school), for Pairs. A group whose normal-scale sizes span more than a
+-- crit is `mixed`: other hits share its cast windows (Surging Totem's ~11K ticks among ~55K Lightning
+-- Bolts summed within 1 % of the bolt's row, run 20261025T192458Z), so only its `top` may pair.
 local function Groups(unknown)
     local byKey, list, castTimes = {}, {}, {}
     for _, hit in ipairs(unknown) do
@@ -253,6 +255,11 @@ local function Groups(unknown)
         group.covered, group.casts = 0, 0
         for _ in pairs(group.topOf) do group.covered = group.covered + 1 end
         for _ in pairs(castTimes[group.castID]) do group.casts = group.casts + 1 end
+        local low, high
+        for _, hit in ipairs(group.hits) do
+            if hit.size then low, high = math.min(low or hit.size, hit.size), math.max(high or hit.size, hit.size) end
+        end
+        group.mixed = low ~= nil and high > low * Streams.CRIT_LO
         group.top = { castID = group.castID, sum = 0, hits = {} }
         for _, hit in ipairs(group.hits) do
             if group.topOf[hit.castAt] == hit then
@@ -279,6 +286,7 @@ end
 -- a castless proc's lone hit in one of many cast frames is no hit of the cast (run 153349Z: one holy
 -- 2364 after 1 of 6 Void Volley casts equalled the proc's row 1260076).
 local function Pairs(group, way, row, owners)
+    if way == group and group.mixed then return false end
     if row.spellID ~= group.castID
         and (way ~= group or Procs.Has(row.spellID) or owners.rows[group.castID] or owners.casts[row.spellID]
             or 2 * group.covered < group.casts) then

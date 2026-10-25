@@ -299,6 +299,31 @@ return function(T)
             okSecret and #Teacher.fight.unknown == 4)
     end
 
+    do -- run 20261025T192458Z F2: Lightning Bolt's whole group held 15 Surging Totem ticks (~11K among ~55K bolts)
+       -- and summed within 1 % of its row, so its fingerprint learned the totem's size and drew its ticks
+        local BOLT = 188196
+        local rig = Rig({})
+        local Teacher, SoleCast, P1 = rig.ns.Teacher, rig.ns.Casts.SoleCast, rig.Plate("nameplate1")
+        rig.S.sessions = { Session(1, { Row(BOLT, 198000) }) }
+        Teacher.Start(5)
+        for castAt = 10, 30, 10 do
+            rig.Cast(castAt, "nameplate1", BOLT)
+            for _, hit in ipairs({ { 0.45, 55000 }, { 0.9, 11000 } }) do
+                local at = castAt + hit[1]
+                Teacher.Seen(hit[2])
+                Teacher.Unknown(P1, 8, hit[2], at, SoleCast(P1, at), "")
+            end
+        end
+        Teacher.Finish(40)
+        rig.Fire()
+        local small = false
+        for _, sample in ipairs((rig.ns.Fingerprints.Get(BOLT) or { samples = {} }).samples) do
+            small = small or (sample.size or 0) < 20000
+        end
+        Check("teacher mixed: a whole sum mixing sizes more than a crit apart (11K, 55K) never pairs, so no 11K sample",
+            Teacher.last.area == "clear" and not small and Find(Teacher.last, BOLT).verdict ~= "agree")
+    end
+
     do -- alias pairing and the new-alias rule (teacher read driven directly)
         local rig = Rig({ [WAND] = 4 })
         local F = rig.ns.Fingerprints
