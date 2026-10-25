@@ -18,13 +18,19 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 -- The spell `castID` overrides, else `castID` itself: C_SpellBook.FindBaseSpellByID (retail
 -- 12.0.0+, Forever 1.60.1), else the deprecated global. A missing API, an error or a nil,
 -- secret or non-number answer leaves the cast its own base.
+-- A cast seen overriding keeps that base for the session: when its override ends in the
+-- cast's own frame the API answers the cast itself (run 20261025T162725Z, a window's last
+-- Void Blast at 5931.198 read 450983 and its hit drew '?').
+local remembered = {}   -- castID -> the base it was seen overriding; never saved
+
 function Casts.Base(castID)
     local find = (C_SpellBook and C_SpellBook.FindBaseSpellByID) or FindBaseSpellByID
     if not find then return castID end
     local ok, base = pcall(find, castID)
-    if ok and IsNumber(base) then return base end
+    if not (ok and IsNumber(base)) then return castID end
+    if base ~= castID then remembered[castID] = base end
 
-    return castID
+    return remembered[castID] or base
 end
 
 -- A learned chain fingerprint (Chain Lightning): its later hits land on new plates.

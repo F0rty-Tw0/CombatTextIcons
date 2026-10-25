@@ -187,6 +187,34 @@ return function(T)
             and BaseWith(function() return "8092" end) == VOID_BLAST)
     end
 
+    do -- base memory: run 20261025T162725Z, a window's last Void Blast (5931.198) read base=450983 and its hit drew '?'
+        local VOID_BLAST, MIND_BLAST = 450983, 8092
+        local ns = T.Boot()
+        local function BaseWith(find, id)
+            local spellBook = C_SpellBook
+            C_SpellBook = { FindBaseSpellByID = find }
+            local ok, base = pcall(ns.Casts.Base, id or VOID_BLAST)
+            C_SpellBook = spellBook
+            return ok and base
+        end
+        local function Map(id) return id == VOID_BLAST and MIND_BLAST or id end
+        local function Self(id) return id end
+        Check("base memory: an override seen once keeps its base when the API later answers the cast itself (450983 -> 8092)",
+            BaseWith(Map) == MIND_BLAST and BaseWith(Self) == MIND_BLAST)
+        Check("base memory: a cast never seen overridden answers itself (591)", BaseWith(Self, 591) == 591)
+        Check("base memory: an erroring API still answers the cast itself",
+            BaseWith(function() error("restricted") end) == VOID_BLAST)
+
+        local rig = CastRig(nil, true)
+        local S, P1 = rig.S, rig.Plate("nameplate1")
+        rig.Cast(10, "nameplate1", VOID_BLAST)
+        S.baseSpells[VOID_BLAST] = nil
+        rig.Cast(20, "nameplate1", VOID_BLAST)
+        S.baseSpells[VOID_BLAST] = MIND_BLAST
+        Check("base memory: a Void Blast cast after its override ended files under 8092",
+            (rig.ns.Casts.SoleCast(P1, 20.25) or {}).base == MIND_BLAST)
+    end
+
     do -- Task 2.2: Fingerprints
         local function Sample(school, delay, castAt, hops) return { school = school, delay = delay, castAt = castAt, hops = hops or 1 } end
         local function Count(tbl) local n = 0 for _ in pairs(tbl) do n = n + 1 end return n end
