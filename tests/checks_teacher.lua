@@ -389,6 +389,8 @@ return function(T)
         Check("teacher learn: three Mind Blast '?' hits (120 + 135 + 98 = 353) match the 353 row -> learned, school 32, delay 0.25",
             F.IsLearned(MIND_BLAST) and F.Get(MIND_BLAST).school == 32 and F.Get(MIND_BLAST).delayLo == 0.25
             and F.Get(MIND_BLAST).delayHi == 0.25 and last.learned[MIND_BLAST] == 3 and F.Alias(MIND_BLAST) == nil)
+        Check("teacher learn: each sample keeps the spell cast (Mind Blast), for its own window",
+            F.Get(MIND_BLAST).samples[1].spell == MIND_BLAST and F.Get(MIND_BLAST).samples[3].spell == MIND_BLAST)
         Check("teacher learn: three wand '?' hits (20 + 31 + 36 = 87) match Auto Shot 87 -> Shoot 5019 learned, delay 0.5, alias 75 -> 5019",
             F.IsLearned(WAND) and F.Get(WAND).school == 4 and F.Get(WAND).delayLo == 0.5 and F.Get(WAND).delayHi == 0.5
             and F.Alias(AUTO_SHOT) == WAND and last.learned[WAND] == 3)

@@ -305,7 +305,7 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
             if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Pairs(group, way, row, owners) then
                 for _, hit in ipairs(way.hits) do
                     Fingerprints.Add(group.castID, { school = hit.school, delay = hit.at - hit.castAt,
-                        castAt = hit.castAt, hops = 1 })
+                        castAt = hit.castAt, hops = 1, spell = hit.castSpell })
                 end
                 if row.spellID ~= group.castID then Fingerprints.SetAlias(row.spellID, group.castID) end
                 learned[#learned + 1] = way
@@ -553,7 +553,7 @@ function Teacher.Unknown(plate, school, amount, now, cast, flagText)
 
     local entry = { school = school, amount = amount, at = now, plate = plate, crit = Procs.Crit(flagText) }
     if cast and not Fingerprints.IsLearned(cast.base) then
-        entry.castID, entry.castAt = cast.base, cast.at
+        entry.castID, entry.castAt, entry.castSpell = cast.base, cast.at, cast.spellID
     end
     fight.unknown[#fight.unknown + 1] = entry
 end
