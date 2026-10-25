@@ -180,6 +180,16 @@ return function(T)
         procs = Once({ N(106, 1000), N(106, 1100), U(106, 1050) }, { { id = 1, total = 2100 } })
         Check("procs read flag: a hit with an unknown crit flag is an orphan, never a normal member (sum 2100, not 3150)",
             Is(procs[1], 106, 1000, 1100, 1))
+
+        -- Runs 20261025T180045Z/181738Z: proc 1287663 hits 343 early in a fight and 412 under a x1.2 buff; the
+        -- walk splits them and neither half is the row, so its 343s fed the DoT learner and Wither won their votes.
+        local stepped = { N(106, 343), N(106, 343), N(106, 343), N(106, 411), N(106, 412), N(106, 412) }
+        procs = Once(stepped, { { id = 1287663, total = 2264 } })
+        Check("procs read step: one school's groups spanning less than a crit (343-412) also count as one group",
+            Is(procs[1287663], 106, 343, 412, 1) and Count(procs) == 1)
+        procs = Once({ N(106, 1000), N(106, 1000), N(106, 1800) }, { { id = 1, total = 3800 } })
+        Check("procs read step: groups a crit apart or more (1000, 1800 = 1000 x 1.8) stay apart (no 3800 group)",
+            next(procs) == nil)
     end
 
     -- Exact match and two-way uniqueness --------------------------------------------------------

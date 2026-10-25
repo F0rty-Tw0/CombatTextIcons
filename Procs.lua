@@ -193,6 +193,13 @@ local function Groups(hits)
             if group then group.sum = group.sum + amount end
         end
         for _, group in ipairs(walked) do groups[#groups + 1] = group end
+        -- One proc whose size steps under a buff (x1.2, less than a crit: 1287663 hits 343, then 412) splits
+        -- in the walk; the whole school is one more group (runs 20261025T180045Z, 181738Z).
+        if #walked > 1 and walked[#walked].hi < walked[1].lo * CRIT_LO then
+            local all = { school = school, lo = walked[1].lo, hi = walked[#walked].hi, sum = 0 }
+            for _, group in ipairs(walked) do all.sum = all.sum + group.sum end
+            groups[#groups + 1] = all
+        end
     end
 
     return groups
