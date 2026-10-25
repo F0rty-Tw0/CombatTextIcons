@@ -86,6 +86,26 @@ return function(T)
         Check("meter off: after all of it still no meter reset", S.resets == 0)
     end
 
+    do -- run 20261025T182530Z: Surging Totem's ~12K Nature hits (learned proc 73921) taught Lava Burst, cast in its frame, as a DoT
+        local rig = Rig()
+        local ns = rig.ns
+        CombatTextIconsCharDB.procs = { [73921] = { school = 8, lo = 11612, hi = 11871, streak = 3, learned = true,
+            unpaired = 0, seen = 0 } }
+        ns.Procs.Init(CombatTextIconsCharDB)
+        local feed, fed = ns.Streams.Feed, {}
+        ns.Streams.Feed = function(plate, school, amount, ...)
+            fed[#fed + 1] = amount
+            return feed(plate, school, amount, ...)
+        end
+        local proc = rig.Hit(10, "nameplate1", "WOUND", 12007, 8)
+        rig.Hit(11.6, "nameplate1", "WOUND", 5000, 8)
+        ns.Teacher.area = "crowded"
+        rig.Hit(13.2, "nameplate1", "WOUND", 11887, 8)
+        ns.Streams.Feed = feed
+        Check("streams: a hit a learned proc names is never fed to the streams, clear or crowded (12007, 11887); others are (5000)",
+            proc and proc.texture == "tex:73921" and #fed == 1 and fed[1] == 5000)
+    end
+
     do
         local rig = Rig()
         Check("core: PLAYER_REGEN_DISABLED exists and runs",

@@ -317,7 +317,9 @@ local function Wound(plate, unit, flagText, amount, school, now)
         Ledger.Add("damage", UnknownKey(school), amount)
         return Display.Plate(plate, UnknownTexture(), text, flagText, school)
     end
-    Streams.Feed(plate, school, amount, flagText, "enemy", now)
+    -- A hit a learned proc names is no DoT tick: fed to the streams, its rhythm gave its votes to a cast
+    -- in the proc's frame (Surging Totem's ~12K hits learned Lava Burst as a DoT, run 20261025T182530Z).
+    if not Procs.Name(school, amount, flagText) then Streams.Feed(plate, school, amount, flagText, "enemy", now) end
     if fightsYou and not InGroup() then
         if ProcWound(plate, school, amount, flagText) then return end
         Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now), flagText, Casts.Candidates(plate, now))
