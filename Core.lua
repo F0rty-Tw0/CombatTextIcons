@@ -308,14 +308,16 @@ local function Wound(plate, unit, flagText, amount, school, now)
             return
         end
         if ns.Debug then ns.Debug("  -> tracker unknown") end
-        if not InGroup() then Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now), flagText) end
+        if not InGroup() then
+            Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now), flagText, Casts.Candidates(plate, now))
+        end
         Ledger.Add("damage", UnknownKey(school), amount)
         return Display.Plate(plate, UnknownTexture(), text, flagText, school)
     end
     Streams.Feed(plate, school, amount, flagText, "enemy", now)
     if fightsYou and not InGroup() then
         if ProcWound(plate, school, amount, flagText) then return end
-        Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now), flagText)
+        Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now), flagText, Casts.Candidates(plate, now))
         if not Teacher.AreaClear() then
             if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
             return

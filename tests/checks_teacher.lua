@@ -479,9 +479,9 @@ return function(T)
     end
 
     do -- a sum that does not match the row teaches nothing
-        local rig = Pull(400)
+        local rig = Pull(300)
         local F = rig.ns.Fingerprints
-        Check("teacher learn: Mind Blast hits summing to 353 against a 400 row (TOL 4) learn nothing; the wand still does",
+        Check("teacher learn: Mind Blast hits summing to 353 against a 300 row (room 303) learn nothing; the wand still does",
             not F.IsLearned(MIND_BLAST) and F.Get(MIND_BLAST) == nil and F.IsLearned(WAND) and F.Alias(AUTO_SHOT) == WAND)
     end
 
@@ -1479,5 +1479,133 @@ return function(T)
         Check("heal probe: a heal read that errors logs 'TEACH heal skip read failed' and leaves the meter on",
             ok and rig.teach[#rig.teach] == "TEACH heal skip read failed" and rig.ns.Meter.Available()
             and Find(rig.ns.Teacher.last, SMITE).verdict == "agree")
+    end
+
+    do -- steady pass (plan 2026-10-25-steady-learning): long fights learn from a steady delay and size
+        local SWD, VOID_BLAST, SWP_ROW = 32379, 450983, 589
+        -- One solo fight on nameplate1 with /cti debug on: `events` (time order) are { t, spellID } casts and
+        -- { t, nil, amount, flag } school-32 hits; the session holds `rows`. `before(rig)` runs first and
+        -- `during(rig)` before combat ends. Returns rig, Teacher.last.
+        local function SteadyFight(events, rows, before, during)
+            local rig = Rig({}, true)
+            local S, Core = rig.S, rig.ns.Core
+            if before then before(rig) end
+            SlashCmdList.COMBATTEXTICONS("debug")
+            S.now = events[1][1] - 1
+            Core.PLAYER_REGEN_DISABLED()
+            for _, event in ipairs(events) do
+                if event[2] then rig.Cast(event[1], "nameplate1", event[2])
+                else rig.Hit(event[1], "nameplate1", event[3], 32, event[4]) end
+            end
+            if during then during(rig) end
+            S.now = events[#events][1] + 5
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(nextSession, rows) }
+            nextSession = nextSession + 1
+            pcall(rig.Fire)
+            return rig, rig.ns.Teacher.last
+        end
+        -- The outcome after "->" of the last TEACH steady line for castID 8092 and `castSpell`, or nil.
+        local function Outcome(castSpell)
+            local found
+            for _, line in ipairs(CombatTextIconsDB.debugLog) do
+                found = line:match("TEACH steady 8092 spell=" .. castSpell .. " .*%-> (%S+)$") or found
+            end
+            return found
+        end
+        local function Learned(last) return last and last.learned and last.learned[MIND_BLAST] end
+        -- Run 140233Z's shape: Mind Blast casts 5 s apart, each with a Shadow Word: Death `offsets[i]` s before it,
+        -- the MB hit `delays[i]` s after, ticks at +1.1 on the first three casts; `extra` adds a hit per MB hit frame.
+        local function Rotation(offsets, extra)
+            local events, delays, sizes = {}, { 0.29, 0.30, 0.31, 0.30 }, { 19000, 20500, 21000, 22000 }
+            for index, t in ipairs({ 10, 15, 20, 25 }) do
+                events[#events + 1] = { t - offsets[index], SWD }
+                events[#events + 1] = { t, MIND_BLAST }
+                events[#events + 1] = { t + delays[index], nil, sizes[index] }
+                if extra then events[#events + 1] = { t + delays[index], nil, extra } end
+                if index <= 3 then events[#events + 1] = { t + 1.1, nil, ({ 2000, 3000, 4500 })[index] } end
+            end
+            return events
+        end
+        local VARIED = { 0.3, 0.6, 0.9, 1.1 }
+
+        local rig, last = SteadyFight(Rotation(VARIED), { Row(MIND_BLAST, 92000) })
+        local entry, delaysOk = rig.ns.Fingerprints.Get(MIND_BLAST), true
+        for _, sample in ipairs(entry and entry.samples or {}) do
+            delaysOk = delaysOk and sample.delay >= 0.29 - 1e-6 and sample.delay <= 0.31 + 1e-6
+        end
+        Check("steady (b): 4 MB casts with another cast near each, steady at ~0.30 s, ticks at 1.1 s -> 8092 learns 4",
+            last.area == "clear" and Learned(last) == 4 and rig.ns.Fingerprints.IsLearned(MIND_BLAST)
+            and #entry.samples == 4 and delaysOk and Outcome(MIND_BLAST) == "learned")
+
+        rig, last = SteadyFight(Rotation(VARIED, 5000), { Row(MIND_BLAST, 112000) })
+        Check("steady (c): a co-hit in every MB hit's frame -> no cast counts, nothing learned",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "none")
+
+        local spread = {}
+        for index, t in ipairs({ 10, 15, 20, 25, 30, 35 }) do
+            spread[#spread + 1] = { t, MIND_BLAST }
+            spread[#spread + 1] = { t + (index <= 3 and 0.30 or 0.80), nil, 20000 }
+        end
+        rig, last = SteadyFight(spread, { Row(MIND_BLAST, 150000) })
+        Check("steady (d): 3 of 6 casts at 0.30 and 3 at 0.80 -> each under the 60 % share, nothing learned",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "none")
+
+        local twice = {}
+        for _, t in ipairs({ 10, 15, 20, 25 }) do
+            twice[#twice + 1] = { t, MIND_BLAST }
+            twice[#twice + 1] = { t + 0.30, nil, 20000 }
+            twice[#twice + 1] = { t + 0.80, nil, 20000 }
+        end
+        rig, last = SteadyFight(twice, { Row(MIND_BLAST, 200000) })
+        Check("steady (d2): every cast steady at both 0.30 and 0.80 -> two clusters, nothing learned",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "clusters=2")
+
+        rig, last = SteadyFight(Rotation(VARIED), { Row(MIND_BLAST, 74250), Row(SWP_ROW, 17750) })
+        Check("steady (e1): the MB hits sum over the 8092 row -> meter, nothing learned",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "meter")
+        rig, last = SteadyFight(Rotation(VARIED), { Row(SWP_ROW, 92000) })
+        Check("steady (e2): no 8092 row -> meter, nothing learned",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "meter")
+
+        rig, last = SteadyFight(Rotation({ 0.5, 0.5, 0.5, 0.5 }), { Row(MIND_BLAST, 92000) })
+        Check("steady (f): Shadow Word: Death always 0.5 s before is steady on the same hits -> shared, neither learns",
+            last.area == "clear" and Learned(last) == nil and last.learned[SWD] == nil and Outcome(MIND_BLAST) == "shared")
+
+        local both = {}
+        for _, t in ipairs({ 10, 15, 20 }) do
+            both[#both + 1] = { t, VOID_BLAST }
+            both[#both + 1] = { t + 0.2, MIND_BLAST }
+            both[#both + 1] = { t + 0.5, nil, 20000 }
+        end
+        rig, last = SteadyFight(both, { Row(MIND_BLAST, 75000) })
+        Check("steady (f2): Void Blast and Mind Blast of one base count the same hits -> shared, 8092 learns nothing",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "shared")
+
+        local sole = {}
+        for index, t in ipairs({ 10, 15, 20 }) do
+            sole[#sole + 1] = { t, MIND_BLAST }
+            sole[#sole + 1] = { t + 0.2, nil, ({ 19000, 20000, 21000 })[index] }
+        end
+        rig, last = SteadyFight(sole, { Row(MIND_BLAST, 60000) })
+        local logged = false
+        for _, line in ipairs(CombatTextIconsDB.debugLog) do logged = logged or line:find("TEACH steady 8092", 1, true) ~= nil end
+        Check("steady (g): sole casts whose sum matches learn by the exact sum; the steady pass skips 8092",
+            last.area == "clear" and Learned(last) == 3 and #rig.ns.Fingerprints.Get(MIND_BLAST).samples == 3 and not logged)
+
+        local doubled = {}
+        for index, t in ipairs({ 10, 15, 20 }) do
+            doubled[#doubled + 1] = { t - ({ 0.3, 0.7, 1.1 })[index], SWD }
+            doubled[#doubled + 1] = { t, VOID_BLAST }
+            doubled[#doubled + 1] = { t, VOID_BLAST }
+            doubled[#doubled + 1] = { t, nil, ({ 21000, 22000, 23000 })[index] }
+        end
+        rig, last = SteadyFight(doubled, { Row(MIND_BLAST, 82500) })
+        local voidSamples = 0
+        for _, sample in ipairs((rig.ns.Fingerprints.Get(MIND_BLAST) or { samples = {} }).samples) do
+            if sample.spell == VOID_BLAST then voidSamples = voidSamples + 1 end
+        end
+        Check("steady (k): Void Blast logged twice in its frame is one cast -> 8092 learns 3 Void Blast samples",
+            last.area == "clear" and Learned(last) == 3 and voidSamples == 3)
     end
 end

@@ -350,8 +350,8 @@ local function ParseTeach(lines, rowIDs)
         if seen then
             open = { endLine = index, seen = tonumber(seen), meter = tonumber(meter), area = area, rows = {} }
             fights[#fights + 1] = open
-        elseif text:match("^[%d%.]+ TEACH proc ") then
-            -- Procs' streak lines sit between the clean line and the rows: report only
+        elseif text:match("^[%d%.]+ TEACH proc ") or text:match("^[%d%.]+ TEACH steady ") then
+            -- Procs' streak lines and the steady pass's lines sit between the clean line and the rows: report only
         elseif id and open then
             local amount = tonumber(rowMeter)
             local fixes = rowIDs and rowIDs[#fights] or {}
@@ -547,9 +547,11 @@ local function Replay(name, opts)
         ns.Teacher.Seen = function() end
     end
     local route -- the last "  -> " debug line of the UNIT_COMBAT being replayed
+    local steady = {} -- the steady pass's TEACH lines, for the criteria's detail text
     ns.Debug = function(format, ...)
         local line = string.format(format, ...)
         if line:find("^  %->") then route = line end
+        if line:find("^TEACH steady ") then steady[#steady + 1] = line end
     end
     S.haste = opts.haste or fixtureLabels.haste
     S.group = opts.group == true
@@ -579,7 +581,8 @@ local function Replay(name, opts)
     local function Show(hit, draw)
         hit.shown, hit.via = draw, draw.texture == ns.Meter.UNKNOWN_ICON and "unknown" or "tracker"
     end
-    local info = { uncovered = {}, group = S.group, learnLog = {}, births = {}, events = events, haste = S.haste, teacher = ns.Teacher }
+    local info = { uncovered = {}, group = S.group, learnLog = {}, births = {}, events = events, haste = S.haste, teacher = ns.Teacher,
+        steady = steady }
     local phase -- of the event being replayed, for the learn log
     local onLearned = ns.Tracker.OnLearned
     ns.Tracker.OnLearned = function(spellID, now)
@@ -1835,15 +1838,20 @@ do -- Rev 5 (in-game 2026-10-25): the forget5 run made 4 wrong aliases; only 413
 end
 
 do -- steady learning (2026-10-25): run 140233Z, /cti forget then 3 dummy fights; exact sums never learned Mind Blast
-    local parts, ranOk = {}, true
+    local parts, ranOk, learnOk, steadyLines = {}, true, true, {}
     local ok, err = pcall(function()
         for _, haste in ipairs(DOT_HASTES) do
             local runs = ReplayFights(REPLAY_STEADY, { haste = haste })
             ranOk = ranOk and #runs >= 3
+            learnOk = learnOk and #runs >= 3 and runs[2].last.learned[8092] == 3
             local fights = {}
             for index, run in ipairs(runs) do
                 local learned = {}
-                for id, count in pairs(run.last and run.last.learned or {}) do learned[#learned + 1] = id .. "=" .. count end
+                for id, count in pairs(run.last and run.last.learned or {}) do
+                    learned[#learned + 1] = id .. "=" .. count
+                    if index <= 2 and id ~= 8092 then learnOk = false end
+                end
+                for _, line in ipairs(run.info.steady) do steadyLines[#steadyLines + 1] = "h" .. haste .. " F" .. index .. " " .. line end
                 table.sort(learned)
                 fights[#fights + 1] = string.format("F%d %s [%s]", index, tostring(run.last and (run.last.area or run.last.skip)),
                     table.concat(learned, ", "))
@@ -1858,8 +1866,8 @@ do -- steady learning (2026-10-25): run 140233Z, /cti forget then 3 dummy fights
         end
     end)
     if not ok then Check("steady criterion ran without error: " .. tostring(err), false) end
-    Criterion(21, "steady replay (haste 25 and 0): run 140233Z replays 3+ fights", ok and ranOk,
-        table.concat(parts, "\n     "))
+    Criterion(21, "steady replay (haste 25 and 0): run 140233Z fight 2 learns Mind Blast 8092 from 3 steady hits; nothing else learns in fights 1-2",
+        ok and ranOk and learnOk, table.concat(parts, "\n     ") .. "\n     " .. table.concat(steadyLines, "\n     "))
 end
 
 -- Last replay done: no replay of the run reset the meter.

@@ -24,6 +24,7 @@
 
 local _, ns = ...
 local Meter, Fingerprints, Procs, Ledger, Streams = ns.Meter, ns.Fingerprints, ns.Procs, ns.Ledger, ns.Streams
+local Steady = ns.Steady
 
 local Teacher = {}
 ns.Teacher = Teacher
@@ -321,14 +322,15 @@ end
 
 -- Learning from '?' hits (spec 6.5): rewrites the learned rows of `results` against the
 -- session's meter `rows`. Whole sums pair first; a row and a group that no whole sum agreed
--- with then try `top`. Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions
--- rewritten.
+-- with then try `top`; last, the steady pass (Steady.lua) learns from steady hits no sum explained.
+-- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
 local function Learn(run, results, open, rows)
     local groups = Groups(run.unknown)
     local owners = Owners(groups, rows)
     local seen, learned, rewritten = { rows = {}, groups = {} }, {}, {}
     Pass(groups, open, owners, function(group) return group end, seen, results, learned, rewritten)
     Pass(groups, open, owners, function(group) return group.top end, seen, results, learned, rewritten)
+    for _, way in ipairs(Steady.Learn(run, rows, learned)) do learned[#learned + 1] = way end
 
     return learned, rewritten
 end
@@ -546,13 +548,14 @@ end
 -- the area is crowded). `cast` is Casts.SoleCast at the hit's time. `castID` (the cast's base
 -- spell) / `castAt` name it when it is unlearned, for the teacher to learn from after the
 -- fight. `crit` (from the hit's flag text, as Streams.Size) feeds Procs: true, false, or nil
--- when the flag is unknown. `size` is the hit's normal-scale size for the cast's band.
-function Teacher.Unknown(plate, school, amount, now, cast, flagText)
+-- when the flag is unknown. `size` is the hit's normal-scale size for the cast's band. `candidates`
+-- (Casts.Candidates) are every cast that may have made the hit, for the steady pass.
+function Teacher.Unknown(plate, school, amount, now, cast, flagText, candidates)
     local fight = Teacher.fight
     if not (fight and plate ~= nil and IsNumber(school) and IsNumber(amount) and IsNumber(now)) then return end
 
     local entry = { school = school, amount = amount, at = now, plate = plate, crit = Procs.Crit(flagText),
-        size = Streams.NormalAmount(amount, flagText) }
+        size = Streams.NormalAmount(amount, flagText), candidates = candidates }
     if cast and not Fingerprints.IsLearned(cast.base) then
         entry.castID, entry.castAt, entry.castSpell = cast.base, cast.at, cast.spellID
     end
