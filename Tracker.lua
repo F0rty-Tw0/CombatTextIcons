@@ -120,6 +120,8 @@ end
 
 -- State helpers --------------------------------------------------------------------
 
+local directs = {} -- [plate] = { at, school, icon }: a learned DoT cast this frame
+
 local function TargetPlate()
     local plate = C_NamePlate.GetNamePlateForUnit("target", false)
     if Plain(plate) and not plate:IsForbidden() then return plate end
@@ -496,6 +498,10 @@ function Tracker.OnCast(unit, castID, now)
         local key
         if hot then key = Tracker.HealUnit() else key = TargetPlate() end
         if not key then return end
+        -- A learned DoT's own hit lands in its cast frame (Flame Shock's initial damage): Identify gives it that hit
+        if learned and not hot and not (directs[key] and directs[key].at == now) then
+            directs[key] = { at = now, school = spell.school, icon = spell.icon }
+        end
         local instance = FindInstance(key, castID)
         if instance and learned then
             -- Recast: the next tick may keep the phase or restart it at now + period.
@@ -609,6 +615,11 @@ end
 function Tracker.Identify(plate, school, amount, flagText, now)
     Housekeeping(now)
     if not Plain(school) then return nil end
+    local direct = directs[plate]
+    if direct and direct.at == now and direct.school == school then
+        directs[plate] = nil
+        return direct.icon
+    end
     local found = Candidates(plate, school, amount, flagText, now)
     local match = found[1]
     if #found ~= 1 then
@@ -725,6 +736,7 @@ end
 
 function Tracker.Reset()
     instances, areas, spreads, missCasts, loose, parked = {}, {}, {}, {}, {}, {}
+    directs = {}
     channel, channelTickAt = nil, nil
     Streams.Reset()
 end

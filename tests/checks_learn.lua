@@ -248,6 +248,26 @@ return function(T)
             and not Tracker.QualifiesByPhase(P, 32, 1000, "", 503.0))
     end
 
+    -- A learned DoT's own hit in its cast frame (runs 20261025T192458Z, 194821Z: Flame Shock's initial damage was '?') ----
+    do
+        local ns = T.BootSpells()
+        local S = T.State()
+        local Tracker = ns.Tracker
+        local P = T.Plate("nameplate1")
+        S.plates.nameplate1, S.haste, S.target = P, 0, "nameplate1"
+        SeedLearned(9001, 32, 3.0, "dot")
+        SeedLearned(980, 32, 5.0, "dot")
+
+        Tracker.OnCast("player", 9001, 100)
+        Check("lookup direct: a same-school hit in a learned DoT's cast frame is that DoT's, once",
+            Tracker.Identify(P, 32, 1500, "", 100) == 9001 and Tracker.Identify(P, 32, 1500, "", 100) == nil)
+        Tracker.OnCast("player", 9001, 200)
+        Check("lookup direct: another school, or a later frame, is not claimed",
+            Tracker.Identify(P, 4, 1500, "", 200) == nil and Tracker.Identify(P, 32, 1500, "", 200.5) == nil)
+        Tracker.OnCast("player", 980, 300)
+        Check("lookup direct: a retail table DoT claims no cast-frame hit", Tracker.Identify(P, 32, 1500, "", 300) == nil)
+    end
+
     -- Rig and feed boundary -------------------------------------------------------------
     -- Rig(spells): the addon on fresh stubs, Display.Plate recording the icon drawn; `spells` loads the
     -- fixture table (tests/fixture_spells.lua) as ns.Spells for the scenarios that use table spells.
