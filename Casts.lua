@@ -66,10 +66,32 @@ function Casts.Flush(now)
     SweepRecords(now)
 end
 
-function Casts.NoteCast(castID, now)
+-- The cast in progress (UNIT_SPELLCAST_START): a spell with a cast time keeps the target it started
+-- on, so a retarget mid-cast (to the next mob, run 134732Z) must not move its plate.
+local START_MAX = 10    -- a start older than this names no plate
+local started = nil     -- { guid, spellID, plate, at }
+
+function Casts.NoteStart(castGUID, spellID, now)
+    started = { guid = castGUID, spellID = spellID, plate = Tracker.TargetPlate(), at = now }
+end
+
+-- The plate the finished cast `castID` started on: the start with the same plain cast GUID (any
+-- secret: the same spell ID) within START_MAX. Else the target now (an instant cast).
+local function CastPlate(castID, castGUID, now)
+    local start = started
+    started = nil
+    if not (start and start.plate and now - start.at <= START_MAX) then return Tracker.TargetPlate() end
+    local plainGUIDs = Plain(castGUID) and Plain(start.guid)
+    local same = plainGUIDs and castGUID == start.guid or not plainGUIDs and start.spellID == castID
+    if same then return start.plate end
+
+    return Tracker.TargetPlate()
+end
+
+function Casts.NoteCast(castID, now, castGUID)
     SweepRecords(now)
     local base = Casts.Base(castID)
-    local entry = { spellID = castID, base = base, at = now, plate = Tracker.TargetPlate(),
+    local entry = { spellID = castID, base = base, at = now, plate = CastPlate(castID, castGUID, now),
         tracker = Learn.IsKnownIcon(castID) }
     log[#log + 1] = entry
     while now - log[1].at > UNKNOWN_WAIT or #log > LOG_MAX do table.remove(log, 1) end

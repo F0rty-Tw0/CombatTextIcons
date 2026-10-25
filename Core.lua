@@ -472,9 +472,16 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     local now = GetTime()
     if unit == "player" and Plain(spellID) then
         local harmful = C_Spell.IsSpellHarmful and C_Spell.IsSpellHarmful(spellID)
-        if Plain(harmful) and harmful then Casts.NoteCast(spellID, now) end
+        if Plain(harmful) and harmful then Casts.NoteCast(spellID, now, castGUID) end
     end
     Tracker.OnCast(unit, spellID, now)
+end
+
+-- A spell with a cast time began: its plate is the target now, not the one when it lands.
+function Core.UNIT_SPELLCAST_START(unit, castGUID, spellID)
+    if not db.enabled or unit ~= "player" then return end
+    if ns.Debug then ns.Debug("START %s %s", unit, ShowValue(spellID)) end
+    Casts.NoteStart(castGUID, spellID, GetTime())
 end
 
 function Core.UNIT_SPELLCAST_CHANNEL_START(unit, castGUID, spellID)
@@ -516,6 +523,7 @@ events:RegisterEvent("NAME_PLATE_UNIT_ADDED")
 events:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
 events:RegisterEvent("GROUP_ROSTER_UPDATE")
 events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pet")
+events:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
 events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
 events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player")
 events:SetScript("OnEvent", function(_, event, ...) Core[event](...) end)

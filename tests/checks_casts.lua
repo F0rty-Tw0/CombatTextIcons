@@ -408,6 +408,30 @@ do -- Phase 3: records and Claim
         return drawn == "tex:8092"
     end)
 
+    -- Run 134732Z: Mind Blast cast at nameplate4, the target moved on to the next mob before the cast
+    -- finished, the killing hit landed on nameplate4 -> '?'. The cast's plate is the target at its start.
+    local function Retarget(startGUID, castGUID)
+        local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+        local S = T.State()
+        MindBlast(ns)
+        local drawn
+        ns.Display.Plate = function(_, texture) drawn = texture end
+        S.now, S.target = 30, "nameplate4"
+        ns.Core.UNIT_SPELLCAST_START("player", startGUID, 8092)
+        S.now, S.target = 31.5, "nameplate6"
+        ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", castGUID, 8092)
+        S.now = 31.67
+        ns.Core.UNIT_COMBAT("nameplate4", "WOUND", "", 20592, 32)
+        return drawn
+    end
+    Scenario("cast start: a hit on the plate targeted when the cast started is claimed after a retarget mid-cast",
+        function() return Retarget("g1", "g1") == "tex:8092" end)
+    Scenario("cast start: a start of another cast (interrupted, then cast again) does not name the plate",
+        function() return Retarget("g1", "g2") ~= "tex:8092" end)
+    Scenario("cast start: a secret cast GUID falls back to the spell ID", function()
+        return Retarget(T.Secret("g1"), T.Secret("g1")) == "tex:8092"
+    end)
+
     Scenario("claim: a hit inside a learned cast's window, on its plate, is 'learned' with that record", function()
         local ns, S = Rig(Wand)
         Cast(ns, S, WAND, 10, "nameplate1")
