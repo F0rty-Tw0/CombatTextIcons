@@ -54,6 +54,9 @@ return function(T)
                 [20] = Secret({}),
                 [22] = { school = 106, lo = 5, hi = 9, streak = "x", unpaired = -3, seen = "y", learned = "yes" },
                 [23] = { school = 106, lo = 5, hi = 9, streak = 1.5, unpaired = 2.5, seen = -1, learned = false },
+                [24] = { school = 8, lo = 100, hi = 120, floor = 40 },
+                [25] = { school = 8, lo = 100, hi = 120, floor = 100 },
+                [26] = { school = 8, lo = 100, hi = 120, floor = "x" },
             } }
             CombatTextIconsCharDB.procs[secretKey] = { school = 106, lo = 339, hi = 364 }
         end)
@@ -63,7 +66,9 @@ return function(T)
         local ids = {}
         for id in pairs(procs) do ids[#ids + 1] = type(id) == "number" and id or -1 end
         table.sort(ids)
-        Check("procs load: only the valid entries 10, 11, 22 and 23 are kept", table.concat(ids, ",") == "10,11,22,23" and procs[secretKey] == nil)
+        Check("procs load: only the valid entries 10, 11, 22-26 are kept", table.concat(ids, ",") == "10,11,22,23,24,25,26" and procs[secretKey] == nil)
+        Check("procs load: a floor is kept only as a number under lo (40 kept; 100 = lo and 'x' dropped)",
+            procs[24].floor == 40 and procs[25].floor == nil and procs[26].floor == nil)
         Check("procs load: a valid learned entry is kept as saved",
             procs[10] and procs[10].school == 106 and procs[10].lo == 339 and procs[10].hi == 364 and procs[10].streak == 3
             and procs[10].learned == true and procs[10].unpaired == 1 and procs[10].seen == 5)
@@ -198,6 +203,31 @@ return function(T)
         procs = Once({ N(106, 1000), N(106, 1000), N(106, 1800) }, { { id = 1, total = 3800 } })
         Check("procs read step: groups a crit apart or more (1000, 1800 = 1000 x 1.8) stay apart (no 3800 group)",
             next(procs) == nil)
+    end
+
+    -- A ticking proc's cut-short last tick and its walk-split runs (runs 20261025T192458Z, 194821Z: Surging Totem 73921) ---
+    do
+        local procs, _, lines = Once({ N(8, 2315), N(8, 11592), N(8, 11720), N(8, 11802), N(8, 12117) }, { { id = 73921, total = 49546 } })
+        Check("procs read partial: a core of 3+ normals plus one lone hit below it sums to the row -> band 11592-12117, floor 2315",
+            Is(procs[73921], 8, 11592, 12117, 1) and procs[73921].floor == 2315 and Count(procs) == 1
+            and lines[1] == "TEACH proc 73921 school=8 band=11592-12117 floor=2315 streak=1")
+        procs = Once({ N(8, 9458), N(8, 11314), N(8, 11955), C(8, 22832) }, { { id = 73921, total = 55559 } })
+        Check("procs read run: walk-split groups (9458 | 11314-11955) less than a crit apart are one group with the crits in its"
+            .. " window (55559)", Is(procs[73921], 8, 9458, 11955, 1) and procs[73921].floor == nil)
+        procs = Once({ N(8, 1000), N(8, 1000), N(8, 500) }, { { id = 1, total = 2500 } })
+        Check("procs read partial: a core under 3 normals takes no lone hit (1000, 1000 + 500 is no 2500 group)", next(procs) == nil)
+
+        local cast = { school = 106, amount = 700, crit = false, castID = 7 }
+        procs = Once({ cast }, { { id = 7, total = 700 } })
+        local candidate = Once({ { school = 106, amount = 700, crit = false, candidates = { { castID = 7 } } } }, { { id = 7, total = 700 } })
+        Check("procs read cast: a row whose spell was cast near the '?' hits (sole cast or candidate) is never a proc candidate",
+            next(procs) == nil and next(candidate) == nil)
+
+        local under = { id = 7, total = 5000, tally = 4800, verdict = "under" } -- complement window [200, 200]
+        procs, _, lines = Once({ N(106, 200) }, { under }, Seed(7, 106, 330, 360, 3, true))
+        Check("procs read under: one lone hit below a learned band lowers only its floor (band 330-360, floor 200)",
+            Is(procs[7], 106, 330, 360, 3, true) and procs[7].floor == 200
+            and lines[1] == "TEACH proc 7 school=106 band=330-360 floor=200 streak=3 widen")
     end
 
     -- Exact match and two-way uniqueness --------------------------------------------------------
@@ -429,6 +459,22 @@ return function(T)
             forever.Procs.Name(106, 390, "CRITICAL") == 7 and forever.Procs.Name(106, 690, "CRITICAL") == 7
             and forever.Procs.Name(106, 388, "CRITICAL") == nil and forever.Procs.Name(106, 691, "CRITICAL") == nil
             and Name(106, 390, "CRITICAL") == nil)
+    end
+    -- Procs.Name and a floor: a cut-short tick may be the hit (runs 20261025T192458Z, 194821Z) ------------------
+    do
+        local ns, procs = Rig()
+        local Name = ns.Procs.Name
+        procs[73921] = Entry(8, 11078, 12929, 3, true)
+        procs[73921].floor = 2315 -- floor zone: normal [1967.75, 9416.3), crit [3541.95, 16949.34)
+        procs[1310088] = Entry(8, 4907, 5337, 3, true)
+        Check("procs name floor: a normal hit inside a proc's own band beats a floor zone (4965 -> 1310088); the band itself"
+            .. " still names (11646 -> 73921, 23359 crit -> 73921)",
+            Name(8, 4965, "") == 1310088 and Name(8, 11646, "") == 73921 and Name(8, 23359, "CRITICAL") == 73921)
+        Check("procs name floor: a floor zone hit outside the named band is nobody's (4600 normal, 13562 crit -> nil)",
+            Name(8, 4600, "") == nil and Name(8, 13562, "CRITICAL") == nil)
+        procs[73921].floor = nil
+        Check("procs name floor: without the floor the padded hits name 1310088 (4600, 13562 crit)",
+            Name(8, 4600, "") == 1310088 and Name(8, 13562, "CRITICAL") == 1310088)
     end
     -- Procs.Has (spec 3.1 Rev 4b): a learned entry, or a candidate with a streak -----------------------
     do

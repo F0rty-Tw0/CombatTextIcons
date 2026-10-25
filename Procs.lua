@@ -14,6 +14,7 @@ local LEARN_STREAK = 3 -- exact fights in a row before a candidate is learned
 local CAP = 64         -- unlearned candidates kept
 local UNPAIRED_MAX = 2 -- unpaired reads in a row drop a learned proc
 local SIZE_GUARD, CRIT_LO, CRIT_HI = Streams.SIZE_GUARD, Streams.CRIT_LO, Streams.CRIT_HI
+local PARTIAL_CORE = 3 -- normals a group needs before lone hits below it may be its cut-short last ticks
 local PAD_LO, PAD_HI = 0.85, 1.15 -- draw pads; two bands are also the same proc's when each, shrunk by PAD_LO, reaches the other
 
 Procs.LEARN_STREAK = LEARN_STREAK
@@ -44,6 +45,7 @@ function Procs.Init(charDB)
             entry.streak, entry.unpaired = Count(entry.streak), Count(entry.unpaired)
             entry.seen = IsNumber(entry.seen) and entry.seen >= 0 and entry.seen or 0
             entry.learned = entry.learned == true
+            entry.floor = IsNumber(entry.floor) and entry.floor > 0 and entry.floor < entry.lo and entry.floor or nil
         else
             bad[#bad + 1] = id
         end
@@ -117,13 +119,25 @@ local function Owned(id)
     return ns.Learn.Get(id) or ns.Fingerprints.IsLearned(id) or ns.Fingerprints.IsLearned(ns.Fingerprints.Alias(id))
 end
 
+-- The spells cast near the '?' hits (their sole cast and every candidate): a row of one is no castless proc
+-- (Lightning Bolt 188196 summed exactly to its row in runs 20261025T192458Z and 194821Z).
+local function Cast(hits)
+    local cast = {}
+    for _, hit in ipairs(hits) do
+        if hit.castID then cast[hit.castID] = true end
+        for _, candidate in ipairs(hit.candidates or {}) do cast[candidate.castID] = true end
+    end
+
+    return cast
+end
+
 -- The windows a group's sum can fill: every unowned open row, then the complement of every learned 'under' row.
-local function Targets(open, results, rows)
+local function Targets(open, results, rows, cast)
     local targets = {}
     for _, item in ipairs(open) do
         local row = item.row
         local id, overkill = row.spellID, row.overkill or 0
-        if IsNumber(id) and not Owned(id) then
+        if IsNumber(id) and not Owned(id) and not cast[id] then
             targets[#targets + 1] = { id = id, kind = "open", lo = row.total, hi = row.total + overkill, index = item.index, total = row.total, overkill = overkill }
         end
     end
@@ -145,9 +159,9 @@ local function Walk(school, amounts)
     local groups, current = {}, nil
     for _, amount in ipairs(amounts) do
         if current and amount - current.lo <= SIZE_GUARD * amount then
-            current.hi, current.sum = amount, current.sum + amount
+            current.hi, current.sum, current.base, current.count = amount, current.sum + amount, current.base + amount, current.count + 1
         else
-            current = { school = school, lo = amount, hi = amount, sum = amount }
+            current = { school = school, lo = amount, hi = amount, floor = amount, sum = amount, base = amount, count = 1 }
             groups[#groups + 1] = current
         end
     end
@@ -166,6 +180,64 @@ local function Fit(groups, amount)
     end
 
     return found
+end
+
+-- Walked groups i..j as one group: their normals, and every crit in the run's own crit window (a crit that
+-- fits two of its groups is an orphan for each, but it is the run's).
+local function Run(walked, i, j, crits)
+    local run = { school = walked[i].school, lo = walked[i].lo, hi = walked[j].hi, floor = walked[i].lo, sum = 0, count = 0 }
+    for k = i, j do run.sum, run.count = run.sum + walked[k].base, run.count + walked[k].count end
+    for _, amount in ipairs(crits) do
+        if run.lo * CRIT_LO <= amount and amount <= run.hi * CRIT_HI then run.sum = run.sum + amount end
+    end
+
+    return run
+end
+
+-- A ticking proc (Surging Totem 73921: ~12K every 1.7 s) splits two ways (runs 20261025T192458Z, 194821Z):
+-- its size steps under a buff (x1.2, less than a crit: 1287663 hits 343, then 412) or the 15 % walk cuts its
+-- run, so every run of walked groups spanning less than a crit is one more group; and each instance's last
+-- tick is cut short (2315..9458 against 11-13K), a lone hit below the rest. A core of PARTIAL_CORE normals or
+-- more also counts with one or two lone hits below it (their normal amount); the band stays the core's and the
+-- lowest lone hit is the group's floor.
+local function Ticking(groups, walked, crits)
+    local lone = {}
+    for i = 1, #walked do
+        for j = i, #walked do
+            if walked[j].hi >= walked[i].lo * CRIT_LO then break end
+            local core = i == j and walked[i] or Run(walked, i, j, crits)
+            if i < j then groups[#groups + 1] = core end
+            if core.count >= PARTIAL_CORE then
+                for a = 1, #lone do
+                    local one = lone[a]
+                    groups[#groups + 1] = { school = core.school, lo = core.lo, hi = core.hi, floor = one.lo, sum = core.sum + one.base, count = core.count + 1 }
+                    for b = a + 1, #lone do
+                        groups[#groups + 1] = { school = core.school, lo = core.lo, hi = core.hi, floor = one.lo,
+                            sum = core.sum + one.base + lone[b].base, count = core.count + 2 }
+                    end
+                end
+            end
+        end
+        if walked[i].count == 1 then lone[#lone + 1] = walked[i] end
+    end
+end
+
+-- Equal sums of one school are the same hits reached two ways (a run, or a core and its lone hits): one group,
+-- with the narrowest core (a lone hit inside a run is a cut-short tick too) and the lowest floor.
+local function Distinct(groups)
+    local kept, bySum = {}, {}
+    for _, group in ipairs(groups) do
+        local key = group.school .. ":" .. group.sum
+        local other = bySum[key]
+        if other then
+            other.lo, other.hi, other.floor = math.max(other.lo, group.lo), math.max(other.hi, group.hi), math.min(other.floor, group.floor)
+        else
+            bySum[key] = group
+            kept[#kept + 1] = group
+        end
+    end
+
+    return kept
 end
 
 -- Groups per school ascending. A crit adds to the one group it fits; a hit whose crit flag is not plain
@@ -193,13 +265,7 @@ local function Groups(hits, ticks)
             if group then group.sum = group.sum + amount end
         end
         for _, group in ipairs(walked) do groups[#groups + 1] = group end
-        -- One proc whose size steps under a buff (x1.2, less than a crit: 1287663 hits 343, then 412) splits
-        -- in the walk; the whole school is one more group (runs 20261025T180045Z, 181738Z).
-        if #walked > 1 and walked[#walked].hi < walked[1].lo * CRIT_LO then
-            local all = { school = school, lo = walked[1].lo, hi = walked[#walked].hi, sum = 0 }
-            for _, group in ipairs(walked) do all.sum = all.sum + group.sum end
-            groups[#groups + 1] = all
-        end
+        Ticking(groups, walked, bySchool[school].crits)
         bySchool[school].walked = walked
     end
     -- A learned DoT's drawn ticks were named by votes, not the meter: one more group per school sums them with its
@@ -223,10 +289,13 @@ local function Groups(hits, ticks)
     end
     table.sort(drawnSchools)
     for _, school in ipairs(drawnSchools) do
-        if drawn[school].lo then groups[#groups + 1] = drawn[school] end
+        if drawn[school].lo then
+            drawn[school].floor = drawn[school].lo
+            groups[#groups + 1] = drawn[school]
+        end
     end
 
-    return groups
+    return Distinct(groups)
 end
 
 -- target index -> group, for the pairs that are unique both ways.
@@ -250,14 +319,22 @@ local function Matches(groups, targets)
     return matches
 end
 
+-- An entry's floor (the lowest cut-short tick seen) is saved only below its band.
+local function Floor(entry) return entry.floor or entry.lo end
+local function SetFloor(entry, floor) entry.floor = floor < entry.lo and floor or nil end
 local function Overlaps(entry, group) return entry.lo * PAD_LO <= group.hi and group.lo * PAD_LO <= entry.hi end
-local function Widens(entry, group) return group.lo < entry.lo or group.hi > entry.hi end
-local function Union(entry, group) entry.lo, entry.hi = math.min(entry.lo, group.lo), math.max(entry.hi, group.hi) end
+local function Widens(entry, group) return group.lo < entry.lo or group.hi > entry.hi or (group.floor or group.lo) < Floor(entry) end
+local function Union(entry, group)
+    local floor = math.min(Floor(entry), group.floor or group.lo)
+    entry.lo, entry.hi = math.min(entry.lo, group.lo), math.max(entry.hi, group.hi)
+    SetFloor(entry, floor)
+end
 
 -- A counted pair for a candidate: one more exact fight, or a restart when the group is another proc's.
 local function Grow(entry, group)
     if entry.school ~= group.school or not Overlaps(entry, group) then
         entry.school, entry.lo, entry.hi, entry.streak = group.school, group.lo, group.hi, 1
+        SetFloor(entry, group.floor or group.lo)
 
         return " restart"
     end
@@ -273,6 +350,12 @@ end
 local function Step(entry, group, target)
     if target.kind == "under" then
         if not (group and entry.school == group.school and Widens(entry, group)) then return nil end
+        -- one lone hit below the band is a cut-short tick: it lowers the floor, not the band
+        if group.count == 1 and group.hi < entry.lo then
+            SetFloor(entry, math.min(Floor(entry), group.lo))
+
+            return " widen"
+        end
         Union(entry, group)
 
         return " widen"
@@ -296,6 +379,7 @@ local function Apply(target, group)
     if entry then return Step(entry, group, target) end
     if not group then return nil end
     procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, streak = 1, learned = false, unpaired = 0, seen = 0 }
+    SetFloor(procs[target.id], group.floor or group.lo)
 
     return ""
 end
@@ -323,7 +407,7 @@ local function Evict()
 end
 
 function Procs.Read(hits, open, results, rows, at, ticks)
-    local targets = Targets(open, results, rows)
+    local targets = Targets(open, results, rows, Cast(hits))
     local groups = Groups(hits, ticks)
     local matches = Matches(groups, targets)
     for index, target in ipairs(targets) do
@@ -332,7 +416,10 @@ function Procs.Read(hits, open, results, rows, at, ticks)
         if suffix then
             local entry = procs[target.id]
             entry.seen = at
-            if ns.Debug then ns.Debug("TEACH proc %s school=%s band=%s-%s streak=%s%s", target.id, entry.school, entry.lo, entry.hi, entry.streak, suffix) end
+            if ns.Debug then
+                ns.Debug("TEACH proc %s school=%s band=%s-%s%s streak=%s%s", target.id, entry.school, entry.lo, entry.hi,
+                    entry.floor and (" floor=" .. entry.floor) or "", entry.streak, suffix)
+            end
             if suffix == " learned" then
                 results[target.index] = { spellID = target.id, meterID = target.id, tally = group.sum, meter = target.total, verdict = "agree" }
             end
@@ -347,18 +434,25 @@ end
 function Procs.Name(school, amount, flagText)
     if not (IsNumber(school) and IsNumber(amount)) then return nil end
     local crit = Procs.Crit(flagText) -- nil: unknown
-    local found
+    local found, contested
     for id, entry in pairs(procs) do
         if entry.learned == true and entry.school == school then
-            local lo, hi = entry.lo * PAD_LO, entry.hi * PAD_HI
+            local lo, hi, floor = entry.lo * PAD_LO, entry.hi * PAD_HI, Floor(entry) * PAD_LO
             local normal = lo <= amount and amount <= hi
             local big = lo * CRIT_LO <= amount and amount <= hi * CRIT_HI
             if (crit ~= true and normal) or (crit ~= false and big) then
                 if found then return nil end
                 found = id
             end
+            -- below the band down to its floor a cut-short tick of this proc may be the hit: no proc names it
+            local short = floor <= amount and amount < lo
+            local shortBig = floor * CRIT_LO <= amount and amount < lo * CRIT_LO
+            if (crit ~= true and short) or (crit ~= false and shortBig) then contested = true end
         end
     end
+    -- a normal hit inside a proc's own band (unpadded) is that proc's, cut-short ticks or not
+    local own = found and crit == false and procs[found].lo <= amount and amount <= procs[found].hi
+    if contested and not own then return nil end
 
     return found
 end
