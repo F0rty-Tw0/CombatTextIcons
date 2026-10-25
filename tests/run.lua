@@ -95,6 +95,7 @@ local function InstallStubs()
         return value
     end
     IsInGroup = function() return S.group end
+    LE_PARTY_CATEGORY_HOME, LE_PARTY_CATEGORY_INSTANCE = 1, 2
     UnitSpellHaste = function() return S.haste end
     UnitIsUnit = function(a, b)
         if b == "pettarget" then

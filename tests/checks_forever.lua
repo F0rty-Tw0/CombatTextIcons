@@ -182,11 +182,23 @@ return function(T)
             function() return Secret(1) end, function() error("restricted") end }) do
             UnitThreatSituation = answer
             rig.Hit(4 + index, "nameplate1")
-            threats[index] = Last("^HIT nameplate1"):match(" threat=(%S+) target=")
+            threats[index] = Last("^HIT nameplate1"):match(" threat=(%S+) group=%S+ target=")
         end
         UnitThreatSituation = threatSituation
         Check("debug: the HIT line logs threat=1 / nil / secret / err before target= (gap 2 probe)",
             threats[1] == "1" and threats[2] == "nil" and threats[3] == "secret" and threats[4] == "err")
+
+        local isInGroup, groups = IsInGroup, {}
+        for index, answer in ipairs({ function() return false end, function(category) return category == 2 end,
+            function() return Secret(true) end }) do
+            IsInGroup = answer
+            rig.Hit(8 + index, "nameplate1")
+            groups[index] = Last("^HIT nameplate1"):match(" group=(%S+) target=")
+        end
+        IsInGroup = isInGroup
+        Check("debug: the HIT line logs IsInGroup any,home,instance raw before target= (solo-hidden probe)",
+            groups[1] == "false,false,false" and groups[2] == "false,false,true"
+            and groups[3] == "secret,secret,secret")
 
         rig.S.now = 10
         rig.ns.Core.UNIT_COMBAT("player", "HEAL", "", 500, 2)

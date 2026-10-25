@@ -121,7 +121,7 @@ end
 
 -- grug: temporary probe for missing direct hits (Lightning Bolt): /cti debug logs
 -- hits, teacher verdicts and casts to CombatTextIconsDB.debugLog. Remove after the in-game run.
-local DEBUG_MAX = 3000
+local DEBUG_MAX = 20000 -- an AoE pull fills 3000 lines in under a minute
 
 local function Debug(format, ...)
     local log = db.debugLog
@@ -148,6 +148,17 @@ local function ShowThreat(unit)
     if not ok then return "err" end
     if issecretvalue(threat) then return "secret" end
     return tostring(threat)
+end
+
+-- IsInGroup's raw answers for the log, no spaces: any,home,instance as true / false / secret / err.
+local function ShowGroup()
+    local answers = {}
+    for index, category in ipairs({ false, LE_PARTY_CATEGORY_HOME, LE_PARTY_CATEGORY_INSTANCE }) do
+        local ok, inGroup
+        if category then ok, inGroup = pcall(IsInGroup, category) else ok, inGroup = pcall(IsInGroup) end
+        answers[index] = not ok and "err" or issecretvalue(inGroup) and "secret" or tostring(inGroup)
+    end
+    return table.concat(answers, ",")
 end
 
 local function SpellTexture(spellID)
@@ -207,8 +218,8 @@ local function Wound(plate, unit, flagText, amount, school, now)
     Teacher.Seen(amount) -- every enemy-plate wound counts toward the crowd check, drawn or not
     local text = HitText(flagText, amount)
     if ns.Debug then
-        ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s target=%s", unit, ShowValue(school),
-            ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowThreat(unit), ShowIsTarget(unit))
+        ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s target=%s", unit, ShowValue(school),
+            ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowThreat(unit), ShowGroup(), ShowIsTarget(unit))
     end
     local spellID = Tracker.Identify(plate, school, amount, flagText, now)
     if spellID and spellID ~= Tracker.UNKNOWN then
