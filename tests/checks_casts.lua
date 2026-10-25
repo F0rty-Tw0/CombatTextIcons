@@ -337,12 +337,12 @@ do -- Phase 3: records and Claim
         local kind, record = ns.Casts.Claim(Plate("nameplate1"), 32, 10.2)
         return kind == "learned" and record.spellID == 450983 and record.base == 8092
     end)
-    Scenario("claim: wrong school, wrong plate, too early or too late is nil", function()
+    Scenario("claim: wrong school, wrong plate, too early or past twice the window top (0.45 s) is nil", function()
         local ns, S = Rig(Wand)
         Cast(ns, S, WAND, 10, "nameplate1")
         local p1, p2 = Plate("nameplate1"), Plate("nameplate2")
         return ns.Casts.Claim(p1, 32, 10.2) == nil and ns.Casts.Claim(p2, 4, 10.2) == nil
-            and ns.Casts.Claim(p1, 4, 10.12) == nil and ns.Casts.Claim(p1, 4, 10.28) == nil
+            and ns.Casts.Claim(p1, 4, 10.12) == nil and ns.Casts.Claim(p1, 4, 10.46) == nil
     end)
     Scenario("claim: no side effects (record, plates and a second answer unchanged)", function()
         local ns, S = Rig(Wand)
@@ -496,6 +496,20 @@ end
         local second = rig.Hit(200, "nameplate1", "WOUND", 24031, 32)
         Check("casts: two open casts of one spell that both fit are not ambiguous: each takes one hit",
             first and first.texture == "tex:" .. VOID_BLAST and second and second.texture == "tex:" .. VOID_BLAST)
+        -- Mind Blast travel varies (0.17-0.34 s across runs 115649Z-123754Z): window 0.17 s, late up to 2 x 0.17 + 0.05
+        rig.Cast(300, MIND_BLAST, "nameplate1")
+        local late = rig.Hit(300.29, "nameplate1", "WOUND", 21009, 32)
+        rig.Cast(310, MIND_BLAST, "nameplate1")
+        local tooLate = rig.Hit(310.5, "nameplate1", "WOUND", 21009, 32)
+        rig.Cast(320, MIND_BLAST, "nameplate1")
+        local inWindow = rig.Hit(320.17, "nameplate1", "WOUND", 19000, 32)
+        local after = rig.Hit(320.3, "nameplate1", "WOUND", 2000, 32)
+        Check("casts: a cast with no hit yet takes a late hit up to twice its window top (0.29 s of 0.17)",
+            late and late.texture == "tex:" .. MIND_BLAST)
+        Check("casts: past twice the window top (0.5 s) it takes nothing",
+            not (tooLate and tooLate.texture == "tex:" .. MIND_BLAST))
+        Check("casts: a cast that took its hit in the window takes no late hit",
+            inWindow and inWindow.texture == "tex:" .. MIND_BLAST and not (after and after.texture == "tex:" .. MIND_BLAST))
         F.Init({ casts = { [1] = { learned = true, pattern = "single", school = 32, delays = { 0.2 },
             samples = { { school = 32, delay = 0.2, castAt = 1, hops = 1, spell = VOID_BLAST } } } } })
         Check("fingerprints: a saved sample keeps its cast spell", select(2, F.Window(1, VOID_BLAST)) == 0.2

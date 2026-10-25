@@ -38,6 +38,7 @@ local log = {}           -- harmful player casts, oldest first: { spellID, base,
 -- Open records: a learned cast waiting for its hit. A hit that fits one is drawn with the
 -- cast's icon; Claim only reads, Accept is the only writer.
 local SLACK = 0.05      -- a window edge may be this far off
+local LATE = 2          -- a cast with no hit yet takes a late one up to this times its window top
 local RECORD_MAX = 20   -- open records at most; the oldest is dropped
 local records = {}      -- oldest first: { spellID, base, at, plate, hops, plates, last }
 
@@ -48,7 +49,7 @@ local function Live(record, now)
     local fp = Fingerprints.Get(record.base)
     if not (fp and fp.learned) then return nil end
     local _, high = Fingerprints.Window(record.base, record.spellID)
-    local limit = record.at + high + SLACK
+    local limit = record.at + LATE * high + SLACK
     if fp.pattern == "chain" and record.hops >= 1 then limit = math.max(limit, record.last + CHAIN_GAP) end
     if now <= limit then return fp end
 end
@@ -79,18 +80,30 @@ function Casts.NoteCast(castID, now)
     end
 end
 
--- Does `record` still wait for a hit of `school` on `plate` at `now`? Its first hit
--- lands on the cast's plate inside the learned delay window; a chain's later hits
--- land on new plates, each within CHAIN_GAP of the one before and CHAIN_MAX in all.
+-- Does `record` still wait for a hit of `school` on `plate` at `now`? "in": its first hit
+-- lands on the cast's plate inside the learned delay window, or a chain's later hit lands on a
+-- new plate within CHAIN_GAP of the one before (CHAIN_MAX in all). "late": a first hit past the
+-- window, up to LATE times its top (Mind Blast's travel varies with distance). Else false.
 local function Fits(record, fp, plate, school, now)
     if school ~= fp.school then return false end
     if record.hops == 0 then
         local age = now - record.at
         local low, high = Fingerprints.Window(record.base, record.spellID)
-        return plate == record.plate and age >= low - SLACK and age <= high + SLACK
+        if plate ~= record.plate or age < low - SLACK then return false end
+        if age <= high + SLACK then return "in" end
+
+        return age <= LATE * high + SLACK and "late"
     end
     return fp.pattern == "chain" and not record.plates[plate] and now - record.last <= CHAIN_GAP
-        and record.hops < CHAIN_MAX
+        and record.hops < CHAIN_MAX and "in"
+end
+
+-- Adds a fitting record to a claim count: records of one spell count once (the first, oldest,
+-- answers); a record of another spell makes it two.
+local function Count(found, fits, record)
+    if found and found.spellID ~= record.spellID then fits = fits + 1 end
+
+    return found or record, math.max(fits, 1)
 end
 
 -- A harmful non-tracker cast on `plate` within UNKNOWN_WAIT that no fingerprint knows
@@ -107,19 +120,22 @@ end
 
 -- Whose hit is this? "learned", record: the open records that fit are all casts of one spell
 -- (the oldest answers; Void Blast can fire twice in one frame) and no unlearned cast is on the
--- plate. "ambiguous": records of two spells fit, or an unlearned cast is on the plate (spec 6.1
+-- plate. Records that fit late answer only when none fits in its window. "ambiguous": records of two spells fit, or an unlearned cast is on the plate (spec 6.1
 -- read literally: that alone spoils the answer, fit or not). nil: nothing to say. Changes
 -- nothing; Accept is the only writer.
 function Casts.Claim(plate, school, now)
     if not (Plain(plate) and Plain(school) and Plain(now)) then return nil end
-    local found, fits = nil, 0
+    local found, fits, late, lateFits = nil, 0, nil, 0
     for _, record in ipairs(records) do
         local fp = Live(record, now)
-        if fp and Fits(record, fp, plate, school, now) then
-            if found and found.spellID ~= record.spellID then fits = fits + 1 end
-            found, fits = found or record, math.max(fits, 1)
+        local fit = fp and Fits(record, fp, plate, school, now)
+        if fit == "in" then
+            found, fits = Count(found, fits, record)
+        elseif fit == "late" then
+            late, lateFits = Count(late, lateFits, record)
         end
     end
+    if fits == 0 then found, fits = late, lateFits end
     if fits >= 2 or UnlearnedCastAt(plate, now) then return "ambiguous" end
     if fits == 1 then return "learned", found end
 end
