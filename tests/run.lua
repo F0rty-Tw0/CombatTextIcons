@@ -662,7 +662,8 @@ local REPLAY_STEADY = "shadow-steady-2026-10-25" -- /cti forget, then 3 dummy fi
 local REPLAY_CROWD = "shadow-steady2-2026-10-25" -- /cti forget, then 2 dummy fights beside strangers' dummies (run 153349Z)
 local TRIGGER_ID = 1227280 -- Tentacle Slam: applies VT, has no meter row of its own (TEACH ... meter=0 in both fixtures)
 local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shadow-dots "-> unknown-solo", priest-dummy "-> HIDDEN (crowded)")
-    [SHADOW_DOTS] = { startArea = "clear" },
+    -- F2 prints Void Blast's aliased row as 450983 (no 8092 row that fight).
+    [SHADOW_DOTS] = { startArea = "clear", rowIDs = { {}, { ["450983:72191"] = 8092 } } },
     [PRIEST_DUMMY] = { startArea = "crowded" },
     -- rowIDs: the rows that log printed under the cast it was aliased to. 263165 (Void Torrent) never prints as its
     -- own ID; F4's 1231479 and 263165 are confirmed by the char SV's saved verdicts (meterID), the rest inferred.
