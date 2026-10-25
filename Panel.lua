@@ -90,7 +90,8 @@ local function KnownSpells(drew)
     local prints = Fingerprints.List()
     for _, entry in ipairs(prints) do
         if entry.learned then
-            Claim(entry.spellID, "learned", PATTERNS[entry.pattern], string.format("fights %.0f, strikes %.0f", entry.fights, entry.strikes))
+            local strikes = entry.strikes > 0 and string.format(", strikes %.0f", entry.strikes) or ""
+            Claim(entry.spellID, "learned", PATTERNS[entry.pattern], string.format("agreed in %.0f fights", entry.fights) .. strikes)
         end
     end
     local procList = Procs.List()
@@ -105,8 +106,8 @@ local function KnownSpells(drew)
     for _, entry in ipairs(Learn.VoteList()) do
         local need = entry.school == 1 and Learn.VOTES_MIN_PHYSICAL or Learn.VOTES_MIN
         if entry.votes > 0 then
-            Claim(entry.spellID, "learning", entry.kind,
-                string.format("votes %.0f, p %.3f (need <= %g, >= %d)", entry.votes, entry.p, Learn.ALPHA, need))
+            local checking = entry.votes >= need and " (checking)" or "" -- enough votes, luck p still above ALPHA
+            Claim(entry.spellID, "learning", entry.kind, string.format("votes %.0f of %d", entry.votes, need) .. checking)
         end
     end
     for _, entry in ipairs(prints) do

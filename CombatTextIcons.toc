@@ -16,6 +16,7 @@ Ledger.lua
 Casts.lua
 Teacher.lua
 Display.lua
+Progress.lua
 Panel.lua
 MinimapButton.lua
 Core.lua

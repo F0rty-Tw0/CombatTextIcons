@@ -1,7 +1,9 @@
 -- Popups: a spell icon with the number (or miss word) to its right.
 -- Enemy hits rise from above the enemy's nameplate; heals and damage taken
 -- stack in a column under the player, newest on top, older ones pushed down. Amounts may be secret values:
--- those go straight into SetText/SetFormattedText, never into Lua math.
+-- those go straight into SetText/SetFormattedText, never into Lua math. Fight-end notices
+-- (Progress.lua) are a batch of up to MAX_NOTICES still rows above the player column, living
+-- NOTICE_LIFE seconds; each popup carries its own life.
 --
 -- Motion is driven from one OnUpdate (SetPoint/SetAlpha/SetScale) rather than
 -- AnimationGroups: a Translation animation on these WorldFrame popups drew the
@@ -21,7 +23,8 @@ local POP_UP = 0.07      -- seconds to reach the peak
 local POP_TIME = 0.15    -- seconds until the crit has settled back to 1
 local FADE_IN = 0.05     -- seconds to fade in
 local FADE_OUT = 0.35    -- seconds of fade-out at the end of life
-local LIFE = 1.2         -- seconds a popup lives
+local LIFE = 1.2         -- seconds a plate or player popup lives
+local NOTICE_LIFE = 4    -- seconds a fight-end notice lives
 local RISE = 35          -- pixels a normal plate popup rises
 local CRIT_RISE = 10     -- crits barely rise
 local JITTER = 30        -- random x offset of plate popups, +/- pixels
@@ -34,10 +37,13 @@ local ROW = 26           -- player column spacing; older rows move down
 local MAX_VISIBLE = 40
 local MAX_PER_PLATE = 3  -- a plate's oldest popup is recycled beyond this
 local MAX_COLUMN = 6     -- player column rows; older rows are released
+local MAX_NOTICES = 4    -- fight-end notice rows
 -- Above the nameplates, below most of the UI. The strata of Blizzard's
 -- nameplate frames could not be confirmed offline; LOW would do if they are
 -- BACKGROUND (in game: /run print(NamePlate1:GetFrameStrata())).
 local STRATA = "MEDIUM"
+
+Display.MAX_NOTICES = MAX_NOTICES -- Progress shows at most this many notices
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -79,6 +85,7 @@ end
 local pool = {}
 local active = {}  -- visible popups, oldest first
 local column = {}  -- player popups, newest first
+local notices = {} -- the current batch of fight-end notices
 local driver = CreateFrame("Frame")
 driver:Hide()
 
@@ -95,6 +102,7 @@ local function Release(popup)
     popup.anchor = nil
     Remove(active, popup)
     Remove(column, popup)
+    Remove(notices, popup)
     pool[#pool + 1] = popup
 end
 
@@ -110,7 +118,7 @@ local function NewPopup()
     return popup
 end
 
--- Moves, fades and scales a popup `age` seconds into its life. Crits punch up
+-- Moves, fades and scales a popup `age` seconds into its life (`popup.life`). Crits punch up
 -- from normal-hit size to a peak, then settle. Offsets are divided by the
 -- scale because SetPoint offsets are in the popup's own scale.
 local function Place(popup, age)
@@ -124,11 +132,11 @@ local function Place(popup, age)
     local alpha = 1
     if age < FADE_IN then
         alpha = age / FADE_IN
-    elseif age > LIFE - FADE_OUT then
-        alpha = (LIFE - age) / FADE_OUT
+    elseif age > popup.life - FADE_OUT then
+        alpha = (popup.life - age) / FADE_OUT
     end
     popup:SetAlpha(alpha)
-    local y = popup.y + popup.rise * age / LIFE
+    local y = popup.y + popup.rise * age / popup.life
     popup:SetPoint(popup.point, popup.anchor, popup.relativePoint, popup.x / scale, y / scale)
 end
 
@@ -137,15 +145,16 @@ function Display.Update(now)
     for index = #active, 1, -1 do
         local popup = active[index]
         local age = now - popup.born
-        if age >= LIFE then Release(popup) else Place(popup, age) end
+        if age >= popup.life then Release(popup) else Place(popup, age) end
     end
     if not active[1] then driver:Hide() end
 end
 
 driver:SetScript("OnUpdate", function() Display.Update(GetTime()) end)
 
--- Fills a popup and starts its life at `point` of `anchor`; `rise` pixels over its life.
-local function Acquire(texture, text, flagText, color, prefix, anchor, point, relativePoint, x, y, rise)
+-- Fills a popup and starts its life at `point` of `anchor`; `rise` pixels over its life
+-- (`life` seconds, LIFE by default).
+local function Acquire(texture, text, flagText, color, prefix, anchor, point, relativePoint, x, y, rise, life)
     if #active >= MAX_VISIBLE then Release(active[1]) end
     local popup = table.remove(pool) or NewPopup()
     local crit = Plain(flagText) and flagText == "CRITICAL"
@@ -161,7 +170,7 @@ local function Acquire(texture, text, flagText, color, prefix, anchor, point, re
     end
     popup.crit, popup.born = crit, GetTime()
     popup.anchor, popup.point, popup.relativePoint = anchor, point, relativePoint
-    popup.x, popup.y, popup.rise = x, y, rise
+    popup.x, popup.y, popup.rise, popup.life = x, y, rise, life or LIFE
     Place(popup, 0)
     popup:Show()
     active[#active + 1] = popup
@@ -211,6 +220,17 @@ function Display.Player(kind, texture, text, flagText)
         entry:ClearAllPoints()
         Place(entry, now - entry.born)
     end
+end
+
+-- Fight-end notice row `i` (1 = highest priority, at the top): `text` is a plain string. i = 1
+-- starts a new batch and releases the previous notices.
+function Display.Notice(texture, text, i)
+    if i == 1 then
+        while notices[1] do Release(notices[1]) end
+    end
+    local popup = Acquire(texture, text, nil, WHITE, nil, UIParent, "CENTER", "CENTER", 0,
+        PLAYER_Y + (MAX_NOTICES + 2 - i) * ROW, 0, NOTICE_LIFE)
+    notices[#notices + 1] = popup
 end
 
 -- The plate's unit is gone; its popups go with it.

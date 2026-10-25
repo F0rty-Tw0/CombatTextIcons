@@ -1230,4 +1230,62 @@ return function(T)
         Check("procs forget: /cti forget clears learned procs and candidates (2 before), in the saved table too",
             before == 2 and rig.ns.Procs.Get(X) == nil and #rig.ns.Procs.List() == 0 and next(CombatTextIconsCharDB.procs) == nil)
     end
+
+    do -- Teacher.OnRead: called once per fight with Teacher.last, at the end of Read and on every skip path
+        local function HookRig()
+            local rig = Rig({ [SMITE] = 2 })
+            rig.calls, rig.teach = {}, {}
+            rig.ns.Debug = function(format, ...)
+                local line = string.format(format, ...)
+                if line:find("^TEACH ") then rig.teach[#rig.teach + 1] = line end
+            end
+            rig.ns.Teacher.OnRead = function(last)
+                rig.calls[#rig.calls + 1] = { last = last, current = rig.ns.Teacher.last, teach = #rig.teach,
+                    verdicts = rig.ns.Ledger.Fights()[1] and rig.ns.Ledger.Fights()[1].verdicts }
+            end
+            return rig
+        end
+
+        local rig = HookRig()
+        rig.ns.Ledger.Start(10, false)
+        rig.ns.Ledger.Add("damage", SMITE, 53)
+        rig.ns.Ledger.Finish(20)
+        rig.Fight({ [SMITE] = { 53 } }, { Session(nextSession + 1, { Row(SMITE, 53) }) })
+        nextSession = nextSession + 1
+        local queued = #rig.calls
+        rig.Fire()
+        local call = rig.calls[1]
+        Check("teacher OnRead: not called before the read fires, then once with Teacher.last",
+            queued == 0 and #rig.calls == 1 and call.last == call.current and call.last.rows ~= nil
+            and call.last.area == "clear")
+        Check("teacher OnRead: called after Ledger.SetVerdicts and the TEACH report",
+            call.teach > 0 and call.verdicts ~= nil and call.verdicts[SMITE] ~= nil)
+        rig.Fire()
+        Check("teacher OnRead: once per fight (no second call)", #rig.calls == 1)
+
+        rig = HookRig()
+        rig.Fight({ [SMITE] = { 53 } }, {})
+        rig.Fire()
+        Check("teacher OnRead: Read's skip (no sessions) calls it once with that skip's Teacher.last",
+            #rig.calls == 1 and rig.calls[1].last == rig.calls[1].current and rig.calls[1].last.skip == "no sessions")
+
+        rig = HookRig()
+        rig.ns.Teacher.Finish(20)
+        Check("teacher OnRead: Finish's 'no fight' skip calls it once",
+            #rig.calls == 1 and rig.calls[1].last == rig.calls[1].current and rig.calls[1].last.skip == "no fight")
+
+        rig = HookRig()
+        rig.ns.Meter.Disable("test")
+        rig.ns.Teacher.Start(10)
+        rig.ns.Teacher.Finish(20)
+        Check("teacher OnRead: Finish's 'meter off' skip calls it once",
+            #rig.calls == 1 and rig.calls[1].last == rig.calls[1].current and rig.calls[1].last.skip == "meter off")
+
+        rig = HookRig()
+        C_Timer.After = function() error("timer broke") end
+        rig.ns.Teacher.Start(10)
+        rig.ns.Teacher.Finish(20)
+        Check("teacher OnRead: Finish's 'read failed' skip calls it once",
+            #rig.calls == 1 and rig.calls[1].last == rig.calls[1].current and rig.calls[1].last.skip == "read failed")
+    end
 end

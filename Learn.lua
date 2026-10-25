@@ -39,7 +39,7 @@ local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 
 Learn.PERIOD_MIN, Learn.PERIOD_MAX = PERIOD_MIN, PERIOD_MAX -- Streams pairs hits only inside these
-Learn.ALPHA, Learn.VOTES_MIN, Learn.VOTES_MIN_PHYSICAL = ALPHA, VOTES_MIN, VOTES_MIN_PHYSICAL -- the panel shows the learn rule
+Learn.VOTES_MIN, Learn.VOTES_MIN_PHYSICAL = VOTES_MIN, VOTES_MIN_PHYSICAL -- the panel and Progress show "n of need"
 
 -- Whether two base periods agree: they differ by at most SIG_AGREE of the larger.
 function Learn.PeriodsAgree(a, b) return math.abs(a - b) <= SIG_AGREE * math.max(a, b) end

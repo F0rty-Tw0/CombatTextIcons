@@ -570,6 +570,7 @@ local function Replay(name, opts)
     ns.Display.Player = function(kind, texture, text, flagText)
         draws[#draws + 1] = { kind = kind, texture = texture, text = text }
     end
+    ns.Display.Notice = function() end -- fight-end popups are not hits: the replays draw nothing new
     local function Show(hit, draw)
         hit.shown, hit.via = draw, draw.texture == ns.Meter.UNKNOWN_ICON and "unknown" or "tracker"
     end

@@ -15,9 +15,9 @@
 -- Damage you take is always shown, without an icon.
 
 local ADDON, ns = ...
-local Meter, Tracker, Display, Learn, Streams, Casts, Fingerprints, Procs, Ledger, Teacher, Panel, MinimapButton =
+local Meter, Tracker, Display, Learn, Streams, Casts, Fingerprints, Procs, Ledger, Teacher, Progress, Panel, MinimapButton =
     ns.Meter, ns.Tracker, ns.Display, ns.Learn, ns.Streams, ns.Casts, ns.Fingerprints, ns.Procs, ns.Ledger, ns.Teacher,
-    ns.Panel, ns.MinimapButton
+    ns.Progress, ns.Panel, ns.MinimapButton
 
 local Core = {}
 ns.Core = Core
@@ -326,6 +326,7 @@ function Core.ADDON_LOADED(name)
         if db.enabled == nil then db.enabled = true end
         db.meter = nil -- the meter mode is gone
         if type(db.showUnknown) ~= "boolean" then db.showUnknown = nil end
+        if type(db.showProgress) ~= "boolean" then db.showProgress = nil end
         CombatTextIconsDB = db
     elseif name == "Blizzard_CombatText" and db and db.enabled then
         SetCombatTextShown(false)
@@ -358,12 +359,13 @@ function Core.PLAYER_REGEN_ENABLED()
 end
 
 -- The combat-start hook: the ledger opens a fight and the teacher starts tallying what
--- is drawn (same `now`, so the verdicts find the fight).
+-- is drawn (same `now`, so the verdicts find the fight); Progress snapshots the learn state.
 function Core.PLAYER_REGEN_DISABLED()
     if not db.enabled then return end
     local now = GetTime()
     Ledger.Start(now, InGroup())
     Teacher.Start(now, InGroup())
+    Progress.Start()
 end
 
 function Core.UNIT_COMBAT(unit, event, flagText, amount, school)
@@ -448,6 +450,7 @@ events:SetScript("OnEvent", function(_, event, ...) Core[event](...) end)
 -- /cti minimap shows or hides the minimap button (works while the addon is off).
 -- /cti unknown on|off shows or hides the '?' icon of a hit no spell could be named for
 -- (the number stays; works while the addon is off).
+-- /cti progress on|off shows or hides the fight-end learning popups (works while the addon is off).
 SLASH_COMBATTEXTICONS1 = "/cti"
 
 local function SpellName(spellID)
@@ -513,6 +516,16 @@ SlashCmdList.COMBATTEXTICONS = function(message)
         print(PREFIX .. "'?' icons " .. word)
         return
     end
+    if message:sub(1, 8) == "progress" then
+        local word = strtrim(message:sub(9))
+        if word ~= "on" and word ~= "off" then
+            print(PREFIX .. "usage: /cti progress on|off")
+            return
+        end
+        Progress.SetShown(word == "on")
+        print(PREFIX .. "progress popups " .. word)
+        return
+    end
     if message == "debug" then
         if ns.Debug then
             ns.Debug = nil
@@ -530,7 +543,7 @@ SlashCmdList.COMBATTEXTICONS = function(message)
     elseif message == "off" then
         enable = false
     elseif message ~= "" then
-        print(PREFIX .. "usage: /cti [on|off|learned [chat]|minimap|unknown|forget|debug|test]")
+        print(PREFIX .. "usage: /cti [on|off|learned [chat]|minimap|unknown|progress|forget|debug|test]")
         return
     end
     if enable == db.enabled then

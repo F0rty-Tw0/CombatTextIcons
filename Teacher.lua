@@ -16,6 +16,8 @@
 -- the enemy-plate wounds seen (Teacher.Seen) fit the meter's rows the area is "clear" and
 -- learning runs (the leftover '?' hits and still-open rows then go to Procs.Read), else it
 -- is "crowded" and that fight teaches nothing. With /cti debug each outcome logs TEACH lines.
+-- Each fight's outcome, a read or a skip, ends with one Teacher.OnRead(Teacher.last) call
+-- (Progress shows what the fight taught).
 
 local _, ns = ...
 local Meter, Fingerprints, Procs, Ledger = ns.Meter, ns.Fingerprints, ns.Procs, ns.Ledger
@@ -32,6 +34,7 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 Teacher.fight = nil -- the open fight: { at, tally = { [spellID] = sum }, unknown = { entry, ... }, seen = sum, group }
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" }
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; never saved
+Teacher.OnRead = nil -- function(last), called once per fight when its outcome is final; Progress sets it
 
 local lastSession = nil -- ID of the session processed last, never read twice
 
@@ -321,6 +324,12 @@ local function Report(last)
     end
 end
 
+-- The fight's outcome is final: report it and hand it to Teacher.OnRead.
+local function Done()
+    Report(Teacher.last)
+    if Teacher.OnRead then Teacher.OnRead(Teacher.last) end
+end
+
 -- The crowd check: "group" (the state is kept) for a group fight, else "clear" when the
 -- enemy-plate wounds seen fit the meter's rows (their total plus overkill, within the judge's
 -- tolerance), else "crowded". Also returns the rows' total.
@@ -367,7 +376,7 @@ local function Read(run)
     if not rows then
         Teacher.last = { skip = reason }
         if reason == "duplicate session" then Ledger.Drop(run.at) end
-        Report(Teacher.last)
+        Done()
         return
     end
 
@@ -389,7 +398,7 @@ local function Read(run)
         Procs.Read(hits, openRows, results, rows, run.at)
     end
     Ledger.SetVerdicts(Teacher.last.rows, run.at)
-    Report(Teacher.last)
+    Done()
 end
 
 -- Combat began: open a fight (an unfinished one is replaced).
@@ -439,17 +448,17 @@ function Teacher.Finish(now)
     Teacher.last = nil
     if not fight then
         Teacher.last = { skip = "no fight" }
-        Report(Teacher.last)
+        Done()
         return
     end
     if not Meter.Available() then
         Teacher.last = { skip = "meter off" }
-        Report(Teacher.last)
+        Done()
         return
     end
 
     if not pcall(C_Timer.After, READ_DELAY, function() Read(fight) end) then
         Teacher.last = { skip = "read failed" }
-        Report(Teacher.last)
+        Done()
     end
 end

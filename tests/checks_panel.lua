@@ -527,12 +527,12 @@ return function(T)
         Check("rows: spread-only icon is a spread row", Find(rows, 1253171) ~= nil and Find(rows, 1253171).kind == "spread")
         local learned = Find(rows, LIGHTNING)
         Check("rows: learned fingerprint", learned ~= nil and learned.group == "learned" and learned.kind == "direct"
-            and learned.state == "fights 2, strikes 1" and learned.drawn == 300)
+            and learned.state == "agreed in 2 fights, strikes 1" and learned.drawn == 300)
         Check("rows: unlearned fingerprint casts 1 of 3", Find(rows, LAVA_BURST) ~= nil
             and Find(rows, LAVA_BURST).group == "learning" and Find(rows, LAVA_BURST).state == "casts 1 of 3")
         local vote = Find(rows, 8092)
         Check("rows: vote best sig", vote ~= nil and vote.group == "learning" and vote.kind == "channel"
-            and vote.state:find("votes 2") ~= nil and vote.state:find(">= 2") ~= nil)
+            and vote.state == "votes 2 of 2 (checking)")
         local pain = Find(rows, PAIN)
         Check("rows: learned tick wins over a fingerprint on the same ID", CountKey(rows, PAIN) == 1 and pain.group == "learned"
             and pain.kind == "dot" and pain.state == "period 2.00 s")
@@ -546,6 +546,13 @@ return function(T)
         Check("rows: order is group (learned, learning, table, unattributed), then drawn descending",
             IndexOf(rows, LIGHTNING) < IndexOf(rows, 8092) and IndexOf(rows, 8092) < IndexOf(rows, CORRUPTION_TICK)
             and IndexOf(rows, CORRUPTION_TICK) < IndexOf(rows, 999) and IndexOf(rows, LIGHTNING) < IndexOf(rows, PAIN))
+        ns.Fingerprints.Get(LIGHTNING).strikes = 0
+        for _, sig in ipairs(ns.Learn.Votes(8092).sigs) do sig.votes = 1 end
+        local changed = ns.Panel.Rows(fight)
+        Check("rows: learned fingerprint with no strikes is 'agreed in N fights' only",
+            Find(changed, LIGHTNING).state == "agreed in 2 fights")
+        Check("rows: tick votes below the need are 'votes n of need' (school 32 needs 2)",
+            Find(changed, 8092).state == "votes 1 of 2")
     end)
 
     Scenario("rows: procs", function()
@@ -580,7 +587,7 @@ return function(T)
         ns.Procs.LEARN_STREAK = 3
         Check("procs panel: first claim wins: learned dot 594, learned fingerprint 188196 and vote 8092 keep their rows",
             CountKey(rows, PAIN) == 1 and Find(rows, PAIN).state == "period 2.00 s" and Find(rows, PAIN).kind == "dot"
-            and CountKey(rows, LIGHTNING) == 1 and Find(rows, LIGHTNING).state == "fights 2, strikes 1"
+            and CountKey(rows, LIGHTNING) == 1 and Find(rows, LIGHTNING).state == "agreed in 2 fights, strikes 1"
             and CountKey(rows, 8092) == 1 and Find(rows, 8092).kind == "channel")
         Check("procs panel: learned procs sort with the learned group, candidates with the learning group",
             IndexOf(rows, X) < IndexOf(rows, 900001) and IndexOf(rows, Y) < IndexOf(rows, 900001)
