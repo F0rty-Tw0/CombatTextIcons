@@ -1607,5 +1607,41 @@ return function(T)
         end
         Check("steady (k): Void Blast logged twice in its frame is one cast -> 8092 learns 3 Void Blast samples",
             last.area == "clear" and Learned(last) == 3 and voidSamples == 3)
+
+        -- Learned-base mode: Mind Blast learned at a far dummy (0.30 s), only Mind Blast samples; Void Blast lands
+        -- in its cast frame, so no record claims it (window 0.30 by fallback), with a small co-hit in each frame.
+        local function FarMindBlast(rig)
+            for castAt, size in ipairs({ 20942, 20962, 21730 }) do
+                rig.ns.Fingerprints.Add(MIND_BLAST, { school = 32, delay = 0.30, castAt = castAt, hops = 1,
+                    spell = MIND_BLAST, size = size })
+            end
+        end
+        local blasts = {}
+        for index, t in ipairs({ 10, 15, 20 }) do
+            blasts[#blasts + 1] = { t, VOID_BLAST }
+            blasts[#blasts + 1] = { t, nil, ({ 22090, 22574, 22978 })[index] }
+            blasts[#blasts + 1] = { t, nil, ({ 2000, 4000, 6000 })[index] }
+        end
+        rig, last = SteadyFight(blasts, { Row(MIND_BLAST, 79642) }, FarMindBlast)
+        local voidDelays = {}
+        for _, sample in ipairs(rig.ns.Fingerprints.Get(MIND_BLAST).samples) do
+            if sample.spell == VOID_BLAST then voidDelays[#voidDelays + 1] = sample.delay end
+        end
+        local based = false
+        for _, line in ipairs(CombatTextIconsDB.debugLog) do
+            based = based or line:find("TEACH steady 8092 spell=450983 mode=base", 1, true) ~= nil
+        end
+        rig.S.now = 40
+        rig.ns.Core.PLAYER_REGEN_DISABLED()
+        rig.Cast(40, "nameplate1", VOID_BLAST)
+        local drawn = rig.Hit(40, "nameplate1", 22500, 32)
+        Check("steady (h): a learned base learns Void Blast's in-frame hits it missed (co-hits out of band); then claims one",
+            last.area == "clear" and Learned(last) == 3 and #voidDelays == 3 and voidDelays[1] == 0 and voidDelays[3] == 0
+            and based and Outcome(VOID_BLAST) == "learned" and drawn == "tex:" .. VOID_BLAST)
+
+        rig, last = SteadyFight(blasts, { Row(MIND_BLAST, 79642) }, FarMindBlast,
+            function(r) r.ns.Teacher.Drawn(MIND_BLAST, 79642) end)
+        Check("steady (i): a learned base whose drawn tally already fills its row -> meter, nothing learned",
+            last.area == "clear" and Learned(last) == nil and Outcome(VOID_BLAST) == "meter")
     end
 end

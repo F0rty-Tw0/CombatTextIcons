@@ -7,8 +7,10 @@
 -- the smallest. Overlapping qualifying windows are one cluster; two clusters teach nothing. A hit
 -- counted for two cast spells or two bases teaches neither. The meter judges last: the counted hits
 -- must fit the base's row (total + overkill + tolerance, less what was drawn under it). Learned
--- hits become fingerprint samples. With /cti debug each cast spell seen MIN_CASTS times logs one
--- TEACH steady line.
+-- hits become fingerprint samples. A base learned before the fight keeps learning the hits it
+-- missed (Void Blast in its cast frame, Mind Blast at a new distance): its pairs need its school and
+-- the padded size band. With /cti debug each cast spell seen MIN_CASTS times logs one TEACH steady
+-- line.
 
 local _, ns = ...
 local Fingerprints, Procs, Casts = ns.Fingerprints, ns.Procs, ns.Casts
@@ -22,32 +24,43 @@ local MIN_CASTS = 3     -- casts a window must count at least
 local SIZE_SPREAD = 1.5 -- the biggest counted hit at most this times the smallest
 local EPS = 1e-6        -- float slack on window edges
 
--- How the pass treats a base this read: "new" (unlearned), or nil (learned, here or before).
+-- How the pass treats a base this read: "new" (unlearned), "base" (learned before this read: it
+-- learns the hits it missed), or nil (learned by this read's exact-sum passes: skipped).
 local function Mode(castID, learnedNow)
-    if learnedNow[castID] or Fingerprints.IsLearned(castID) then return nil end
+    if learnedNow[castID] then return nil end
 
-    return "new"
+    return Fingerprints.IsLearned(castID) and "base" or "new"
+end
+
+-- Whether a learned base may take `hit` as a hit of `spell`: in the base's school and inside the
+-- padded size band of the spell (Casts.InBand), so DoT ticks and small co-hits in Void Blast's
+-- frame are no pairs.
+local function BaseFits(castID, spell, hit)
+    return hit.school == Fingerprints.Get(castID).school and Casts.InBand(castID, spell, hit.size)
 end
 
 -- The considered hits' pairs by cast spell: { castAt, delay, hit }, plus each cast spell's casts
--- (distinct castAt) and base.
+-- (distinct castAt), base and mode.
 local function PairsBySpell(hits, learnedNow)
-    local pairsOf, castsOf, baseOf = {}, {}, {}
+    local pairsOf, castsOf, baseOf, modeOf = {}, {}, {}, {}
     for _, hit in ipairs(hits) do
         for _, candidate in ipairs(hit.candidates) do
-            local spell = candidate.castSpell
-            if Mode(candidate.castID, learnedNow) then
+            local spell, castID = candidate.castSpell, candidate.castID
+            local mode = Mode(castID, learnedNow)
+            if mode then
                 pairsOf[spell] = pairsOf[spell] or {}
                 castsOf[spell] = castsOf[spell] or {}
-                baseOf[spell] = candidate.castID
+                baseOf[spell], modeOf[spell] = castID, mode
                 castsOf[spell][candidate.castAt] = true
-                local list = pairsOf[spell]
-                list[#list + 1] = { castAt = candidate.castAt, delay = hit.at - candidate.castAt, hit = hit }
+                if mode == "new" or BaseFits(castID, spell, hit) then
+                    local list = pairsOf[spell]
+                    list[#list + 1] = { castAt = candidate.castAt, delay = hit.at - candidate.castAt, hit = hit }
+                end
             end
         end
     end
 
-    return pairsOf, castsOf, baseOf
+    return pairsOf, castsOf, baseOf, modeOf
 end
 
 -- The pairs W(d) counts: each cast with exactly one pair whose delay is in [d, d + SPREAD], in pair
@@ -152,7 +165,7 @@ end
 
 -- One cast spell's result: { spell, castID, casts, counted (nil without one cluster), outcome }.
 local function SpellResults(hits, learnedNow)
-    local pairsOf, castsOf, baseOf = PairsBySpell(hits, learnedNow)
+    local pairsOf, castsOf, baseOf, modeOf = PairsBySpell(hits, learnedNow)
     local spells = {}
     for spell in pairs(pairsOf) do spells[#spells + 1] = spell end
     table.sort(spells)
@@ -160,7 +173,7 @@ local function SpellResults(hits, learnedNow)
     for _, spell in ipairs(spells) do
         local casts = Count(castsOf[spell])
         local clusters = Clusters(pairsOf[spell], math.max(MIN_CASTS, math.ceil(SHARE * casts - EPS)))
-        local result = { spell = spell, castID = baseOf[spell], casts = casts, outcome = "none" }
+        local result = { spell = spell, castID = baseOf[spell], mode = modeOf[spell], casts = casts, outcome = "none" }
         if #clusters == 1 then result.counted = clusters[1].best.counted end
         if #clusters >= 2 then result.outcome = "clusters=" .. #clusters end
         results[#results + 1] = result
@@ -212,8 +225,8 @@ local function Report(results)
     if not ns.Debug then return end
     for _, result in ipairs(results) do
         if result.casts >= MIN_CASTS then
-            ns.Debug("TEACH steady %d spell=%d mode=new counted=%d/%d delay=%s size=%s -> %s", result.castID, result.spell,
-                result.counted and #result.counted or 0, result.casts,
+            ns.Debug("TEACH steady %d spell=%d mode=%s counted=%d/%d delay=%s size=%s -> %s", result.castID, result.spell,
+                result.mode, result.counted and #result.counted or 0, result.casts,
                 Range(result.counted, function(pair) return pair.delay end),
                 Range(result.counted, function(pair) return pair.hit.size end), result.outcome)
         end
