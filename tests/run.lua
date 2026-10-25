@@ -1559,7 +1559,11 @@ local c12 = { pass = true, heads = {}, lines = {}, missed = {} }
 local c12Total = { den = 0, right = 0, wrong = 0 }
 for _, name in ipairs(DIRECT_NAMES) do
     local lines, priest = labels[name].direct.lines, name:find("^priest") ~= nil
-    local _, _, one = Replay(name, { noSeen = true })
+    -- seen = the labeled session's total, so the crowd check passes (seen 0 would read "short")
+    local events = labels[name].targets and ParseSvLog(name) or ParseFixture(name)
+    local labeledTotal = 0
+    for _, row in ipairs(LabeledSession(lines, { events = events }).rows) do labeledTotal = labeledTotal + row.totalAmount end
+    local _, _, one = Replay(name, { noSeen = true, seen = labeledTotal })
     S.sessions = { LabeledSession(lines, one) }
     for _, timer in ipairs(S.timers) do timer.fn() end
     one.casts, one.castAliases = DeepCopy(CombatTextIconsCharDB.casts), DeepCopy(CombatTextIconsCharDB.castAliases)

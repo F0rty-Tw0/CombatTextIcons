@@ -54,12 +54,16 @@ return function(T)
             ns.Core.UNIT_COMBAT(unit, "WOUND", "", amount, school)
             return #rig.draws > before and rig.draws[#rig.draws] or nil
         end
-        -- Teacher fight without Core: tally = { [spellID] = { amount, ... } }; the read is queued, not run.
+        -- Teacher fight without Core: tally = { [spellID] = { amount, ... } }, each hit drawn and seen; the
+        -- read is queued, not run.
         function rig.Fight(tally, sessions)
             S.sessions = sessions
             ns.Teacher.Start(10)
             for spellID, amounts in pairs(tally) do
-                for _, amount in ipairs(amounts) do ns.Teacher.Drawn(spellID, amount) end
+                for _, amount in ipairs(amounts) do
+                    ns.Teacher.Drawn(spellID, amount)
+                    ns.Teacher.Seen(amount)
+                end
             end
             ns.Teacher.Finish(20)
         end
@@ -233,7 +237,7 @@ return function(T)
         Teacher.Drawn(SMITE, 23)
         Teacher.Seen(23)
         Teacher.Finish(25)
-        S.sessions = { Session(1, { Row(SMITE, 53), Row(SWP, 300) }) }
+        S.sessions = { Session(1, { Row(SMITE, 53) }) }
         rig.Fire()
         local smite = Find(Teacher.last, SMITE)
         Check("teacher: the next read judges both fights against the one session: Smite 30 + 23 agrees with 53, area clear",
@@ -485,6 +489,14 @@ return function(T)
         -- overkill is damage the meter holds that the plate may show: row 1000 + overkill 50, tolerance 10
         Check("crowd: seen = total + overkill + 1 % (1060) is clear", AreaAt(1060, 1000, 50) == "clear")
         Check("crowd: seen one above total + overkill + 1 % (1061) is crowded", AreaAt(1061, 1000, 50) == "crowded")
+        -- run 102226Z read seen 20306 against meter 4211377; clean solo reads were at most ~5 % short
+        Check("crowd: seen half the meter (500 of 1000) is still clear", AreaAt(500, 1000) == "clear")
+        Check("crowd: seen below half the meter (499 of 1000) is short", AreaAt(499, 1000) == "short")
+        for _, area in ipairs({ "clear", "crowded" }) do
+            local rig, ok, last, learned = Crowd(area, 86)
+            Check("crowd: a short read keeps the state (" .. area .. ") and skips learning",
+                ok and rig.ns.Teacher.area == area and last.area == "short" and not learned)
+        end
 
         do
             local rig, ok, last, learned = Crowd("clear", 300)
@@ -667,7 +679,8 @@ return function(T)
         end
         local seenList, outcomeList = table.concat(seen, ","), table.concat(outcomes, ",")
         Check("crowd probe6: seen totals are 450307, 221409, 1026076, 191434, 34506472", seenList == "450307,221409,1026076,191434,34506472")
-        Check("crowd probe6: reads give skip, clear, clear, clear, crowded", outcomeList == "skip:secret,clear,clear,clear,crowded")
+        -- fights 2 and 4 each share a meter session with the fight before (probe events M <type> 3 and 4)
+        Check("crowd probe6: reads give skip, short, clear, short, crowded", outcomeList == "skip:secret,short,clear,short,crowded")
         Check("crowd probe6: the state stays crowded through the skipped first read", areaAfterFirst == "crowded")
     end
 

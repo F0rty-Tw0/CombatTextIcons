@@ -15,7 +15,8 @@
 -- Ledger, which attaches them to the saved fight. A solo fight is also a crowd check: when
 -- the enemy-plate wounds seen (Teacher.Seen) fit the meter's rows the area is "clear" and
 -- learning runs (the leftover '?' hits and still-open rows then go to Procs.Read), else it
--- is "crowded" and that fight teaches nothing. With /cti debug each outcome logs TEACH lines.
+-- is "crowded" and that fight teaches nothing; seen below half the rows' total is "short" and
+-- teaches nothing either. With /cti debug each outcome logs TEACH lines.
 -- Each fight's outcome, a read or a skip, ends with one Teacher.OnRead(Teacher.last) call
 -- (Progress shows what the fight taught). A fight whose read meets the next fight is carried
 -- into it (Carry) and has no outcome of its own.
@@ -33,7 +34,7 @@ local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
 Teacher.fight = nil -- the open fight: { at, tally = { [spellID] = sum }, unknown = { entry, ... }, seen = sum, group }
-Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" }
+Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; never saved
 Teacher.OnRead = nil -- function(last), called once per fight when its outcome is final; Progress sets it
 
@@ -374,9 +375,11 @@ local function Done()
     if Teacher.OnRead then Teacher.OnRead(Teacher.last) end
 end
 
--- The crowd check: "group" (the state is kept) for a group fight, else "clear" when the
--- enemy-plate wounds seen fit the meter's rows (their total plus overkill, within the judge's
--- tolerance), else "crowded". Also returns the rows' total.
+-- The crowd check: "group" (the state is kept) for a group fight; "short" (the state is kept)
+-- when the wounds seen are below half the meter's total, so the session holds damage this fight
+-- never saw (run 102226Z: 20306 seen against 4211377); else "clear" when the enemy-plate wounds
+-- seen fit the meter's rows (their total plus overkill, within the judge's tolerance), else
+-- "crowded". Also returns the rows' total.
 local function CrowdCheck(run, rows)
     local total, overkill = 0, 0
     for _, row in ipairs(rows) do
@@ -385,6 +388,7 @@ local function CrowdCheck(run, rows)
 
     local grouped = run.group or InGroup()
     if grouped then return "group", total end
+    if run.seen < total / 2 then return "short", total end
 
     local tolerance = math.max(1, total / 100)
     local fits = run.seen <= total + overkill + tolerance
@@ -470,7 +474,7 @@ local function Read(run)
     Teacher.last = { session = sessionID, rows = results, learned = {} }
 
     local area, total = CrowdCheck(run, rows)
-    if area ~= "group" then Teacher.area = area end
+    if area ~= "group" and area ~= "short" then Teacher.area = area end
     Teacher.last.area = area
     if ns.Debug then
         ns.Debug("TEACH clean seen=%d meter=%d -> %s", math.floor(run.seen), math.floor(total), area)
