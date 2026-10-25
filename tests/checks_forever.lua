@@ -177,6 +177,17 @@ return function(T)
             onTarget and onTarget:find(" target=true$") and offTarget and offTarget:find(" target=false$")
             and secret and secret:find(" target=secret$") and failed and failed:find(" target=err$"))
 
+        local threatSituation, threats = UnitThreatSituation, {}
+        for index, answer in ipairs({ function() return 1 end, function() return nil end,
+            function() return Secret(1) end, function() error("restricted") end }) do
+            UnitThreatSituation = answer
+            rig.Hit(4 + index, "nameplate1")
+            threats[index] = Last("^HIT nameplate1"):match(" threat=(%S+) target=")
+        end
+        UnitThreatSituation = threatSituation
+        Check("debug: the HIT line logs threat=1 / nil / secret / err before target= (gap 2 probe)",
+            threats[1] == "1" and threats[2] == "nil" and threats[3] == "secret" and threats[4] == "err")
+
         rig.S.now = 10
         rig.ns.Core.UNIT_COMBAT("player", "HEAL", "", 500, 2)
         local heal = Last("^HEAL ")

@@ -128,9 +128,12 @@ local function InstallStubs()
             S.sourceCalls[#S.sourceCalls + 1] = { id = sessionID, meterType = meterType, guid = guid }
             if S.sourceFail == "error" then error("source broke") end
             if S.sourceFail == "secret" then return Secret("source") end
+            if S.sourceFail == "heal error" and meterType == 2 then error("heal source broke") end
             for _, session in ipairs(S.sessions) do
                 if session.sessionID == sessionID then
-                    return { combatSpells = session.rows, maxAmount = 0, totalAmount = 0 }
+                    -- healing done (type 2) serves the session's `healRows`, every other type its `rows`
+                    local rows = meterType == 2 and (session.healRows or {}) or session.rows
+                    return { combatSpells = rows, maxAmount = 0, totalAmount = 0 }
                 end
             end
         end,

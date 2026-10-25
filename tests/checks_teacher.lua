@@ -1312,4 +1312,44 @@ return function(T)
         Check("teacher OnRead: Finish's 'read failed' skip calls it once",
             #rig.calls == 1 and rig.calls[1].last == rig.calls[1].current and rig.calls[1].last.skip == "read failed")
     end
+
+    do -- heal probe (gap 3): /cti debug logs the healing-done rows after the damage TEACH lines
+        local HEAL_ID = 19236
+        local function HealRig(debug)
+            local rig = Rig({})
+            rig.teach = {}
+            if debug then
+                rig.ns.Debug = function(format, ...)
+                    local line = string.format(format, ...)
+                    if line:find("^TEACH ") then rig.teach[#rig.teach + 1] = line end
+                end
+            end
+            return rig
+        end
+        local function HealSession()
+            nextSession = nextSession + 1
+            local session = Session(nextSession, { Row(SMITE, 53) })
+            session.healRows = { Row(HEAL_ID, 900, 120) }
+            return session
+        end
+
+        local rig = HealRig(true)
+        local ok = rig.Read({ [SMITE] = { 53 } }, { HealSession() })
+        local teach = rig.teach
+        Check("heal probe: debug on logs 'TEACH heal <id> meter=<total> over=<overkill>' last, after the damage rows",
+            ok and teach[#teach] == "TEACH heal 19236 meter=900 over=120" and teach[#teach - 1]:find("^TEACH 591 ") ~= nil)
+        Check("heal probe: the heal read asks for healing done (type 2) after the damage read",
+            #rig.S.sourceCalls == 2 and rig.S.sourceCalls[1].meterType == DAMAGE and rig.S.sourceCalls[2].meterType == 2)
+
+        rig = HealRig(false)
+        rig.Read({ [SMITE] = { 53 } }, { HealSession() })
+        Check("heal probe: debug off reads no heal rows", #rig.S.sourceCalls == 1)
+
+        rig = HealRig(true)
+        rig.S.sourceFail = "heal error"
+        ok = rig.Read({ [SMITE] = { 53 } }, { HealSession() })
+        Check("heal probe: a heal read that errors logs 'TEACH heal skip read failed' and leaves the meter on",
+            ok and rig.teach[#rig.teach] == "TEACH heal skip read failed" and rig.ns.Meter.Available()
+            and Find(rig.ns.Teacher.last, SMITE).verdict == "agree")
+    end
 end

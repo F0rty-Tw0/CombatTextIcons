@@ -141,6 +141,15 @@ local function ShowIsTarget(unit)
     return tostring(isTarget)
 end
 
+-- UnitThreatSituation's raw answer for the log: a number, "nil", "secret" or "err" (does
+-- FightsYou fall back to the target on retail mobs? gap 2).
+local function ShowThreat(unit)
+    local ok, threat = pcall(UnitThreatSituation, "player", unit)
+    if not ok then return "err" end
+    if issecretvalue(threat) then return "secret" end
+    return tostring(threat)
+end
+
 local function SpellTexture(spellID)
     return (C_Spell.GetSpellTexture(spellID))
 end
@@ -198,8 +207,8 @@ local function Wound(plate, unit, flagText, amount, school, now)
     Teacher.Seen(amount) -- every enemy-plate wound counts toward the crowd check, drawn or not
     local text = HitText(flagText, amount)
     if ns.Debug then
-        ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f target=%s", unit, ShowValue(school),
-            ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowIsTarget(unit))
+        ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s target=%s", unit, ShowValue(school),
+            ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowThreat(unit), ShowIsTarget(unit))
     end
     local spellID = Tracker.Identify(plate, school, amount, flagText, now)
     if spellID and spellID ~= Tracker.UNKNOWN then

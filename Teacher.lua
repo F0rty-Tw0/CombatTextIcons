@@ -76,16 +76,18 @@ local function NewestSession()
     return newest
 end
 
--- The player's damage-done rows of a session as { { spellID, total, overkill }, ... }, one per
--- spell, or nil and a skip reason. The meter may list a spell in several rows: they are merged
--- (total and overkill summed) at the first one's place.
-local function ReadRows(sessionID)
+-- The player's rows of a session for `meterType` (damage done unless given) as
+-- { { spellID, total, overkill }, ... }, one per spell, or nil and a skip reason. The meter may
+-- list a spell in several rows: they are merged (total and overkill summed) at the first one's
+-- place. Only a damage read that errors turns the meter off.
+local function ReadRows(sessionID, meterType)
+    meterType = meterType or Meter.DAMAGE_DONE
     local okGuid, guid = pcall(UnitGUID, "player")
     if not (okGuid and Plain(guid) and type(guid) == "string") then return nil, "read failed" end
 
-    local ok, source = pcall(C_DamageMeter.GetCombatSessionSourceFromID, sessionID, Meter.DAMAGE_DONE, guid)
+    local ok, source = pcall(C_DamageMeter.GetCombatSessionSourceFromID, sessionID, meterType, guid)
     if not ok then
-        Meter.Disable(source) -- the error text
+        if meterType == Meter.DAMAGE_DONE then Meter.Disable(source) end -- the error text
 
         return nil, "read failed"
     end
@@ -352,6 +354,19 @@ local function Report(last)
     end
 end
 
+-- grug: temporary probe for '?' heals (gap 3): /cti debug logs the session's healing-done rows
+-- after the damage rows, to set against the fight's HEAL lines (does a heal's amount include
+-- overheal?). Remove once heals are learned.
+local function ReportHeals(sessionID)
+    if not ns.Debug then return end
+    local rows, reason = ReadRows(sessionID, Meter.HEALING_DONE)
+    if not rows then
+        ns.Debug("TEACH heal skip %s", reason)
+        return
+    end
+    for _, row in ipairs(rows) do ns.Debug("TEACH heal %s meter=%s over=%s", row.spellID, row.total, row.overkill) end
+end
+
 -- The fight's outcome is final: report it and hand it to Teacher.OnRead.
 local function Done()
     Report(Teacher.last)
@@ -427,6 +442,7 @@ local function Read(run)
     end
     Ledger.SetVerdicts(Teacher.last.rows, run.at)
     Done()
+    ReportHeals(sessionID)
 end
 
 -- Combat began: open a fight (an unfinished one is replaced).
