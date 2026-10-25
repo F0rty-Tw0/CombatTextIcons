@@ -9,7 +9,9 @@
 -- its base spell (Casts.Base): the meter files an override (Void Blast 450983) under its
 -- base's row (Mind Blast 8092). The '?' hits one unlearned cast can explain are summed per
 -- school; when a sum agrees with exactly one unpaired row (never one Procs tracks), those
--- hits become fingerprint samples. A read that meets a
+-- hits become fingerprint samples. Then the steady pass (Steady.lua) learns from '?' hits at a
+-- steady delay and size that no sum explained, for unlearned bases and for the hits a learned
+-- base missed, bounded by the meter row. A read that meets a
 -- secret value or an error is skipped whole. The verdicts also unlearn DoTs, channels and
 -- procs whose drawn total overshoots the meter or never pairs with a row, and go to the
 -- Ledger, which attaches them to the saved fight. A solo fight is also a crowd check: when
