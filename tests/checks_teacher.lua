@@ -190,6 +190,16 @@ return function(T)
         Check("teacher: the same newest session twice is read once ('duplicate session'), fights counted once",
             okA and okB and lastA.session == 1 and lastB.skip == "duplicate session" and F.Get(SMITE).fights == 1)
 
+        do -- a re-pull inside the meter's session (probe6 fights 3-4): the same session grew; only the growth is judged
+            local again = Rig({ [SMITE] = 2 })
+            again.Read({ [SMITE] = { 53 } }, { Session(7, { Row(SMITE, 53), Row(GRAVE, 20) }) })
+            local okG, grown = again.Read({ [SMITE] = { 40 } }, { Session(7, { Row(SMITE, 93), Row(GRAVE, 20) }) })
+            local smite = Find(grown, SMITE)
+            Check("teacher: the same session read again judges what it grew: Smite 93 - 53 = 40 agrees, Grave (no growth) is no row",
+                okG and grown.session == 7 and smite and smite.meter == 40 and smite.verdict == "agree"
+                and Find(grown, GRAVE) == nil and again.ns.Fingerprints.Get(SMITE).fights == 2 and grown.area == "clear")
+        end
+
         do -- leftover ticks re-enter combat for a moment: the meter starts no session, so that fight is not saved
             local tiny = Rig({})
             local L = tiny.ns.Ledger
@@ -661,27 +671,37 @@ return function(T)
         local rig = Rig({})
         rig.ns.Teacher.area = "crowded"
         local seen, outcomes, areaAfterFirst = {}, {}, nil
+        -- each fight's meter session ID (probe events M <type> <id>): fights 1-2 share 3, fights 3-4 share 4
+        local SESSION_IDS = { 3, 3, 4, 4, 5 }
+        -- Fires the read of fight `index` against its dump; records its outcome ("carried" when it has none).
+        local function ReadFight(index)
+            rig.S.sessions = { DumpSession(SESSION_IDS[index], FIGHTS[index][2]) }
+            pcall(rig.Fire)
+            local last = rig.ns.Teacher.last
+            outcomes[index] = not last and "carried" or last.skip and ("skip:" .. last.skip) or last.area
+            if index == 1 then areaAfterFirst = rig.ns.Teacher.area end
+        end
         for index, pair in ipairs(FIGHTS) do
             local amounts = FightAmounts(pair[1])
             local total = 0
-            rig.S.sessions = { DumpSession(900 + index, pair[2]) }
             rig.ns.Teacher.Start(pair[1], false)
+            if index > 1 and pair[1] < FIGHTS[index - 1][2] then ReadFight(index - 1) end -- pulled before that read
             for _, amount in ipairs(amounts) do
                 rig.ns.Teacher.Seen(amount)
                 total = total + amount
             end
             rig.ns.Teacher.Finish(pair[2])
-            pcall(rig.Fire)
-            local last = rig.ns.Teacher.last
+            local nextFight = FIGHTS[index + 1]
+            if not (nextFight and nextFight[1] < pair[2]) then ReadFight(index) end
             seen[index] = string.format("%d", total)
-            outcomes[index] = last.skip and ("skip:" .. last.skip) or last.area
-            if index == 1 then areaAfterFirst = rig.ns.Teacher.area end
         end
         local seenList, outcomeList = table.concat(seen, ","), table.concat(outcomes, ",")
         Check("crowd probe6: seen totals are 450307, 221409, 1026076, 191434, 34506472", seenList == "450307,221409,1026076,191434,34506472")
-        -- fights 2 and 4 each share a meter session with the fight before (probe events M <type> 3 and 4)
-        Check("crowd probe6: reads give skip, short, clear, short, crowded", outcomeList == "skip:secret,short,clear,short,crowded")
-        Check("crowd probe6: the state stays crowded through the skipped first read", areaAfterFirst == "crowded")
+        -- fight 1's read meets fight 2 (carried: 671716 seen of 777938); fight 4 reads what session 4 grew since
+        -- fight 3's read (1240519 - 1038269 = 202250 against 191434 seen)
+        Check("crowd probe6: reads give carried, clear, clear, clear, crowded [" .. outcomeList .. "]",
+            outcomeList == "carried,clear,clear,clear,crowded")
+        Check("crowd probe6: the state stays crowded through the carried first read", areaAfterFirst == "crowded")
     end
 
     do -- safety net (spec 3.3): learned DoTs and channels are judged by every read

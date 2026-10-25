@@ -19,7 +19,8 @@
 -- teaches nothing either. With /cti debug each outcome logs TEACH lines.
 -- Each fight's outcome, a read or a skip, ends with one Teacher.OnRead(Teacher.last) call
 -- (Progress shows what the fight taught). A fight whose read meets the next fight is carried
--- into it (Carry) and has no outcome of its own.
+-- into it (Carry) and has no outcome of its own. A fight whose newest session is the one read
+-- last is judged on that session's growth since (Growth).
 
 local _, ns = ...
 local Meter, Fingerprints, Procs, Ledger = ns.Meter, ns.Fingerprints, ns.Procs, ns.Ledger
@@ -38,7 +39,8 @@ Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {..
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; never saved
 Teacher.OnRead = nil -- function(last), called once per fight when its outcome is final; Progress sets it
 
-local lastSession = nil -- ID of the session processed last, never read twice
+local lastSession = nil -- ID of the session processed last
+local lastRows = {}     -- that session's rows at its last read, by spell ID: { total, overkill }
 
 local function InGroup()
     local inGroup = IsInGroup()
@@ -73,7 +75,6 @@ local function NewestSession()
         end
         if not newest or session.sessionID > newest then newest = session.sessionID end
     end
-    if newest == lastSession then return nil, "duplicate session" end
 
     return newest
 end
@@ -119,6 +120,22 @@ local function ReadRows(sessionID, meterType)
     end
 
     return rows
+end
+
+-- A re-pull within a few seconds continues the meter session read last (probe6: fights 3 and 4
+-- share session 4). The rows' growth since that read is this fight's: rows that grew, by how much.
+local function Growth(rows)
+    local grown = {}
+    for _, row in ipairs(rows) do
+        local before = lastRows[row.spellID]
+        local total = row.total - (before and before.total or 0)
+        if total > 0 then
+            grown[#grown + 1] = { spellID = row.spellID, total = total,
+                overkill = math.max(0, row.overkill - (before and before.overkill or 0)) }
+        end
+    end
+
+    return grown
 end
 
 -- Judges one paired spell and tells Fingerprints: agree counts a fight, over is a strike.
@@ -428,15 +445,17 @@ local function Carry(run, into)
     if ns.Debug then ns.Debug("TEACH carry %d hits seen=%d", #run.unknown, math.floor(run.seen)) end
 end
 
--- grug: session probe (2026-10-25): the read session's listed duration, to confirm in game that a
--- quick re-pull's session spans both fights. Remove once confirmed.
-local function ReportSession(sessionID)
+-- grug: session probe (2026-10-25): the read session's listed duration ("again" when only its
+-- growth is judged), to confirm in game that a quick re-pull's session spans both fights. Remove
+-- once confirmed.
+local function ReportSession(sessionID, again)
     local ok, sessions = pcall(C_DamageMeter.GetAvailableCombatSessions)
     if not (ok and Plain(sessions) and type(sessions) == "table") then return end
     for _, session in ipairs(sessions) do
         if Plain(session) and type(session) == "table" and session.sessionID == sessionID then
             local duration = session.durationSeconds
-            ns.Debug("TEACH session %d dur=%s", sessionID, issecretvalue(duration) and "secret" or tostring(duration))
+            ns.Debug("TEACH session %d dur=%s%s", sessionID, issecretvalue(duration) and "secret" or tostring(duration),
+                again and " again" or "")
         end
     end
 end
@@ -452,14 +471,23 @@ local function Read(run)
     end
     if not rows then
         Teacher.last = { skip = reason }
-        if reason == "duplicate session" then Ledger.Drop(run.at) end
         Done()
         return
     end
 
-    lastSession = sessionID
+    local full, again = rows, sessionID == lastSession
+    if again then rows = Growth(full) end
+    if #rows == 0 and again then
+        -- leftover ticks re-entered combat for a moment and dealt nothing the meter counts
+        Teacher.last = { skip = "duplicate session" }
+        Ledger.Drop(run.at)
+        Done()
+        return
+    end
+    lastSession, lastRows = sessionID, {}
+    for _, row in ipairs(full) do lastRows[row.spellID] = { total = row.total, overkill = row.overkill } end
     if ns.Debug then
-        ReportSession(sessionID)
+        ReportSession(sessionID, again)
         -- grug: override probe (2026-10-25): what each meter row's spell turns into right now.
         for _, row in ipairs(rows) do
             local get = C_Spell.GetOverrideSpell
