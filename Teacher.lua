@@ -493,7 +493,7 @@ local function Read(run)
             local get = C_Spell.GetOverrideSpell
             local ok, override = false, nil
             if get then ok, override = pcall(get, row.spellID) end
-            ns.Debug("TEACH row %d total=%d override=%s", row.spellID, math.floor(row.total),
+            ns.Debug("TEACH row %d total=%d overkill=%d override=%s", row.spellID, math.floor(row.total), math.floor(row.overkill),
                 not get and "none" or not ok and "err" or issecretvalue(override) and "secret" or tostring(override))
         end
     end
