@@ -1,0 +1,21 @@
+## Interface: 120105, 16001
+## Title: Combat Text Icons
+## Notes: Your combat numbers drawn with the icon of the spell behind them; replaces Blizzard's outgoing numbers. /cti
+## Version: 0.2.0
+## SavedVariables: CombatTextIconsDB
+## SavedVariablesPerCharacter: CombatTextIconsCharDB
+
+Spells.lua
+Learn.lua
+Streams.lua
+Meter.lua
+Tracker.lua
+Fingerprints.lua
+Procs.lua
+Ledger.lua
+Casts.lua
+Teacher.lua
+Display.lua
+Panel.lua
+MinimapButton.lua
+Core.lua
