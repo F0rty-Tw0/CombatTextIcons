@@ -561,6 +561,52 @@ do -- Phase 3: records and Claim
         return ns.Casts.Claim(p1, 32, 10.2) == nil and ns.Casts.Claim(p2, 4, 10.2) == nil
             and ns.Casts.Claim(p1, 4, 10.12) == nil and ns.Casts.Claim(p1, 4, 10.46) == nil
     end)
+    -- Shadow Bolt 686 learned at 1.104-1.155 s; the next fight it lands at ~0.98-1.0 s (run 20261025T180045Z).
+    local SB = 686
+    local function LearnBolt(n) LearnSized(n, SB, SB, { 10064, 12503, 10126 }, { 1.104, 1.13, 1.155 }) end
+    Scenario("centre: one hit seen under the window moves the next cast's window to it (1.0 s of 1.10-1.16 s)", function()
+        local ns, S = Rig(LearnBolt)
+        local p1 = Plate("nameplate1")
+        Cast(ns, S, SB, 100, "nameplate1")
+        local under = ns.Casts.Claim(p1, 32, 100.98, 10321)
+        Cast(ns, S, SB, 101.5, "nameplate1")
+        local kind, record = ns.Casts.Claim(p1, 32, 102.5, 10273)
+        return under == nil and kind == "learned" and record.at == 101.5
+    end)
+    Scenario("centre: two hits seen in the watch range move nothing", function()
+        local ns, S = Rig(LearnBolt)
+        local p1 = Plate("nameplate1")
+        Cast(ns, S, SB, 100, "nameplate1")
+        ns.Casts.Claim(p1, 32, 100.95, 10500)
+        ns.Casts.Claim(p1, 32, 101.0, 10300)
+        Cast(ns, S, SB, 101.5, "nameplate1")
+        return ns.Casts.Claim(p1, 32, 102.5, 10273) == nil
+    end)
+    Scenario("centre: a centre older than CENTRE_AGE (10 s, cast to cast) or from an ended fight is ignored", function()
+        local ns, S = Rig(LearnBolt)
+        local p1 = Plate("nameplate1")
+        Cast(ns, S, SB, 100, "nameplate1")
+        ns.Casts.Claim(p1, 32, 100.98, 10321)
+        Cast(ns, S, SB, 111, "nameplate1")
+        local stale = ns.Casts.Claim(p1, 32, 112.0, 10273)
+        Cast(ns, S, SB, 120, "nameplate1")
+        ns.Casts.Claim(p1, 32, 120.98, 10321)
+        ns.Casts.Flush(121.5)
+        Cast(ns, S, SB, 122, "nameplate1")
+        return stale == nil and ns.Casts.Claim(p1, 32, 123.0, 10273) == nil
+    end)
+    Scenario("late: a record that saw a hit near its window takes no late hit (Darkglare's beam after a spoiled bolt)", function()
+        local ns, S = Rig(LearnBolt)
+        local p1 = Plate("nameplate1")
+        Cast(ns, S, SB, 200, "nameplate1")
+        ns.Casts.Claim(p1, 32, 200.98, 10321)
+        return ns.Casts.Claim(p1, 32, 202.0, 7821) == nil
+    end)
+    Scenario("late: a record that saw nothing near its window still takes a late hit", function()
+        local ns, S = Rig(LearnBolt)
+        Cast(ns, S, SB, 200, "nameplate1")
+        return ns.Casts.Claim(Plate("nameplate1"), 32, 201.6, 10321) == "learned"
+    end)
     Scenario("claim: no side effects (record, plates and a second answer unchanged)", function()
         local ns, S = Rig(Wand)
         Cast(ns, S, WAND, 10, "nameplate1")
@@ -728,8 +774,8 @@ end
         -- Mind Blast travel varies (0.17-0.34 s across runs 115649Z-123754Z): window 0.17 s, late up to 2 x 0.17 + 0.05
         rig.Cast(300, MIND_BLAST, "nameplate1")
         local late = rig.Hit(300.29, "nameplate1", "WOUND", 21009, 32)
-        rig.Cast(310, MIND_BLAST, "nameplate1")
-        local tooLate = rig.Hit(310.5, "nameplate1", "WOUND", 21009, 32)
+        rig.Cast(311, MIND_BLAST, "nameplate1") -- 11 s after the 300 cast: its centre (0.29 s) is stale
+        local tooLate = rig.Hit(311.5, "nameplate1", "WOUND", 21009, 32)
         rig.Cast(320, MIND_BLAST, "nameplate1")
         local inWindow = rig.Hit(320.17, "nameplate1", "WOUND", 19000, 32)
         local after = rig.Hit(320.3, "nameplate1", "WOUND", 2000, 32)

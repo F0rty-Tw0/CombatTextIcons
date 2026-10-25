@@ -63,12 +63,53 @@ local LOG_MAX = 20       -- cast log entries kept at most
 local log = {}           -- harmful player casts, oldest first: { spellID, base, at, plate, tracker }
 
 -- Open records: a learned cast waiting for its hit. A hit that fits one is drawn with the
--- cast's icon; Claim only reads, Accept is the only writer.
+-- cast's icon; Accept is the only writer of hops. Claim only notes what each record saw (its centre).
 local SLACK = 0.05      -- a window edge may be this far off
 local LATE = 2          -- a cast with no hit yet takes a late one up to this times its window top
 local PAD_LO, PAD_HI = 0.5, 2 -- a sized hit fits a cast's band from half its smallest to twice its biggest learned size
 local RECORD_MAX = 20   -- open records at most; the oldest is dropped
-local records = {}      -- oldest first: { spellID, base, at, plate, hops, plates, last }
+local records = {}      -- oldest first: { spellID, base, at, plate, hops, plates, last, seen, settled }
+
+-- Travel time follows distance, and distance changes per fight: Shadow Bolt 686 learned at 1.10-1.16 s
+-- landed at 0.92-1.09 s the next fight, 1.12-1.26 s the one after (run 20261025T180045Z). So each cast
+-- spell keeps a delay centre per plate for the fight. A record watches its window widened by WATCH;
+-- once past that, exactly one hit seen there (its school, its plate, in band) moves the centre ALPHA of
+-- the way to that hit's delay (the first sets it). A cast within CENTRE_AGE of the centre's last cast
+-- widens its learned window to cover the centre (learned width around it); it never narrows.
+local WATCH = 0.2       -- a record watches this far below and above its window
+local ALPHA = 0.5       -- a seen hit moves the centre this share of the way to its delay
+local CENTRE_AGE = 10   -- a centre older than this (cast to cast) is ignored and restarts
+local centres = {}      -- "base:spell@plate" -> { delay, at }; cleared when the fight ends
+
+local function CentreKey(record) return record.base .. ":" .. record.spellID .. "@" .. tostring(record.plate) end
+
+-- The delay window of `record`: the learned one, widened to the learned width around a fresh centre.
+local function RecordWindow(record)
+    local low, high = Fingerprints.Window(record.base, record.spellID)
+    local centre = centres[CentreKey(record)]
+    if not (low and centre and record.at - centre.at <= CENTRE_AGE) then return low, high end
+    local half = (high - low) / 2
+
+    return math.min(low, centre.delay - half), math.max(high, centre.delay + half)
+end
+
+-- Once `now` is past the record's watch range, its one seen hit (if exactly one) moves the centre.
+local function Settle(record, now)
+    if record.settled then return end
+    local _, high = RecordWindow(record)
+    if high and now <= record.at + high + WATCH then return end
+    record.settled = true
+    if not (record.seen and #record.seen == 1) then return end
+    local key, delay = CentreKey(record), record.seen[1]
+    local centre = centres[key]
+    if centre and record.at - centre.at <= CENTRE_AGE then
+        centre.delay = centre.delay + ALPHA * (delay - centre.delay)
+    else
+        centre = { delay = delay }
+        centres[key] = centre
+    end
+    centre.at = record.at
+end
 
 -- The fingerprint (its base's) a record still waits on, or nil when the record is dead: its
 -- fingerprint is gone or unlearned, or `now` is past its window (a chain record
@@ -76,7 +117,7 @@ local records = {}      -- oldest first: { spellID, base, at, plate, hops, plate
 local function Live(record, now)
     local fp = Fingerprints.Get(record.base)
     if not (fp and fp.learned) then return nil end
-    local _, high = Fingerprints.Window(record.base, record.spellID)
+    local _, high = RecordWindow(record)
     local limit = record.at + LATE * high + SLACK
     if fp.pattern == "chain" and record.hops >= 1 then limit = math.max(limit, record.last + CHAIN_GAP) end
     if now <= limit then return fp end
@@ -84,13 +125,20 @@ end
 
 local function SweepRecords(now)
     for index = #records, 1, -1 do
-        if not Live(records[index], now) then table.remove(records, index) end
+        local record = records[index]
+        Settle(record, now)
+        if not Live(record, now) then
+            Settle(record, math.huge)
+            table.remove(records, index)
+        end
     end
 end
 
--- Fight over: drop the records whose window has passed.
+-- Fight over: the open records settle, the ones whose window has passed are dropped, the centres go.
 function Casts.Flush(now)
+    for _, record in ipairs(records) do Settle(record, math.huge) end
     SweepRecords(now)
+    centres = {}
 end
 
 -- The cast in progress (UNIT_SPELLCAST_START): a spell with a cast time keeps the target it started
@@ -131,21 +179,33 @@ function Casts.NoteCast(castID, now, castGUID)
 end
 
 -- Does `record` still wait for a hit of `school` on `plate` at `now`? "in": its first hit
--- lands on the cast's plate inside the learned delay window, or a chain's later hit lands on a
+-- lands on the cast's plate inside its delay window (RecordWindow), or a chain's later hit lands on a
 -- new plate within CHAIN_GAP of the one before (CHAIN_MAX in all). "late": a first hit past the
--- window, up to LATE times its top (Mind Blast's travel varies with distance). Else false.
+-- window, up to LATE times its top (Mind Blast's travel varies with distance), while the record has
+-- seen no hit in its watch range: one it saw was its own, spoiled (Darkglare's beam took Shadow Bolt's
+-- late slot after an ambiguous hit, run 20261025T180045Z). Else false.
 local function Fits(record, fp, plate, school, now)
     if school ~= fp.school then return false end
     if record.hops == 0 then
         local age = now - record.at
-        local low, high = Fingerprints.Window(record.base, record.spellID)
+        local low, high = RecordWindow(record)
         if plate ~= record.plate or age < low - SLACK then return false end
         if age <= high + SLACK then return "in" end
 
-        return age <= LATE * high + SLACK and "late"
+        return not record.seen and age <= LATE * high + SLACK and "late"
     end
     return fp.pattern == "chain" and not record.plates[plate] and now - record.last <= CHAIN_GAP
         and record.hops < CHAIN_MAX and "in"
+end
+
+-- A first hit of the record's school on its plate, in band, within WATCH of its window: one more seen.
+local function Watch(record, fp, plate, school, now, size)
+    if record.settled or record.hops > 0 or plate ~= record.plate or school ~= fp.school then return end
+    local low, high = RecordWindow(record)
+    local age = now - record.at
+    if age < low - WATCH or age > high + WATCH or not Casts.InBand(record.base, record.spellID, size) then return end
+    record.seen = record.seen or {}
+    record.seen[#record.seen + 1] = age
 end
 
 -- Adds a fitting record to a claim count: records of one spell count once (the first, oldest,
@@ -177,6 +237,13 @@ function Casts.InBand(base, castSpell, size)
     local low, high = Fingerprints.Band(base, castSpell)
     if not low then return true end
 
+    return Casts.InSizes(low, high, size)
+end
+
+-- Whether normal-scale `size` (nil or 0: any) fits the padded band of sizes `low`-`high`.
+function Casts.InSizes(low, high, size)
+    if not (IsNumber(size) and size > 0) then return true end
+
     return size >= PAD_LO * low and size <= PAD_HI * high
 end
 
@@ -184,13 +251,15 @@ end
 -- casts of one spell (the oldest answers; Void Blast can fire twice in one frame) and no
 -- unlearned cast is on the plate. Records that fit late answer only when none fits in its window. "ambiguous": records of two spells fit, or an unlearned cast is on the plate (spec 6.1
 -- read literally: that alone spoils the answer, fit or not). nil: nothing to say. `size` is the
--- hit's normal-scale size (Streams.NormalAmount), nil when unknown. Changes nothing; Accept is the only writer.
+-- hit's normal-scale size (Streams.NormalAmount), nil when unknown. Draws nothing; Accept is the only writer of hops.
 function Casts.Claim(plate, school, now, size)
     if not (Plain(plate) and Plain(school) and Plain(now)) then return nil end
     local found, fits, late, lateFits = nil, 0, nil, 0
     for _, record in ipairs(records) do
+        Settle(record, now)
         local fp = Live(record, now)
         local fit = fp and Casts.InBand(record.base, record.spellID, size) and Fits(record, fp, plate, school, now)
+        if fp then Watch(record, fp, plate, school, now, size) end
         if fit == "in" then
             found, fits = Count(found, fits, record)
         elseif fit == "late" then
