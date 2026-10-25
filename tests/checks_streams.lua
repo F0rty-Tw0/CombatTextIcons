@@ -220,6 +220,20 @@ return function(T)
         end
         Check("owners: a plate stream takes dot / channel entries, a heal-unit stream hot entries",
             table.concat(Streams.Live("p", 16)[1].owners, ",") == "9102" and table.concat(Streams.Live("q", 16)[1].owners, ",") == "9101")
+
+        -- Run 20261025T181738Z: Haunt's +21 % stepped Wither's opener ticks past SIZE_GUARD one period after Haunt's cast.
+        local function Stepped(key, early, earlyCount)
+            Streams.LogCast(key, 445468, "dot", 100); Streams.LogCast(key, 48181, "dot", 106.5)
+            for n = 1, earlyCount do rig.Hit(key, 108 - 2 * n, early) end
+            for _, t in ipairs({ 108, 110, 112, 114 }) do rig.Hit(key, t, 1753) end
+            local live = Streams.Live(key, 114)[1]
+
+            return live and table.concat(live.owners, ",")
+        end
+        Check("owners: a birth one period after two or more loose ticks a buff's step smaller (1451 -> 1753) takes the owners"
+            .. " of their first tick (Wither 445468, not Haunt 48181)", Stepped("w1", 1451, 3) == "445468")
+        Check("owners: one loose tick, or ticks more than x1.5 apart (900 -> 1753), leave the birth window's owners",
+            Stepped("w2", 1451, 1) == "48181" and Stepped("w3", 900, 3) == "48181")
         Streams.LogCast("r", 1, "dot", 0); Streams.LogCast("r", 2, "dot", 35); Streams.LogCast("r", 3, "dot", 36)
         log = Streams.CastLog("r")
         Check("cast log: entries older than 35 s are dropped (35 stays, 0 goes)", #log == 2 and log[1].castID == 2)

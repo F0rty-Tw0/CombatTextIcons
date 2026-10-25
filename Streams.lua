@@ -24,6 +24,7 @@ local LOOSE_CAP = 64                   -- loose hits kept per key and school (th
 local LOOSE_AGE = 2 * PERIOD_MAX       -- a loose hit older than this can no longer pair
 local STREAMS_MAX = 6                  -- live streams per key
 local DEATH = 2.5                      -- a stream dies this many periods after its last hit
+local STEP_MAX = 1.5                   -- a buff steps a running stream's size by at most this factor (see Start)
 local SIZE_GUARD = 0.15                -- two hits pair only within this share of each other's size
 local CAST_LOG = 35                    -- seconds a logged cast is kept
 local WINDOW_FROM, WINDOW_TO = 1.2, 0.5 -- birth window: [birth - 1.2 P, birth - 0.5 P]
@@ -228,6 +229,37 @@ local function Owners(entry, birth, period, heal)
     return owners, ownerKind, ownerAt
 end
 
+-- Where a birth at `birth` with `period` really starts: loose hits of its school one period apart, two or more,
+-- walked back from it are its first ticks, before a size step broke them off (too few for a stream). The owners
+-- are the casts before that first tick. Run 20261025T181738Z: Haunt's damage-taken buff (+21 %) stepped Wither's
+-- opener ticks 1451 -> 1753 past SIZE_GUARD one period after every Haunt cast, and the birth window taught Haunt
+-- a DoT; Devouring Plague's ticks change size on a refresh the same way.
+-- Each such tick is a normal hit that agrees with the other ticks and sits a buff's step (x1 to x1.5) from `amount`.
+local function Start(entry, school, birth, period, amount)
+    local slack, hits = Streams.Slack(period), entry.loose[school] or {}
+    local function Step(hit)
+        if hit.crit or not hit.amount or hit.amount <= 0 or not amount then return false end
+        local ratio = math.max(hit.amount, amount) / math.min(hit.amount, amount)
+
+        return ratio > 1 and ratio <= STEP_MAX
+    end
+    local at, steps, first = birth, 0, nil
+    while true do
+        local found
+        for _, hit in ipairs(hits) do
+            local err = math.abs(at - period - hit.at)
+            if err <= slack and Step(hit) and (not first or Agree(hit.amount, false, first.amount, false))
+                and (not found or err < math.abs(at - period - found.at)) then
+                found = hit
+            end
+        end
+        if not found then break end
+        at, steps, first = found.at, steps + 1, first or found
+    end
+
+    return steps >= 2 and at or birth
+end
+
 -- Drops the stream with the oldest last hit while the key holds too many.
 local function CapStreams(entry)
     while #entry.streams > STREAMS_MAX do
@@ -268,7 +300,8 @@ function Streams.Feed(key, school, amount, flagText, kind, now)
     if first then
         local a, b, c = hits[first], hits[second], hits[third]
         local period = (now - a.at) / 3
-        local owners, ownerKind, ownerAt = Owners(entry, a.at, period, heal)
+        local amount = BirthAmount({ a, b, c, hit })
+        local owners, ownerKind, ownerAt = Owners(entry, heal and a.at or Start(entry, school, a.at, period, amount), period, heal)
         stream = {
             school = school, period = period, birth = a.at, lastAt = now, count = 4,
             lastAmount = BirthAmount({ a, b, c, hit }),
