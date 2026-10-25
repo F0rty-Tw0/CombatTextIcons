@@ -363,8 +363,8 @@ return function(T)
 
         rig = Crowd("clear", function(S) S.threat.nameplate1 = false end)
         texture = rig.Strike("WOUND", "nameplate1", 500)
-        Check("crowd: a hit on a mob not fighting you still adds to seen",
-            rig.ns.Teacher.fight.seen == 500 and texture == nil and rig.Route() == "  -> HIDDEN")
+        Check("crowd: a hit on a mob not fighting you adds nothing to seen",
+            rig.ns.Teacher.fight.seen == 0 and texture == nil and rig.Route() == "  -> HIDDEN")
 
         rig = Crowd("clear")
         rig.Strike("WOUND", "nameplate1", Secret(500))
@@ -386,6 +386,14 @@ return function(T)
         rig.Cast(100, "nameplate1")
         texture = rig.Hit(100 + P, "nameplate1", 31)
         Check("crowd: a wound drawn by a known spell still adds to seen",
+            texture == "tex:594" and rig.ns.Teacher.fight.seen == 31)
+
+        -- The tracker names your DoT's tick on a mob that is neither your target nor fighting you: still yours.
+        rig = Crowd("clear", function(S) S.threat.nameplate1 = false end)
+        rig.Cast(100, "nameplate1")
+        rig.S.target = nil
+        texture = rig.Hit(100 + P, "nameplate1", 31)
+        Check("crowd: a wound the tracker names adds to seen on a mob not fighting you",
             texture == "tex:594" and rig.ns.Teacher.fight.seen == 31)
 
         rig = Crowd("clear")

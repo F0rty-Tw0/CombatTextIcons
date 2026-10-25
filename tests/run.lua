@@ -290,6 +290,7 @@ local function ParseLog(name, log)
         local readOrigin, dmg = rest:match("^READ (%a+) dmg=(%d+) heal=%d+ taken=%d+$")
         local hitUnit, school, amount, flag = rest:match("^HIT (%S+) school=(%d+) amount=(%d+) flag=(%S*) fps=")
         local hitTarget = rest:match("^HIT .*target=(%a+)$")
+        local hitThreat = rest:match("^HIT .* threat=(%S+) ")
         local skipped = rest:match("^STAMP %d+$") or rest:match("^RESOLVE ") or rest:match("^START ")
         if route then
             assert(lastHit ~= nil, "route line with no HIT " .. name .. ":" .. index)
@@ -313,6 +314,7 @@ local function ParseLog(name, log)
             event.kind, event.unit, event.event, event.flag = "U", hitUnit, "WOUND", flag
             event.amount, event.school = tonumber(amount), tonumber(school)
             event.target = hitTarget and hitTarget == "true"    -- nil when the log has no target= (older logs)
+            if hitThreat then event.threat = tonumber(hitThreat) or false end -- false: threat=nil (not on its list)
             if pendingRead and pendingRead.t == event.t then
                 event.read, pendingRead.paired, pendingRead = pendingRead, true, nil
             end
@@ -532,7 +534,8 @@ end
 -- replay was written for "an unexplained solo hit draws '?'", so clear is the default.
 -- opts.noSeen: the crowd check is off (Teacher.Seen does nothing).
 -- opts.meter: the Teacher's read runs (the timers fire) against S.sessions = opts.sessionRows, or none; opts.seen
--- overwrites Teacher.fight.seen before the fight ends. opts.labels / opts.events replace the fixture's labels
+-- overwrites Teacher.fight.seen before the fight ends; info.seen is the seen the read judges. opts.logThreat:
+-- each logged hit's threat= answer drives the threat stub. opts.labels / opts.events replace the fixture's labels
 -- and events (a slice of a log); info.charDB is the char DB after the fight.
 -- Each UNIT_COMBAT hit records its last "  -> " debug line as hit.route; info.teacher is the booted Teacher.
 local function Replay(name, opts)
@@ -606,6 +609,7 @@ local function Replay(name, opts)
         if event.kind == "U" then
             draws = {}
             route = nil
+            if opts.logThreat and event.threat ~= nil then S.threat[event.unit] = event.threat end
             Core.UNIT_COMBAT(event.unit, event.event, event.flag, event.amount, event.school)
             local hit, draw = { event = event, noise = event.noise, route = route }, draws[#draws]
             draws = {}
@@ -631,6 +635,7 @@ local function Replay(name, opts)
         end
     end
     if opts.seen and ns.Teacher.fight then ns.Teacher.fight.seen = opts.seen end
+    info.seen = ns.Teacher.fight and ns.Teacher.fight.seen
     Core.PLAYER_REGEN_ENABLED() -- the fight ends: buffered samples commit, the read is queued
     if opts.meter then
         S.sessions = opts.sessionRows and { { sessionID = 1, name = "Current", durationSeconds = 60, rows = opts.sessionRows } } or {}
@@ -654,6 +659,7 @@ end
 local SHADOW_DOTS, PRIEST_DUMMY = "shadow-dots-2026-10-24", "priest-dummy-2026-10-24" -- the TEACH-bearing fixtures
 local FORGET5 = "shadow-forget5-2026-10-25" -- /cti forget, then 5 solo fights (Voidweaver-era shadow priest)
 local REPLAY_STEADY = "shadow-steady-2026-10-25" -- /cti forget, then 3 dummy fights (run 140233Z)
+local REPLAY_CROWD = "shadow-steady2-2026-10-25" -- /cti forget, then 2 dummy fights beside strangers' dummies (run 153349Z)
 local TRIGGER_ID = 1227280 -- Tentacle Slam: applies VT, has no meter row of its own (TEACH ... meter=0 in both fixtures)
 local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shadow-dots "-> unknown-solo", priest-dummy "-> HIDDEN (crowded)")
     [SHADOW_DOTS] = { startArea = "clear" },
@@ -667,6 +673,8 @@ local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shado
         { ["450983:61896"] = 263165, ["8092:53675"] = 1231479 },
     } },
     [REPLAY_STEADY] = { startArea = "crowded" },
+    -- logThreat: the hits' threat= answers drive the stub and seen is the replay's own (strangers on other dummies)
+    [REPLAY_CROWD] = { startArea = "crowded", logThreat = true },
 }
 -- Replays a TEACH-bearing log one fight at a time with the meter on. Each fight is the slice of events after
 -- the previous TEACH clean line up to its own; the tail after the last one is a run with no rows (its read
@@ -687,7 +695,8 @@ local function ReplayFights(name, opts)
         if #slice == 0 then break end
         local hits, _, info = Replay(name, {
             labels = { haste = 0, castPlates = {}, targets = TargetsFromLog(slice) }, events = slice,
-            haste = opts.haste, meter = true, sessionRows = fight and fight.rows, seen = fight and fight.seen,
+            haste = opts.haste, meter = true, sessionRows = fight and fight.rows, logThreat = fixture.logThreat,
+            seen = not fixture.logThreat and fight and fight.seen or nil,
             area = area, charDB = charDB and DeepCopy(charDB),
         })
         runs[#runs + 1] = { hits = hits, info = info, last = info.teacher.last }
@@ -1881,6 +1890,27 @@ do -- steady learning (2026-10-25): run 140233Z, /cti forget then 3 dummy fights
         ok and ranOk and learnOk, table.concat(parts, "\n     ") .. "\n     " .. table.concat(steadyLines, "\n     "))
     Criterion(22, "steady replay (haste 25 and 0): fight 3 adds 11 hits under the learned 8092 (Void Blast at +0, Mind Blast from 0.170 s); only 8092 ever learns",
         ok and ranOk and baseOk, "as in 21")
+end
+
+do -- own seen (2026-10-25): run 153349Z, strangers on 8 nearby dummies made both in-game reads crowded
+    local parts, clearOk = {}, true
+    local ok, err = pcall(function()
+        for _, haste in ipairs(DOT_HASTES) do
+            local runs = ReplayFights(REPLAY_CROWD, { haste = haste })
+            clearOk = clearOk and #runs >= 2 and runs[1].last.area == "clear" and runs[2].last.area == "clear"
+            for index, run in ipairs(runs) do
+                local learned = {}
+                for id, count in pairs(run.last and run.last.learned or {}) do learned[#learned + 1] = id .. "=" .. count end
+                table.sort(learned)
+                parts[#parts + 1] = string.format("h%d F%d %s seen=%s [%s]%s", haste, index,
+                    tostring(run.last and (run.last.area or run.last.skip)), tostring(run.info.seen and math.floor(run.info.seen)),
+                    table.concat(learned, ", "), #run.info.steady > 0 and ("\n       " .. table.concat(run.info.steady, "\n       ")) or "")
+            end
+        end
+    end)
+    if not ok then Check("own-seen criterion ran without error: " .. tostring(err), false) end
+    Criterion(23, "own-seen replay (haste 25 and 0): run 153349Z reads both fights clear (strangers' dummies add nothing to seen)",
+        ok and clearOk, table.concat(parts, "\n     "))
 end
 
 -- Last replay done: no replay of the run reset the meter.

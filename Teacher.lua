@@ -15,7 +15,7 @@
 -- secret value or an error is skipped whole. The verdicts also unlearn DoTs, channels and
 -- procs whose drawn total overshoots the meter or never pairs with a row, and go to the
 -- Ledger, which attaches them to the saved fight. A solo fight is also a crowd check: when
--- the enemy-plate wounds seen (Teacher.Seen) fit the meter's rows the area is "clear" and
+-- the wounds seen that may be yours (Teacher.Seen) fit the meter's rows the area is "clear" and
 -- learning runs (the leftover '?' hits and still-open rows then go to Procs.Read), else it
 -- is "crowded" and that fight teaches nothing; seen below half the rows' total is "short" and
 -- teaches nothing either. With /cti debug each outcome logs TEACH lines.
@@ -398,7 +398,7 @@ end
 
 -- The crowd check: "group" (the state is kept) for a group fight; "short" (the state is kept)
 -- when the wounds seen are below half the meter's total, so the session holds damage this fight
--- never saw (run 102226Z: 20306 seen against 4211377); else "clear" when the enemy-plate wounds
+-- never saw (run 102226Z: 20306 seen against 4211377); else "clear" when the wounds
 -- seen fit the meter's rows (their total plus overkill, within the judge's tolerance), else
 -- "crowded". Also returns the rows' total.
 local function CrowdCheck(run, rows)
@@ -527,7 +527,7 @@ function Teacher.Start(now, group)
     Teacher.fight = { at = now, tally = {}, unknown = {}, seen = 0, group = group }
 end
 
--- An enemy-plate wound of this size was seen, drawn or not.
+-- A wound of this size that may be yours was seen, drawn or not (Core's Wound decides which count).
 function Teacher.Seen(amount)
     local fight = Teacher.fight
     if not (fight and IsNumber(amount)) then return end

@@ -276,8 +276,11 @@ end
 -- on a mob fighting you it also goes to the teacher, and draws the question mark only while the
 -- area is clear (Teacher.AreaClear); else it stays hidden (route "meter off" or "crowded"). While the
 -- area is clear a learned proc that fits the hit (Procs.Name) draws its icon instead of the question mark.
+-- The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
+-- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
+-- (run 153349Z: strangers on 8 nearby dummies made both reads crowded).
 local function Wound(plate, unit, flagText, amount, school, now)
-    Teacher.Seen(amount) -- every enemy-plate wound counts toward the crowd check, drawn or not
+    local fightsYou = FightsYou(unit, now)
     local text = HitText(flagText, amount)
     if ns.Debug then
         ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit, ShowValue(school),
@@ -285,13 +288,13 @@ local function Wound(plate, unit, flagText, amount, school, now)
             ShowIsTarget(unit))
     end
     local spellID = Tracker.Identify(plate, school, amount, flagText, now)
+    if fightsYou or (spellID and spellID ~= Tracker.UNKNOWN) then Teacher.Seen(amount) end
     if spellID and spellID ~= Tracker.UNKNOWN then
         if ns.Debug then ns.Debug("  -> tracker %s", ShowValue(spellID)) end
         Teacher.Drawn(spellID, amount)
         Ledger.Add("damage", spellID, amount)
         return Display.Plate(plate, SpellTexture(spellID), text, flagText, school)
     end
-    local fightsYou = FightsYou(unit, now)
     local kind, record = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText))
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
