@@ -323,6 +323,45 @@ do -- Phase 3: records and Claim
     local function Cast(ns, S, id, t, unit) S.now, S.target = t, unit ns.Casts.NoteCast(id, t) end
     local function Plate(unit) return C_NamePlate.GetNamePlateForUnit(unit, false) end
     local Wand = function(ns) Learn3(ns, WAND, 4, 0.2) end -- window [0.15, 0.25] after the cast
+    -- Shadow samples of `castSpell` under `id`, one per cast, with sizes (and delays, default 0.2).
+    local function LearnSized(ns, id, castSpell, sizes, delays)
+        for castAt, size in ipairs(sizes) do
+            ns.Fingerprints.Add(id, { school = 32, delay = delays and delays[castAt] or 0.2, castAt = castAt, hops = 1,
+                spell = castSpell, size = size })
+        end
+    end
+
+    Scenario("band: the min / max size of the cast spell's samples", function()
+        local ns = Rig(function(n) LearnSized(n, 8092, 8092, { 18000, 21000, 25000 }) end)
+        local low, high = ns.Fingerprints.Band(8092, 8092)
+        return low == 18000 and high == 25000
+    end)
+    Scenario("band: a cast spell with no sized sample (Void Blast) falls back to the whole entry's sizes", function()
+        local ns = Rig(function(n) LearnSized(n, 8092, 8092, { 18000, 21000, 25000 }) end)
+        local low, high = ns.Fingerprints.Band(8092, 450983)
+        return low == 18000 and high == 25000
+    end)
+    Scenario("band: none without sized samples or before the spell is learned", function()
+        local ns = Rig(function(n) Wand(n); LearnSized(n, 8092, 8092, { 18000, 21000 }) end)
+        return ns.Fingerprints.Band(WAND, WAND) == nil and ns.Fingerprints.Band(8092, 8092) == nil
+    end)
+    Scenario("band: a size of 0, below 0 or not a number keeps the sample without a size", function()
+        local ns = Rig()
+        for castAt, size in ipairs({ 0, -5, "x" }) do
+            ns.Fingerprints.Add(8092, { school = 32, delay = 0.2, castAt = castAt, hops = 1, size = size })
+        end
+        local samples = ns.Fingerprints.Get(8092).samples
+        return #samples == 3 and samples[1].size == nil and samples[2].size == nil and samples[3].size == nil
+    end)
+    Scenario("band: saved samples with a bad size lose it on load and stay", function()
+        local function Saved(castAt, size) return { school = 32, delay = 0.2, castAt = castAt, hops = 1, size = size } end
+        T.Boot(function()
+            CombatTextIconsCharDB = { casts = { [8092] = { learned = true, pattern = "single", school = 32, delays = { 0.2 },
+                samples = { Saved(1, 20000), Saved(2, "x"), Saved(3, -5) } } } }
+        end)
+        local samples = CombatTextIconsCharDB.casts[8092].samples
+        return #samples == 3 and samples[1].size == 20000 and samples[2].size == nil and samples[3].size == nil
+    end)
 
     Scenario("claim: a hit inside a learned cast's window, on its plate, is 'learned' with that record", function()
         local ns, S = Rig(Wand)

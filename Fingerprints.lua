@@ -4,7 +4,8 @@
 -- hops from plate to plate (chain). A spell is learned when 3 different casts
 -- sharing a school each left a sample; after that its school is fixed and the
 -- post-fight teacher (Teacher.lua) only counts fights it agreed with or
--- overshot. Two overshoots in a row delete the entry. No hit size is stored.
+-- overshot. Two overshoots in a row delete the entry. Samples keep the hit's normal-scale
+-- size (crits divided by CRIT_FACTOR); a claim needs a hit inside the padded band (Casts.lua).
 -- `castAliases` maps a meter row ID to the cast ID (Auto Shot 75 -> Shoot 5019).
 -- Saved data is checked on load and never trusted.
 
@@ -24,6 +25,7 @@ Fingerprints.LEARN_CASTS = LEARN_CASTS -- the panel shows "casts n of LEARN_CAST
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
+local function HitSize(value) return IsNumber(value) and value > 0 and value or nil end -- a plain size above 0, else nil
 
 -- The in-memory tables are the saved ones once Init ran.
 local casts, aliases = {}, {}
@@ -107,7 +109,8 @@ function Fingerprints.Add(spellID, sample)
     if entry.learned and school ~= entry.school then return end
     local hops = IsNumber(sample.hops) and sample.hops or 1
     local spell = IsNumber(sample.spell) and sample.spell or nil
-    entry.samples[#entry.samples + 1] = { school = school, delay = delay, castAt = castAt, hops = hops, spell = spell }
+    entry.samples[#entry.samples + 1] = { school = school, delay = delay, castAt = castAt, hops = hops, spell = spell,
+        size = HitSize(sample.size) }
     if #entry.samples > SAMPLES then table.remove(entry.samples, 1) end
     entry.lastSeen = castAt
     if entry.learned then
@@ -148,6 +151,24 @@ function Fingerprints.Window(spellID, castSpell)
     if not low then return entry.delayLo, entry.delayHi end
 
     return low, high
+end
+
+-- The size band (low, high) of a learned entry for a hit of `castSpell`: the smallest and biggest
+-- size among its kept sized samples of that cast spell, else among all its sized samples (as
+-- Window). nil when not learned or when no kept sample has a size (saved before sizes were kept).
+function Fingerprints.Band(spellID, castSpell)
+    local entry = Fingerprints.Get(spellID)
+    if not (entry and entry.learned) then return nil end
+    for _, ofSpell in ipairs({ true, false }) do
+        local low, high
+        for _, sample in ipairs(entry.samples) do
+            if sample.size and sample.school == entry.school and (sample.spell == castSpell or not ofSpell) then
+                if not low or sample.size < low then low = sample.size end
+                if not high or sample.size > high then high = sample.size end
+            end
+        end
+        if low then return low, high end
+    end
 end
 
 -- The most distinct casts that left a kept sample in any one school: the count SchoolLearned tests.
@@ -234,8 +255,9 @@ local function KeepSamples(list)
         if ValidSample(sample) then
             local hops = type(sample.hops) == "number" and sample.hops or 1
             local spell = type(sample.spell) == "number" and sample.spell or nil
+            local size = type(sample.size) == "number" and sample.size > 0 and sample.size or nil
             kept[#kept + 1] = { school = sample.school, delay = sample.delay, castAt = sample.castAt, hops = hops,
-                spell = spell }
+                spell = spell, size = size }
         end
     end
     while #kept > SAMPLES do table.remove(kept, 1) end
