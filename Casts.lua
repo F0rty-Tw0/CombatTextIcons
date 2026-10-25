@@ -141,12 +141,12 @@ local function UnlearnedCastAt(plate, now)
     return false
 end
 
--- Does a hit of normal-scale `size` fit the record's learned size band (padded)? A Shadow DoT
--- tick (0.9-6K) is not Mind Blast (18-25K) though it lands in its window. No size (nil, 0) or no
--- band (saved before sizes were kept) fits.
-local function InBand(record, size)
+-- Does a hit of normal-scale `size` fit the learned size band (padded) of `castSpell` under `base`? A
+-- Shadow DoT tick (0.9-6K) is not Mind Blast (18-25K) though it lands in its window. No size (nil, 0)
+-- or no band (unlearned, or saved before sizes were kept) fits.
+function Casts.InBand(base, castSpell, size)
     if not (IsNumber(size) and size > 0) then return true end
-    local low, high = Fingerprints.Band(record.base, record.spellID)
+    local low, high = Fingerprints.Band(base, castSpell)
     if not low then return true end
 
     return size >= PAD_LO * low and size <= PAD_HI * high
@@ -162,7 +162,7 @@ function Casts.Claim(plate, school, now, size)
     local found, fits, late, lateFits = nil, 0, nil, 0
     for _, record in ipairs(records) do
         local fp = Live(record, now)
-        local fit = fp and InBand(record, size) and Fits(record, fp, plate, school, now)
+        local fit = fp and Casts.InBand(record.base, record.spellID, size) and Fits(record, fp, plate, school, now)
         if fit == "in" then
             found, fits = Count(found, fits, record)
         elseif fit == "late" then
@@ -192,6 +192,25 @@ function Casts.SoleCast(plate, at)
         end
     end
     if found and not found.tracker and found.plate == plate then return found end
+end
+
+-- Every cast that may have made a hit on `plate` at `at`, for the steady pass (Steady.lua): the
+-- non-tracker log entries cast at `plate` in [at - UNKNOWN_WAIT, at], learned bases too, oldest
+-- first, as { castID = base, castAt, castSpell }. A spell logged twice in one frame (Void Blast) is
+-- one cast. Empty when `plate` is nil.
+function Casts.Candidates(plate, at)
+    local list, seen = {}, {}
+    if plate == nil then return list end
+    for _, entry in ipairs(log) do
+        local key = entry.spellID .. "@" .. entry.at
+        if at - UNKNOWN_WAIT <= entry.at and entry.at <= at and entry.plate == plate and not entry.tracker
+            and not seen[key] then
+            seen[key] = true
+            list[#list + 1] = { castID = entry.base, castAt = entry.at, castSpell = entry.spellID }
+        end
+    end
+
+    return list
 end
 
 -- Forgets what was learned: the fingerprints (and their aliases).

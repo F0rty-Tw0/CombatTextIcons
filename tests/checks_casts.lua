@@ -375,6 +375,26 @@ do -- Phase 3: records and Claim
         local samples = CombatTextIconsCharDB.casts[8092].samples
         return #samples == 16 and samples[1].castAt == 5 and samples[16].castAt == 20
     end)
+    Scenario("InBand: by base and cast spell, the padded band of the spell's samples, else the whole entry's", function()
+        local ns = Rig(function(n) LearnSized(n, 8092, 8092, { 20942, 20962, 21730 }) end)
+        local InBand = ns.Casts.InBand
+        return InBand(8092, 450983, 22090) and not InBand(8092, 8092, 3857) and InBand(8092, 8092, nil)
+            and InBand(591, 591, 5)
+    end)
+    Scenario("Candidates: the non-tracker casts on the plate in the last 1.5 s, one per spell and time, learned ones too", function()
+        local ns, S = Rig(function(n) LearnSized(n, 8092, 8092, { 20942, 20962, 21730 }) end, true)
+        Cast(ns, S, 8092, 10.0, "nameplate1"); Cast(ns, S, 450983, 10.5, "nameplate1")
+        Cast(ns, S, 32379, 10.6, "nameplate2"); Cast(ns, S, AGONY, 10.7, "nameplate1")
+        Cast(ns, S, 450983, 10.9, "nameplate1"); Cast(ns, S, 450983, 10.9, "nameplate1")
+        local list = ns.Casts.Candidates(Plate("nameplate1"), 11.0)
+        local later = ns.Casts.Candidates(Plate("nameplate1"), 11.6)
+        local function Is(c, castID, castAt, castSpell)
+            return c and c.castID == castID and c.castAt == castAt and c.castSpell == castSpell
+        end
+        return #list == 3 and Is(list[1], 8092, 10.0, 8092) and Is(list[2], 8092, 10.5, 450983)
+            and Is(list[3], 8092, 10.9, 450983) and #later == 2 and Is(later[1], 8092, 10.5, 450983)
+            and #ns.Casts.Candidates(nil, 11.0) == 0
+    end)
 
     -- Run 125009Z: Mind Blast learned at 18-25K, 0.17-0.23 s after the cast (padded band 9000-50000).
     local MindBlast = function(ns) LearnSized(ns, 8092, 8092, { 18000, 21000, 25000 }, { 0.17, 0.2, 0.23 }) end
