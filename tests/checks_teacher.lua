@@ -1570,7 +1570,7 @@ return function(T)
             Core.PLAYER_REGEN_DISABLED()
             for _, event in ipairs(events) do
                 if event[2] then rig.Cast(event[1], "nameplate1", event[2])
-                else rig.Hit(event[1], "nameplate1", event[3], 32, event[4]) end
+                else rig.Hit(event[1], "nameplate1", event[3], event[5] or 32, event[4]) end
             end
             if during then during(rig) end
             S.now = events[#events][1] + 5
@@ -1616,6 +1616,26 @@ return function(T)
         rig, last = SteadyFight(Rotation(VARIED, 5000), { Row(MIND_BLAST, 112000) })
         Check("steady (c): a co-hit in every MB hit's frame -> no cast counts, nothing learned",
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "none")
+
+        -- Run 20261025T180045Z: Shadow Bolt's hits often shared their frame with a 412 proc tick (s106).
+        -- `frames` picks the MB hits (1-4) that get one.
+        local function OtherSchool(frames)
+            local events, hits = {}, 0
+            for _, event in ipairs(Rotation(VARIED)) do
+                events[#events + 1] = event
+                if event[3] and event[3] >= 19000 then
+                    hits = hits + 1
+                    if frames[hits] then events[#events + 1] = { event[1], nil, 412, nil, 106 } end
+                end
+            end
+            return events
+        end
+        rig, last = SteadyFight(OtherSchool({ true, false, true, false }), { Row(MIND_BLAST, 92000), Row(1287663, 2 * 412) })
+        Check("steady (c2): a co-hit of another school in 2 of 4 MB hit frames spoils no cast -> 8092 learns 4",
+            last.area == "clear" and Learned(last) == 4 and Outcome(MIND_BLAST) == "learned")
+        rig, last = SteadyFight(OtherSchool({ true, true, true, true }), { Row(MIND_BLAST, 92000), Row(1287663, 4 * 412) })
+        Check("steady (c3): a co-hit of another school after every MB cast is a second cluster -> nothing learned",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "clusters=2")
 
         local spread = {}
         for index, t in ipairs({ 10, 15, 20, 25, 30, 35 }) do

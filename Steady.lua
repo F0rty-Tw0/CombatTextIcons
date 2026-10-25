@@ -2,8 +2,9 @@
 -- holds (one lost or extra hit spoils the sum), so after it the teacher asks this pass: did one cast
 -- spell leave one '?' hit at a steady delay with a steady size after most of its casts? Every '?'
 -- hit keeps its candidate casts (Casts.Candidates). Per cast spell, a window of SPREAD seconds over
--- the hits' delays counts each cast that has exactly one hit in it; a window qualifies when it counts
--- at least MIN_CASTS and SHARE of the casts, in one school, the biggest hit at most SIZE_SPREAD times
+-- the hits' delays, in one school, counts each cast that has exactly one hit of that school in it (a
+-- co-hit of another school spoils nothing: Shadow Bolt's frame often holds a 412 s106 proc tick, run
+-- 20261025T180045Z); a window qualifies when it counts at least MIN_CASTS and SHARE of the casts, the biggest hit at most SIZE_SPREAD times
 -- the smallest. Overlapping qualifying windows are one cluster; two clusters teach nothing. A hit
 -- counted for two cast spells or two bases teaches neither. The meter judges last: the counted hits
 -- must fit the base's row (total + overkill + tolerance, less what was drawn under it). Learned
@@ -86,12 +87,12 @@ local function PairsBySpell(hits, learnedNow)
     return pairsOf, castsOf, baseOf, modeOf
 end
 
--- The pairs W(d) counts: each cast with exactly one pair whose delay is in [d, d + SPREAD], in pair
--- order. nil when the counted hits span two schools.
-local function Window(list, d)
+-- The pairs W(d, school) counts: each cast with exactly one pair of `school` whose delay is in
+-- [d, d + SPREAD], in pair order.
+local function Window(list, d, school)
     local perCast, order = {}, {}
     for _, pair in ipairs(list) do
-        if pair.delay >= d - EPS and pair.delay <= d + SPREAD + EPS then
+        if pair.hit.school == school and pair.delay >= d - EPS and pair.delay <= d + SPREAD + EPS then
             if perCast[pair.castAt] == nil then
                 perCast[pair.castAt] = pair
                 order[#order + 1] = pair.castAt
@@ -100,14 +101,9 @@ local function Window(list, d)
             end
         end
     end
-    local counted, school = {}, nil
+    local counted = {}
     for _, castAt in ipairs(order) do
-        local pair = perCast[castAt]
-        if pair then
-            if school and pair.hit.school ~= school then return nil end
-            school = pair.hit.school
-            counted[#counted + 1] = pair
-        end
+        if perCast[castAt] then counted[#counted + 1] = perCast[castAt] end
     end
 
     return counted
@@ -115,7 +111,7 @@ end
 
 -- Whether `counted` holds `need` casts whose sizes stay within SIZE_SPREAD.
 local function Qualifies(counted, need)
-    if not counted or #counted < need then return false end
+    if #counted < need then return false end
     local low, high
     for _, pair in ipairs(counted) do
         low, high = math.min(low or pair.hit.size, pair.hit.size), math.max(high or pair.hit.size, pair.hit.size)
@@ -138,7 +134,7 @@ end
 local function Clusters(list, need)
     local clusters = {}
     for _, pair in ipairs(list) do
-        local counted = Window(list, pair.delay)
+        local counted = Window(list, pair.delay, pair.hit.school)
         if Qualifies(counted, need) then
             local merged = { best = { d = pair.delay, counted = counted }, hits = {} }
             for _, item in ipairs(counted) do merged.hits[item.hit] = true end
