@@ -428,6 +428,7 @@ function Core.PLAYER_LOGIN()
     local charDB = CombatTextIconsCharDB
     charDB.chainSchools = nil -- the chain route's saved schools are gone
     Fingerprints.Init(charDB)
+    Casts.InitOwnRows(charDB)
     Procs.Init(charDB)
     Ledger.Init(charDB)
     if db.enabled then Core.SuppressBlizzard() end

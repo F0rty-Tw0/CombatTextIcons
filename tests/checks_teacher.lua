@@ -1678,4 +1678,17 @@ return function(T)
         Check("steady (i): a learned base whose drawn tally already fills its row -> meter, nothing learned",
             last.area == "clear" and Learned(last) == nil and Outcome(VOID_BLAST) == "meter")
     end
+
+    do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899
+        local LAVA_BURST, LAVA_BASE = 51505, 73899
+        local rig = Rig({})
+        local P1 = rig.Plate("nameplate1")
+        rig.S.baseSpells[LAVA_BURST] = LAVA_BASE
+        rig.Cast(5, "nameplate1", LAVA_BURST)
+        local before = (rig.ns.Casts.SoleCast(P1, 5.1) or {}).base
+        rig.Read({}, { Session(1, { Row(LAVA_BURST, 538223) }) })
+        rig.Cast(30, "nameplate1", LAVA_BURST)
+        Check("own row: after a read with row 51505 the next Lava Burst files under 51505 (before: 73899)",
+            before == LAVA_BASE and (rig.ns.Casts.SoleCast(P1, 30.1) or {}).base == LAVA_BURST)
+    end
 end

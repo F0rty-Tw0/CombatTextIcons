@@ -21,9 +21,14 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 -- A cast seen overriding keeps that base for the session: when its override ends in the
 -- cast's own frame the API answers the cast itself (run 20261025T162725Z, a window's last
 -- Void Blast at 5931.198 read 450983 and its hit drew '?').
+-- A cast the meter files under its own ID keys by it, whatever the API says (Lava Burst 51505
+-- has its own row and none for its base 73899, run 20261025T175419Z; Wither 445468 over
+-- Corruption 172, run 20261025T180045Z). Void Blast never shows a row of its own, so it stays 8092.
 local remembered = {}   -- castID -> the base it was seen overriding; never saved
+local ownRows = {}      -- spellID -> true: the meter showed a row of this ID; CombatTextIconsCharDB.ownRows
 
 function Casts.Base(castID)
+    if ownRows[castID] then return castID end
     local find = (C_SpellBook and C_SpellBook.FindBaseSpellByID) or FindBaseSpellByID
     if not find then return castID end
     local ok, base = pcall(find, castID)
@@ -31,6 +36,22 @@ function Casts.Base(castID)
     if base ~= castID then remembered[castID] = base end
 
     return remembered[castID] or base
+end
+
+-- Login: the saved own rows, checked (only number keys with the value true stay).
+-- /cti forget keeps them: they record how the meter files a spell, not what was learned.
+function Casts.InitOwnRows(charDB)
+    if type(charDB.ownRows) ~= "table" then charDB.ownRows = {} end
+    ownRows = charDB.ownRows
+    for spellID, value in pairs(ownRows) do
+        if type(spellID) ~= "number" or value ~= true then ownRows[spellID] = nil end
+    end
+end
+
+-- A meter read: every row's spell ID files under itself from now on. `rows` are
+-- { spellID, total, overkill } (Teacher's rows, plain after combat).
+function Casts.NoteRows(rows)
+    for _, row in ipairs(rows) do ownRows[row.spellID] = true end
 end
 
 -- A learned chain fingerprint (Chain Lightning): its later hits land on new plates.

@@ -500,6 +500,7 @@ local function Read(run)
     end
     lastSession, lastRows = sessionID, {}
     for _, row in ipairs(full) do lastRows[row.spellID] = { total = row.total, overkill = row.overkill } end
+    ns.Casts.NoteRows(full) -- the next fight's casts key by the meter's own rows; this fight keeps its keys
     if ns.Debug then
         ReportSession(sessionID, again)
         -- grug: override probe (2026-10-25): what each meter row's spell turns into right now.

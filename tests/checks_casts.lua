@@ -215,6 +215,34 @@ return function(T)
             (rig.ns.Casts.SoleCast(P1, 20.25) or {}).base == MIND_BLAST)
     end
 
+    do -- own row: run 20261025T175419Z, Lava Burst 51505 (API base 73899) has its own meter row and no 73899 row
+        local LAVA_BURST, LAVA_BASE, VOID_BLAST, MIND_BLAST = 51505, 73899, 450983, 8092
+        local ns = T.Boot()
+        local S = T.State()
+        S.baseSpells[LAVA_BURST] = LAVA_BASE
+        local before = ns.Casts.Base(LAVA_BURST)
+        ns.Casts.NoteRows({ { spellID = LAVA_BURST, total = 538223, overkill = 0 },
+            { spellID = MIND_BLAST, total = 1000, overkill = 0 } })
+        Check("own row: a cast keys by its API base until the meter shows a row of its own (51505: 73899 -> 51505)",
+            before == LAVA_BASE and ns.Casts.Base(LAVA_BURST) == LAVA_BURST)
+        Check("own row: a row of a base changes nothing for its override (row 8092, Void Blast stays 8092)",
+            ns.Casts.Base(VOID_BLAST) == MIND_BLAST)
+        SlashCmdList.COMBATTEXTICONS("forget")
+        Check("own row: saved per character and kept by /cti forget", CombatTextIconsCharDB.ownRows[LAVA_BURST] == true
+            and ns.Casts.Base(LAVA_BURST) == LAVA_BURST)
+
+        ns = T.Boot(function(S)
+            S.baseSpells[LAVA_BURST] = LAVA_BASE
+            CombatTextIconsCharDB = { ownRows = { [LAVA_BURST] = true, ["188196"] = true, [188443] = 1 } }
+        end)
+        local saved = CombatTextIconsCharDB.ownRows
+        Check("own row: login keeps a saved row and drops a string key and a non-true value",
+            ns.Casts.Base(LAVA_BURST) == LAVA_BURST and saved[LAVA_BURST] == true and saved["188196"] == nil
+            and saved[188443] == nil)
+        T.Boot(function() CombatTextIconsCharDB = { ownRows = "x" } end)
+        Check("own row: login replaces a non-table ownRows", type(CombatTextIconsCharDB.ownRows) == "table")
+    end
+
     do -- Task 2.2: Fingerprints
         local function Sample(school, delay, castAt, hops) return { school = school, delay = delay, castAt = castAt, hops = hops or 1 } end
         local function Count(tbl) local n = 0 for _ in pairs(tbl) do n = n + 1 end return n end
