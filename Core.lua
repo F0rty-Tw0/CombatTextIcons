@@ -110,13 +110,52 @@ local function IsTarget(unit)
     return ok and Plain(isTarget) and isTarget
 end
 
--- A mob fighting you has you on its threat list; strangers' mobs do not. When
--- that cannot be read, or the mob keeps no threat list (training dummies), only
--- your target counts (plain in combat on Forever, 2026-10-23).
-local function FightsYou(unit)
+-- The unit's GUID when plain, else nil.
+local function PlainGUID(unit)
+    local ok, guid = pcall(UnitGUID, unit)
+    if ok and Plain(guid) then return guid end
+end
+
+-- Creature IDs whose units keep no threat list (training dummies), learned this session from
+-- the target; `probe` is the one targeted unit being tested: { guid, first, hits }.
+local noThreatList, probe = {}, nil
+local DUMMY_HITS, DUMMY_SPAN = 5, 2 -- a target answering "no threat list" this often, this long
+
+-- A plain GUID's creature ID, or nil for anything that is not a creature.
+local function CreatureID(guid)
+    return guid and guid:match("^Creature%-%d+%-%d+%-%d+%-%d+%-(%d+)%-")
+end
+
+-- The target answered "no threat list" after your hit: counts toward learning its creature ID.
+local function ProbeDummy(guid, npcID, now)
+    if noThreatList[npcID] then return end
+    if not probe or probe.guid ~= guid then probe = { guid = guid, first = now, hits = 0 } end
+    probe.hits = probe.hits + 1
+    if probe.hits >= DUMMY_HITS and now - probe.first >= DUMMY_SPAN then
+        noThreatList[npcID], probe = true, nil
+    end
+end
+
+-- A mob fighting you has you on its threat list; strangers' mobs do not. When that cannot
+-- be read only your target counts, plus units of a learned training-dummy ID (dummies keep
+-- no threat list: plain nil on the target for 5 hits over 2 s learns its creature ID; any
+-- threat answer from that ID un-learns it). Spec 2026-10-25-dummies.
+local function FightsYou(unit, now)
     local ok, threat = pcall(UnitThreatSituation, "player", unit)
-    if ok and not issecretvalue(threat) and threat ~= nil then return true end
-    return IsTarget(unit)
+    local guid = PlainGUID(unit)
+    local npcID = CreatureID(guid)
+    local dummy = npcID ~= nil and noThreatList[npcID] == true
+    if not ok or issecretvalue(threat) then return IsTarget(unit) or dummy end
+    if threat ~= nil then
+        if npcID then noThreatList[npcID] = nil end
+        if probe and probe.guid == guid then probe = nil end
+        return true
+    end
+    if IsTarget(unit) then
+        if npcID then ProbeDummy(guid, npcID, now) end
+        return true
+    end
+    return dummy
 end
 
 -- grug: temporary probe for missing direct hits (Lightning Bolt): /cti debug logs
@@ -239,7 +278,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         Ledger.Add("damage", spellID, amount)
         return Display.Plate(plate, SpellTexture(spellID), text, flagText, school)
     end
-    local fightsYou = FightsYou(unit)
+    local fightsYou = FightsYou(unit, now)
     local kind, record = Casts.Claim(plate, school, now)
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
@@ -434,12 +473,6 @@ end
 
 function Core.GROUP_ROSTER_UPDATE()
     Tracker.OnRosterChanged()
-end
-
--- The unit's GUID when plain, else nil.
-local function PlainGUID(unit)
-    local ok, guid = pcall(UnitGUID, unit)
-    if ok and Plain(guid) then return guid end
 end
 
 -- Plate frames are recycled: nothing stays tied to this one. The Tracker parks the mob's DoT

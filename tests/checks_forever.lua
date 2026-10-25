@@ -260,6 +260,72 @@ return function(T)
         Check("solo: a restricted threat answer falls back to the target", onTarget and texture == nil)
     end
 
+    -- 5b. Training dummies: creature IDs learned live (spec 2026-10-25-dummies) ---------------------
+    do
+        -- Creature-0-<server>-<instance>-<zone>-<npcID>-<spawn>
+        local A1, A2 = "Creature-0-1-2-3-242759-00000A1", "Creature-0-1-2-3-242759-00000A2"
+        local A3, B = "Creature-0-1-2-3-242759-00000A3", "Creature-0-1-2-3-242758-000000B"
+        local LEARN = { 1, 1.5, 2, 2.5, 3.1 } -- 5 hits over 2.1 s
+        -- A debug rig whose plates show `guids` (plate -> GUID) and answer "no threat list".
+        local function Dummies(guids)
+            return Rig(function(S)
+                for plate, guid in pairs(guids) do S.guids[plate], S.threat[plate] = guid, false end
+            end, true)
+        end
+        -- Hits `plate` as the target at each of `times` (school 4: the tracker names none).
+        local function Strike(rig, plate, times)
+            rig.S.target = plate
+            for _, t in ipairs(times) do rig.Hit(t, plate, 500, 4) end
+        end
+        -- A non-target hit on nameplate2 at `t`: its route line and the texture drawn.
+        local function Other(rig, t)
+            rig.S.target = "nameplate1"
+            local texture = rig.Hit(t, "nameplate2", 500, 4)
+            return rig.Route(), texture
+        end
+
+        local rig = Dummies({ nameplate1 = A1, nameplate2 = A2 })
+        Strike(rig, "nameplate1", LEARN)
+        local route, texture = Other(rig, 3.2)
+        Check("dummies: 5 target hits over 2 s with no threat list learn the ID; another dummy of it draws ?",
+            route == ROUTE_UNKNOWN and texture == rig.ns.Meter.UNKNOWN_ICON)
+
+        rig = Dummies({ nameplate1 = A1, nameplate2 = A2 })
+        Strike(rig, "nameplate1", { 1, 1.2, 1.4, 1.6, 1.8 })
+        Check("dummies: 5 hits within 2 s learn nothing (the other dummy stays hidden)", Other(rig, 1.9) == "  -> HIDDEN")
+
+        rig = Dummies({ nameplate1 = A1, nameplate2 = A2 })
+        Strike(rig, "nameplate1", LEARN)
+        rig.S.threat.nameplate2 = 3
+        Other(rig, 3.2)
+        rig.S.threat.nameplate2 = false
+        Check("dummies: a threat answer from a unit of the learned ID un-learns it", Other(rig, 3.3) == "  -> HIDDEN")
+
+        rig = Dummies({ nameplate1 = A1, nameplate2 = B })
+        Strike(rig, "nameplate1", LEARN)
+        Check("dummies: another creature ID, never targeted, stays hidden", Other(rig, 3.2) == "  -> HIDDEN")
+
+        rig = Dummies({ nameplate1 = "Player-1-0ABC", nameplate2 = "Player-1-0ABD" })
+        Strike(rig, "nameplate1", LEARN)
+        Check("dummies: a unit without a creature GUID never learns", Other(rig, 3.2) == "  -> HIDDEN")
+
+        rig = Dummies({ nameplate1 = A1, nameplate2 = A2, nameplate3 = A3 })
+        Strike(rig, "nameplate1", { 1, 1.5, 2, 2.5 })
+        Strike(rig, "nameplate3", { 3.1 })
+        Check("dummies: hits on two spawns of one ID do not add up", Other(rig, 3.2) == "  -> HIDDEN")
+
+        rig = Dummies({ nameplate1 = Secret(A1), nameplate2 = A2 })
+        local ok = pcall(Strike, rig, "nameplate1", LEARN)
+        Check("dummies: a secret target GUID neither learns nor errors", ok and Other(rig, 3.2) == "  -> HIDDEN")
+
+        rig = Dummies({ nameplate1 = A1, nameplate2 = A2 })
+        Strike(rig, "nameplate1", LEARN)
+        rig.Cast(10, "nameplate2")
+        rig.S.target = "nameplate1"
+        Check("dummies: a learned DoT's tick on a learned dummy still draws its icon",
+            rig.Hit(10 + P, "nameplate2") == "tex:594")
+    end
+
     -- 6. The crowd check: '?' by the area state (spec 2026-10-24, sections 4.1, 4.2, 5) -----------
     do
         -- A rig in `area` ("clear" | "crowded") with a fight open and a debug log; `rig.rows` counts
