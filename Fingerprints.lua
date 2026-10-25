@@ -106,7 +106,8 @@ function Fingerprints.Add(spellID, sample)
     end
     if entry.learned and school ~= entry.school then return end
     local hops = IsNumber(sample.hops) and sample.hops or 1
-    entry.samples[#entry.samples + 1] = { school = school, delay = delay, castAt = castAt, hops = hops }
+    local spell = IsNumber(sample.spell) and sample.spell or nil
+    entry.samples[#entry.samples + 1] = { school = school, delay = delay, castAt = castAt, hops = hops, spell = spell }
     if #entry.samples > SAMPLES then table.remove(entry.samples, 1) end
     entry.lastSeen = castAt
     if entry.learned then
@@ -128,6 +129,25 @@ function Fingerprints.IsLearned(spellID)
     local entry = Fingerprints.Get(spellID)
 
     return entry ~= nil and entry.learned
+end
+
+-- The delay window (low, high) of a learned entry for a hit of `castSpell`. Casts of one base can
+-- land apart (Void Blast 450983 in its cast frame, Mind Blast 8092 ~0.17 s later), so the kept
+-- samples of that cast spell give its window; with none (saved before samples kept the spell, or a
+-- cast never seen while learning) the whole entry's window answers. nil when not learned.
+function Fingerprints.Window(spellID, castSpell)
+    local entry = Fingerprints.Get(spellID)
+    if not (entry and entry.learned) then return nil end
+    local low, high
+    for _, sample in ipairs(entry.samples) do
+        if sample.spell == castSpell and sample.school == entry.school then
+            if not low or sample.delay < low then low = sample.delay end
+            if not high or sample.delay > high then high = sample.delay end
+        end
+    end
+    if not low then return entry.delayLo, entry.delayHi end
+
+    return low, high
 end
 
 -- The most distinct casts that left a kept sample in any one school: the count SchoolLearned tests.
@@ -213,7 +233,9 @@ local function KeepSamples(list)
     for _, sample in ipairs(list) do
         if ValidSample(sample) then
             local hops = type(sample.hops) == "number" and sample.hops or 1
-            kept[#kept + 1] = { school = sample.school, delay = sample.delay, castAt = sample.castAt, hops = hops }
+            local spell = type(sample.spell) == "number" and sample.spell or nil
+            kept[#kept + 1] = { school = sample.school, delay = sample.delay, castAt = sample.castAt, hops = hops,
+                spell = spell }
         end
     end
     while #kept > SAMPLES do table.remove(kept, 1) end

@@ -47,7 +47,8 @@ local records = {}      -- oldest first: { spellID, base, at, plate, hops, plate
 local function Live(record, now)
     local fp = Fingerprints.Get(record.base)
     if not (fp and fp.learned) then return nil end
-    local limit = record.at + fp.delayHi + SLACK
+    local _, high = Fingerprints.Window(record.base, record.spellID)
+    local limit = record.at + high + SLACK
     if fp.pattern == "chain" and record.hops >= 1 then limit = math.max(limit, record.last + CHAIN_GAP) end
     if now <= limit then return fp end
 end
@@ -85,7 +86,8 @@ local function Fits(record, fp, plate, school, now)
     if school ~= fp.school then return false end
     if record.hops == 0 then
         local age = now - record.at
-        return plate == record.plate and age >= fp.delayLo - SLACK and age <= fp.delayHi + SLACK
+        local low, high = Fingerprints.Window(record.base, record.spellID)
+        return plate == record.plate and age >= low - SLACK and age <= high + SLACK
     end
     return fp.pattern == "chain" and not record.plates[plate] and now - record.last <= CHAIN_GAP
         and record.hops < CHAIN_MAX

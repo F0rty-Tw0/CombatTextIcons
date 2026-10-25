@@ -469,4 +469,29 @@ do -- Phase 3: Core hit route
         return r.S.resets == 0
     end)
 end
+
+    do -- one base, two casts (run 115649Z): Void Blast 450983 lands in the cast frame, Mind Blast 8092 ~0.17 s later
+        local MIND_BLAST, VOID_BLAST = 8092, 450983
+        local rig = Rig()
+        local ns, F = rig.ns, rig.ns.Fingerprints
+        rig.S.baseSpells[VOID_BLAST] = MIND_BLAST
+        for castAt = 1, 3 do F.Add(MIND_BLAST, { school = 32, delay = 0, castAt = castAt, hops = 1, spell = VOID_BLAST }) end
+        for castAt = 4, 6 do F.Add(MIND_BLAST, { school = 32, delay = 0.17, castAt = castAt, hops = 1, spell = MIND_BLAST }) end
+        local voidLo, voidHi = F.Window(MIND_BLAST, VOID_BLAST)
+        local mindLo, mindHi = F.Window(MIND_BLAST, MIND_BLAST)
+        local otherLo, otherHi = F.Window(MIND_BLAST, 99999)
+        Check("fingerprints: each cast of one base has its own window (Void Blast 0-0, Mind Blast 0.17-0.17)",
+            voidLo == 0 and voidHi == 0 and mindLo == 0.17 and mindHi == 0.17)
+        Check("fingerprints: a cast with no samples of its own gets the base's whole window (0-0.17)",
+            otherLo == 0 and otherHi == 0.17)
+        rig.Cast(100, MIND_BLAST, "nameplate1")
+        local tick = rig.Hit(100, "nameplate1", "WOUND", 2914, 32)
+        local blast = rig.Hit(100.17, "nameplate1", "WOUND", 18729, 32)
+        Check("casts: a Mind Blast cast leaves a DoT tick in its cast frame and takes the hit 0.17 s later",
+            not (tick and tick.texture == "tex:" .. MIND_BLAST) and blast and blast.texture == "tex:" .. MIND_BLAST)
+        F.Init({ casts = { [1] = { learned = true, pattern = "single", school = 32, delays = { 0.2 },
+            samples = { { school = 32, delay = 0.2, castAt = 1, hops = 1, spell = VOID_BLAST } } } } })
+        Check("fingerprints: a saved sample keeps its cast spell", select(2, F.Window(1, VOID_BLAST)) == 0.2
+            and F.Get(1).samples[1].spell == VOID_BLAST)
+    end
 end
