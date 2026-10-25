@@ -1793,7 +1793,7 @@ end
 
 do -- Rev 5 (in-game 2026-10-25): the forget5 run made 4 wrong aliases; only 413231 -> Tentacle Slam may stay
     local ALLOWED = { [413231] = TRIGGER_ID }
-    local aliasOk, parts = true, {}
+    local aliasOk, blastOk, parts = true, true, {}
     local ok, err = pcall(function()
         for _, haste in ipairs(DOT_HASTES) do
             local runs = ReplayFights(FORGET5, { haste = haste })
@@ -1810,6 +1810,7 @@ do -- Rev 5 (in-game 2026-10-25): the forget5 run made 4 wrong aliases; only 413
             for id, entry in pairs(db.casts or {}) do
                 if entry.learned then prints[#prints + 1] = id .. " s" .. tostring(entry.school) end
             end
+            blastOk = blastOk and db.casts ~= nil and db.casts[8092] ~= nil and db.casts[8092].learned == true
             table.sort(aliases); table.sort(procs); table.sort(prints)
             parts[#parts + 1] = string.format("h%d: %d fights; aliases [%s]; procs [%s]; fingerprints [%s]; ticks [%s]", haste, #runs,
                 table.concat(aliases, ", "), table.concat(procs, "; "), table.concat(prints, ", "), Describe(db.learned))
@@ -1818,6 +1819,8 @@ do -- Rev 5 (in-game 2026-10-25): the forget5 run made 4 wrong aliases; only 413
     if not ok then Check("forget5 criterion ran without error: " .. tostring(err), false) end
     Criterion(19, "forget5 replay (haste 25 and 0): no cast alias except 413231 -> " .. TRIGGER_ID .. " (Rev 5)",
         ok and aliasOk, table.concat(parts, "\n     "))
+    Criterion(20, "forget5 replay (haste 25 and 0): Mind Blast 8092 learned (Void Blast's hits under it, each cast's DoT ticks left out)",
+        ok and blastOk, "fingerprints as in 19")
 end
 
 -- Last replay done: no replay of the run reset the meter.

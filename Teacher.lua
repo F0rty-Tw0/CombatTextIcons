@@ -200,7 +200,9 @@ local function Verdicts(tally, rows)
 end
 
 -- Groups the '?' hits that one unlearned cast can explain by school and base spell, in a
--- fixed order. A group { castID, school, sum, hits } is learned when its sum agrees with
+-- fixed order. A group { castID, school, sum, hits } also keeps `top`, the same for only each
+-- cast's largest hit: the meter row holds one direct hit per cast, while a cast's window may
+-- also take untracked DoT ticks on its target. A group is learned when one way's sum agrees with
 -- exactly one still-unpaired row and that row agrees with no other group.
 local function Groups(unknown)
     local byKey, list = {}, {}
@@ -209,12 +211,23 @@ local function Groups(unknown)
             local key = hit.castID .. ":" .. hit.school
             local group = byKey[key]
             if not group then
-                group = { castID = hit.castID, school = hit.school, sum = 0, hits = {} }
+                group = { castID = hit.castID, school = hit.school, sum = 0, hits = {}, topOf = {} }
                 byKey[key] = group
                 list[#list + 1] = group
             end
             group.sum = group.sum + hit.amount
             group.hits[#group.hits + 1] = hit
+            local top = group.topOf[hit.castAt]
+            if not top or hit.amount > top.amount then group.topOf[hit.castAt] = hit end
+        end
+    end
+    for _, group in ipairs(list) do
+        group.top = { castID = group.castID, sum = 0, hits = {} }
+        for _, hit in ipairs(group.hits) do
+            if group.topOf[hit.castAt] == hit then
+                group.top.sum = group.top.sum + hit.amount
+                group.top.hits[#group.top.hits + 1] = hit
+            end
         end
     end
     table.sort(list, function(a, b)
@@ -226,17 +239,19 @@ local function Groups(unknown)
     return list
 end
 
--- Whether the cast pass may pair a group with a row: the sum agrees, and a row of another ID
--- belongs to no one else. It is not a row Procs tracks (a castless proc's own; spec 3.1 Rev 4),
--- the cast has no row of its own this session, and the row is not the own row of another cast
--- this fight (`owners.rows`, `owners.casts`; Rev 5). A cast's own row still pairs.
-local function Pairs(group, row, owners)
+-- Whether the cast pass may pair `way` (a group, or its `top`) with a row: the sum agrees, and a
+-- row of another ID belongs to no one else. It is not a row Procs tracks (a castless proc's own;
+-- spec 3.1 Rev 4), the cast has no row of its own this session, and the row is not the own row
+-- of another cast this fight (`owners.rows`, `owners.casts`; Rev 5). A cast's own row still pairs.
+-- A `top` pairs only with the cast's own row: one largest hit often equals some other spell's
+-- one-hit row by chance.
+local function Pairs(group, way, row, owners)
     if row.spellID ~= group.castID
-        and (Procs.Has(row.spellID) or owners.rows[group.castID] or owners.casts[row.spellID]) then
+        and (way ~= group or Procs.Has(row.spellID) or owners.rows[group.castID] or owners.casts[row.spellID]) then
         return false
     end
 
-    return Judge(group.sum, row.total, row.overkill) == "agree"
+    return Judge(way.sum, row.total, row.overkill) == "agree"
 end
 
 -- The IDs that own a meter row this session and the cast IDs of this fight's groups.
@@ -248,44 +263,57 @@ local function Owners(groups, rows)
     return owners
 end
 
--- Learning from '?' hits (spec 6.5): rewrites the learned rows of `results` against the
--- session's meter `rows`. Returns the learned groups and the set of `open` positions rewritten.
-local function Learn(run, results, open, rows)
-    local groups = Groups(run.unknown)
-    local owners = Owners(groups, rows)
+-- One pairing pass over the rows and groups `seen` does not hold yet: `WayOf(group)` is the
+-- group's sum to try. A row and a group that agree only with each other are learned; every row
+-- and group that agreed with anything goes into `seen`, so a later pass never revisits them.
+local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritten)
     local groupsOf, rowsOf = {}, {}
     for position, item in ipairs(open) do
         for groupIndex, group in ipairs(groups) do
-            if Pairs(group, item.row, owners) then
+            if not seen.rows[position] and not seen.groups[groupIndex]
+                and Pairs(group, WayOf(group), item.row, owners) then
                 groupsOf[position] = (groupsOf[position] or 0) + 1
                 rowsOf[groupIndex] = (rowsOf[groupIndex] or 0) + 1
             end
         end
     end
 
-    local learned, rewritten = {}, {}
     for position, item in ipairs(open) do
         for groupIndex, group in ipairs(groups) do
-            local row = item.row
-            if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Pairs(group, row, owners) then
-                for _, hit in ipairs(group.hits) do
+            local row, way = item.row, WayOf(group)
+            if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Pairs(group, way, row, owners) then
+                for _, hit in ipairs(way.hits) do
                     Fingerprints.Add(group.castID, { school = hit.school, delay = hit.at - hit.castAt,
                         castAt = hit.castAt, hops = 1 })
                 end
                 if row.spellID ~= group.castID then Fingerprints.SetAlias(row.spellID, group.castID) end
-                learned[#learned + 1] = group
+                learned[#learned + 1] = way
                 rewritten[position] = true
-                results[item.index] = { spellID = group.castID, meterID = row.spellID, tally = group.sum,
+                results[item.index] = { spellID = group.castID, meterID = row.spellID, tally = way.sum,
                     meter = row.total, verdict = "agree" }
             end
         end
     end
+    for position in pairs(groupsOf) do seen.rows[position] = true end
+    for groupIndex in pairs(rowsOf) do seen.groups[groupIndex] = true end
+end
+
+-- Learning from '?' hits (spec 6.5): rewrites the learned rows of `results` against the
+-- session's meter `rows`. Whole sums pair first; a row and a group that no whole sum agreed
+-- with then try `top`. Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions
+-- rewritten.
+local function Learn(run, results, open, rows)
+    local groups = Groups(run.unknown)
+    local owners = Owners(groups, rows)
+    local seen, learned, rewritten = { rows = {}, groups = {} }, {}, {}
+    Pass(groups, open, owners, function(group) return group end, seen, results, learned, rewritten)
+    Pass(groups, open, owners, function(group) return group.top end, seen, results, learned, rewritten)
 
     return learned, rewritten
 end
 
--- The '?' hits no learned group took. Groups are keyed castID:school, so a cast's
--- other-school group stays (spec 3.1).
+-- The '?' hits no learned way took (a `top` leaves its group's other hits). Groups are keyed
+-- castID:school, so a cast's other-school group stays (spec 3.1).
 local function Leftover(unknown, learnedGroups)
     local spent = {}
     for _, group in ipairs(learnedGroups) do

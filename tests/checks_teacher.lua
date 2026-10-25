@@ -1021,6 +1021,30 @@ return function(T)
                 and F.Get(MIND_BLAST).fights == 1)
         end
 
+        do -- one hit per cast (in-game forget5): a cast's window also takes untracked DoT ticks on its target
+            local function Cast(id, at) return { spellID = id, base = id, at = at } end
+            -- three Mind Blast casts, each with its direct hit; two windows also hold a 300 tick
+            local HITS = { { 32, 1200, "", Cast(MIND_BLAST, 60), 60.25 }, { 32, 300, "", Cast(MIND_BLAST, 60), 61.0 },
+                { 32, 1350, "", Cast(MIND_BLAST, 70), 70.25 }, { 32, 300, "", Cast(MIND_BLAST, 70), 71.0 },
+                { 32, 980, "", Cast(MIND_BLAST, 80), 80.25 } }
+
+            local rig = Rig({})
+            local spy = Spy(rig)
+            ReadWith(rig, HITS, { { MIND_BLAST, 3530 } })
+            local last = rig.ns.Teacher.last
+            Check("one hit per cast: 1200 + 300 + 1350 + 300 + 980 overshoots row 3530, each cast's largest (1200 + 1350 + 980) meets it -> learned from 3 hits",
+                rig.ns.Fingerprints.IsLearned(MIND_BLAST) and last.learned[MIND_BLAST] == 3
+                and Find(last, MIND_BLAST).verdict == "agree" and Find(last, MIND_BLAST).tally == 3530)
+            Check("one hit per cast: the two ticks are not spent, Procs.Read gets them",
+                spy.calls == 1 and #spy.hits == 2 and spy.hits[1].amount == 300 and spy.hits[2].amount == 300)
+
+            local Z = 1234567
+            rig = Rig({})
+            ReadWith(rig, HITS, { { Z, 3530 } })
+            Check("one hit per cast: each cast's largest never aliases a row of another ID",
+                rig.ns.Fingerprints.Alias(Z) == nil and rig.ns.Fingerprints.Get(MIND_BLAST) == nil)
+        end
+
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks
             local function Meter(rig, id)
                 nextSession = nextSession + 1
