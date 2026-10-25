@@ -537,6 +537,18 @@ do -- Phase 3: records and Claim
             and Kind(function(n, s) Cast(n, s, UNLEARNED, 8.0, "nameplate1") end) == "learned"
             and Kind(function(n, s) Cast(n, s, AGONY, 9.9, "nameplate1") end) == "learned"
     end)
+    -- Run 20261025T172757Z: Void Eruption 0.23 s and SW:Death 1 s before a Void Blast, and SW:Death in the
+    -- Void Blast's own frame, turned 4 Mind Blast / Void Blast hits into '?'.
+    Scenario("claim: an unlearned cast before the learned one, or in its frame, does not spoil the claim", function()
+        local ns, S = Rig(MindBlast)
+        Cast(ns, S, UNLEARNED, 9.9, "nameplate1")
+        Cast(ns, S, 8092, 10, "nameplate1")
+        local before = ns.Casts.Claim(Plate("nameplate1"), 32, 10.2, 20000)
+        Cast(ns, S, 8092, 20, "nameplate1")
+        Cast(ns, S, UNLEARNED, 20, "nameplate1")
+        local frame = ns.Casts.Claim(Plate("nameplate1"), 32, 20.2, 20000)
+        return before == "learned" and frame == "learned"
+    end)
     Scenario("claim: two learned records that both fit are 'ambiguous' with no record", function()
         local ns, S = Rig(function(n) Wand(n) Learn3(n, 585, 4, 0.2) end)
         Cast(ns, S, WAND, 10, "nameplate1")

@@ -135,11 +135,12 @@ local function Count(found, fits, record)
     return found or record, math.max(fits, 1)
 end
 
--- A harmful non-tracker cast on `plate` within UNKNOWN_WAIT that no fingerprint knows
--- could just as well have made the hit.
-local function UnlearnedCastAt(plate, now)
+-- A harmful non-tracker cast on `plate` within UNKNOWN_WAIT, after `since`, that no fingerprint
+-- knows could just as well have made the hit. One cast before the learned cast (or in its frame)
+-- does not: run 20261025T172757Z lost 4 Void Blast hits to Void Eruption and SW:Death that way.
+local function UnlearnedCastAt(plate, now, since)
     for _, entry in ipairs(log) do
-        if now - entry.at <= UNKNOWN_WAIT and not entry.tracker and entry.plate == plate
+        if now - entry.at <= UNKNOWN_WAIT and entry.at > since and not entry.tracker and entry.plate == plate
             and not Fingerprints.IsLearned(entry.base) then
             return true
         end
@@ -176,7 +177,7 @@ function Casts.Claim(plate, school, now, size)
         end
     end
     if fits == 0 then found, fits = late, lateFits end
-    if fits >= 2 or UnlearnedCastAt(plate, now) then return "ambiguous" end
+    if fits >= 2 or UnlearnedCastAt(plate, now, found and found.at or -math.huge) then return "ambiguous" end
     if fits == 1 then return "learned", found end
 end
 
