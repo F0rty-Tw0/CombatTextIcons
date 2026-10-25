@@ -424,6 +424,16 @@ local function Read(run)
     end
 
     lastSession = sessionID
+    if ns.Debug then
+        -- grug: override probe (2026-10-25): what each meter row's spell turns into right now.
+        for _, row in ipairs(rows) do
+            local get = C_Spell.GetOverrideSpell
+            local ok, override = false, nil
+            if get then ok, override = pcall(get, row.spellID) end
+            ns.Debug("TEACH row %d total=%d override=%s", row.spellID, math.floor(row.total),
+                not get and "none" or not ok and "err" or issecretvalue(override) and "secret" or tostring(override))
+        end
+    end
     local results, open = Verdicts(run.tally, rows)
     SafetyNet(results)
     Teacher.last = { session = sessionID, rows = results, learned = {} }

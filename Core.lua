@@ -200,6 +200,19 @@ local function ShowGroup()
     return table.concat(answers, ",")
 end
 
+-- The base-spell answers for the log (override probe), no spaces:
+-- C_SpellBook.FindBaseSpellByID,C_Spell.GetBaseSpell as a number / nil / secret / err / none.
+local function ShowBase(spellID)
+    local answers = {}
+    local finds = { C_SpellBook and C_SpellBook.FindBaseSpellByID or false, C_Spell.GetBaseSpell or false }
+    for index, find in ipairs(finds) do
+        local ok, base = false, nil
+        if find then ok, base = pcall(find, spellID) end
+        answers[index] = not find and "none" or not ok and "err" or issecretvalue(base) and "secret" or tostring(base)
+    end
+    return table.concat(answers, ",")
+end
+
 -- The unit's creature ID from UnitGUID for the log (dummy probe): the number, nil, secret, err,
 -- or the GUID's type word when it is not a creature.
 local function ShowNPC(unit)
@@ -453,7 +466,9 @@ end
 
 function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     if not db.enabled then return end
-    if ns.Debug then ns.Debug("CAST %s %s", unit, ShowValue(spellID)) end
+    if ns.Debug then
+        ns.Debug("CAST %s %s base=%s", unit, ShowValue(spellID), Plain(spellID) and ShowBase(spellID) or "?")
+    end
     local now = GetTime()
     if unit == "player" and Plain(spellID) then
         local harmful = C_Spell.IsSpellHarmful and C_Spell.IsSpellHarmful(spellID)

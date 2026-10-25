@@ -212,6 +212,11 @@ return function(T)
         Check("debug: the HIT line logs npc=<creature ID> / type / nil / secret / err before target= (dummy probe)",
             npcs[1] == "225983" and npcs[2] == "Player" and npcs[3] == "nil" and npcs[4] == "secret" and npcs[5] == "err")
 
+        rig.Cast(9, "nameplate1")
+        local cast = Last("^CAST ")
+        Check("debug: a cast logs CAST <unit> <id> base=<FindBaseSpellByID>,<GetBaseSpell> (override probe)",
+            cast ~= nil and cast:find("^CAST player 594 base=594,%S+$") ~= nil)
+
         rig.S.now = 10
         rig.ns.Core.UNIT_COMBAT("player", "HEAL", "", 500, 2)
         local heal = Last("^HEAL ")

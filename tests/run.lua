@@ -286,6 +286,7 @@ local function ParseLog(name, log)
         local event = { line = index, order = index, t = tonumber(t), phase = 0 }
         local route = rest:match("^  %-> (.+)$")
         local unit, id = rest:match("^CAST (%S+) (%d+)$")
+        if not unit then unit, id = rest:match("^CAST (%S+) (%d+) base=%S+$") end -- override probe logs
         local readOrigin, dmg = rest:match("^READ (%a+) dmg=(%d+) heal=%d+ taken=%d+$")
         local hitUnit, school, amount, flag = rest:match("^HIT (%S+) school=(%d+) amount=(%d+) flag=(%S*) fps=")
         local hitTarget = rest:match("^HIT .*target=(%a+)$")
