@@ -290,7 +290,7 @@ local function ParseLog(name, log)
         local readOrigin, dmg = rest:match("^READ (%a+) dmg=(%d+) heal=%d+ taken=%d+$")
         local hitUnit, school, amount, flag = rest:match("^HIT (%S+) school=(%d+) amount=(%d+) flag=(%S*) fps=")
         local hitTarget = rest:match("^HIT .*target=(%a+)$")
-        local skipped = rest:match("^STAMP %d+$") or rest:match("^RESOLVE ")
+        local skipped = rest:match("^STAMP %d+$") or rest:match("^RESOLVE ") or rest:match("^START ")
         if route then
             assert(lastHit ~= nil, "route line with no HIT " .. name .. ":" .. index)
             if lastHit then lastHit.route = route end          -- report only
@@ -650,6 +650,7 @@ end
 
 local SHADOW_DOTS, PRIEST_DUMMY = "shadow-dots-2026-10-24", "priest-dummy-2026-10-24" -- the TEACH-bearing fixtures
 local FORGET5 = "shadow-forget5-2026-10-25" -- /cti forget, then 5 solo fights (Voidweaver-era shadow priest)
+local REPLAY_STEADY = "shadow-steady-2026-10-25" -- /cti forget, then 3 dummy fights (run 140233Z)
 local TRIGGER_ID = 1227280 -- Tentacle Slam: applies VT, has no meter row of its own (TEACH ... meter=0 in both fixtures)
 local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shadow-dots "-> unknown-solo", priest-dummy "-> HIDDEN (crowded)")
     [SHADOW_DOTS] = { startArea = "clear" },
@@ -662,6 +663,7 @@ local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shado
         { ["450983:148859"] = 263165, ["1227280:47499"] = 413231 },
         { ["450983:61896"] = 263165, ["8092:53675"] = 1231479 },
     } },
+    [REPLAY_STEADY] = { startArea = "crowded" },
 }
 -- Replays a TEACH-bearing log one fight at a time with the meter on. Each fight is the slice of events after
 -- the previous TEACH clean line up to its own; the tail after the last one is a run with no rows (its read
@@ -1830,6 +1832,34 @@ do -- Rev 5 (in-game 2026-10-25): the forget5 run made 4 wrong aliases; only 413
         ok and aliasOk, table.concat(parts, "\n     "))
     Criterion(20, "forget5 replay (haste 25 and 0): Mind Blast 8092 learned (Void Blast's hits under it, each cast's DoT ticks left out)",
         ok and blastOk, "fingerprints as in 19")
+end
+
+do -- steady learning (2026-10-25): run 140233Z, /cti forget then 3 dummy fights; exact sums never learned Mind Blast
+    local parts, ranOk = {}, true
+    local ok, err = pcall(function()
+        for _, haste in ipairs(DOT_HASTES) do
+            local runs = ReplayFights(REPLAY_STEADY, { haste = haste })
+            ranOk = ranOk and #runs >= 3
+            local fights = {}
+            for index, run in ipairs(runs) do
+                local learned = {}
+                for id, count in pairs(run.last and run.last.learned or {}) do learned[#learned + 1] = id .. "=" .. count end
+                table.sort(learned)
+                fights[#fights + 1] = string.format("F%d %s [%s]", index, tostring(run.last and (run.last.area or run.last.skip)),
+                    table.concat(learned, ", "))
+            end
+            local prints = {}
+            for id, entry in pairs(runs[#runs].info.charDB.casts or {}) do
+                if entry.learned then prints[#prints + 1] = tostring(id) end
+            end
+            table.sort(prints)
+            parts[#parts + 1] = string.format("h%d: %s; learned casts [%s]", haste, table.concat(fights, "; "),
+                table.concat(prints, ", "))
+        end
+    end)
+    if not ok then Check("steady criterion ran without error: " .. tostring(err), false) end
+    Criterion(21, "steady replay (haste 25 and 0): run 140233Z replays 3+ fights", ok and ranOk,
+        table.concat(parts, "\n     "))
 end
 
 -- Last replay done: no replay of the run reset the meter.
