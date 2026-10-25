@@ -105,17 +105,19 @@ local function UnlearnedCastAt(plate, now)
     return false
 end
 
--- Whose hit is this? "learned", record: exactly one open record fits and
--- no unlearned cast is on the plate. "ambiguous": two records fit, or an unlearned
--- cast is on the plate (spec 6.1 read literally: that alone spoils the answer, fit or
--- not). nil: nothing to say. Changes nothing; Accept is the only writer.
+-- Whose hit is this? "learned", record: the open records that fit are all casts of one spell
+-- (the oldest answers; Void Blast can fire twice in one frame) and no unlearned cast is on the
+-- plate. "ambiguous": records of two spells fit, or an unlearned cast is on the plate (spec 6.1
+-- read literally: that alone spoils the answer, fit or not). nil: nothing to say. Changes
+-- nothing; Accept is the only writer.
 function Casts.Claim(plate, school, now)
     if not (Plain(plate) and Plain(school) and Plain(now)) then return nil end
     local found, fits = nil, 0
     for _, record in ipairs(records) do
         local fp = Live(record, now)
         if fp and Fits(record, fp, plate, school, now) then
-            found, fits = found or record, fits + 1
+            if found and found.spellID ~= record.spellID then fits = fits + 1 end
+            found, fits = found or record, math.max(fits, 1)
         end
     end
     if fits >= 2 or UnlearnedCastAt(plate, now) then return "ambiguous" end

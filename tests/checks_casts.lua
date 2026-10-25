@@ -489,6 +489,13 @@ end
         local blast = rig.Hit(100.17, "nameplate1", "WOUND", 18729, 32)
         Check("casts: a Mind Blast cast leaves a DoT tick in its cast frame and takes the hit 0.17 s later",
             not (tick and tick.texture == "tex:" .. MIND_BLAST) and blast and blast.texture == "tex:" .. MIND_BLAST)
+        rig.S.now, rig.S.target = 200, "nameplate1" -- Void Blast fires twice in one frame (run 121944Z)
+        ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "Cast-a", VOID_BLAST)
+        ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "Cast-b", VOID_BLAST)
+        local first = rig.Hit(200, "nameplate1", "WOUND", 24696, 32)
+        local second = rig.Hit(200, "nameplate1", "WOUND", 24031, 32)
+        Check("casts: two open casts of one spell that both fit are not ambiguous: each takes one hit",
+            first and first.texture == "tex:" .. VOID_BLAST and second and second.texture == "tex:" .. VOID_BLAST)
         F.Init({ casts = { [1] = { learned = true, pattern = "single", school = 32, delays = { 0.2 },
             samples = { { school = 32, delay = 0.2, castAt = 1, hops = 1, spell = VOID_BLAST } } } } })
         Check("fingerprints: a saved sample keeps its cast spell", select(2, F.Window(1, VOID_BLAST)) == 0.2
