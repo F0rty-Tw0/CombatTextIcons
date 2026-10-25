@@ -17,7 +17,8 @@
 -- learning runs (the leftover '?' hits and still-open rows then go to Procs.Read), else it
 -- is "crowded" and that fight teaches nothing. With /cti debug each outcome logs TEACH lines.
 -- Each fight's outcome, a read or a skip, ends with one Teacher.OnRead(Teacher.last) call
--- (Progress shows what the fight taught).
+-- (Progress shows what the fight taught). A fight whose read meets the next fight is carried
+-- into it (Carry) and has no outcome of its own.
 
 local _, ns = ...
 local Meter, Fingerprints, Procs, Ledger = ns.Meter, ns.Fingerprints, ns.Procs, ns.Ledger
@@ -411,11 +412,40 @@ local function SafetyNet(results)
     end
 end
 
+-- A quick re-pull: the read met the next fight (in combat the meter answers secret), and the
+-- game extends one meter session over both (run 102226Z: the next read held this fight's rows).
+-- This fight's tally, seen and '?' hits join the open one, oldest first, and are judged at its
+-- read; this fight gets no outcome of its own.
+local function Carry(run, into)
+    for spellID, amount in pairs(run.tally) do into.tally[spellID] = (into.tally[spellID] or 0) + amount end
+    for index, hit in ipairs(run.unknown) do table.insert(into.unknown, index, hit) end
+    into.seen = into.seen + run.seen
+    into.group = into.group or run.group
+    if ns.Debug then ns.Debug("TEACH carry %d hits seen=%d", #run.unknown, math.floor(run.seen)) end
+end
+
+-- grug: session probe (2026-10-25): the read session's listed duration, to confirm in game that a
+-- quick re-pull's session spans both fights. Remove once confirmed.
+local function ReportSession(sessionID)
+    local ok, sessions = pcall(C_DamageMeter.GetAvailableCombatSessions)
+    if not (ok and Plain(sessions) and type(sessions) == "table") then return end
+    for _, session in ipairs(sessions) do
+        if Plain(session) and type(session) == "table" and session.sessionID == sessionID then
+            local duration = session.durationSeconds
+            ns.Debug("TEACH session %d dur=%s", sessionID, issecretvalue(duration) and "secret" or tostring(duration))
+        end
+    end
+end
+
 -- The timer callback of one fight: read the newest session and judge it.
 local function Read(run)
     local sessionID, reason = NewestSession()
     local rows
     if sessionID then rows, reason = ReadRows(sessionID) end
+    if not rows and reason == "secret" and Teacher.fight then
+        Carry(run, Teacher.fight)
+        return
+    end
     if not rows then
         Teacher.last = { skip = reason }
         if reason == "duplicate session" then Ledger.Drop(run.at) end
@@ -425,6 +455,7 @@ local function Read(run)
 
     lastSession = sessionID
     if ns.Debug then
+        ReportSession(sessionID)
         -- grug: override probe (2026-10-25): what each meter row's spell turns into right now.
         for _, row in ipairs(rows) do
             local get = C_Spell.GetOverrideSpell

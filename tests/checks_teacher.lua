@@ -211,6 +211,36 @@ return function(T)
             #S.timers == 0 and Teacher.last and Teacher.last.skip == "no fight")
     end
 
+    do -- quick re-pull (run 102226Z): the read meets the next fight ('secret'); the game folds both into one session
+        local rig = Rig({ [SMITE] = 2 })
+        local S, Teacher, F = rig.S, rig.ns.Teacher, rig.ns.Fingerprints
+        local calls = 0
+        Teacher.OnRead = function() calls = calls + 1 end
+        Teacher.Start(10)
+        Teacher.Drawn(SMITE, 30)
+        Teacher.Seen(30)
+        Teacher.Unknown("plate", 32, 100, 15, nil, "")
+        Teacher.Finish(20)
+        Teacher.Start(20.4) -- pulled again before the read
+        Teacher.Unknown("plate", 32, 200, 21, nil, "")
+        S.sessionsFail = "secret"
+        rig.Fire()
+        S.sessionsFail = nil
+        local fight = Teacher.fight
+        Check("teacher: a read that meets the next fight carries its tally, seen and '?' hits (oldest first) into it",
+            calls == 0 and fight and fight.at == 20.4 and fight.tally[SMITE] == 30 and fight.seen == 30
+            and #fight.unknown == 2 and fight.unknown[1].at == 15 and fight.unknown[2].at == 21)
+        Teacher.Drawn(SMITE, 23)
+        Teacher.Seen(23)
+        Teacher.Finish(25)
+        S.sessions = { Session(1, { Row(SMITE, 53), Row(SWP, 300) }) }
+        rig.Fire()
+        local smite = Find(Teacher.last, SMITE)
+        Check("teacher: the next read judges both fights against the one session: Smite 30 + 23 agrees with 53, area clear",
+            calls == 1 and smite and smite.tally == 53 and smite.verdict == "agree" and F.Get(SMITE).fights == 1
+            and Teacher.last.area == "clear")
+    end
+
     do -- tally and unknown hits
         local rig = Rig({ [SMITE] = 2 }, true)
         local Teacher = rig.ns.Teacher
