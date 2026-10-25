@@ -362,6 +362,7 @@ local function Read(run)
     if sessionID then rows, reason = ReadRows(sessionID) end
     if not rows then
         Teacher.last = { skip = reason }
+        if reason == "duplicate session" then Ledger.Drop(run.at) end
         Report(Teacher.last)
         return
     end

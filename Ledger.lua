@@ -2,7 +2,8 @@
 -- side (damage, heal): the summed amount and the hit count. A key is the ID the route
 -- drew its icon with, or "?<school>" / "?" for hits no spell could be named for. Fights end up in
 -- CombatTextIconsCharDB.fights, newest first by position (never sorted by time: the
--- clock restarts with the client), at most 5. A fight with no drawn hit is not saved.
+-- clock restarts with the client), at most 5. A fight with no drawn hit is not saved, nor is one
+-- the meter started no session for (the Teacher drops it after its read).
 -- After a post-fight meter read the Teacher hands its verdicts over; they attach to the
 -- newest saved fight only when it is the same fight. Saved data is checked on
 -- load: bad fights, totals and verdicts are dropped, unknown fields too. The ledger only
@@ -138,6 +139,13 @@ function Ledger.SetVerdicts(results, at)
         end
     end
     fight.verdicts = verdicts
+end
+
+-- Drops the newest saved fight when it is the fight started at `at`: the meter started no session
+-- for it (leftover ticks re-entering combat for a moment), so it would only push real fights out.
+function Ledger.Drop(at)
+    local fight = fights[1]
+    if fight and IsNumber(at) and fight.at == at then table.remove(fights, 1) end
 end
 
 -- Clears the saved fights in place (the table lives in the character's saved variables); the open fight stays.

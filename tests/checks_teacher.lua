@@ -186,6 +186,26 @@ return function(T)
         Check("teacher: the same newest session twice is read once ('duplicate session'), fights counted once",
             okA and okB and lastA.session == 1 and lastB.skip == "duplicate session" and F.Get(SMITE).fights == 1)
 
+        do -- leftover ticks re-enter combat for a moment: the meter starts no session, so that fight is not saved
+            local tiny = Rig({})
+            local L = tiny.ns.Ledger
+            local function Saved(at, amount)
+                L.Start(at)
+                L.Add("damage", "?32", amount)
+                L.Finish(at + 0.7)
+            end
+            Saved(1, 500000)
+            tiny.Read({}, good)
+            Saved(10, 1377) -- the rig's Teacher fight starts at 10
+            tiny.Read({}, good)
+            local fights = L.Fights()
+            Check("teacher: a fight the meter gives no new session ('duplicate session') is dropped from the saved fights",
+                #fights == 1 and fights[1].at == 1)
+            Saved(10, 1377)
+            tiny.Read({}, { Session(2, { Row(SMITE, 53) }) })
+            Check("teacher: a fight with a new session stays saved (control)", #L.Fights() == 2 and L.Fights()[1].at == 10)
+        end
+
         Teacher.Finish(5)
         Check("teacher: Finish with no fight started queues nothing ('no fight')",
             #S.timers == 0 and Teacher.last and Teacher.last.skip == "no fight")
@@ -943,6 +963,23 @@ return function(T)
                 rig.ns.Fingerprints.Alias(Z) == MIND_BLAST and rig.ns.Fingerprints.Alias(Y) == nil)
         end
 
+        do -- Rev 5 (in-game 2026-10-25): a row belongs to its own spell, so the cast pass never aliases it away
+            local function Cast(id, at) return { spellID = id, at = at } end
+
+            -- Holy Retributor's Order: one holy proc hit 2364 inside a Mind Blast cast window, Mind Blast's own row present
+            local rig = Rig({})
+            ReadWith(rig, { { 2, 2364, "", Cast(MIND_BLAST, 60), 60.25 } }, { { MIND_BLAST, 192182 }, { Y, 2364 } })
+            Check("cast pass: a cast whose own ID is a row this session gets no alias (proc 2364 is not Mind Blast's)",
+                rig.ns.Fingerprints.Alias(Y) == nil and rig.ns.Fingerprints.Get(MIND_BLAST) == nil)
+
+            -- Void Torrent: Void Blast's hits sum to the row of Void Torrent, which was cast in the same fight
+            local Z = 1234567
+            rig = Rig({})
+            ReadWith(rig, { { 32, 5551, "", Cast(MIND_BLAST, 60), 60.25 }, { 32, 999, "", Cast(Z, 61), 61.25 } }, { { Z, 5551 } })
+            Check("cast pass: the own row of another cast this fight is never aliased (Void Torrent's row is not Void Blast's)",
+                rig.ns.Fingerprints.Alias(Z) == nil and rig.ns.Fingerprints.Get(MIND_BLAST) == nil)
+        end
+
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks
             local function Meter(rig, id)
                 nextSession = nextSession + 1
@@ -964,23 +1001,6 @@ return function(T)
             drawn = Find(last, MIND_BLAST)
             Check("procs alias pass: with no proc the same saved alias pairs the row (control)",
                 drawn and drawn.verdict == "agree" and drawn.meterID == Y)
-
-        do -- Rev 5 (in-game 2026-10-25): a row belongs to its own spell, so the cast pass never aliases it away
-            local function Cast(id, at) return { spellID = id, at = at } end
-
-            -- Holy Retributor's Order: one holy proc hit 2364 inside a Mind Blast cast window, Mind Blast's own row present
-            local rig = Rig({})
-            ReadWith(rig, { { 2, 2364, "", Cast(MIND_BLAST, 60), 60.25 } }, { { MIND_BLAST, 192182 }, { Y, 2364 } })
-            Check("cast pass: a cast whose own ID is a row this session gets no alias (proc 2364 is not Mind Blast's)",
-                rig.ns.Fingerprints.Alias(Y) == nil and rig.ns.Fingerprints.Get(MIND_BLAST) == nil)
-
-            -- Void Torrent: Void Blast's hits sum to the row of Void Torrent, which was cast in the same fight
-            local Z = 1234567
-            rig = Rig({})
-            ReadWith(rig, { { 32, 5551, "", Cast(MIND_BLAST, 60), 60.25 }, { 32, 999, "", Cast(Z, 61), 61.25 } }, { { Z, 5551 } })
-            Check("cast pass: the own row of another cast this fight is never aliased (Void Torrent's row is not Void Blast's)",
-                rig.ns.Fingerprints.Alias(Z) == nil and rig.ns.Fingerprints.Get(MIND_BLAST) == nil)
-        end
 
             rig = Rig({})
             SeedProc(rig, Y, false) -- candidate, streak 2
