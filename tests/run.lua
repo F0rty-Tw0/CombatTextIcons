@@ -330,18 +330,24 @@ end
 
 -- Splits a debug log at its Teacher reads. A "TEACH clean seen=.. meter=.. -> area" line ends a fight; the
 -- "TEACH <id> tally=.. meter=<n> verdict=.." lines after it with n > 0 are its meter rows (file order, a
--- spell may repeat). fights[i] = { endLine, seen, meter, area, rows = { { spellID, totalAmount, overkillAmount } } }.
-local function ParseTeach(lines)
+-- spell may repeat). A row paired under another ID carries ` row=<meter ID>`; a log older than that prints the
+-- cast ID, and `rowIDs[fight]["<printed id>:<meter>"]` names the real row. "TEACH proc" lines are skipped.
+-- fights[i] = { endLine, seen, meter, area, rows = { { spellID, totalAmount, overkillAmount } } }.
+local function ParseTeach(lines, rowIDs)
     local fights, open = {}, nil
     for index, text in ipairs(lines) do
         local seen, meter, area = text:match("^[%d%.]+ TEACH clean seen=(%d+) meter=(%d+) %-> (%a+)$")
-        local id, rowMeter = text:match("^[%d%.]+ TEACH (%d+) tally=%d+ meter=(%d+) verdict=%a+$")
+        local id, rowMeter, rowID = text:match("^[%d%.]+ TEACH (%d+) tally=%d+ meter=(%d+) verdict=%a+ ?r?o?w?=?(%d*)$")
         if seen then
             open = { endLine = index, seen = tonumber(seen), meter = tonumber(meter), area = area, rows = {} }
             fights[#fights + 1] = open
+        elseif text:match("^[%d%.]+ TEACH proc ") then
+            -- Procs' streak lines sit between the clean line and the rows: report only
         elseif id and open then
             local amount = tonumber(rowMeter)
-            if amount > 0 then open.rows[#open.rows + 1] = { spellID = tonumber(id), totalAmount = amount, overkillAmount = 0 } end
+            local fixes = rowIDs and rowIDs[#fights] or {}
+            local spellID = tonumber(fixes[id .. ":" .. rowMeter] or (rowID ~= "" and rowID) or id)
+            if amount > 0 then open.rows[#open.rows + 1] = { spellID = spellID, totalAmount = amount, overkillAmount = 0 } end
         else
             open = nil
         end
@@ -633,10 +639,19 @@ local function Replay(name, opts)
 end
 
 local SHADOW_DOTS, PRIEST_DUMMY = "shadow-dots-2026-10-24", "priest-dummy-2026-10-24" -- the TEACH-bearing fixtures
+local FORGET5 = "shadow-forget5-2026-10-25" -- /cti forget, then 5 solo fights (Voidweaver-era shadow priest)
 local TRIGGER_ID = 1227280 -- Tentacle Slam: applies VT, has no meter row of its own (TEACH ... meter=0 in both fixtures)
 local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shadow-dots "-> unknown-solo", priest-dummy "-> HIDDEN (crowded)")
     [SHADOW_DOTS] = { startArea = "clear" },
     [PRIEST_DUMMY] = { startArea = "crowded" },
+    -- rowIDs: the rows that log printed under the cast it was aliased to. 263165 (Void Torrent) never prints as its
+    -- own ID; F4's 1231479 and 263165 are confirmed by the char SV's saved verdicts (meterID), the rest inferred.
+    [FORGET5] = { startArea = "crowded", rowIDs = {
+        { ["450983:93761"] = 263165, ["8092:2364"] = 1260076 },
+        { ["450983:93551"] = 263165, ["335467:7382"] = 451435 },
+        { ["450983:148859"] = 263165, ["1227280:47499"] = 413231 },
+        { ["450983:61896"] = 263165, ["8092:53675"] = 1231479 },
+    } },
 }
 -- Replays a TEACH-bearing log one fight at a time with the meter on. Each fight is the slice of events after
 -- the previous TEACH clean line up to its own; the tail after the last one is a run with no rows (its read
@@ -645,7 +660,7 @@ local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shado
 local function ReplayFights(name, opts)
     local fixture = assert(FIGHT_FIXTURES[name], "no fight fixture " .. name)
     local log = LoadLog(name .. ".sv.lua")
-    local fights, all = ParseTeach(log), ParseLog(name, log)
+    local fights, all = ParseTeach(log, fixture.rowIDs), ParseLog(name, log)
     local runs, charDB, area, prevEnd = {}, opts.charDB, fixture.startArea, 0
     for i = 1, #fights + 1 do
         local fight = fights[i]
@@ -1769,6 +1784,35 @@ do -- Plan criteria 3, 4, 6 (spec 5.3, 5.4, 5.6): chained learn, draw check, rou
         procOk and drawOk, table.concat(drawParts, "\n     "))
     Criterion(18, "the draw replay's debug routes hold '-> proc <id>' lines for both procs in F3 (haste 25 and 0)",
         procOk and routeOk, table.concat(routeParts, "\n     "))
+end
+
+do -- Rev 5 (in-game 2026-10-25): the forget5 run made 4 wrong aliases; only 413231 -> Tentacle Slam may stay
+    local ALLOWED = { [413231] = TRIGGER_ID }
+    local aliasOk, parts = true, {}
+    local ok, err = pcall(function()
+        for _, haste in ipairs(DOT_HASTES) do
+            local runs = ReplayFights(FORGET5, { haste = haste })
+            assert(#runs >= 4, "forget5 ran " .. #runs .. " fights")
+            local db, aliases, procs, prints = runs[#runs].info.charDB, {}, {}, {}
+            for rowID, castID in pairs(db.castAliases or {}) do
+                aliasOk = aliasOk and ALLOWED[rowID] == castID
+                aliases[#aliases + 1] = rowID .. ">" .. castID
+            end
+            for id, entry in pairs(db.procs or {}) do
+                procs[#procs + 1] = string.format("%d s%d %d-%d %s", id, entry.school, entry.lo, entry.hi,
+                    entry.learned and "learned" or ("streak " .. entry.streak))
+            end
+            for id, entry in pairs(db.casts or {}) do
+                if entry.learned then prints[#prints + 1] = id .. " s" .. tostring(entry.school) end
+            end
+            table.sort(aliases); table.sort(procs); table.sort(prints)
+            parts[#parts + 1] = string.format("h%d: %d fights; aliases [%s]; procs [%s]; fingerprints [%s]; ticks [%s]", haste, #runs,
+                table.concat(aliases, ", "), table.concat(procs, "; "), table.concat(prints, ", "), Describe(db.learned))
+        end
+    end)
+    if not ok then Check("forget5 criterion ran without error: " .. tostring(err), false) end
+    Criterion(19, "forget5 replay (haste 25 and 0): no cast alias except 413231 -> " .. TRIGGER_ID .. " (Rev 5)",
+        ok and aliasOk, table.concat(parts, "\n     "))
 end
 
 -- Last replay done: no replay of the run reset the meter.

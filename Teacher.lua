@@ -305,7 +305,8 @@ local function StillOpen(open, rewritten)
     return rows
 end
 
--- One TEACH debug line per outcome: the skip reason, or each spell's tally, meter and verdict.
+-- One TEACH debug line per outcome: the skip reason, or each spell's tally, meter and verdict,
+-- plus `row=<meter ID>` when the spell was paired with a row of another ID (an alias).
 local function Report(last)
     if not ns.Debug then return end
     if last.skip then
@@ -313,7 +314,8 @@ local function Report(last)
         return
     end
     for _, row in ipairs(last.rows) do
-        ns.Debug("TEACH %s tally=%s meter=%s verdict=%s", row.spellID, row.tally, row.meter, row.verdict)
+        local alias = row.meterID ~= row.spellID and (" row=" .. row.meterID) or ""
+        ns.Debug("TEACH %s tally=%s meter=%s verdict=%s%s", row.spellID, row.tally, row.meter, row.verdict, alias)
     end
 end
 

@@ -352,6 +352,8 @@ return function(T)
             Logged("TEACH 591 tally=53 meter=53 verdict=agree") and Logged("TEACH 217200 tally=800 meter=800 verdict=agree")
             and Logged("TEACH 1260198 tally=0 meter=56 verdict=unpaired")
             and Logged("TEACH 8092 tally=353 meter=353 verdict=agree") and Logged("TEACH 5019 tally=87 meter=87 verdict=agree"))
+        Check("teacher TEACH: a row paired under another ID names its meter row (row=75); a spell's own row does not",
+            Logged("TEACH 5019 tally=87 meter=87 verdict=agree row=75") and not Logged("verdict=agree row=8092"))
 
         ns.Teacher.Start(300)
         ns.Teacher.Finish(301)
