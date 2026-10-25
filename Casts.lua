@@ -66,7 +66,7 @@ local log = {}           -- harmful player casts, oldest first: { spellID, base,
 -- cast's icon; Accept is the only writer of hops. Claim only notes what each record saw (its centre).
 local SLACK = 0.05      -- a window edge may be this far off
 local LATE = 2          -- a cast with no hit yet takes a late one up to this times its window top
-local PAD_LO, PAD_HI = 0.5, 2 -- a sized hit fits a cast's band from half its smallest to twice its biggest learned size
+local PAD_LO, PAD_HI = 0.7, 2 -- a sized hit fits a cast's band from 0.7 of its smallest to twice its biggest learned size
 local RECORD_MAX = 20   -- open records at most; the oldest is dropped
 local records = {}      -- oldest first: { spellID, base, at, plate, hops, plates, last, seen, settled }
 

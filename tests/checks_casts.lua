@@ -472,7 +472,7 @@ do -- Phase 3: records and Claim
             and #ns.Casts.Candidates(nil, 11.0) == 0
     end)
 
-    -- Run 125009Z: Mind Blast learned at 18-25K, 0.17-0.23 s after the cast (padded band 9000-50000).
+    -- Run 125009Z: Mind Blast learned at 18-25K, 0.17-0.23 s after the cast (padded band 12600-50000).
     local MindBlast = function(ns) LearnSized(ns, 8092, 8092, { 18000, 21000, 25000 }, { 0.17, 0.2, 0.23 }) end
     Scenario("band: a small DoT tick in Mind Blast's window is not claimed; the real hit in the same frame is", function()
         local ns, S = Rig(MindBlast)
@@ -493,6 +493,14 @@ do -- Phase 3: records and Claim
         Cast(ns, S, 8092, 60, "nameplate1")
         return ns.Casts.Claim(Plate("nameplate1"), 32, 60.2, 50001) == nil
             and ns.Casts.Claim(Plate("nameplate1"), 32, 60.2, 50000) == "learned"
+    end)
+    -- Run 20261025T180045Z: Shadow Bolt learned at 9923-12782; s32 hits of 6068-6518 (0.61-0.66 x) landed
+    -- ~0.15 s before the bolt, took its record and left the bolt '?'.
+    Scenario("band: the bottom edge is 0.7 x the smallest size", function()
+        local ns, S = Rig(MindBlast)
+        Cast(ns, S, 8092, 60, "nameplate1")
+        return ns.Casts.Claim(Plate("nameplate1"), 32, 60.2, 12599) == nil
+            and ns.Casts.Claim(Plate("nameplate1"), 32, 60.2, 12600) == "learned"
     end)
     Scenario("band: no size, a 0 size or no band claims on time alone", function()
         local ns, S = Rig(function(n) MindBlast(n); Wand(n) end)
