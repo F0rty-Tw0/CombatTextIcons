@@ -182,7 +182,7 @@ return function(T)
             function() return Secret(1) end, function() error("restricted") end }) do
             UnitThreatSituation = answer
             rig.Hit(4 + index, "nameplate1")
-            threats[index] = Last("^HIT nameplate1"):match(" threat=(%S+) group=%S+ target=")
+            threats[index] = Last("^HIT nameplate1"):match(" threat=(%S+) group=%S+ npc=%S+ target=")
         end
         UnitThreatSituation = threatSituation
         Check("debug: the HIT line logs threat=1 / nil / secret / err before target= (gap 2 probe)",
@@ -193,12 +193,24 @@ return function(T)
             function() return Secret(true) end }) do
             IsInGroup = answer
             rig.Hit(8 + index, "nameplate1")
-            groups[index] = Last("^HIT nameplate1"):match(" group=(%S+) target=")
+            groups[index] = Last("^HIT nameplate1"):match(" group=(%S+) npc=%S+ target=")
         end
         IsInGroup = isInGroup
         Check("debug: the HIT line logs IsInGroup any,home,instance raw before target= (solo-hidden probe)",
             groups[1] == "false,false,false" and groups[2] == "false,false,true"
             and groups[3] == "secret,secret,secret")
+
+        local unitGUID, npcs = UnitGUID, {}
+        for index, answer in ipairs({ function() return "Creature-0-3767-2552-1234-225983-0000ABCDEF" end,
+            function() return "Player-1305-0ABCDEF1" end, function() return nil end,
+            function() return Secret("Creature-0-1-2-3-4-5") end, function() error("restricted") end }) do
+            UnitGUID = answer
+            rig.Hit(11 + index, "nameplate1")
+            npcs[index] = Last("^HIT nameplate1"):match(" npc=(%S+) target=")
+        end
+        UnitGUID = unitGUID
+        Check("debug: the HIT line logs npc=<creature ID> / type / nil / secret / err before target= (dummy probe)",
+            npcs[1] == "225983" and npcs[2] == "Player" and npcs[3] == "nil" and npcs[4] == "secret" and npcs[5] == "err")
 
         rig.S.now = 10
         rig.ns.Core.UNIT_COMBAT("player", "HEAL", "", 500, 2)

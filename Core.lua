@@ -161,6 +161,16 @@ local function ShowGroup()
     return table.concat(answers, ",")
 end
 
+-- The unit's creature ID from UnitGUID for the log (dummy probe): the number, nil, secret, err,
+-- or the GUID's type word when it is not a creature.
+local function ShowNPC(unit)
+    local ok, guid = pcall(UnitGUID, unit)
+    if not ok then return "err" end
+    if issecretvalue(guid) then return "secret" end
+    if guid == nil then return "nil" end
+    return guid:match("^Creature%-%d+%-%d+%-%d+%-%d+%-(%d+)%-") or guid:match("^(%a+)") or "?"
+end
+
 local function SpellTexture(spellID)
     return (C_Spell.GetSpellTexture(spellID))
 end
@@ -218,8 +228,9 @@ local function Wound(plate, unit, flagText, amount, school, now)
     Teacher.Seen(amount) -- every enemy-plate wound counts toward the crowd check, drawn or not
     local text = HitText(flagText, amount)
     if ns.Debug then
-        ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s target=%s", unit, ShowValue(school),
-            ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowThreat(unit), ShowGroup(), ShowIsTarget(unit))
+        ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit, ShowValue(school),
+            ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowThreat(unit), ShowGroup(), ShowNPC(unit),
+            ShowIsTarget(unit))
     end
     local spellID = Tracker.Identify(plate, school, amount, flagText, now)
     if spellID and spellID ~= Tracker.UNKNOWN then
