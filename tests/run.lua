@@ -59,6 +59,7 @@ local function InstallStubs()
         cvars = {}, cvarFail = {}, cvarDefaults = {}, prints = {}, guid = "Player-1-00000001", attackable = {},
         interface = 120105, helpful = {}, autoRepeat = {}, spellNames = {}, guids = {}, threat = {},
         sessions = {}, timers = {}, sourceCalls = {}, frames = {},
+        baseSpells = { [450983] = 8092 }, -- override cast -> its base spell (Void Blast -> Mind Blast)
     }
     issecretvalue = IsSecret
     bit = { band = function(a, b) return a & b end }
@@ -146,6 +147,9 @@ local function InstallStubs()
         IsSpellHelpful = function(id) return S.helpful[id] == true end,
         IsAutoRepeatSpell = function(id) return S.autoRepeat[id] == true end,
     }
+    -- An override cast answers its base spell (S.baseSpells), any other ID itself; the deprecated global is unset.
+    C_SpellBook = { FindBaseSpellByID = function(id) return S.baseSpells[id] or id end }
+    FindBaseSpellByID = nil
     C_NamePlate = {
         GetNamePlateForUnit = function(unit)
             if unit == "target" then unit = S.target end

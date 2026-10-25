@@ -146,6 +146,37 @@ return function(T)
 
         rig.Cast(70, "nameplate1", 591); rig.Cast(70.5, "nameplate1", 8092)
         Check("soleCast: a cast after `at` is not counted", (Casts.SoleCast(P1, 70.25) or {}).spellID == 591)
+
+        rig.Cast(80, "nameplate1", 450983) -- Void Blast, an override of Mind Blast
+        local override = Casts.SoleCast(P1, 80.25) or {}
+        Check("soleCast: an override cast keeps its own spellID and names its base (Void Blast 450983 -> base 8092)",
+            override.spellID == 450983 and override.base == 8092 and sole.base == 591)
+    end
+
+    do -- base spell: Casts.Base asks the client which spell a cast overrides; any doubt answers the cast itself
+        local VOID_BLAST, MIND_BLAST = 450983, 8092
+        local ns = T.Boot()
+        -- Casts.Base(id) with C_SpellBook.FindBaseSpellByID replaced by `find` (nil: no C_SpellBook) and the
+        -- deprecated global FindBaseSpellByID set to `global`; false when Base raised.
+        local function BaseWith(find, global, id)
+            local spellBook = C_SpellBook
+            C_SpellBook, FindBaseSpellByID = find and { FindBaseSpellByID = find }, global
+            local ok, base = pcall(ns.Casts.Base, id or VOID_BLAST)
+            C_SpellBook, FindBaseSpellByID = spellBook, nil
+            return ok and base
+        end
+        local function Map(id) return id == VOID_BLAST and MIND_BLAST or id end
+        Check("base: an override answers its base spell (450983 -> 8092), any other cast answers itself",
+            BaseWith(Map) == MIND_BLAST and BaseWith(Map, nil, 591) == 591)
+        Check("base: without C_SpellBook the deprecated global FindBaseSpellByID answers",
+            BaseWith(nil, Map) == MIND_BLAST)
+        Check("base: with neither API the cast is its own base", BaseWith(nil, nil) == VOID_BLAST)
+        Check("base: an erroring API answers the cast itself",
+            BaseWith(function() error("restricted") end) == VOID_BLAST)
+        Check("base: a secret, nil or non-number answer is the cast itself",
+            BaseWith(function() return T.Secret(MIND_BLAST) end) == VOID_BLAST
+            and BaseWith(function() return nil end) == VOID_BLAST
+            and BaseWith(function() return "8092" end) == VOID_BLAST)
     end
 
     do -- Task 2.2: Fingerprints
@@ -291,6 +322,12 @@ do -- Phase 3: records and Claim
         local kind, record = ns.Casts.Claim(Plate("nameplate1"), 4, 10.17)
         local kind2 = ns.Casts.Claim(Plate("nameplate1"), 4, 10.23)
         return kind == "learned" and record.spellID == WAND and record.hops == 0 and kind2 == "learned"
+    end)
+    Scenario("claim: an override cast (Void Blast) opens a record under its base's learned fingerprint (Mind Blast)", function()
+        local ns, S = Rig(function(n) Learn3(n, 8092, 32, 0.2) end)
+        Cast(ns, S, 450983, 10, "nameplate1")
+        local kind, record = ns.Casts.Claim(Plate("nameplate1"), 32, 10.2)
+        return kind == "learned" and record.spellID == 450983 and record.base == 8092
     end)
     Scenario("claim: wrong school, wrong plate, too early or too late is nil", function()
         local ns, S = Rig(Wand)

@@ -911,7 +911,7 @@ return function(T)
             local rig = Rig({})
             local spy = Spy(rig)
             -- three Mind Blast casts (a fingerprint needs three distinct ones), each 0.25 s before its hit
-            local function Cast(at) return { spellID = MIND_BLAST, at = at } end
+            local function Cast(at) return { spellID = MIND_BLAST, base = MIND_BLAST, at = at } end
             ReadWith(rig, { { 32, 120, "", Cast(60), 60.25 }, { 32, 135, "", Cast(70), 70.25 }, { 32, 98, "", Cast(80), 80.25 },
                 { 106, 350, "", Cast(60), 60.25 }, { 106, 350, "", Cast(60), 60.25 } },
                 { { MIND_BLAST, 353 }, { X, 700 }, { Y, 704 } })
@@ -924,7 +924,7 @@ return function(T)
         end
 
         do -- Rev 4: the cast pass never aliases a row Procs tracks; a cast's own row still pairs
-            local function Cast(at) return { spellID = MIND_BLAST, at = at } end
+            local function Cast(at) return { spellID = MIND_BLAST, base = MIND_BLAST, at = at } end
             local ONE = { { 106, 5551, "", Cast(60), 60.25 } } -- one Mind Blast hit, 5551
             local function Seed(rig, id, lo)
                 CombatTextIconsCharDB.procs = { [id] = { school = 106, lo = lo, hi = 5827, streak = 1, learned = false,
@@ -966,7 +966,7 @@ return function(T)
         end
 
         do -- Rev 5 (in-game 2026-10-25): a row belongs to its own spell, so the cast pass never aliases it away
-            local function Cast(id, at) return { spellID = id, at = at } end
+            local function Cast(id, at) return { spellID = id, base = id, at = at } end
 
             -- Holy Retributor's Order: one holy proc hit 2364 inside a Mind Blast cast window, Mind Blast's own row present
             local rig = Rig({})
@@ -980,6 +980,45 @@ return function(T)
             ReadWith(rig, { { 32, 5551, "", Cast(MIND_BLAST, 60), 60.25 }, { 32, 999, "", Cast(Z, 61), 61.25 } }, { { Z, 5551 } })
             Check("cast pass: the own row of another cast this fight is never aliased (Void Torrent's row is not Void Blast's)",
                 rig.ns.Fingerprints.Alias(Z) == nil and rig.ns.Fingerprints.Get(MIND_BLAST) == nil)
+        end
+
+        do -- base spell (in-game forget5): the meter files Void Blast under Mind Blast's row 8092
+            local VOID_BLAST = 450983
+            local rig = Rig({})
+            local ns, S, F = rig.ns, rig.S, rig.ns.Fingerprints
+            local keys = {}
+            local add = ns.Ledger.Add
+            ns.Ledger.Add = function(side, key, amount) keys[key] = true return add(side, key, amount) end
+            -- One fight through Core, each cast { t, spellID, amount } at nameplate1 with its school-32 hit 0.25 s
+            -- later, against a session of `rows`. Returns the textures drawn and the fight's tally.
+            local function Fight(casts, rows)
+                nextSession = nextSession + 1
+                S.sessions, S.now = { Session(nextSession, rows) }, casts[1][1] - 1
+                ns.Core.PLAYER_REGEN_DISABLED()
+                local drawn, tally = {}, ns.Teacher.fight.tally
+                for _, cast in ipairs(casts) do
+                    rig.Cast(cast[1], "nameplate1", cast[2])
+                    drawn[#drawn + 1] = rig.Hit(cast[1] + 0.25, "nameplate1", cast[3], 32) or false
+                end
+                S.now = S.now + 1
+                ns.Core.PLAYER_REGEN_ENABLED()
+                while #S.timers > 0 do rig.Fire() end
+                return drawn, tally
+            end
+
+            local ok = pcall(Fight, { { 10, MIND_BLAST, 100 }, { 20, VOID_BLAST, 200 }, { 30, MIND_BLAST, 150 } },
+                { Row(MIND_BLAST, 450) })
+            local last = ns.Teacher.last
+            Check("base spell: Mind Blast and Void Blast '?' hits (100 + 200 + 150) sum to row 8092 -> fingerprint 8092 learned, no alias",
+                ok and last.learned[MIND_BLAST] == 3 and F.IsLearned(MIND_BLAST) and F.Get(VOID_BLAST) == nil
+                and next(CombatTextIconsCharDB.castAliases) == nil and Find(last, MIND_BLAST).verdict == "agree")
+
+            keys = {}
+            local okLater, drawn, tally = pcall(Fight, { { 50, VOID_BLAST, 300 } }, { Row(MIND_BLAST, 300) })
+            Check("base spell: a later Void Blast hit draws Void Blast's icon, tallies and ledgers under 8092, and agrees",
+                okLater and drawn[1] == "tex:" .. VOID_BLAST and tally[MIND_BLAST] == 300 and tally[VOID_BLAST] == nil
+                and keys[MIND_BLAST] and not keys[VOID_BLAST] and Find(ns.Teacher.last, MIND_BLAST).verdict == "agree"
+                and F.Get(MIND_BLAST).fights == 1)
         end
 
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks

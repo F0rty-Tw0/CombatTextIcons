@@ -5,9 +5,11 @@
 -- overshoots it, or falls short. Agree and overshoot go to Fingerprints (two overshoots
 -- in a row delete an entry); a short tally or an unpaired row changes nothing. The meter
 -- may list a spell under another ID (Shoot 5019 is row Auto Shot 75): a saved
--- alias or a one-tally-one-row agreement pairs them. The '?' hits one unlearned
--- cast can explain are summed per school; when a sum agrees with exactly one
--- unpaired row (never one Procs tracks), those hits become fingerprint samples. A read that meets a
+-- alias or a one-tally-one-row agreement pairs them. A cast is tallied and learned under
+-- its base spell (Casts.Base): the meter files an override (Void Blast 450983) under its
+-- base's row (Mind Blast 8092). The '?' hits one unlearned cast can explain are summed per
+-- school; when a sum agrees with exactly one unpaired row (never one Procs tracks), those
+-- hits become fingerprint samples. A read that meets a
 -- secret value or an error is skipped whole. The verdicts also unlearn DoTs, channels and
 -- procs whose drawn total overshoots the meter or never pairs with a row, and go to the
 -- Ledger, which attaches them to the saved fight. A solo fight is also a crowd check: when
@@ -194,7 +196,7 @@ local function Verdicts(tally, rows)
     return results, open
 end
 
--- Groups the '?' hits that one unlearned cast can explain by school and cast spell, in a
+-- Groups the '?' hits that one unlearned cast can explain by school and base spell, in a
 -- fixed order. A group { castID, school, sum, hits } is learned when its sum agrees with
 -- exactly one still-unpaired row and that row agrees with no other group.
 local function Groups(unknown)
@@ -415,16 +417,17 @@ function Teacher.Drawn(spellID, amount)
 end
 
 -- A solo unexplained hit on a mob fighting you (drawn '?', or hidden while the meter is off or
--- the area is crowded). `cast` is Casts.SoleCast at the hit's time. `castID` / `castAt` name
--- it when it is unlearned, for the teacher to learn from after the fight. `crit` (from the
--- hit's flag text, as Streams.Size) feeds Procs: true, false, or nil when the flag is unknown.
+-- the area is crowded). `cast` is Casts.SoleCast at the hit's time. `castID` (the cast's base
+-- spell) / `castAt` name it when it is unlearned, for the teacher to learn from after the
+-- fight. `crit` (from the hit's flag text, as Streams.Size) feeds Procs: true, false, or nil
+-- when the flag is unknown.
 function Teacher.Unknown(plate, school, amount, now, cast, flagText)
     local fight = Teacher.fight
     if not (fight and plate ~= nil and IsNumber(school) and IsNumber(amount) and IsNumber(now)) then return end
 
     local entry = { school = school, amount = amount, at = now, plate = plate, crit = Procs.Crit(flagText) }
-    if cast and not Fingerprints.IsLearned(cast.spellID) then
-        entry.castID, entry.castAt = cast.spellID, cast.at
+    if cast and not Fingerprints.IsLearned(cast.base) then
+        entry.castID, entry.castAt = cast.base, cast.at
     end
     fight.unknown[#fight.unknown + 1] = entry
 end

@@ -213,8 +213,8 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
         Casts.Accept(record, plate, now)
-        Teacher.Drawn(record.spellID, amount)
-        Ledger.Add("damage", record.spellID, amount)
+        Teacher.Drawn(record.base, amount) -- an override is tallied under the base spell's meter row
+        Ledger.Add("damage", record.base, amount)
         return Display.Plate(plate, SpellTexture(record.spellID), text, flagText, school)
     end
     -- An UNKNOWN answer is not fed: the tracker already holds the candidates. The teacher

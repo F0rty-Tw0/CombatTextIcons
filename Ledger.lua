@@ -1,6 +1,8 @@
 -- Combat Text Icons: ledger. Records what the addon DREW in each fight, per key and
 -- side (damage, heal): the summed amount and the hit count. A key is the ID the route
--- drew its icon with, or "?<school>" / "?" for hits no spell could be named for. Fights end up in
+-- drew its icon with (for a cast's direct hit, the cast's base spell: Void Blast is kept under
+-- Mind Blast, as the meter keeps it), or "?<school>" / "?" for hits no spell could be named
+-- for. Fights end up in
 -- CombatTextIconsCharDB.fights, newest first by position (never sorted by time: the
 -- clock restarts with the client), at most 5. A fight with no drawn hit is not saved, nor is one
 -- the meter started no session for (the Teacher drops it after its read).
