@@ -122,6 +122,11 @@ return function(T)
             and first.learned == false and second.spellID == 7 and list[3].spellID == 9 and list[3].learned == true)
         first.lo = 0
         Check("procs list: the entries are copies (changing one leaves the store alone)", procs[3].lo == 100)
+        procs[10] = { school = 32, lo = 1000, hi = 1100, period = 1.5, streak = 1, learned = false, unpaired = 0, seen = 0 }
+        local withPeriod = {}
+        for _, item in ipairs(Procs.List()) do withPeriod[item.spellID] = item end
+        Check("procs list: a rhythm entry carries its period, a size entry has none",
+            withPeriod[10].period == 1.5 and withPeriod[3].period == nil and withPeriod[9].period == nil)
 
         Procs.Forget()
         Check("procs forget: empties the store in place (the saved table stays the same table)",
@@ -506,5 +511,244 @@ return function(T)
         ns.Procs.Crit = function() return true end
         Check("procs export: Procs.Name asks Procs.Crit (a stub saying crit puts a 289 normal-range hit out of range)",
             ns.Procs.Name(106, 289, "") == nil)
+    end
+
+    -- Rhythm entries (a stored `period`): learned from tick streams, named only through a stream -----------
+    local function Rhythm(school, lo, hi, period, learned)
+        local entry = Entry(school, lo, hi, 1, learned)
+        entry.period = period
+
+        return entry
+    end
+    do
+        local secretPeriod = Secret(1)
+        local ns = Load(function()
+            CombatTextIconsCharDB = { procs = {
+                [1] = { school = 32, lo = 100, hi = 120, period = 1.5, learned = true },
+                [2] = { school = 32, lo = 100, hi = 120, period = 0, learned = true },
+                [3] = { school = 32, lo = 100, hi = 120, period = -1, learned = true },
+                [4] = { school = 32, lo = 100, hi = 120, period = "x", learned = true },
+                [5] = { school = 32, lo = 100, hi = 120, period = secretPeriod, learned = true },
+                [6] = { school = 32, lo = 100, hi = 120, learned = true },
+            } }
+        end)
+        ns.Procs.Init(CombatTextIconsCharDB)
+        local procs = CombatTextIconsCharDB.procs
+        Check("procs rhythm load: a period 1.5 is kept; period 0, -1, 'x' and a secret drop the whole entry; no period is unchanged",
+            procs[1] and procs[1].period == 1.5 and procs[1].learned == true and procs[2] == nil and procs[3] == nil
+            and procs[4] == nil and procs[5] == nil and procs[6] and procs[6].period == nil and procs[6].learned == true)
+    end
+    do
+        local ns, procs = Rig()
+        procs[1], procs[2] = Rhythm(32, 1000, 1100, 1, false), Rhythm(32, 1000, 1100, 1, true)
+        procs[3] = Entry(32, 1000, 1100, 1, false)
+        Check("procs rhythm has: a rhythm candidate is not tracked, a learned rhythm entry is, a size candidate with streak 1 is",
+            ns.Procs.Has(1) == false and ns.Procs.Has(2) == true and ns.Procs.Has(3) == true)
+        procs[1] = nil
+        Check("procs rhythm name: a learned rhythm entry does not name a school-32 hit of 1050 by size", ns.Procs.Name(32, 1050, "") == nil)
+    end
+    do
+        local procs, world, lines = Once({ N(32, 950), N(32, 1050) }, { { id = 5, total = 2000 } },
+            function(store) store[5] = Rhythm(32, 1000, 1100, 1, true) end)
+        local entry, taught = procs[5], false
+        for _, line in ipairs(lines) do taught = taught or line:find("TEACH proc", 1, true) ~= nil end
+        Check("procs rhythm read: a size group that fits a rhythm entry's row leaves it unchanged and logs no TEACH proc",
+            entry.lo == 1000 and entry.hi == 1100 and entry.learned == true and entry.streak == 1 and not taught
+            and world.results[1].verdict == "unpaired")
+        local candidate = Once({ N(32, 950), N(32, 1050) }, { { id = 5, total = 2000 } },
+            function(store) store[5] = Rhythm(32, 1000, 1100, 1, false) end)
+        Check("procs rhythm read: a rhythm candidate is not stepped by a size group either",
+            candidate[5].lo == 1000 and candidate[5].hi == 1100 and candidate[5].streak == 1)
+    end
+    do
+        local procs = Once({ N(32, 500), N(32, 500) }, { { id = 1, total = 1500, tally = 500, verdict = "under" }, { id = 2, total = 1000 } },
+            function(store) store[1] = Rhythm(32, 300, 400, 1, true) end)
+        Check("procs rhythm under: a learned rhythm entry owns no 'under' window, so a 1000 group goes to the open row alone",
+            Is(procs[2], 32, 500, 500, 1) and procs[1].lo == 300 and procs[1].hi == 400 and procs[1].streak == 1 and procs[1].period == 1)
+    end
+    do
+        local ns, procs = Rig()
+        local function Stream(school, period, lastAmount) return { school = school, period = period, lastAmount = lastAmount } end
+        procs[7] = Rhythm(32, 1000, 1100, 1.0, true)
+        local stream = Stream(32, 1.05, 1050)
+        local id = ns.Procs.NameStream(stream)
+        Check("procs namestream: a school-32 stream at period 1.05 and last hit 1050 names the entry and caches it on stream.procID",
+            id == 7 and stream.procID == 7)
+        Check("procs namestream: a school mismatch, a period 1.2 and amounts 1300 / 800 outside the padded band name nothing",
+            ns.Procs.NameStream(Stream(4, 1.05, 1050)) == nil and ns.Procs.NameStream(Stream(32, 1.2, 1050)) == nil
+            and ns.Procs.NameStream(Stream(32, 1.05, 1300)) == nil and ns.Procs.NameStream(Stream(32, 1.05, 800)) == nil)
+        local ok, noAmount, noStream = pcall(function() return ns.Procs.NameStream(Stream(32, 1.05, nil)), ns.Procs.NameStream(nil) end)
+        Check("procs namestream: a nil lastAmount or a nil stream gives nil and raises no error", ok and noAmount == nil and noStream == nil)
+        procs[8] = Rhythm(32, 1000, 1100, 1.0, true)
+        Check("procs namestream: two learned entries that both fit name nothing", ns.Procs.NameStream(Stream(32, 1.05, 1050)) == nil)
+        procs[8] = Rhythm(32, 1000, 1100, 1.0, false)
+        Check("procs namestream: a rhythm candidate never names", ns.Procs.NameStream(Stream(32, 1.05, 1050)) == 7)
+        procs[7] = Rhythm(32, 1000, 1100, 1.0, false)
+        Check("procs namestream: with only candidates left the answer is nil", ns.Procs.NameStream(Stream(32, 1.05, 1050)) == nil)
+        procs[7], procs[8] = Rhythm(32, 1000, 1100, 1.0, true), nil
+        local cached = Stream(32, 1.05, 1050)
+        ns.Procs.NameStream(cached)
+        ns.Procs.Drop(7)
+        Check("procs namestream: after the entry is dropped a cached stream names nothing", ns.Procs.NameStream(cached) == nil)
+        procs[9] = Rhythm(32, 1000, 1100, 1.0, true)
+        Check("procs namestream: a stale cache is cleared, so a rhythm entry learned later is named on the same stream",
+            ns.Procs.NameStream(cached) == 9 and cached.procID == 9)
+        procs[9] = nil
+        procs[7] = Rhythm(32, 1000, 1100, 1.0, true)
+        cached = Stream(32, 1.05, 1050)
+        ns.Procs.NameStream(cached)
+        ns.Procs.Forget()
+        Check("procs namestream: after Forget a cached stream names nothing", ns.Procs.NameStream(cached) == nil)
+        procs[7] = Entry(32, 1000, 1100, 3, true)
+        cached.procID = 7
+        Check("procs namestream: a cached id whose entry has no period (a size proc) is not served", ns.Procs.NameStream(cached) == nil)
+        Check("procs periodnear: 1.0 and 1.05 are near, 1.0 and 1.2 are not", ns.Procs.PeriodNear(1.0, 1.05) and not ns.Procs.PeriodNear(1.0, 1.2))
+    end
+    -- Rhythm pass of Read: a fight's tick streams paired with unpaired meter rows by sum ----------------------
+    do
+        -- Str({ school, period, sum, lo, hi, n? }, ...): this fight's per-stream records, keyed by their stream table.
+        local function Str(...)
+            local map = {}
+            for _, spec in ipairs({ ... }) do
+                map[{ period = spec[2] }] = { school = spec[1], sum = spec[3], lo = spec[4], hi = spec[5], n = spec[6] or 6 }
+            end
+
+            return map
+        end
+        local function Pass(ns, hitList, specs, streams, at)
+            local world = World(specs)
+            ns.Procs.Read(hitList, world.open, world.results, world.rows, at or AT, nil, streams)
+
+            return world
+        end
+        local function Cand(entry, school, lo, hi, period, streak, learned)
+            return entry ~= nil and entry.school == school and entry.lo == lo and entry.hi == hi and entry.period == period
+                and entry.streak == streak and entry.learned == (learned == true)
+        end
+        local X = { { id = 5, total = 10000 } }
+
+        local ns, procs = Rig()
+        local lines = {}
+        ns.Debug = function(format, ...) lines[#lines + 1] = string.format(format, ...) end
+        Pass(ns, {}, X, Str({ 32, 1.0, 9800, 1600, 1700 }))
+        Check("procs rhythm pass: a record of sum 9800 fits row 10000 and makes the candidate {32, p 1.0, 1600-1700, streak 1}",
+            Cand(procs[5], 32, 1600, 1700, 1.0, 1, false) and procs[5].unpaired == 0 and procs[5].seen == AT)
+        Check("procs rhythm pass: a change logs 'TEACH rhythm 5 school=32 p=1.00 band=1600-1700 streak=1'",
+            lines[1] == "TEACH rhythm 5 school=32 p=1.00 band=1600-1700 streak=1")
+
+        local world = Pass(ns, {}, X, Str({ 32, 1.08, 9900, 1550, 1750 }), AT + 1)
+        Check("procs rhythm pass: the same school at period 1.08 (within 10 %) is streak 2: learned, band widened, seen moved",
+            Cand(procs[5], 32, 1550, 1750, 1.0, 2, true) and procs[5].seen == AT + 1 and procs[5].unpaired == 0)
+        Check("procs rhythm pass: learning writes the 'agree' result {tally = group sum, meter = row total} for the row",
+            world.results[1].verdict == "agree" and world.results[1].tally == 9900 and world.results[1].meter == 10000
+            and world.results[1].spellID == 5 and world.results[1].meterID == 5)
+        Check("procs rhythm pass: learning logs ' learned'", lines[#lines] and lines[#lines]:find("streak=2 learned", 1, true) ~= nil)
+
+        ns, procs = Rig()
+        Pass(ns, {}, X, Str({ 32, 1.0, 9400, 1600, 1700 }))
+        Check("procs rhythm fit: a sum of 9400 (< 0.95 x 10000) fits nothing", next(procs) == nil)
+        Pass(ns, {}, X, Str({ 32, 1.0, 9600, 1600, 1700 }))
+        Check("procs rhythm fit: a sum of 9600 (>= 0.95 x 10000) fits", procs[5] ~= nil)
+
+        ns, procs = Rig()
+        Pass(ns, {}, { { id = 5, total = 10000, overkill = 200 } }, Str({ 32, 1.0, 10600, 1600, 1700 }))
+        Check("procs rhythm fit: a sum of 10600 fits a row of 10000 with overkill 200 (<= 10200 + 500)", procs[5] ~= nil)
+        ns, procs = Rig()
+        Pass(ns, {}, { { id = 5, total = 10000, overkill = 200 } }, Str({ 32, 1.0, 10800, 1600, 1700 }))
+        Check("procs rhythm fit: a sum of 10800 is past the window (> 10700)", next(procs) == nil)
+
+        ns, procs = Rig()
+        Pass(ns, {}, X, Str({ 32, 1.0, 9800, 1600, 1700 }))
+        Pass(ns, {}, X, {})
+        Check("procs rhythm streak: a fight with no match leaves the streak at 1 (no reset)", Cand(procs[5], 32, 1600, 1700, 1.0, 1, false))
+        Pass(ns, {}, X, Str({ 32, 1.0, 9800, 1600, 1700 }))
+        Check("procs rhythm streak: the third fight matching again learns it (1, gap, 2)", Cand(procs[5], 32, 1600, 1700, 1.0, 2, true))
+
+        ns, procs = Rig()
+        Pass(ns, {}, X, Str({ 32, 1.05, 6000, 1900, 2000 }, { 32, 1.0, 4000, 1600, 1700 }))
+        Check("procs rhythm group: records at periods 1.0 and 1.05 (sums 4000 + 6000) pair as one group of 10000; period stays 1.0",
+            Cand(procs[5], 32, 1600, 2000, 1.0, 1, false))
+        ns, procs = Rig()
+        Pass(ns, {}, X, Str({ 32, 1.0, 4000, 1600, 1700 }, { 4, 1.0, 6000, 1900, 2000 }))
+        Check("procs rhythm group: records of different schools never join (4000 + 6000 across schools learns nothing)", next(procs) == nil)
+        ns, procs = Rig()
+        Pass(ns, {}, X, Str({ 32, 1.0, 4000, 1600, 1700 }, { 32, 1.5, 6000, 1900, 2000 }))
+        Check("procs rhythm group: records at periods 1.0 and 1.5 never join", next(procs) == nil)
+
+        ns, procs = Rig()
+        Pass(ns, {}, { { id = 5, total = 10000 }, { id = 6, total = 10000 } }, Str({ 32, 1.0, 9800, 1600, 1700 }))
+        Check("procs rhythm unique: a group that fits two rows (two rows of 10000) teaches neither", next(procs) == nil)
+        ns, procs = Rig()
+        Pass(ns, {}, X, Str({ 32, 1.0, 9800, 1600, 1700 }, { 4, 1.0, 9900, 1600, 1700 }))
+        Check("procs rhythm unique: two groups that fit one row (9800 school 32 and 9900 school 4) teach nothing", next(procs) == nil)
+
+        -- replacement and widening
+        ns, procs = Rig()
+        procs[5] = Rhythm(32, 1600, 1700, 1.0, false)
+        Pass(ns, {}, X, Str({ 4, 1.0, 9800, 1000, 1100 }))
+        Check("procs rhythm replace: a candidate and a match of school 4 are replaced by a school-4 candidate, streak 1",
+            Cand(procs[5], 4, 1000, 1100, 1.0, 1, false))
+        procs[5] = Rhythm(32, 1600, 1700, 1.0, false)
+        Pass(ns, {}, X, Str({ 32, 1.5, 9800, 1000, 1100 }))
+        Check("procs rhythm replace: a candidate at period 1.0 and a same-school match at period 1.5 are replaced (period 1.5, streak 1)",
+            Cand(procs[5], 32, 1000, 1100, 1.5, 1, false))
+        procs[5] = Rhythm(32, 1600, 1700, 1.0, true)
+        procs[5].streak = 2
+        Pass(ns, {}, X, Str({ 4, 1.0, 9800, 1000, 1100 }))
+        Check("procs rhythm learned: a match of another school is ignored", Cand(procs[5], 32, 1600, 1700, 1.0, 2, true) and procs[5].seen == 0)
+        Pass(ns, {}, X, Str({ 32, 1.5, 9800, 1000, 1100 }))
+        Check("procs rhythm learned: a match of another period is ignored", Cand(procs[5], 32, 1600, 1700, 1.0, 2, true) and procs[5].seen == 0)
+        world = Pass(ns, {}, X, Str({ 32, 1.02, 9800, 1500, 1750 }), AT + 2)
+        Check("procs rhythm learned: a same-school, same-period match widens the band (streak stays 2) and writes no 'agree' result",
+            Cand(procs[5], 32, 1500, 1750, 1.0, 2, true) and procs[5].seen == AT + 2 and world.results[1].verdict == "unpaired")
+
+        -- which rows are targets
+        ns, procs = Rig()
+        Pass(ns, { { school = 32, amount = 100, crit = false, castID = 5 } }, X, Str({ 32, 1.0, 9800, 1600, 1700 }))
+        Check("procs rhythm target: the row of a spell in hits as a cast (castID = 5) is still a rhythm target", procs[5] ~= nil and procs[5].period == 1.0)
+
+        ns, procs = Rig()
+        for castAt = 1, 3 do ns.Fingerprints.Add(5, { school = 106, delay = 0.25, castAt = castAt, hops = 1 }) end
+        Pass(ns, {}, X, Str({ 32, 1.0, 9800, 1600, 1700 }))
+        Check("procs rhythm target: a row Fingerprints owns gets no entry", ns.Fingerprints.IsLearned(5) and procs[5] == nil)
+
+        ns, procs = Rig()
+        procs[5] = Entry(32, 100, 200, 3, true)
+        Pass(ns, {}, X, Str({ 32, 1.0, 9800, 1600, 1700 }))
+        Check("procs rhythm target: a learned size proc's row is skipped (entry unchanged, no period)",
+            Is(procs[5], 32, 100, 200, 3, true) and procs[5].period == nil)
+
+        ns, procs = Rig()
+        procs[5] = Entry(32, 100, 200, 2, false)
+        Pass(ns, {}, X, Str({ 32, 1.0, 9800, 1600, 1700 }))
+        Check("procs rhythm target: a size candidate on the row is replaced by the rhythm candidate",
+            Cand(procs[5], 32, 1600, 1700, 1.0, 1, false))
+
+        ns, procs = Rig()
+        Pass(ns, { N(32, 10000) }, X, Str({ 32, 1.0, 9800, 1600, 1700 }))
+        Check("procs rhythm target: a row the size pass matched in the same Read is skipped (a size candidate, no period)",
+            Is(procs[5], 32, 10000, 10000, 1) and procs[5].period == nil)
+
+        ns, procs = Rig()
+        Pass(ns, {}, X, Str({ 32, 1.0, 9800, nil, nil }))
+        Check("procs rhythm group: a record without lo (crits only) is never grouped", next(procs) == nil)
+
+        ns, procs = Rig()
+        for id = 100, 163 do procs[id] = Entry(32, 100, 200, 1, false) end
+        Pass(ns, {}, X, Str({ 32, 1.0, 9800, 1600, 1700 }))
+        local kept = 0
+        for _, entry in pairs(procs) do if not entry.learned then kept = kept + 1 end end
+        Check("procs rhythm evict: a new candidate past the cap of 64 evicts the weakest (lowest streak, seen, id: 100); the new one stays",
+            kept == 64 and procs[100] == nil and procs[101] ~= nil and procs[5] ~= nil)
+
+        -- no streams: nothing for the rhythm pass to do
+        ns, procs = Rig()
+        Pass(ns, { N(32, 10000) }, X, nil)
+        local sizeOnly = Once({ N(32, 10000) }, X)
+        Check("procs rhythm pass: with streams = nil the store is what a size-only Read makes",
+            Is(procs[5], 32, 10000, 10000, 1) and procs[5].period == nil and Is(sizeOnly[5], 32, 10000, 10000, 1))
+        ns, procs = Rig()
+        Pass(ns, {}, X, nil)
+        Check("procs rhythm pass: with streams = nil and no hits the store stays empty", next(procs) == nil)
     end
 end

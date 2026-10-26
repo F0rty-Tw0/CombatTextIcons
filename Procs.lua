@@ -1,8 +1,9 @@
--- Procs: castless procs (trinket and talent damage that no cast or tick rhythm explains).
+-- Procs: castless procs (trinket and talent damage that no cast or learned DoT explains).
 --
--- Two entry points. Read learns a proc from exact size-group sums of the '?' hits against the
--- meter rows after a fight; Name draws a learned proc at hit time. The store is per character
--- (charDB.procs), checked on load and never trusted. No spell or class tables: every proc is learned.
+-- Two entry points. Read learns a proc from exact size-group sums of the '?' hits, or from a tick
+-- stream's fight total (a rhythm proc), against the meter rows after a fight; Name draws a learned
+-- proc at hit time. The store is per character (charDB.procs), checked on load and never trusted.
+-- No spell or class tables: every proc is learned.
 
 local _, ns = ...
 local Streams = ns.Streams
@@ -16,14 +17,26 @@ local UNPAIRED_MAX = 2 -- unpaired reads in a row drop a learned proc
 local SIZE_GUARD, CRIT_LO, CRIT_HI = Streams.SIZE_GUARD, Streams.CRIT_LO, Streams.CRIT_HI
 local PARTIAL_CORE = 3 -- normals a group needs before lone hits below it may be its cut-short last ticks
 local PAD_LO, PAD_HI = 0.85, 1.15 -- draw pads; two bands are also the same proc's when each, shrunk by PAD_LO, reaches the other
+local RHYTHM_PERIOD = 0.1 -- two tick periods are one rhythm when they differ by at most this share of the longer
+local RHYTHM_FIT = 0.05 -- a rhythm group's sum may fall short of a row's total, or pass its overkill, by this share of the total
+local RHYTHM_STREAK = 2 -- fights a row's rhythm must pair in (gaps allowed) before it is learned
+
+-- Whether two tick periods are one rhythm.
+local function PeriodNear(a, b)
+    return math.abs(a - b) <= RHYTHM_PERIOD * math.max(a, b)
+end
 
 Procs.LEARN_STREAK = LEARN_STREAK
+Procs.RHYTHM_STREAK = RHYTHM_STREAK
+Procs.PeriodNear = PeriodNear
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
-local procs = {} -- [spellID] = { school, lo, hi, streak, learned, unpaired, seen }; the saved table itself
+-- [spellID] = { school, lo, hi, streak, learned, unpaired, seen, period, floor }; the saved table itself.
+-- period is set on a rhythm proc only; floor is the lowest cut-short tick seen, kept only below lo.
+local procs = {}
 
 local function Count(value) return IsNumber(value) and value >= 0 and value == math.floor(value) and value or 0 end
 
@@ -31,6 +44,8 @@ local function Valid(id, entry)
     if not IsNumber(id) or not Plain(entry) or type(entry) ~= "table" then return false end
     local school, lo, hi = entry.school, entry.lo, entry.hi
     if not (IsNumber(school) and IsNumber(lo) and IsNumber(hi)) then return false end
+    local period = entry.period
+    if period ~= nil and not (IsNumber(period) and period > 0) then return false end
 
     return lo > 0 and lo <= hi
 end
@@ -61,13 +76,14 @@ function Procs.Get(id)
     return entry and entry.learned and entry or nil
 end
 
--- Procs.Has(id): whether the store tracks id: a learned proc, or a candidate with a streak (a streak-0
--- candidate has just failed an exact fight and owns nothing yet; spec 3.1 Rev 4b).
+-- Procs.Has(id): whether the store tracks id: a learned proc, or a size candidate with a streak (a streak-0
+-- candidate has just failed an exact fight and owns nothing yet; spec 3.1 Rev 4b). A rhythm candidate is
+-- not tracked, so a false sum candidate cannot block the alias, cast and Steady passes.
 function Procs.Has(id)
     if not IsNumber(id) then return false end
     local entry = procs[id]
 
-    return entry ~= nil and (entry.learned or entry.streak > 0)
+    return entry ~= nil and (entry.learned or (entry.streak > 0 and not entry.period))
 end
 
 -- true / false for a plain flag text, nil (unknown) for a nil or secret one: the crit rule of Streams.Size.
@@ -98,7 +114,8 @@ end
 function Procs.List()
     local list = {}
     for id, entry in pairs(procs) do
-        list[#list + 1] = { spellID = id, school = entry.school, lo = entry.lo, hi = entry.hi, streak = entry.streak, learned = entry.learned }
+        list[#list + 1] = { spellID = id, school = entry.school, lo = entry.lo, hi = entry.hi, streak = entry.streak,
+            learned = entry.learned, period = entry.period }
     end
     table.sort(list, function(a, b) return a.spellID < b.spellID end)
 
@@ -110,9 +127,10 @@ function Procs.Forget()
 end
 
 -- Read ---------------------------------------------------------------------------------------------
--- Procs.Read(hits, open, results, rows, at): the post-fight learner (spec 3.1). The '?' hits are split into
--- size groups; a group's exact sum is matched against the unpaired meter rows (open) and the complement of
--- learned procs that came out 'under'. A pair counts only when it is unique both ways.
+-- Procs.Read(hits, open, results, rows, at, ticks, streams): the post-fight learner (spec 3.1). The '?' hits are
+-- split into size groups; a group's exact sum is matched against the unpaired meter rows (open) and the complement
+-- of learned procs that came out 'under'. A pair counts only when it is unique both ways. The rhythm pass (below
+-- Read's helpers) then pairs this fight's tick-stream groups with the open rows the size pass left.
 
 -- A spell Learn or Fingerprints knows has one owner, and so has a row whose saved alias names a learned fingerprint.
 local function Owned(id)
@@ -145,7 +163,9 @@ local function Targets(open, results, rows, cast)
         local row, result = rows[index], results[index]
         local id = row.spellID
         local isUnder = result and result.verdict == "under" and IsNumber(result.tally) and result.tally > 0
-        if isUnder and IsNumber(id) and result.spellID == id and Procs.Get(id) and not Owned(id) then
+        local learned = Procs.Get(id)
+        local isSizeUnder = isUnder and learned and not learned.period
+        if isSizeUnder and IsNumber(id) and result.spellID == id and not Owned(id) then
             local lo = row.total - result.tally
             targets[#targets + 1] = { id = id, kind = "under", lo = lo, hi = lo + (row.overkill or 0), index = index }
         end
@@ -376,6 +396,7 @@ end
 -- Apply(target, group): creates a candidate or steps the existing entry; returns the log suffix of a change.
 local function Apply(target, group)
     local entry = procs[target.id]
+    if entry and entry.period then return nil end
     if entry then return Step(entry, group, target) end
     if not group then return nil end
     procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, streak = 1, learned = false, unpaired = 0, seen = 0 }
@@ -406,10 +427,111 @@ local function Evict()
     end
 end
 
-function Procs.Read(hits, open, results, rows, at, ticks)
+-- The verdict a learned proc gives its meter row: the group's sum agrees with the row's total.
+local function Agree(target, sum)
+    return { spellID = target.id, meterID = target.id, tally = sum, meter = target.total, verdict = "agree" }
+end
+
+-- Rhythm groups: this fight's stream records that hold a normal hit, sorted by school, period, sum. Every
+-- prefix of a run of one school whose periods sit near the run's first is a group: the fight total of one
+-- proc that ticked as several streams.
+local function RhythmGroups(streams)
+    local list = {}
+    for stream, rec in pairs(streams) do
+        if rec.lo then
+            list[#list + 1] = { school = rec.school, period = stream.period, sum = rec.sum, n = rec.n, lo = rec.lo, hi = rec.hi }
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.school ~= b.school then return a.school < b.school end
+        if a.period ~= b.period then return a.period < b.period end
+
+        return a.sum < b.sum
+    end)
+    local groups = {}
+    for i, first in ipairs(list) do
+        local sum, count, lo, hi = 0, 0, first.lo, first.hi
+        for j = i, #list do
+            local rec = list[j]
+            if rec.school ~= first.school or not PeriodNear(first.period, rec.period) then break end
+            sum, count, lo, hi = sum + rec.sum, count + rec.n, math.min(lo, rec.lo), math.max(hi, rec.hi)
+            groups[#groups + 1] = { school = first.school, period = first.period, sum = sum, count = count, lo = lo, hi = hi }
+        end
+    end
+
+    return groups
+end
+
+-- target index -> group, for the pairs that are unique both ways: a rhythm group's sum fits a row's window
+-- widened by RHYTHM_FIT of its total (a DoT's last tick may be cut short, a meter row counts overkill apart).
+local function RhythmMatches(groups, targets)
+    local windows = {}
+    for index, target in ipairs(targets) do
+        windows[index] = { lo = target.lo * (1 - RHYTHM_FIT), hi = target.hi + target.lo * RHYTHM_FIT }
+    end
+
+    return Matches(groups, windows)
+end
+
+-- The state x event table for one open row and its rhythm group; returns the entry, nil when nothing changed.
+local function RhythmStep(target, group, at, results)
+    local entry = procs[target.id]
+    local isRhythm = entry and entry.period
+    local same = isRhythm and entry.school == group.school and PeriodNear(entry.period, group.period)
+    if isRhythm and entry.learned and not same then return nil end
+    if same then
+        entry.lo, entry.hi = math.min(entry.lo, group.lo), math.max(entry.hi, group.hi)
+        entry.seen = at
+        if not entry.learned then entry.streak = entry.streak + 1 end
+    else
+        entry = { school = group.school, lo = group.lo, hi = group.hi, period = group.period, streak = 1, learned = false,
+            unpaired = 0, seen = at }
+        procs[target.id] = entry
+    end
+    if not entry.learned and entry.streak >= RHYTHM_STREAK then
+        entry.learned, entry.unpaired = true, 0
+        results[target.index] = Agree(target, group.sum)
+    end
+
+    return entry
+end
+
+-- The rhythm pass of Read: the open rows the size pass left (taken[id]) against this fight's stream groups.
+-- A learned size proc's row is its own; a row with no unique match is left as it is (no streak reset).
+local function RhythmPass(open, results, rows, at, streams, taken)
+    local targets = {}
+    for _, target in ipairs(Targets(open, results, rows, {})) do
+        local entry = procs[target.id]
+        local isLearnedSize = entry and entry.learned and not entry.period
+        local isFree = target.kind == "open" and target.lo > 0 and not taken[target.id]
+        if isFree and not isLearnedSize then
+            targets[#targets + 1] = target
+        end
+    end
+    local matches = RhythmMatches(RhythmGroups(streams), targets)
+    for index, target in ipairs(targets) do
+        local group = matches[index]
+        local isNew = procs[target.id] == nil
+        local entry = group and RhythmStep(target, group, at, results)
+        if entry then
+            if ns.Debug then
+                ns.Debug("TEACH rhythm %s school=%s p=%.2f band=%s-%s streak=%s%s", target.id, entry.school, entry.period, entry.lo,
+                    entry.hi, entry.streak, entry.learned and " learned" or "")
+            end
+            if isNew then Evict() end
+        end
+    end
+end
+
+-- Read: the size pass, then the rhythm pass when the fight's streams are given.
+function Procs.Read(hits, open, results, rows, at, ticks, streams)
     local targets = Targets(open, results, rows, Cast(hits))
     local groups = Groups(hits, ticks)
     local matches = Matches(groups, targets)
+    local taken = {}
+    for index in pairs(matches) do
+        if targets[index].kind == "open" then taken[targets[index].id] = true end
+    end
     for index, target in ipairs(targets) do
         local group, isNew = matches[index], procs[target.id] == nil
         local suffix = Apply(target, group)
@@ -421,11 +543,12 @@ function Procs.Read(hits, open, results, rows, at, ticks)
                     entry.floor and (" floor=" .. entry.floor) or "", entry.streak, suffix)
             end
             if suffix == " learned" then
-                results[target.index] = { spellID = target.id, meterID = target.id, tally = group.sum, meter = target.total, verdict = "agree" }
+                results[target.index] = Agree(target, group.sum)
             end
             if isNew then Evict() end
         end
     end
+    if streams then RhythmPass(open, results, rows, at, streams, taken) end
 end
 
 -- Name ---------------------------------------------------------------------------------------------------
@@ -436,7 +559,7 @@ function Procs.Name(school, amount, flagText)
     local crit = Procs.Crit(flagText) -- nil: unknown
     local found, contested
     for id, entry in pairs(procs) do
-        if entry.learned == true and entry.school == school then
+        if entry.learned == true and not entry.period and entry.school == school then
             local lo, hi, floor = entry.lo * PAD_LO, entry.hi * PAD_HI, Floor(entry) * PAD_LO
             local normal = lo <= amount and amount <= hi
             local big = lo * CRIT_LO <= amount and amount <= hi * CRIT_HI
@@ -453,6 +576,31 @@ function Procs.Name(school, amount, flagText)
     -- a normal hit inside a proc's own band (unpadded) is that proc's, cut-short ticks or not
     local own = found and crit == false and procs[found].lo <= amount and amount <= procs[found].hi
     if contested and not own then return nil end
+
+    return found
+end
+
+-- Procs.NameStream(stream): the one learned rhythm entry whose school and period match the stream and whose
+-- padded band holds its last hit, or nil for none or several. A positive answer is cached on stream.procID and
+-- served only while that entry is still a learned rhythm entry; once it is not, the stream is looked up afresh.
+function Procs.NameStream(stream)
+    if not stream then return nil end
+    if stream.procID then
+        local cached = Procs.Get(stream.procID)
+        if cached and cached.period then return stream.procID end
+        stream.procID = nil -- the entry is gone or no longer a rhythm proc: look the stream up afresh
+    end
+    local school, period, amount = stream.school, stream.period, stream.lastAmount
+    if not (IsNumber(school) and IsNumber(period) and IsNumber(amount)) then return nil end
+    local found
+    for id, entry in pairs(procs) do
+        local isRhythm = entry.learned == true and entry.period and entry.school == school
+        if isRhythm and PeriodNear(entry.period, period) and entry.lo * PAD_LO <= amount and amount <= entry.hi * PAD_HI then
+            if found then return nil end
+            found = id
+        end
+    end
+    stream.procID = found
 
     return found
 end
