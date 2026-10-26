@@ -42,6 +42,43 @@ Streams.SIZE_GUARD, Streams.CRIT_LO, Streams.CRIT_HI = SIZE_GUARD, CRIT_LO, CRIT
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 
+local current          -- [stream] = { school, sum, n, lo, hi }: this fight's share of each stream (Streams.NewFight)
+
+-- Adds a hit to the stream's record in the current fight when shouldRecord. sum and n take every number; lo and
+-- hi only a normal hit.
+local function Note(stream, size, crit, shouldRecord)
+    if not shouldRecord or not current or type(size) ~= "number" then return end
+    local rec = current[stream]
+    if not rec then
+        rec = { school = stream.school, sum = 0, n = 0 }
+        current[stream] = rec
+    end
+    rec.sum, rec.n = rec.sum + size, rec.n + 1
+    if not crit and size > 0 then rec.lo, rec.hi = math.min(rec.lo or size, size), math.max(rec.hi or size, size) end
+end
+
+-- Starts a new fight record table, makes it current and returns it.
+function Streams.NewFight()
+    current = {}
+
+    return current
+end
+
+-- Joins fight record tables: `from`'s records are added into `into` (a stream both hold sums), returns `into`.
+function Streams.JoinFight(into, from)
+    for stream, rec in pairs(from) do
+        local joined = into[stream]
+        if not joined then
+            into[stream] = rec
+        else
+            joined.sum, joined.n = joined.sum + rec.sum, joined.n + rec.n
+            if rec.lo then joined.lo, joined.hi = math.min(joined.lo or rec.lo, rec.lo), math.max(joined.hi or rec.hi, rec.hi) end
+        end
+    end
+
+    return into
+end
+
 local state = {}   -- [key] = { casts = { { at, castID, kind } }, loose = { [school] = { { at, amount, crit } } }, streams = {} }
 
 local function State(key)
@@ -273,8 +310,9 @@ end
 
 -- Public -----------------------------------------------------------------------------
 
--- An unclaimed hit. `kind` is "enemy" (plate) or "heal" (unit token).
-function Streams.Feed(key, school, amount, flagText, kind, now)
+-- An unclaimed hit. `kind` is "enemy" (plate) or "heal" (unit token). Only `shouldRecord` adds the hit to the
+-- current fight's records. Returns the stream the hit extended or created, else nil.
+function Streams.Feed(key, school, amount, flagText, kind, now, shouldRecord)
     if key == nil or not Plain(school) or type(school) ~= "number" then return end
     local entry = State(key)
     PruneCasts(entry, now)
@@ -289,8 +327,9 @@ function Streams.Feed(key, school, amount, flagText, kind, now)
         stream.lastAt = now
         stream.count = stream.count + 1
         if not crit and size and size > 0 then stream.lastAmount = size end
+        Note(stream, size, crit, shouldRecord)
 
-        return
+        return stream
     end
 
     local hit = { at = now, amount = size, crit = crit }
@@ -313,9 +352,10 @@ function Streams.Feed(key, school, amount, flagText, kind, now)
         table.remove(hits, first)
         entry.streams[#entry.streams + 1] = stream
         CapStreams(entry)
+        for _, h in ipairs({ a, b, c, hit }) do Note(stream, h.amount, h.crit, shouldRecord) end
         ns.Learn.OnBirth(key, stream, now)
 
-        return
+        return stream
     end
 
     hits[#hits + 1] = hit

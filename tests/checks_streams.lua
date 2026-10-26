@@ -70,6 +70,87 @@ return function(T)
             tie and tie.birth == 0.75 and tie.hits[1] == 0.75 and tie.hits[2] == 2.5 and tie.hits[3] == 4.5 and tie.hits[4] == 6.5)
     end
 
+    -- Fight records: a stream's share of this fight, kept only for recorded hits ----------
+    do
+        local function Fed(rig, key, times, amount, record, flag)
+            local last
+            for _, t in ipairs(times) do
+                last = rig.ns.Streams.Feed(key, 32, amount, flag or "", "enemy", t, record)
+            end
+            return last
+        end
+        local rig = Rig()
+        local Streams = rig.ns.Streams
+        local fight = Streams.NewFight()
+        local early = {}
+        for _, t in ipairs({ 0, 2, 4 }) do early[#early + 1] = Streams.Feed("a", 32, 1000, "", "enemy", t, true) end
+        local stream = Streams.Feed("a", 32, 1000, "", "enemy", 6, true)
+        local rec = fight[stream]
+        Check("streams: record: hits 1-3 return nil, the 4th returns the stream", #early == 0 and stream == Streams.Live("a", 6)[1])
+        Check("streams: record: a birth notes all 4 hits (sum 4000, n 4, lo 1000, hi 1000, school 32)",
+            rec and rec.sum == 4000 and rec.n == 4 and rec.lo == 1000 and rec.hi == 1000 and rec.school == 32)
+        local extended = Streams.Feed("a", 32, 1100, "", "enemy", 8, true)
+        Check("streams: record: an extension returns the same stream and grows sum, n and hi",
+            extended == stream and rec.sum == 5100 and rec.n == 5 and rec.lo == 1000 and rec.hi == 1100)
+        Streams.Feed("a", 32, 2400, "CRITICAL", "enemy", 10, true)
+        Check("streams: record: a crit adds to sum and n but not to lo or hi",
+            rec.sum == 7500 and rec.n == 6 and rec.lo == 1000 and rec.hi == 1100)
+
+        for _, record in ipairs({ false, "nil" }) do
+            rig = Rig(); Streams = rig.ns.Streams
+            fight = Streams.NewFight()
+            local arg = record
+            if record == "nil" then arg = nil end
+            Fed(rig, "b", { 0, 2, 4, 6 }, 1000, arg)
+            Check("streams: record: record " .. tostring(record) .. " records nothing", next(fight) == nil and #Streams.Live("b", 6) == 1)
+        end
+
+        rig = Rig(); Streams = rig.ns.Streams
+        local ok = pcall(Fed, rig, "c", { 0, 2, 4, 6, 8 }, 1000, true)
+        Check("streams: record: hits before any NewFight record nothing and do not error", ok and #Streams.Live("c", 8) == 1)
+
+        rig = Rig(); Streams = rig.ns.Streams
+        local old = Streams.NewFight()
+        stream = Fed(rig, "d", { 0, 2, 4, 6 }, 1000, true)
+        local new = Streams.NewFight()
+        Streams.Feed("d", 32, 900, "", "enemy", 8, true)
+        Check("streams: record: a second NewFight gives the next extension a fresh record; the old table is unchanged",
+            new ~= old and new[stream] and new[stream].sum == 900 and new[stream].n == 1
+            and old[stream].sum == 4000 and old[stream].n == 4)
+
+        rig = Rig(); Streams = rig.ns.Streams
+        fight = Streams.NewFight()
+        for _, t in ipairs({ 0, 2, 4, 6, 8 }) do Streams.Feed("u1", 32, 1000, "", "heal", t) end
+        Check("streams: record: a heal stream records nothing", next(fight) == nil and #Streams.Live("u1", 8) == 1)
+
+        rig = Rig(); Streams = rig.ns.Streams
+        fight = Streams.NewFight()
+        local amounts = { Secret(1000), Secret(1000), 1000, 1000 }
+        ok = pcall(function() for i, t in ipairs({ 0, 2, 4, 6 }) do stream = Streams.Feed("e", 32, amounts[i], "", "enemy", t, true) end end)
+        rec = stream and fight[stream]
+        Check("streams: record: secret hits form a stream and only the plain ones are noted (sum 2000, n 2, lo 1000, hi 1000)",
+            ok and rec and rec.sum == 2000 and rec.n == 2 and rec.lo == 1000 and rec.hi == 1000)
+    end
+
+    -- JoinFight: one fight's records added into another's -----------------------------------
+    do
+        local Streams = Rig().ns.Streams
+        local S1, S2 = {}, {}
+        local into = { [S1] = { school = 32, sum = 100, n = 1, lo = 100, hi = 100 } }
+        local joined = Streams.JoinFight(into, { [S1] = { school = 32, sum = 200, n = 2, lo = 90, hi = 110 },
+            [S2] = { school = 32, sum = 50, n = 2, lo = 20, hi = 30 } })
+        Check("streams: join: returns into; a shared stream adds sum and n and widens lo/hi (300, 3, 90..110)",
+            joined == into and into[S1].sum == 300 and into[S1].n == 3 and into[S1].lo == 90 and into[S1].hi == 110)
+        Check("streams: join: a stream only `from` holds is copied (sum 50, n 2, lo 20)",
+            into[S2] and into[S2].sum == 50 and into[S2].n == 2 and into[S2].lo == 20)
+        local bare = Streams.JoinFight({ [S1] = { school = 32, sum = 100, n = 1 } }, { [S1] = { school = 32, sum = 5, n = 1, lo = 5, hi = 6 } })
+        Check("streams: join: a record with no lo/hi takes the other's range (sum 105, lo 5, hi 6)",
+            bare[S1].sum == 105 and bare[S1].lo == 5 and bare[S1].hi == 6)
+        local keep = Streams.JoinFight({ [S1] = { school = 32, sum = 100, n = 1, lo = 80, hi = 90 } }, { [S1] = { school = 32, sum = 5, n = 1 } })
+        Check("streams: join: a record with no lo/hi leaves into's range alone (sum 105, lo 80, hi 90)",
+            keep[S1].sum == 105 and keep[S1].lo == 80 and keep[S1].hi == 90)
+    end
+
     -- Size guard, crits, heals, secrets ---------------------------------------------------
     do
         local rig = Rig()
