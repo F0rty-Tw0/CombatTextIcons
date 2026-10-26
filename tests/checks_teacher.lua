@@ -1503,6 +1503,50 @@ return function(T)
         Check("procs forget: /cti forget clears learned procs and candidates (2 before), in the saved table too",
             before == 2 and rig.ns.Procs.Get(X) == nil and #rig.ns.Procs.List() == 0 and next(CombatTextIconsCharDB.procs) == nil)
     end
+    do -- rhythm procs: the Core route (a hit that extends or births a stream fitting a learned rhythm entry)
+        local X = 1262710
+        local function RhythmRig()
+            local rig = Rig({})
+            SlashCmdList.COMBATTEXTICONS("debug")
+            CombatTextIconsCharDB.procs = { [X] = { school = 106, period = 1.0, lo = 340, hi = 365, learned = true,
+                streak = 2, unpaired = 0, seen = 0 } }
+            rig.ns.Procs.Init(CombatTextIconsCharDB)
+            rig.S.now = 9
+            rig.ns.Core.PLAYER_REGEN_DISABLED()
+            return rig
+        end
+        -- One school-106 WOUND of 350 on nameplate1, one second after the last; returns the texture drawn or nil.
+        local function Wound(rig) return rig.Hit(rig.S.now + 1, "nameplate1", 350, 106) end
+
+        local rig = RhythmRig()
+        local ICON, UNKNOWN = "tex:" .. X, rig.ns.Meter.UNKNOWN_ICON
+        local drawn = { Wound(rig), Wound(rig), Wound(rig), Wound(rig) }
+        Check("rhythm route: 4 wounds of 350 one second apart -> the first 3 draw ?, the 4th (the stream's birth) draws the rhythm icon",
+            drawn[1] == UNKNOWN and drawn[2] == UNKNOWN and drawn[3] == UNKNOWN and drawn[4] == ICON)
+        Check("rhythm route: the rhythm hit is tallied (350) and in the Ledger (1 hit), and the debug log holds the rhythm route line",
+            rig.ns.Teacher.fight.tally[X] == 350 and rig.ns.Ledger.Current().damage[X].hits == 1 and Logged("  -> rhythm " .. X))
+
+        rig = RhythmRig()
+        local fifth = { Wound(rig), Wound(rig), Wound(rig), Wound(rig) }
+        rig.ns.Procs.Forget()
+        Check("rhythm route: Procs.Forget mid-stream -> the next hit draws ?, no further tally",
+            fifth[4] == ICON and Wound(rig) == UNKNOWN and rig.ns.Teacher.fight.tally[X] == 350)
+
+        rig = RhythmRig()
+        rig.ns.Teacher.area = "crowded"
+        for _ = 1, 4 do Wound(rig) end
+        Check("rhythm route: crowded -> no rhythm route", rig.ns.Teacher.fight.tally[X] == nil and not Logged("-> rhythm"))
+
+        rig = RhythmRig()
+        rig.S.group = true
+        for _ = 1, 4 do Wound(rig) end
+        Check("rhythm route: in a group -> no rhythm route", rig.ns.Teacher.fight.tally[X] == nil and not Logged("-> rhythm"))
+
+        rig = RhythmRig()
+        rig.S.threat.nameplate1 = false
+        for _ = 1, 4 do Wound(rig) end
+        Check("rhythm route: a mob not fighting you -> no rhythm route", rig.ns.Teacher.fight.tally[X] == nil and not Logged("-> rhythm"))
+    end
 
     do -- Teacher.OnRead: called once per fight with Teacher.last, at the end of Read and on every skip path
         local function HookRig()

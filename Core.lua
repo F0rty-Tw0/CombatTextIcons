@@ -270,17 +270,33 @@ local function ProcWound(plate, school, amount, flagText)
     return true
 end
 
+-- Draws a hit whose stream fits a learned rhythm proc (ticks that share no size band) with that row's icon.
+-- Returns whether it drew.
+local function RhythmWound(plate, stream, school, amount, flagText)
+    local rhythmID = Teacher.AreaClear() and Procs.NameStream(stream)
+    if not rhythmID then return false end
+    if ns.Debug then ns.Debug("  -> rhythm %s", ShowValue(rhythmID)) end
+    Teacher.Drawn(rhythmID, amount)
+    Ledger.Add("damage", rhythmID, amount)
+    Display.Plate(plate, SpellTexture(rhythmID), HitText(flagText, amount), flagText, school)
+
+    return true
+end
+
 -- The hit route: the tracker names DoT and channel ticks and a learned cast fingerprint
 -- names a direct hit (Casts.Claim); both draw at once, in a group too. Two learned DoTs that
 -- both fit draw the question mark at once. Whatever nothing names is fed to the streams; solo
 -- on a mob fighting you it also goes to the teacher, and draws the question mark only while the
 -- area is clear (Teacher.AreaClear); else it stays hidden (route "meter off" or "crowded"). While the
--- area is clear a learned proc that fits the hit (Procs.Name) draws its icon instead of the question mark.
+-- area is clear a learned proc that fits the hit (Procs.Name) draws its icon instead of the question
+-- mark; so does a learned rhythm proc that fits the stream the hit extends or births
+-- (Procs.NameStream), ranked below the Tracker and Casts.
 -- The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
 -- (run 153349Z: strangers on 8 nearby dummies made both reads crowded).
 local function Wound(plate, unit, flagText, amount, school, now)
     local fightsYou = FightsYou(unit, now)
+    local solo = fightsYou and not InGroup()
     local text = HitText(flagText, amount)
     if ns.Debug then
         ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit, ShowValue(school),
@@ -291,7 +307,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if fightsYou or (spellID and spellID ~= Tracker.UNKNOWN) then Teacher.Seen(amount) end
     -- A learned proc (exact meter sums) outranks a learned DoT's answer (votes) or an ambiguous one.
     local voted = spellID == Tracker.UNKNOWN or (spellID and Learn.Get(spellID))
-    if voted and fightsYou and not InGroup() and ProcWound(plate, school, amount, flagText) then return end
+    if voted and solo and ProcWound(plate, school, amount, flagText) then return end
     if spellID and spellID ~= Tracker.UNKNOWN then
         if ns.Debug then ns.Debug("  -> tracker %s", ShowValue(spellID)) end
         Teacher.Drawn(spellID, amount)
@@ -323,9 +339,13 @@ local function Wound(plate, unit, flagText, amount, school, now)
     end
     -- A hit a learned proc names is no DoT tick: fed to the streams, its rhythm gave its votes to a cast
     -- in the proc's frame (Surging Totem's ~12K hits learned Lava Burst as a DoT, run 20261025T182530Z).
-    if not Procs.Name(school, amount, flagText) then Streams.Feed(plate, school, amount, flagText, "enemy", now) end
-    if fightsYou and not InGroup() then
+    local stream
+    if not Procs.Name(school, amount, flagText) then
+        stream = Streams.Feed(plate, school, amount, flagText, "enemy", now, solo)
+    end
+    if solo then
         if ProcWound(plate, school, amount, flagText) then return end
+        if RhythmWound(plate, stream, school, amount, flagText) then return end
         Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now), flagText, Casts.Candidates(plate, now))
         if not Teacher.AreaClear() then
             if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
