@@ -544,6 +544,7 @@ local function Replay(name, opts)
         CombatTextIconsDB = { meter = false }
         if opts.charDB then CombatTextIconsCharDB = opts.charDB end
     end)
+    if opts.setup then opts.setup(ns, S) end -- tests/score.lua: class stubs and its own tally of draws
     ns.Teacher.area = opts.area or "clear"
     if opts.noSeen then
         -- the test session holds only the labeled hits, not the whole meter, so the crowd check cannot judge it
@@ -680,10 +681,11 @@ local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shado
 -- Replays a TEACH-bearing log one fight at a time with the meter on. Each fight is the slice of events after
 -- the previous TEACH clean line up to its own; the tail after the last one is a run with no rows (its read
 -- skips). The char DB and the crowd area carry from fight to fight; opts.charDB seeds the first, opts.haste
--- reaches the stub. runs[i] = { hits, info, last = Teacher.last }.
+-- reaches the stub. opts.log (debug lines) and opts.fixture stand in for a fixture file; opts.setup(ns, S) runs
+-- after each fight's boot. runs[i] = { hits, info, last = Teacher.last, rows = the log's meter rows }.
 local function ReplayFights(name, opts)
-    local fixture = assert(FIGHT_FIXTURES[name], "no fight fixture " .. name)
-    local log = LoadLog(name .. ".sv.lua")
+    local fixture = opts.fixture or assert(FIGHT_FIXTURES[name], "no fight fixture " .. name)
+    local log = opts.log or LoadLog(name .. ".sv.lua")
     local fights, all = ParseTeach(log, fixture.rowIDs), ParseLog(name, log)
     local runs, charDB, area, prevEnd = {}, opts.charDB, fixture.startArea, 0
     for i = 1, #fights + 1 do
@@ -698,9 +700,9 @@ local function ReplayFights(name, opts)
             labels = { haste = 0, castPlates = {}, targets = TargetsFromLog(slice) }, events = slice,
             haste = opts.haste, meter = true, sessionRows = fight and fight.rows, logThreat = fixture.logThreat,
             seen = not fixture.logThreat and fight and fight.seen or nil,
-            area = area, charDB = charDB and DeepCopy(charDB),
+            area = area, charDB = charDB and DeepCopy(charDB), setup = opts.setup,
         })
-        runs[#runs + 1] = { hits = hits, info = info, last = info.teacher.last }
+        runs[#runs + 1] = { hits = hits, info = info, last = info.teacher.last, rows = fight and fight.rows }
         charDB, area, prevEnd = info.charDB, info.teacher.area, endLine
     end
     return runs

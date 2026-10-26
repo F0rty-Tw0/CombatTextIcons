@@ -1,0 +1,1803 @@
+11541.142 CAST player 445474 base=445474,445474
+11541.142 CAST player 445468 base=172,172
+11541.142 HIT nameplate1 school=36 amount=682 flag= fps=137 threat=3 group=false,false,false npc=242758 target=true
+11541.142   -> HIDDEN (crowded)
+11542.635 HIT nameplate1 school=36 amount=3475 flag=CRITICAL fps=120 threat=3 group=false,false,false npc=242758 target=true
+11542.635   -> HIDDEN (crowded)
+11542.893 CAST player 980 base=980,980
+11544.114 HIT nameplate1 school=36 amount=1451 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11544.114   -> HIDDEN (crowded)
+11544.382 HIT nameplate1 school=32 amount=2424 flag=CRITICAL fps=118 threat=3 group=false,false,false npc=242758 target=true
+11544.382   -> HIDDEN (crowded)
+11544.560 START player 48181
+11545.613 HIT nameplate1 school=36 amount=1448 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11545.613   -> HIDDEN (crowded)
+11545.786 HIT nameplate1 school=32 amount=3231 flag=CRITICAL fps=108 threat=3 group=false,false,false npc=242758 target=true
+11545.786   -> HIDDEN (crowded)
+11545.975 CAST player 48181 base=48181,48181
+11546.364 CAST player 205180 base=205180,205180
+11546.499 HIT nameplate1 school=32 amount=22886 flag= fps=127 threat=3 group=false,false,false npc=242758 target=true
+11546.499   -> HIDDEN (crowded)
+11546.988 CAST pet 54049 base=54049,54049
+11546.988 HIT nameplate1 school=32 amount=3032 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11546.988   -> HIDDEN (crowded)
+11547.090 HIT nameplate1 school=36 amount=2069 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11547.090   -> HIDDEN (crowded)
+11547.345 HIT nameplate1 school=32 amount=2705 flag= fps=122 threat=3 group=false,false,false npc=242758 target=true
+11547.345   -> HIDDEN (crowded)
+11547.507 HIT nameplate1 school=32 amount=1654 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11547.507   -> HIDDEN (crowded)
+11547.766 CAST player 442726 base=442726,442726
+11547.766 HIT nameplate1 school=36 amount=22497 flag= fps=126 threat=3 group=false,false,false npc=242758 target=true
+11547.766   -> HIDDEN (crowded)
+11547.911 HIT nameplate1 school=1 amount=1177 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11547.911   -> HIDDEN (crowded)
+11548.235 HIT nameplate1 school=32 amount=13171 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11548.235   -> HIDDEN (crowded)
+11548.410 HIT nameplate1 school=32 amount=1655 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11548.410   -> HIDDEN (crowded)
+11548.512 HIT nameplate1 school=36 amount=2088 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11548.512   -> HIDDEN (crowded)
+11548.755 HIT nameplate1 school=36 amount=5541 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11548.755   -> HIDDEN (crowded)
+11548.755 HIT nameplate1 school=32 amount=3246 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11548.755   -> HIDDEN (crowded)
+11548.987 CAST pet 54049 base=54049,54049
+11548.987 HIT nameplate1 school=32 amount=3093 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11548.987   -> HIDDEN (crowded)
+11549.254 HIT nameplate1 school=1 amount=1177 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11549.254   -> HIDDEN (crowded)
+11549.310 CAST player 234153 base=234153,234153
+11549.434 HIT nameplate1 school=32 amount=1655 flag= fps=111 threat=3 group=false,false,false npc=242758 target=true
+11549.434   -> HIDDEN (crowded)
+11549.733 HIT nameplate1 school=32 amount=1413 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11549.733   -> HIDDEN (crowded)
+11549.733 HEAL player school=1 amount=9891 flag=
+11549.733   -> HIDDEN (crowded)
+11549.733 HIT nameplate1 school=36 amount=4983 flag=CRITICAL fps=115 threat=3 group=false,false,false npc=242758 target=true
+11549.733   -> HIDDEN (crowded)
+11549.733 HIT nameplate1 school=36 amount=5446 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11549.733   -> HIDDEN (crowded)
+11549.845 HIT nameplate1 school=32 amount=13038 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11549.845   -> HIDDEN (crowded)
+11550.147 HIT nameplate1 school=32 amount=2827 flag=CRITICAL fps=112 threat=3 group=false,false,false npc=242758 target=true
+11550.147   -> HIDDEN (crowded)
+11550.147 HEAL player school=1 amount=19789 flag=
+11550.147   -> HIDDEN (crowded)
+11550.147 HIT nameplate1 school=32 amount=3787 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11550.147   -> HIDDEN (crowded)
+11550.508 HIT nameplate1 school=32 amount=1655 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11550.508   -> HIDDEN (crowded)
+11550.508 HIT nameplate1 school=32 amount=1413 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11550.508   -> HIDDEN (crowded)
+11550.508 HEAL player school=1 amount=9891 flag=
+11550.508   -> HIDDEN (crowded)
+11550.756 HIT nameplate1 school=36 amount=5350 flag= fps=123 threat=3 group=false,false,false npc=242758 target=true
+11550.756   -> HIDDEN (crowded)
+11550.951 HIT nameplate1 school=32 amount=1413 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11550.951   -> HIDDEN (crowded)
+11550.951 HEAL player school=1 amount=9891 flag=
+11550.951   -> HIDDEN (crowded)
+11551.064 HIT nameplate1 school=36 amount=2098 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11551.064   -> HIDDEN (crowded)
+11551.219 HIT nameplate1 school=1 amount=1176 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11551.219   -> HIDDEN (crowded)
+11551.233 START player 1259790
+11551.398 HIT nameplate1 school=32 amount=9306 flag=CRITICAL fps=110 threat=3 group=false,false,false npc=242758 target=true
+11551.398   -> HIDDEN (crowded)
+11551.496 HIT nameplate1 school=32 amount=1655 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11551.496   -> HIDDEN (crowded)
+11551.496 HIT nameplate1 school=32 amount=12979 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11551.496   -> HIDDEN (crowded)
+11551.774 HIT nameplate1 school=36 amount=5254 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11551.774   -> HIDDEN (crowded)
+11552.231 CAST player 1259790 base=1259790,1259790
+11552.399 HIT nameplate1 school=36 amount=2163 flag= fps=125 threat=3 group=false,false,false npc=242758 target=true
+11552.399   -> HIDDEN (crowded)
+11552.399 HIT nameplate1 school=4 amount=6589 flag= fps=125 threat=3 group=false,false,false npc=242758 target=true
+11552.399   -> HIDDEN (crowded)
+11552.399 HIT nameplate1 school=32 amount=1655 flag= fps=125 threat=3 group=false,false,false npc=242758 target=true
+11552.399   -> HIDDEN (crowded)
+11552.728 HIT nameplate1 school=36 amount=5350 flag= fps=132 threat=3 group=false,false,false npc=242758 target=true
+11552.728   -> HIDDEN (crowded)
+11552.728 START player 1259790
+11552.817 HIT nameplate1 school=32 amount=9306 flag=CRITICAL fps=130 threat=3 group=false,false,false npc=242758 target=true
+11552.817   -> HIDDEN (crowded)
+11553.262 HIT nameplate1 school=32 amount=14504 flag= fps=132 threat=3 group=false,false,false npc=242758 target=true
+11553.262   -> HIDDEN (crowded)
+11553.431 HIT nameplate1 school=106 amount=412 flag= fps=132 threat=3 group=false,false,false npc=242758 target=true
+11553.431   -> HIDDEN (crowded)
+11553.431 HIT nameplate1 school=32 amount=1655 flag= fps=132 threat=3 group=false,false,false npc=242758 target=true
+11553.431   -> HIDDEN (crowded)
+11553.541 HIT nameplate1 school=32 amount=3910 flag= fps=132 threat=3 group=false,false,false npc=242758 target=true
+11553.541   -> HIDDEN (crowded)
+11553.740 HIT nameplate1 school=36 amount=2150 flag= fps=130 threat=3 group=false,false,false npc=242758 target=true
+11553.740   -> HIDDEN (crowded)
+11553.740 HIT nameplate1 school=36 amount=5255 flag= fps=130 threat=3 group=false,false,false npc=242758 target=true
+11553.740   -> HIDDEN (crowded)
+11553.740 CAST player 1259790 base=1259790,1259790
+11554.022 HIT nameplate1 school=32 amount=86732 flag=CRITICAL fps=127 threat=3 group=false,false,false npc=242758 target=true
+11554.022   -> HIDDEN (crowded)
+11554.158 HIT nameplate1 school=32 amount=9306 flag=CRITICAL fps=125 threat=3 group=false,false,false npc=242758 target=true
+11554.158   -> HIDDEN (crowded)
+11554.365 START player 1259790
+11554.365 HIT nameplate1 school=106 amount=412 flag= fps=132 threat=3 group=false,false,false npc=242758 target=true
+11554.365   -> HIDDEN (crowded)
+11554.504 HIT nameplate1 school=32 amount=1654 flag= fps=133 threat=3 group=false,false,false npc=242758 target=true
+11554.504   -> HIDDEN (crowded)
+11554.719 HIT nameplate1 school=36 amount=5350 flag= fps=132 threat=3 group=false,false,false npc=242758 target=true
+11554.719   -> HIDDEN (crowded)
+11554.909 HIT nameplate1 school=32 amount=7821 flag= fps=131 threat=3 group=false,false,false npc=242758 target=true
+11554.909   -> HIDDEN (crowded)
+11554.909 HIT nameplate1 school=32 amount=14150 flag= fps=131 threat=3 group=false,false,false npc=242758 target=true
+11554.909   -> HIDDEN (crowded)
+11555.004 HIT nameplate1 school=36 amount=2134 flag= fps=129 threat=3 group=false,false,false npc=242758 target=true
+11555.004   -> HIDDEN (crowded)
+11555.344 CAST player 1259790 base=1259790,1259790
+11555.344 HIT nameplate1 school=106 amount=412 flag= fps=126 threat=3 group=false,false,false npc=242758 target=true
+11555.344   -> HIDDEN (crowded)
+11555.460 HIT nameplate1 school=32 amount=9306 flag=CRITICAL fps=125 threat=3 group=false,false,false npc=242758 target=true
+11555.460   -> HIDDEN (crowded)
+11555.460 HIT nameplate1 school=32 amount=1655 flag= fps=125 threat=3 group=false,false,false npc=242758 target=true
+11555.460   -> HIDDEN (crowded)
+11555.810 HIT nameplate1 school=36 amount=5446 flag= fps=122 threat=3 group=false,false,false npc=242758 target=true
+11555.810   -> HIDDEN (crowded)
+11555.891 START player 1259790
+11556.209 HIT nameplate1 school=32 amount=11731 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11556.209   -> HIDDEN (crowded)
+11556.346 HIT nameplate1 school=36 amount=2124 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11556.346   -> HIDDEN (crowded)
+11556.346 HIT nameplate1 school=106 amount=412 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11556.346   -> HIDDEN (crowded)
+11556.501 HIT nameplate1 school=32 amount=1655 flag= fps=122 threat=3 group=false,false,false npc=242758 target=true
+11556.501   -> HIDDEN (crowded)
+11556.621 HIT nameplate1 school=32 amount=14151 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11556.621   -> HIDDEN (crowded)
+11556.763 HIT nameplate1 school=36 amount=5350 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11556.763   -> HIDDEN (crowded)
+11556.763 HIT nameplate1 school=32 amount=4328 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11556.763   -> HIDDEN (crowded)
+11556.898 CAST player 1259790 base=1259790,1259790
+11557.394 HIT nameplate1 school=106 amount=412 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11557.394   -> HIDDEN (crowded)
+11557.493 HIT nameplate1 school=32 amount=1655 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11557.493   -> HIDDEN (crowded)
+11557.493 CAST player 686 base=686,686
+11557.493 HIT nameplate1 school=32 amount=33630 flag=CRITICAL fps=120 threat=3 group=false,false,false npc=242758 target=true
+11557.493   -> HIDDEN (crowded)
+11557.493 CAST pet 54049 base=54049,54049
+11557.493 HIT nameplate1 school=32 amount=2986 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11557.493   -> HIDDEN (crowded)
+11557.702 HIT nameplate1 school=36 amount=4849 flag=CRITICAL fps=117 threat=3 group=false,false,false npc=242758 target=true
+11557.702   -> HIDDEN (crowded)
+11557.702 HIT nameplate1 school=36 amount=5446 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11557.702   -> HIDDEN (crowded)
+11557.820 HIT nameplate1 school=1 amount=1176 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11557.820   -> HIDDEN (crowded)
+11558.114 HIT nameplate1 school=32 amount=4328 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11558.114   -> HIDDEN (crowded)
+11558.275 HIT nameplate1 school=32 amount=14631 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11558.275   -> HIDDEN (crowded)
+11558.381 HIT nameplate1 school=106 amount=412 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11558.381   -> HIDDEN (crowded)
+11558.381 HIT nameplate1 school=32 amount=12582 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11558.381   -> HIDDEN (crowded)
+11558.510 HIT nameplate1 school=32 amount=1654 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11558.510   -> HIDDEN (crowded)
+11558.765 HIT nameplate1 school=36 amount=5350 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11558.765   -> HIDDEN (crowded)
+11558.765 HIT nameplate1 school=32 amount=15642 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11558.765   -> HIDDEN (crowded)
+11559.022 HIT nameplate1 school=36 amount=2148 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11559.022   -> HIDDEN (crowded)
+11559.022 START player 1259790
+11559.142 HIT nameplate1 school=1 amount=1176 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11559.142   -> HIDDEN (crowded)
+11559.404 HIT nameplate1 school=106 amount=412 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11559.404   -> HIDDEN (crowded)
+11559.404 HIT nameplate1 school=32 amount=4328 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11559.404   -> HIDDEN (crowded)
+11559.501 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=115 threat=3 group=false,false,false npc=242758 target=true
+11559.501   -> HIDDEN (crowded)
+11559.766 HIT nameplate1 school=36 amount=5255 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11559.766   -> HIDDEN (crowded)
+11559.956 HIT nameplate1 school=32 amount=14137 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11559.956   -> HIDDEN (crowded)
+11559.956 CAST pet 54049 base=54049,54049
+11559.956 HIT nameplate1 school=32 amount=2974 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11559.956   -> HIDDEN (crowded)
+11560.096 CAST player 1259790 base=1259790,1259790
+11560.096 HIT nameplate1 school=32 amount=19551 flag= fps=127 threat=3 group=false,false,false npc=242758 target=true
+11560.096   -> HIDDEN (crowded)
+11560.362 HIT nameplate1 school=36 amount=2121 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11560.362   -> HIDDEN (crowded)
+11560.362 HIT nameplate1 school=106 amount=412 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11560.362   -> HIDDEN (crowded)
+11560.475 HIT nameplate1 school=32 amount=1655 flag= fps=126 threat=3 group=false,false,false npc=242758 target=true
+11560.475   -> HIDDEN (crowded)
+11560.657 START player 686
+11560.773 HIT nameplate1 school=32 amount=4328 flag= fps=125 threat=3 group=false,false,false npc=242758 target=true
+11560.773   -> HIDDEN (crowded)
+11560.773 HIT nameplate1 school=36 amount=12038 flag=CRITICAL fps=125 threat=3 group=false,false,false npc=242758 target=true
+11560.773   -> HIDDEN (crowded)
+11561.010 HIT nameplate1 school=32 amount=43366 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11561.010   -> HIDDEN (crowded)
+11561.508 HIT nameplate1 school=32 amount=1655 flag= fps=122 threat=3 group=false,false,false npc=242758 target=true
+11561.508   -> HIDDEN (crowded)
+11561.508 HIT nameplate1 school=32 amount=33629 flag=CRITICAL fps=122 threat=3 group=false,false,false npc=242758 target=true
+11561.508   -> HIDDEN (crowded)
+11561.633 HIT nameplate1 school=32 amount=14338 flag= fps=123 threat=3 group=false,false,false npc=242758 target=true
+11561.633   -> HIDDEN (crowded)
+11561.633 HIT nameplate1 school=36 amount=2110 flag= fps=123 threat=3 group=false,false,false npc=242758 target=true
+11561.633   -> HIDDEN (crowded)
+11561.781 HIT nameplate1 school=36 amount=5255 flag= fps=123 threat=3 group=false,false,false npc=242758 target=true
+11561.781   -> HIDDEN (crowded)
+11562.022 CAST player 686 base=686,686
+11562.022 HIT nameplate1 school=32 amount=9306 flag=CRITICAL fps=113 threat=3 group=false,false,false npc=242758 target=true
+11562.022   -> HIDDEN (crowded)
+11562.209 CAST player 234153 base=234153,234153
+11562.510 HIT nameplate1 school=32 amount=1654 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11562.510   -> HIDDEN (crowded)
+11562.633 HIT nameplate1 school=32 amount=1414 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11562.633   -> HIDDEN (crowded)
+11562.633 HEAL player school=1 amount=9898 flag=
+11562.633   -> HIDDEN (crowded)
+11562.772 HIT nameplate1 school=36 amount=5159 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11562.772   -> HIDDEN (crowded)
+11562.772 HIT nameplate1 school=32 amount=11731 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11562.772   -> HIDDEN (crowded)
+11563.004 HIT nameplate1 school=32 amount=10206 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11563.004   -> HIDDEN (crowded)
+11563.004 HIT nameplate1 school=36 amount=2173 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11563.004   -> HIDDEN (crowded)
+11563.004 HIT nameplate1 school=32 amount=1413 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11563.004   -> HIDDEN (crowded)
+11563.004 HEAL player school=1 amount=9891 flag=
+11563.004   -> HIDDEN (crowded)
+11563.301 HIT nameplate1 school=32 amount=14648 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11563.301   -> HIDDEN (crowded)
+11563.407 HIT nameplate1 school=32 amount=4328 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11563.407   -> HIDDEN (crowded)
+11563.407 HIT nameplate1 school=32 amount=2827 flag=CRITICAL fps=114 threat=3 group=false,false,false npc=242758 target=true
+11563.407   -> HIDDEN (crowded)
+11563.407 HEAL player school=1 amount=19789 flag=
+11563.407   -> HIDDEN (crowded)
+11563.508 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=114 threat=3 group=false,false,false npc=242758 target=true
+11563.508   -> HIDDEN (crowded)
+11563.651 START player 48181
+11563.759 HIT nameplate1 school=36 amount=11393 flag=CRITICAL fps=115 threat=3 group=false,false,false npc=242758 target=true
+11563.759   -> HIDDEN (crowded)
+11564.169 HIT nameplate1 school=32 amount=7821 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11564.169   -> HIDDEN (crowded)
+11564.347 HIT nameplate1 school=36 amount=2092 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11564.347   -> HIDDEN (crowded)
+11564.500 HIT nameplate1 school=32 amount=1655 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11564.500   -> HIDDEN (crowded)
+11564.741 HIT nameplate1 school=32 amount=3607 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11564.741   -> HIDDEN (crowded)
+11564.741 HIT nameplate1 school=36 amount=9315 flag=CRITICAL fps=113 threat=3 group=false,false,false npc=242758 target=true
+11564.741   -> HIDDEN (crowded)
+11564.887 CAST player 48181 base=48181,48181
+11564.887 HIT nameplate1 school=32 amount=11301 flag= fps=111 threat=3 group=false,false,false npc=242758 target=true
+11564.887   -> HIDDEN (crowded)
+11565.203 CAST player 1259790 base=1259790,1259790
+11565.316 HIT nameplate1 school=4 amount=6589 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11565.316   -> HIDDEN (crowded)
+11565.332 HIT nameplate1 school=32 amount=22076 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11565.332   -> HIDDEN (crowded)
+11565.500 HIT nameplate1 school=32 amount=7821 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11565.500   -> HIDDEN (crowded)
+11565.667 HIT nameplate1 school=36 amount=2109 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11565.667   -> HIDDEN (crowded)
+11565.773 HIT nameplate1 school=36 amount=5063 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11565.773   -> HIDDEN (crowded)
+11566.044 HIT nameplate1 school=32 amount=4328 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11566.044   -> HIDDEN (crowded)
+11566.368 HIT nameplate1 school=32 amount=1655 flag= fps=132 threat=3 group=false,false,false npc=242758 target=true
+11566.368   -> HIDDEN (crowded)
+11566.368 HIT nameplate1 school=106 amount=412 flag= fps=132 threat=3 group=false,false,false npc=242758 target=true
+11566.368   -> HIDDEN (crowded)
+11566.646 HIT nameplate1 school=32 amount=28023 flag=CRITICAL fps=133 threat=3 group=false,false,false npc=242758 target=true
+11566.646   -> HIDDEN (crowded)
+11566.750 START player 1259790
+11566.750 HIT nameplate1 school=32 amount=16815 flag=CRITICAL fps=130 threat=3 group=false,false,false npc=242758 target=true
+11566.750   -> HIDDEN (crowded)
+11566.986 HIT nameplate1 school=36 amount=4934 flag=CRITICAL fps=128 threat=3 group=false,false,false npc=242758 target=true
+11566.986   -> HIDDEN (crowded)
+11567.272 HIT nameplate1 school=32 amount=1655 flag= fps=135 threat=3 group=false,false,false npc=242758 target=true
+11567.272   -> HIDDEN (crowded)
+11567.385 HIT nameplate1 school=106 amount=412 flag= fps=135 threat=3 group=false,false,false npc=242758 target=true
+11567.385   -> HIDDEN (crowded)
+11567.385 HIT nameplate1 school=32 amount=4328 flag= fps=135 threat=3 group=false,false,false npc=242758 target=true
+11567.385   -> HIDDEN (crowded)
+11567.748 CAST player 1259790 base=1259790,1259790
+11568.050 HIT nameplate1 school=32 amount=7821 flag= fps=135 threat=3 group=false,false,false npc=242758 target=true
+11568.050   -> HIDDEN (crowded)
+11568.281 CAST player 980 base=980,980
+11568.281 HIT nameplate1 school=36 amount=5000 flag=CRITICAL fps=129 threat=3 group=false,false,false npc=242758 target=true
+11568.281   -> HIDDEN (crowded)
+11568.281 HIT nameplate1 school=32 amount=14069 flag= fps=129 threat=3 group=false,false,false npc=242758 target=true
+11568.281   -> HIDDEN (crowded)
+11568.281 HIT nameplate1 school=32 amount=1655 flag= fps=129 threat=3 group=false,false,false npc=242758 target=true
+11568.281   -> HIDDEN (crowded)
+11568.389 HIT nameplate1 school=106 amount=412 flag= fps=126 threat=3 group=false,false,false npc=242758 target=true
+11568.389   -> HIDDEN (crowded)
+11568.725 HIT nameplate1 school=32 amount=4329 flag= fps=133 threat=3 group=false,false,false npc=242758 target=true
+11568.725   -> HIDDEN (crowded)
+11569.369 HIT nameplate1 school=32 amount=1655 flag= fps=123 threat=3 group=false,false,false npc=242758 target=true
+11569.369   -> HIDDEN (crowded)
+11569.369 HIT nameplate1 school=106 amount=412 flag= fps=123 threat=3 group=false,false,false npc=242758 target=true
+11569.369   -> HIDDEN (crowded)
+11569.479 HIT nameplate1 school=32 amount=7821 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11569.479   -> HIDDEN (crowded)
+11569.479 HIT nameplate1 school=4 amount=6589 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11569.479   -> HIDDEN (crowded)
+11569.634 HIT nameplate1 school=36 amount=4977 flag=CRITICAL fps=121 threat=3 group=false,false,false npc=242758 target=true
+11569.634   -> HIDDEN (crowded)
+11569.945 START player 686
+11569.945 HIT nameplate1 school=32 amount=14322 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11569.945   -> HIDDEN (crowded)
+11570.044 HIT nameplate1 school=32 amount=9306 flag=CRITICAL fps=116 threat=3 group=false,false,false npc=242758 target=true
+11570.044   -> HIDDEN (crowded)
+11570.359 HIT nameplate1 school=32 amount=1655 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11570.359   -> HIDDEN (crowded)
+11570.359 HIT nameplate1 school=106 amount=411 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11570.359   -> HIDDEN (crowded)
+11570.795 HIT nameplate1 school=32 amount=7821 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11570.795   -> HIDDEN (crowded)
+11570.966 HIT nameplate1 school=36 amount=4981 flag=CRITICAL fps=107 threat=3 group=false,false,false npc=242758 target=true
+11570.966   -> HIDDEN (crowded)
+11571.362 CAST player 686 base=686,686
+11571.362 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=101 threat=3 group=false,false,false npc=242758 target=true
+11571.362   -> HIDDEN (crowded)
+11571.362 HIT nameplate1 school=32 amount=4328 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11571.362   -> HIDDEN (crowded)
+11571.362 HIT nameplate1 school=106 amount=411 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11571.362   -> HIDDEN (crowded)
+11571.470 START player 686
+11572.062 HIT nameplate1 school=32 amount=14012 flag=CRITICAL fps=99 threat=3 group=false,false,false npc=242758 target=true
+11572.062   -> HIDDEN (crowded)
+11572.216 HIT nameplate1 school=36 amount=4089 flag=CRITICAL fps=97 threat=3 group=false,false,false npc=242758 target=true
+11572.216   -> HIDDEN (crowded)
+11572.231 HIT nameplate1 school=32 amount=10042 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11572.231   -> HIDDEN (crowded)
+11572.369 HIT nameplate1 school=32 amount=1655 flag= fps=92 threat=3 group=false,false,false npc=242758 target=true
+11572.369   -> HIDDEN (crowded)
+11572.369 HIT nameplate1 school=106 amount=411 flag= fps=92 threat=3 group=false,false,false npc=242758 target=true
+11572.369   -> HIDDEN (crowded)
+11572.641 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=89 threat=3 group=false,false,false npc=242758 target=true
+11572.641   -> HIDDEN (crowded)
+11572.914 CAST player 686 base=686,686
+11573.041 START player 686
+11573.364 HIT nameplate1 school=32 amount=1655 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11573.364   -> HIDDEN (crowded)
+11573.364 HIT nameplate1 school=106 amount=411 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11573.364   -> HIDDEN (crowded)
+11573.364 HIT nameplate1 school=32 amount=3259 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11573.364   -> HIDDEN (crowded)
+11573.627 HIT nameplate1 school=36 amount=1770 flag= fps=92 threat=3 group=false,false,false npc=242758 target=true
+11573.627   -> HIDDEN (crowded)
+11573.845 HIT nameplate1 school=32 amount=10332 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11573.845   -> HIDDEN (crowded)
+11574.028 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=98 threat=3 group=false,false,false npc=242758 target=true
+11574.028   -> HIDDEN (crowded)
+11574.366 HIT nameplate1 school=32 amount=1654 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11574.366   -> HIDDEN (crowded)
+11574.366 HIT nameplate1 school=106 amount=411 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11574.366   -> HIDDEN (crowded)
+11574.768 HIT nameplate1 school=32 amount=3258 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11574.768   -> HIDDEN (crowded)
+11574.948 HIT nameplate1 school=36 amount=4191 flag=CRITICAL fps=114 threat=3 group=false,false,false npc=242758 target=true
+11574.948   -> HIDDEN (crowded)
+11575.354 HIT nameplate1 school=32 amount=3607 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11575.354   -> HIDDEN (crowded)
+11575.354 HIT nameplate1 school=32 amount=1654 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11575.354   -> HIDDEN (crowded)
+11575.354 HIT nameplate1 school=106 amount=411 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11575.354   -> HIDDEN (crowded)
+11575.675 CAST player 111400 base=111400,111400
+11575.675 HIT nameplate1 school=32 amount=2420 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11575.675   -> HIDDEN (crowded)
+11575.882 HEAL player school=1 amount=309 flag=
+11575.882   -> HIDDEN (crowded)
+11576.089 HEAL player school=1 amount=158 flag=
+11576.089   -> HIDDEN (crowded)
+11576.265 HIT nameplate1 school=36 amount=4205 flag=CRITICAL fps=83 threat=3 group=false,false,false npc=242758 target=true
+11576.265   -> HIDDEN (crowded)
+11576.265 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=83 threat=3 group=false,false,false npc=242758 target=true
+11576.265   -> HIDDEN (crowded)
+11576.369 HIT nameplate1 school=106 amount=411 flag= fps=81 threat=3 group=false,false,false npc=242758 target=true
+11576.369   -> HIDDEN (crowded)
+11576.687 HIT nameplate1 school=32 amount=3607 flag= fps=86 threat=3 group=false,false,false npc=242758 target=true
+11576.687   -> HIDDEN (crowded)
+11577.057 HEAL player school=1 amount=173 flag=
+11577.057   -> HIDDEN (crowded)
+11577.057 HEAL player school=1 amount=230 flag=
+11577.057   -> HIDDEN (crowded)
+11577.368 HIT nameplate1 school=106 amount=411 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11577.368   -> HIDDEN (crowded)
+11577.761 HIT nameplate1 school=36 amount=1761 flag= fps=113 threat=0 group=false,false,false npc=242758 target=true
+11577.761   -> HIDDEN (crowded)
+11578.100 HEAL player school=1 amount=134 flag=
+11578.100   -> HIDDEN (crowded)
+11578.100 HIT nameplate1 school=32 amount=3607 flag= fps=118 threat=0 group=false,false,false npc=242758 target=true
+11578.100   -> HIDDEN (crowded)
+11578.326 HEAL player school=1 amount=116 flag=
+11578.326   -> HIDDEN (crowded)
+11578.326 HIT nameplate1 school=106 amount=411 flag= fps=120 threat=0 group=false,false,false npc=242758 target=true
+11578.326   -> HIDDEN (crowded)
+11579.100 HEAL player school=1 amount=141 flag=
+11579.100   -> HIDDEN (crowded)
+11579.556 HEAL player school=1 amount=8 flag=
+11579.556   -> HIDDEN (crowded)
+11579.739 TEACH session 1 dur=38
+11579.739 TEACH row 1259790 total=216514 overkill=0 override=1259790
+11579.739 TEACH row 205231 total=207462 overkill=0 override=205231
+11579.739 TEACH row 445468 total=192991 overkill=0 override=445468
+11579.739 TEACH row 980 total=140120 overkill=0 override=980
+11579.739 TEACH row 1278047 total=130098 overkill=0 override=1278047
+11579.739 TEACH row 1262710 total=54609 overkill=0 override=1262710
+11579.739 TEACH row 48181 total=44962 overkill=0 override=48181
+11579.739 TEACH row 686 total=43162 overkill=0 override=686
+11579.739 TEACH row 446285 total=22497 overkill=0 override=446285
+11579.739 TEACH row 1286970 total=19767 overkill=0 override=1286970
+11579.739 TEACH row 234153 total=12720 overkill=0 override=234153
+11579.739 TEACH row 54049 total=12085 overkill=0 override=54049
+11579.739 TEACH row 1287663 total=8643 overkill=0 override=1287663
+11579.739 TEACH row 6603 total=5882 overkill=0 override=6603
+11579.739 TEACH clean seen=1111512 meter=1111512 -> clear
+11579.739 TEACH steady 686 spell=686 mode=new counted=0/4 delay=- size=- -> none
+11579.739 TEACH steady 1259790 spell=1259790 mode=new counted=0/7 delay=- size=- -> none
+11579.739 TEACH proc 1278047 school=32 band=43366-43366 streak=1
+11579.739 TEACH proc 1286970 school=4 band=6589-6589 streak=1
+11579.739 TEACH proc 1287663 school=106 band=411-412 streak=1
+11579.739 TEACH proc 6603 school=1 band=1176-1177 streak=1
+11579.739 TEACH 1259790 tally=0 meter=216514 verdict=unpaired
+11579.739 TEACH 205231 tally=0 meter=207462 verdict=unpaired
+11579.739 TEACH 445468 tally=0 meter=192991 verdict=unpaired
+11579.739 TEACH 980 tally=0 meter=140120 verdict=unpaired
+11579.739 TEACH 1278047 tally=0 meter=130098 verdict=unpaired
+11579.739 TEACH 1262710 tally=0 meter=54609 verdict=unpaired
+11579.739 TEACH 48181 tally=0 meter=44962 verdict=unpaired
+11579.739 TEACH 686 tally=0 meter=43162 verdict=unpaired
+11579.739 TEACH 205180 tally=22497 meter=22497 verdict=agree row=446285
+11579.739 TEACH 1286970 tally=0 meter=19767 verdict=unpaired
+11579.739 TEACH 234153 tally=0 meter=12720 verdict=unpaired
+11579.739 TEACH 54049 tally=0 meter=12085 verdict=unpaired
+11579.739 TEACH 1287663 tally=0 meter=8643 verdict=unpaired
+11579.739 TEACH 6603 tally=0 meter=5882 verdict=unpaired
+11579.739 TEACH heal 1272114 meter=197864 over=0
+11579.739 TEACH heal 108366 meter=44408 over=0
+11579.739 TEACH heal 143924 meter=832 over=0
+11580.116 HEAL player school=1 amount=126 flag=
+11580.116   -> unknown-solo
+11581.114 HEAL player school=1 amount=126 flag=
+11581.114   -> unknown-solo
+11582.117 HEAL player school=1 amount=126 flag=
+11582.117   -> unknown-solo
+11583.133 HEAL player school=1 amount=126 flag=
+11583.133   -> unknown-solo
+11584.136 HEAL player school=1 amount=126 flag=
+11584.136   -> unknown-solo
+11585.152 HEAL player school=1 amount=126 flag=
+11585.152   -> unknown-solo
+11586.069 HEAL player school=1 amount=125 flag=
+11586.069   -> unknown-solo
+11587.152 HEAL player school=1 amount=126 flag=
+11587.152   -> unknown-solo
+11588.095 HEAL player school=1 amount=126 flag=
+11588.095   -> unknown-solo
+11589.173 HEAL player school=1 amount=126 flag=
+11589.173   -> unknown-solo
+11590.137 HEAL player school=1 amount=126 flag=
+11590.137   -> unknown-solo
+11590.745 CAST player 445474 base=445474,445474
+11590.745 CAST player 445468 base=172,172
+11590.745 HIT nameplate1 school=36 amount=1552 flag=CRITICAL fps=130 threat=3 group=false,false,false npc=242758 target=true
+11590.745   -> unknown-solo
+11590.941 HEAL player school=1 amount=31 flag=
+11590.941   -> unknown-solo
+11591.185 HEAL player school=1 amount=132 flag=
+11591.185   -> unknown-solo
+11592.163 HEAL player school=1 amount=126 flag=
+11592.163   -> unknown-solo
+11592.163 HIT nameplate1 school=36 amount=1502 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11592.163   -> unknown-solo
+11592.163 HIT nameplate1 school=4 amount=5491 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11592.163   -> unknown-solo
+11592.163 HIT nameplate1 school=8 amount=880 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11592.163   -> unknown-solo
+11592.404 CAST player 980 base=980,980
+11592.579 HEAL player school=1 amount=157 flag=
+11592.579   -> unknown-solo
+11592.967 HIT nameplate1 school=8 amount=1760 flag= fps=106 threat=3 group=false,false,false npc=242758 target=true
+11592.967   -> unknown-solo
+11593.120 HEAL player school=1 amount=132 flag=
+11593.120   -> unknown-solo
+11593.238 HIT nameplate1 school=106 amount=343 flag= fps=103 threat=3 group=false,false,false npc=242758 target=true
+11593.238   -> unknown-solo
+11593.695 HIT nameplate1 school=36 amount=1449 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11593.695   -> unknown-solo
+11593.695 HIT nameplate1 school=4 amount=5490 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11593.695   -> unknown-solo
+11593.695 HIT nameplate1 school=8 amount=3519 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11593.695   -> unknown-solo
+11593.800 HIT nameplate1 school=32 amount=1127 flag= fps=93 threat=3 group=false,false,false npc=242758 target=true
+11593.800   -> unknown-solo
+11593.800 HEAL player school=1 amount=250 flag=
+11593.800   -> unknown-solo
+11594.013 START player 48181
+11594.214 HEAL player school=1 amount=137 flag=
+11594.214   -> unknown-solo
+11594.214 HIT nameplate1 school=106 amount=343 flag= fps=106 threat=3 group=false,false,false npc=242758 target=true
+11594.214   -> unknown-solo
+11595.013 HIT nameplate1 school=36 amount=1451 flag= fps=134 threat=3 group=false,false,false npc=242758 target=true
+11595.013   -> unknown-solo
+11595.013 HEAL player school=1 amount=30 flag=
+11595.013   -> unknown-solo
+11595.013 HIT nameplate1 school=4 amount=5491 flag= fps=134 threat=3 group=false,false,false npc=242758 target=true
+11595.013   -> unknown-solo
+11595.117 HIT nameplate1 school=32 amount=1503 flag= fps=133 threat=3 group=false,false,false npc=242758 target=true
+11595.117   -> unknown-solo
+11595.221 HEAL player school=1 amount=138 flag=
+11595.221   -> unknown-solo
+11595.221 HIT nameplate1 school=106 amount=343 flag= fps=131 threat=3 group=false,false,false npc=242758 target=true
+11595.221   -> unknown-solo
+11595.221 CAST player 48181 base=48181,48181
+11595.574 START player 1259790
+11595.858 HIT nameplate1 school=32 amount=44672 flag=CRITICAL fps=126 threat=3 group=false,false,false npc=242758 target=true
+11595.858   -> unknown-solo
+11596.233 HIT nameplate1 school=106 amount=412 flag= fps=126 threat=3 group=false,false,false npc=242758 target=true
+11596.233   -> unknown-solo
+11596.344 HIT nameplate1 school=36 amount=1753 flag= fps=126 threat=3 group=false,false,false npc=242758 target=true
+11596.344   -> unknown-solo
+11596.454 HIT nameplate1 school=32 amount=2254 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11596.454   -> unknown-solo
+11596.569 CAST player 1259790 base=1259790,1259790
+11596.569 CAST pet 54049 base=54049,54049
+11596.569 HIT nameplate1 school=32 amount=6128 flag=CRITICAL fps=121 threat=3 group=false,false,false npc=242758 target=true
+11596.569   -> unknown-solo
+11596.835 HIT nameplate1 school=1 amount=1176 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11596.835   -> unknown-solo
+11596.928 HIT nameplate1 school=32 amount=1655 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11596.928   -> unknown-solo
+11597.061 START player 686
+11597.219 HIT nameplate1 school=106 amount=412 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11597.219   -> unknown-solo
+11597.667 HIT nameplate1 school=36 amount=4107 flag=CRITICAL fps=113 threat=3 group=false,false,false npc=242758 target=true
+11597.667   -> unknown-solo
+11597.768 HIT nameplate1 school=32 amount=2705 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11597.768   -> unknown-solo
+11597.875 HIT nameplate1 school=32 amount=3259 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11597.875   -> unknown-solo
+11597.875 HIT nameplate1 school=32 amount=1655 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11597.875   -> unknown-solo
+11598.236 HIT nameplate1 school=106 amount=412 flag= fps=107 threat=3 group=false,false,false npc=242758 target=true
+11598.236   -> unknown-solo
+11598.544 CAST player 686 base=686,686
+11598.670 CAST player 234153 base=234153,234153
+11598.830 HIT nameplate1 school=1 amount=2353 flag=CRITICAL fps=116 threat=3 group=false,false,false npc=242758 target=true
+11598.830   -> unknown-solo
+11598.915 HIT nameplate1 school=32 amount=1654 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11598.915   -> unknown-solo
+11598.915 HIT nameplate1 school=36 amount=1757 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11598.915   -> unknown-solo
+11599.054 HIT nameplate1 school=32 amount=1414 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11599.054   -> unknown-solo
+11599.054 HEAL player school=1 amount=9898 flag=
+11599.054   -> unknown-solo
+11599.054 HIT nameplate1 school=32 amount=3156 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11599.054   -> unknown-solo
+11599.054 CAST pet 54049 base=54049,54049
+11599.054 HIT nameplate1 school=32 amount=3117 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11599.054   -> unknown-solo
+11599.246 HIT nameplate1 school=32 amount=3259 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11599.246   -> unknown-solo
+11599.246 HIT nameplate1 school=106 amount=412 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11599.246   -> unknown-solo
+11599.517 HIT nameplate1 school=32 amount=2827 flag=CRITICAL fps=110 threat=3 group=false,false,false npc=242758 target=true
+11599.517   -> unknown-solo
+11599.517 HEAL player school=1 amount=19789 flag=
+11599.517   -> unknown-solo
+11599.865 HIT nameplate1 school=32 amount=20621 flag=CRITICAL fps=110 threat=3 group=false,false,false npc=242758 target=true
+11599.865   -> unknown-solo
+11599.865 HIT nameplate1 school=32 amount=1413 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11599.865   -> unknown-solo
+11599.865 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=110 threat=3 group=false,false,false npc=242758 target=true
+11599.865   -> unknown-solo
+11599.865 HEAL player school=1 amount=9891 flag=
+11599.865   -> unknown-solo
+11600.160 HIT nameplate1 school=36 amount=1806 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11600.160   -> unknown-solo
+11600.160 HIT nameplate1 school=106 amount=412 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11600.160   -> unknown-solo
+11600.325 HIT nameplate1 school=32 amount=1413 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11600.325   -> unknown-solo
+11600.325 HEAL player school=1 amount=9891 flag=
+11600.325   -> unknown-solo
+11600.544 CAST player 686 base=686,686
+11600.544 HIT nameplate1 school=32 amount=3034 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11600.544   -> unknown-solo
+11600.544 HIT nameplate1 school=32 amount=3607 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11600.544   -> unknown-solo
+11600.852 HIT nameplate1 school=32 amount=1655 flag= fps=122 threat=3 group=false,false,false npc=242758 target=true
+11600.852   -> unknown-solo
+11600.871 HIT nameplate1 school=1 amount=1176 flag= fps=122 threat=3 group=false,false,false npc=242758 target=true
+11600.871   -> unknown-solo
+11601.234 HIT nameplate1 school=106 amount=412 flag= fps=125 threat=3 group=false,false,false npc=242758 target=true
+11601.234   -> unknown-solo
+11601.649 HIT nameplate1 school=36 amount=4048 flag=CRITICAL fps=127 threat=3 group=false,false,false npc=242758 target=true
+11601.649   -> unknown-solo
+11601.649 HIT nameplate1 school=1 amount=1177 flag= fps=127 threat=3 group=false,false,false npc=242758 target=true
+11601.649   -> unknown-solo
+11601.844 HIT nameplate1 school=32 amount=43366 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11601.844   -> unknown-solo
+11601.844 HIT nameplate1 school=32 amount=12912 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11601.844   -> unknown-solo
+11601.844 HIT nameplate1 school=32 amount=1655 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11601.844   -> unknown-solo
+11601.947 HIT nameplate1 school=32 amount=3034 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11601.947   -> unknown-solo
+11602.077 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=113 threat=3 group=false,false,false npc=242758 target=true
+11602.077   -> unknown-solo
+11602.217 HIT nameplate1 school=106 amount=412 flag= fps=106 threat=3 group=false,false,false npc=242758 target=true
+11602.217   -> unknown-solo
+11602.217 START player 686
+11602.913 HIT nameplate1 school=32 amount=1655 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11602.913   -> unknown-solo
+11603.139 HIT nameplate1 school=36 amount=1740 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11603.139   -> unknown-solo
+11603.248 HIT nameplate1 school=106 amount=412 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11603.248   -> unknown-solo
+11603.522 HIT nameplate1 school=32 amount=6523 flag=CRITICAL fps=112 threat=3 group=false,false,false npc=242758 target=true
+11603.522   -> unknown-solo
+11603.522 HIT nameplate1 school=32 amount=3607 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11603.522   -> unknown-solo
+11603.830 CAST player 686 base=686,686
+11603.830 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=112 threat=3 group=false,false,false npc=242758 target=true
+11603.830   -> unknown-solo
+11603.979 CAST pet 54049 base=54049,54049
+11603.979 HIT nameplate1 school=32 amount=5976 flag=CRITICAL fps=112 threat=3 group=false,false,false npc=242758 target=true
+11603.979   -> unknown-solo
+11603.979 CAST player 1259790 base=1259790,1259790
+11604.169 HIT nameplate1 school=1 amount=1177 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11604.169   -> unknown-solo
+11604.567 HIT nameplate1 school=36 amount=1801 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11604.567   -> unknown-solo
+11604.919 HIT nameplate1 school=32 amount=1655 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11604.919   -> unknown-solo
+11604.919 HIT nameplate1 school=32 amount=3034 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11604.919   -> unknown-solo
+11605.036 HIT nameplate1 school=32 amount=3607 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11605.036   -> unknown-solo
+11605.141 HIT nameplate1 school=32 amount=9993 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11605.141   -> unknown-solo
+11605.378 HIT nameplate1 school=1 amount=1176 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11605.378   -> unknown-solo
+11605.554 CAST pet 88461 base=88461,88461
+11605.750 CAST player 234153 base=234153,234153
+11605.922 HIT nameplate1 school=32 amount=1654 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11605.922   -> unknown-solo
+11606.021 HIT nameplate1 school=36 amount=1811 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11606.021   -> unknown-solo
+11606.226 HIT nameplate1 school=32 amount=1414 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11606.226   -> unknown-solo
+11606.226 HEAL player school=1 amount=9898 flag=
+11606.226   -> unknown-solo
+11606.409 HIT nameplate1 school=32 amount=3034 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11606.409   -> unknown-solo
+11606.511 HIT nameplate1 school=4 amount=6588 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11606.511   -> unknown-solo
+11606.511 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=114 threat=3 group=false,false,false npc=242758 target=true
+11606.511   -> unknown-solo
+11606.686 HIT nameplate1 school=32 amount=2827 flag=CRITICAL fps=107 threat=3 group=false,false,false npc=242758 target=true
+11606.686   -> unknown-solo
+11606.686 HEAL player school=1 amount=19789 flag=
+11606.686   -> unknown-solo
+11606.845 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=105 threat=3 group=false,false,false npc=242758 target=true
+11606.845   -> unknown-solo
+11607.250 START player 1259790
+11607.519 HIT nameplate1 school=106 amount=412 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11607.519   -> unknown-solo
+11607.519 HIT nameplate1 school=36 amount=1783 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11607.519   -> unknown-solo
+11607.925 HIT nameplate1 school=32 amount=1655 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11607.925   -> unknown-solo
+11607.925 HIT nameplate1 school=32 amount=3034 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11607.925   -> unknown-solo
+11607.925 HIT nameplate1 school=32 amount=3606 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11607.925   -> unknown-solo
+11608.396 CAST player 1259790 base=1259790,1259790
+11608.504 HIT nameplate1 school=106 amount=412 flag= fps=130 threat=3 group=false,false,false npc=242758 target=true
+11608.504   -> unknown-solo
+11608.880 HIT nameplate1 school=32 amount=1655 flag= fps=129 threat=3 group=false,false,false npc=242758 target=true
+11608.880   -> unknown-solo
+11609.014 CAST player 442726 base=442726,442726
+11609.014 HIT nameplate1 school=36 amount=22498 flag= fps=129 threat=3 group=false,false,false npc=242758 target=true
+11609.014   -> unknown-solo
+11609.014 HIT nameplate1 school=36 amount=4043 flag=CRITICAL fps=129 threat=3 group=false,false,false npc=242758 target=true
+11609.014   -> unknown-solo
+11609.402 HIT nameplate1 school=32 amount=6518 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11609.402   -> unknown-solo
+11609.402 HIT nameplate1 school=32 amount=3607 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11609.402   -> unknown-solo
+11609.516 HIT nameplate1 school=106 amount=412 flag= fps=130 threat=3 group=false,false,false npc=242758 target=true
+11609.516   -> unknown-solo
+11609.920 HIT nameplate1 school=32 amount=1655 flag= fps=132 threat=3 group=false,false,false npc=242758 target=true
+11609.920   -> unknown-solo
+11610.022 HIT nameplate1 school=36 amount=13328 flag=CRITICAL fps=130 threat=3 group=false,false,false npc=242758 target=true
+11610.022   -> unknown-solo
+11610.395 HIT nameplate1 school=36 amount=1777 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11610.395   -> unknown-solo
+11610.513 HIT nameplate1 school=106 amount=412 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11610.513   -> unknown-solo
+11610.513 START player 48181
+11610.803 HIT nameplate1 school=32 amount=6518 flag= fps=125 threat=3 group=false,false,false npc=242758 target=true
+11610.803   -> unknown-solo
+11610.803 HIT nameplate1 school=32 amount=3607 flag= fps=125 threat=3 group=false,false,false npc=242758 target=true
+11610.803   -> unknown-solo
+11610.916 HIT nameplate1 school=32 amount=1655 flag= fps=125 threat=3 group=false,false,false npc=242758 target=true
+11610.916   -> unknown-solo
+11611.024 HIT nameplate1 school=36 amount=5827 flag= fps=123 threat=3 group=false,false,false npc=242758 target=true
+11611.024   -> unknown-solo
+11611.520 HIT nameplate1 school=106 amount=412 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11611.520   -> unknown-solo
+11611.729 HIT nameplate1 school=36 amount=1729 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11611.729   -> unknown-solo
+11611.729 CAST player 48181 base=48181,48181
+11611.919 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=115 threat=3 group=false,false,false npc=242758 target=true
+11611.919   -> unknown-solo
+11612.019 HIT nameplate1 school=36 amount=5733 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11612.019   -> unknown-solo
+11612.019 HIT nameplate1 school=32 amount=3258 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11612.019   -> unknown-solo
+11612.139 START player 686
+11612.139 HIT nameplate1 school=32 amount=3607 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11612.139   -> unknown-solo
+11612.408 HIT nameplate1 school=32 amount=54191 flag=CRITICAL fps=116 threat=3 group=false,false,false npc=242758 target=true
+11612.408   -> unknown-solo
+11612.528 HIT nameplate1 school=106 amount=412 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11612.528   -> unknown-solo
+11612.924 HIT nameplate1 school=32 amount=1655 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11612.924   -> unknown-solo
+11613.024 HIT nameplate1 school=36 amount=5636 flag= fps=107 threat=3 group=false,false,false npc=242758 target=true
+11613.024   -> unknown-solo
+11613.024 HIT nameplate1 school=36 amount=1744 flag= fps=107 threat=3 group=false,false,false npc=242758 target=true
+11613.024   -> unknown-solo
+11613.405 HIT nameplate1 school=32 amount=3258 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11613.405   -> unknown-solo
+11613.405 HIT nameplate1 school=32 amount=3607 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11613.405   -> unknown-solo
+11613.519 HIT nameplate1 school=106 amount=412 flag= fps=99 threat=3 group=false,false,false npc=242758 target=true
+11613.519   -> unknown-solo
+11613.519 CAST player 686 base=686,686
+11613.678 START player 1259790
+11613.919 HIT nameplate1 school=32 amount=1654 flag= fps=99 threat=3 group=false,false,false npc=242758 target=true
+11613.919   -> unknown-solo
+11614.020 HIT nameplate1 school=36 amount=5541 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11614.020   -> unknown-solo
+11614.300 HIT nameplate1 school=36 amount=1762 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11614.300   -> unknown-solo
+11614.521 HIT nameplate1 school=106 amount=412 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11614.521   -> unknown-solo
+11614.674 CAST player 1259790 base=1259790,1259790
+11614.774 HIT nameplate1 school=32 amount=6518 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11614.774   -> unknown-solo
+11614.774 HIT nameplate1 school=32 amount=20094 flag=CRITICAL fps=108 threat=3 group=false,false,false npc=242758 target=true
+11614.774   -> unknown-solo
+11614.774 HIT nameplate1 school=32 amount=3607 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11614.774   -> unknown-solo
+11614.911 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=107 threat=3 group=false,false,false npc=242758 target=true
+11614.911   -> unknown-solo
+11615.016 HIT nameplate1 school=36 amount=12683 flag=CRITICAL fps=109 threat=3 group=false,false,false npc=242758 target=true
+11615.016   -> unknown-solo
+11615.234 START player 686
+11615.550 HIT nameplate1 school=36 amount=1739 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11615.550   -> unknown-solo
+11615.917 HIT nameplate1 school=32 amount=1655 flag= fps=131 threat=3 group=false,false,false npc=242758 target=true
+11615.917   -> unknown-solo
+11616.018 HIT nameplate1 school=36 amount=12468 flag=CRITICAL fps=130 threat=3 group=false,false,false npc=242758 target=true
+11616.018   -> unknown-solo
+11616.018 HIT nameplate1 school=32 amount=6518 flag= fps=130 threat=3 group=false,false,false npc=242758 target=true
+11616.018   -> unknown-solo
+11616.134 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=125 threat=3 group=false,false,false npc=242758 target=true
+11616.134   -> unknown-solo
+11616.627 CAST player 686 base=686,686
+11616.782 START player 686
+11616.782 HIT nameplate1 school=36 amount=1743 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11616.782   -> unknown-solo
+11616.912 HIT nameplate1 school=32 amount=1655 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11616.912   -> unknown-solo
+11617.030 HIT nameplate1 school=36 amount=5445 flag= fps=129 threat=3 group=false,false,false npc=242758 target=true
+11617.030   -> unknown-solo
+11617.421 HIT nameplate1 school=32 amount=7006 flag=CRITICAL fps=138 threat=3 group=false,false,false npc=242758 target=true
+11617.421   -> unknown-solo
+11617.421 HIT nameplate1 school=32 amount=3607 flag= fps=138 threat=3 group=false,false,false npc=242758 target=true
+11617.421   -> unknown-solo
+11617.853 HIT nameplate1 school=32 amount=10228 flag= fps=136 threat=3 group=false,false,false npc=242758 target=true
+11617.853   -> unknown-solo
+11617.853 HIT nameplate1 school=32 amount=1655 flag= fps=136 threat=3 group=false,false,false npc=242758 target=true
+11617.853   -> unknown-solo
+11618.028 HIT nameplate1 school=36 amount=12038 flag=CRITICAL fps=137 threat=3 group=false,false,false npc=242758 target=true
+11618.028   -> unknown-solo
+11618.200 CAST player 686 base=686,686
+11618.200 HIT nameplate1 school=36 amount=1742 flag= fps=126 threat=3 group=false,false,false npc=242758 target=true
+11618.200   -> unknown-solo
+11618.347 START player 686
+11618.662 HIT nameplate1 school=32 amount=3259 flag= fps=127 threat=3 group=false,false,false npc=242758 target=true
+11618.662   -> unknown-solo
+11618.776 HIT nameplate1 school=32 amount=3607 flag= fps=132 threat=3 group=false,false,false npc=242758 target=true
+11618.776   -> unknown-solo
+11618.921 HIT nameplate1 school=32 amount=1655 flag= fps=130 threat=3 group=false,false,false npc=242758 target=true
+11618.921   -> unknown-solo
+11619.023 HIT nameplate1 school=36 amount=5254 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11619.023   -> unknown-solo
+11619.400 HIT nameplate1 school=32 amount=9946 flag= fps=123 threat=3 group=false,false,false npc=242758 target=true
+11619.400   -> unknown-solo
+11619.545 HIT nameplate1 school=36 amount=1782 flag= fps=122 threat=3 group=false,false,false npc=242758 target=true
+11619.545   -> unknown-solo
+11619.767 CAST player 686 base=686,686
+11619.879 START player 691
+11619.879 HIT nameplate1 school=32 amount=1655 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11619.879   -> unknown-solo
+11620.025 HIT nameplate1 school=36 amount=5160 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11620.025   -> unknown-solo
+11620.025 HIT nameplate1 school=32 amount=3258 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11620.025   -> unknown-solo
+11620.025 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=101 threat=3 group=false,false,false npc=242758 target=true
+11620.025   -> unknown-solo
+11620.849 HIT nameplate1 school=36 amount=1784 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11620.849   -> unknown-solo
+11620.849 HIT nameplate1 school=4 amount=6589 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11620.849   -> unknown-solo
+11620.849 HIT nameplate1 school=32 amount=1655 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11620.849   -> unknown-solo
+11620.987 HIT nameplate1 school=32 amount=10281 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11620.987   -> unknown-solo
+11620.987 HIT nameplate1 school=36 amount=5064 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11620.987   -> unknown-solo
+11621.398 HIT nameplate1 school=32 amount=3258 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11621.398   -> unknown-solo
+11621.398 HIT nameplate1 school=32 amount=3607 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11621.398   -> unknown-solo
+11621.889 HIT nameplate1 school=106 amount=412 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11621.889   -> unknown-solo
+11621.889 HIT nameplate1 school=32 amount=1655 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11621.889   -> unknown-solo
+11622.022 HIT nameplate1 school=36 amount=11178 flag=CRITICAL fps=113 threat=3 group=false,false,false npc=242758 target=true
+11622.022   -> unknown-solo
+11622.186 HIT nameplate1 school=36 amount=4087 flag=CRITICAL fps=108 threat=3 group=false,false,false npc=242758 target=true
+11622.186   -> unknown-solo
+11622.675 HIT nameplate1 school=32 amount=3607 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11622.675   -> unknown-solo
+11622.826 HIT nameplate1 school=106 amount=412 flag= fps=122 threat=3 group=false,false,false npc=242758 target=true
+11622.826   -> unknown-solo
+11622.915 HIT nameplate1 school=32 amount=1655 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11622.915   -> unknown-solo
+11623.021 HIT nameplate1 school=36 amount=10963 flag=CRITICAL fps=114 threat=3 group=false,false,false npc=242758 target=true
+11623.021   -> unknown-solo
+11623.516 HIT nameplate1 school=36 amount=4016 flag=CRITICAL fps=121 threat=3 group=false,false,false npc=242758 target=true
+11623.516   -> unknown-solo
+11623.516 HIT nameplate1 school=4 amount=6589 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11623.516   -> unknown-solo
+11623.813 HIT nameplate1 school=106 amount=412 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11623.813   -> unknown-solo
+11623.924 HIT nameplate1 school=32 amount=1655 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11623.924   -> unknown-solo
+11624.090 HIT nameplate1 school=32 amount=3606 flag= fps=122 threat=3 group=false,false,false npc=242758 target=true
+11624.090   -> unknown-solo
+11624.761 HIT nameplate1 school=36 amount=4176 flag=CRITICAL fps=114 threat=3 group=false,false,false npc=242758 target=true
+11624.761   -> unknown-solo
+11624.866 CAST player 691 base=691,691
+11624.866 HIT nameplate1 school=106 amount=412 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11624.866   -> unknown-solo
+11624.866 CAST pet 108446 base=108446,108446
+11624.866 HIT nameplate1 school=32 amount=1655 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11624.866   -> unknown-solo
+11625.426 HIT nameplate1 school=32 amount=3607 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11625.426   -> unknown-solo
+11625.881 HIT nameplate1 school=106 amount=412 flag= fps=99 threat=3 group=false,false,false npc=242758 target=true
+11625.881   -> unknown-solo
+11625.881 HIT nameplate1 school=32 amount=1655 flag= fps=99 threat=3 group=false,false,false npc=242758 target=true
+11625.881   -> unknown-solo
+11626.100 HIT nameplate1 school=36 amount=1736 flag= fps=98 threat=3 group=false,false,false npc=242758 target=true
+11626.100   -> unknown-solo
+11626.686 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=108 threat=3 group=false,false,false npc=242758 target=true
+11626.686   -> unknown-solo
+11626.793 HIT nameplate1 school=106 amount=412 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11626.793   -> unknown-solo
+11626.897 HIT nameplate1 school=32 amount=1655 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11626.897   -> unknown-solo
+11627.482 HIT nameplate1 school=36 amount=1734 flag= fps=111 threat=3 group=false,false,false npc=242758 target=true
+11627.482   -> unknown-solo
+11627.880 HIT nameplate1 school=106 amount=412 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11627.880   -> unknown-solo
+11627.996 HIT nameplate1 school=32 amount=3607 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11627.996   -> unknown-solo
+11628.796 HIT nameplate1 school=36 amount=1767 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11628.796   -> unknown-solo
+11628.796 HIT nameplate1 school=106 amount=412 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11628.796   -> unknown-solo
+11629.354 HIT nameplate1 school=32 amount=3607 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11629.354   -> unknown-solo
+11630.626 TEACH session 2 dur=39
+11630.626 TEACH row 445468 total=180239 overkill=0 override=445468
+11630.626 TEACH row 980 total=110837 overkill=0 override=980
+11630.626 TEACH row 48181 total=98863 overkill=0 override=48181
+11630.626 TEACH row 686 total=94075 overkill=0 override=686
+11630.626 TEACH row 1259790 total=77580 overkill=0 override=1259790
+11630.626 TEACH row 1262710 total=59577 overkill=0 override=1262710
+11630.626 TEACH row 1278047 total=43366 overkill=0 override=1278047
+11630.626 TEACH row 1286970 total=36238 overkill=0 override=1286970
+11630.626 TEACH row 446285 total=22498 overkill=0 override=446285
+11630.626 TEACH row 54049 total=15221 overkill=0 override=54049
+11630.626 TEACH row 234153 total=11308 overkill=0 override=234153
+11630.626 TEACH row 1287663 total=10917 overkill=0 override=1287663
+11630.626 TEACH row 6603 total=8235 overkill=0 override=6603
+11630.626 TEACH row 1260748 total=6159 overkill=0 override=1260748
+11630.626 TEACH clean seen=775113 meter=775113 -> clear
+11630.626 TEACH steady 686 spell=686 mode=new counted=0/7 delay=- size=- -> none
+11630.626 TEACH steady 1259790 spell=1259790 mode=new counted=0/4 delay=- size=- -> none
+11630.626 TEACH proc 1278047 school=32 band=43366-43366 streak=2
+11630.626 TEACH proc 1286970 school=4 band=6589-6589 streak=0 reset
+11630.626 TEACH proc 446285 school=36 band=22498-22498 streak=1
+11630.626 TEACH proc 1287663 school=106 band=411-412 streak=0 reset
+11630.626 TEACH proc 6603 school=1 band=1176-1177 streak=2
+11630.626 TEACH 445468 tally=0 meter=180239 verdict=unpaired
+11630.626 TEACH 980 tally=0 meter=110837 verdict=unpaired
+11630.626 TEACH 48181 tally=98863 meter=98863 verdict=agree
+11630.626 TEACH 686 tally=0 meter=94075 verdict=unpaired
+11630.626 TEACH 1259790 tally=0 meter=77580 verdict=unpaired
+11630.626 TEACH 1262710 tally=0 meter=59577 verdict=unpaired
+11630.626 TEACH 1278047 tally=0 meter=43366 verdict=unpaired
+11630.626 TEACH 1286970 tally=0 meter=36238 verdict=unpaired
+11630.626 TEACH 446285 tally=0 meter=22498 verdict=unpaired
+11630.626 TEACH 54049 tally=0 meter=15221 verdict=unpaired
+11630.626 TEACH 234153 tally=0 meter=11308 verdict=unpaired
+11630.626 TEACH 1287663 tally=0 meter=10917 verdict=unpaired
+11630.626 TEACH 6603 tally=0 meter=8235 verdict=unpaired
+11630.626 TEACH 1260748 tally=0 meter=6159 verdict=unpaired
+11630.626 TEACH heal 1272114 meter=142573 over=0
+11630.626 TEACH heal 108366 meter=50228 over=0
+11630.626 TEACH heal 143924 meter=468 over=0
+11637.091 CAST player 445474 base=445474,445474
+11637.091 CAST player 445468 base=172,172
+11637.091 HIT nameplate1 school=36 amount=679 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11637.091   -> unknown-solo
+11638.545 HIT nameplate1 school=36 amount=1471 flag= fps=128 threat=3 group=false,false,false npc=242758 target=true
+11638.545   -> unknown-solo
+11638.798 CAST player 980 base=980,980
+11639.966 HIT nameplate1 school=36 amount=3482 flag=CRITICAL fps=107 threat=3 group=false,false,false npc=242758 target=true
+11639.966   -> unknown-solo
+11640.068 HIT nameplate1 school=4 amount=5491 flag= fps=107 threat=3 group=false,false,false npc=242758 target=true
+11640.068   -> unknown-solo
+11640.313 HIT nameplate1 school=32 amount=1127 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11640.313   -> unknown-solo
+11640.482 START player 48181
+11641.082 HIT nameplate1 school=106 amount=343 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11641.082   -> unknown-solo
+11641.470 HIT nameplate1 school=36 amount=1449 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11641.470   -> unknown-solo
+11641.814 HIT nameplate1 school=32 amount=3231 flag=CRITICAL fps=120 threat=3 group=false,false,false npc=242758 target=true
+11641.814   -> unknown-solo
+11641.961 CAST player 48181 base=48181,48181
+11642.091 HIT nameplate1 school=106 amount=343 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11642.091   -> unknown-solo
+11642.228 CAST player 1259790 base=1259790,1259790
+11642.524 HIT nameplate1 school=32 amount=22107 flag= fps=123 threat=3 group=false,false,false npc=242758 target=true
+11642.524   -> unknown-solo
+11643.029 HIT nameplate1 school=36 amount=1794 flag= fps=129 threat=3 group=false,false,false npc=242758 target=true
+11643.029   -> unknown-solo
+11643.029 HIT nameplate1 school=106 amount=411 flag= fps=129 threat=3 group=false,false,false npc=242758 target=true
+11643.029   -> unknown-solo
+11643.293 HIT nameplate1 school=32 amount=4847 flag=CRITICAL fps=127 threat=3 group=false,false,false npc=242758 target=true
+11643.293   -> unknown-solo
+11643.549 HIT nameplate1 school=32 amount=1655 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11643.549   -> unknown-solo
+11643.729 HIT nameplate1 school=32 amount=3034 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11643.729   -> unknown-solo
+11644.037 CAST player 1259790 base=1259790,1259790
+11644.037 HIT nameplate1 school=106 amount=411 flag= fps=125 threat=3 group=false,false,false npc=242758 target=true
+11644.037   -> unknown-solo
+11644.486 HIT nameplate1 school=36 amount=1744 flag= fps=127 threat=3 group=false,false,false npc=242758 target=true
+11644.486   -> unknown-solo
+11644.486 HIT nameplate1 school=32 amount=1655 flag= fps=127 threat=3 group=false,false,false npc=242758 target=true
+11644.486   -> unknown-solo
+11644.738 HIT nameplate1 school=32 amount=2705 flag= fps=126 threat=3 group=false,false,false npc=242758 target=true
+11644.738   -> unknown-solo
+11645.027 HIT nameplate1 school=106 amount=411 flag= fps=123 threat=3 group=false,false,false npc=242758 target=true
+11645.027   -> unknown-solo
+11645.284 HIT nameplate1 school=32 amount=6067 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11645.284   -> unknown-solo
+11645.517 HIT nameplate1 school=32 amount=1655 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11645.517   -> unknown-solo
+11645.787 START player 1259790
+11645.904 HIT nameplate1 school=36 amount=1778 flag= fps=99 threat=3 group=false,false,false npc=242758 target=true
+11645.904   -> unknown-solo
+11646.076 HIT nameplate1 school=106 amount=411 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11646.076   -> unknown-solo
+11646.251 HIT nameplate1 school=32 amount=6786 flag=CRITICAL fps=98 threat=3 group=false,false,false npc=242758 target=true
+11646.251   -> unknown-solo
+11646.251 HIT nameplate1 school=4 amount=6589 flag= fps=98 threat=3 group=false,false,false npc=242758 target=true
+11646.251   -> unknown-solo
+11646.547 HIT nameplate1 school=32 amount=1655 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11646.547   -> unknown-solo
+11646.692 CAST pet 54049 base=54049,54049
+11646.692 HIT nameplate1 school=32 amount=6024 flag=CRITICAL fps=105 threat=3 group=false,false,false npc=242758 target=true
+11646.692   -> unknown-solo
+11646.692 HIT nameplate1 school=32 amount=6068 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11646.692   -> unknown-solo
+11646.910 CAST player 1259790 base=1259790,1259790
+11647.025 HIT nameplate1 school=1 amount=1177 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11647.025   -> unknown-solo
+11647.079 HIT nameplate1 school=106 amount=412 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11647.079   -> unknown-solo
+11647.489 HIT nameplate1 school=36 amount=1796 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11647.489   -> unknown-solo
+11647.489 HIT nameplate1 school=4 amount=6589 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11647.489   -> unknown-solo
+11647.489 START player 1259790
+11647.489 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=105 threat=3 group=false,false,false npc=242758 target=true
+11647.489   -> unknown-solo
+11647.719 HIT nameplate1 school=32 amount=3607 flag= fps=98 threat=3 group=false,false,false npc=242758 target=true
+11647.719   -> unknown-solo
+11648.087 HIT nameplate1 school=106 amount=412 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11648.087   -> unknown-solo
+11648.215 HIT nameplate1 school=32 amount=9102 flag= fps=92 threat=3 group=false,false,false npc=242758 target=true
+11648.215   -> unknown-solo
+11648.494 HIT nameplate1 school=32 amount=1655 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11648.494   -> unknown-solo
+11648.656 CAST player 1259790 base=1259790,1259790
+11648.934 HIT nameplate1 school=36 amount=1751 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11648.934   -> tracker 48181
+11649.093 HIT nameplate1 school=106 amount=412 flag= fps=90 threat=3 group=false,false,false npc=242758 target=true
+11649.093   -> unknown-solo
+11649.093 CAST pet 54049 base=54049,54049
+11649.093 HIT nameplate1 school=32 amount=3003 flag= fps=90 threat=3 group=false,false,false npc=242758 target=true
+11649.093   -> unknown-solo
+11649.140 HIT nameplate1 school=1 amount=1176 flag= fps=87 threat=3 group=false,false,false npc=242758 target=true
+11649.140   -> unknown-solo
+11649.225 HIT nameplate1 school=32 amount=3606 flag= fps=85 threat=3 group=false,false,false npc=242758 target=true
+11649.225   -> unknown-solo
+11649.225 CAST player 234153 base=234153,234153
+11649.494 HIT nameplate1 school=32 amount=3309 flag=CRITICAL fps=85 threat=3 group=false,false,false npc=242758 target=true
+11649.494   -> unknown-solo
+11649.727 HIT nameplate1 school=32 amount=1413 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11649.727   -> unknown-solo
+11649.727 HEAL player school=1 amount=9891 flag=
+11649.727   -> unknown-solo
+11649.727 HIT nameplate1 school=32 amount=12136 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11649.727   -> unknown-solo
+11650.075 HIT nameplate1 school=106 amount=412 flag= fps=98 threat=3 group=false,false,false npc=242758 target=true
+11650.075   -> unknown-solo
+11650.191 HIT nameplate1 school=32 amount=2827 flag=CRITICAL fps=96 threat=3 group=false,false,false npc=242758 target=true
+11650.191   -> unknown-solo
+11650.191 HEAL player school=1 amount=19789 flag=
+11650.191   -> unknown-solo
+11650.436 HIT nameplate1 school=36 amount=1760 flag= fps=98 threat=3 group=false,false,false npc=242758 target=true
+11650.436   -> tracker 48181
+11650.552 HIT nameplate1 school=32 amount=3309 flag=CRITICAL fps=105 threat=3 group=false,false,false npc=242758 target=true
+11650.552   -> unknown-solo
+11650.659 HIT nameplate1 school=32 amount=1413 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11650.659   -> unknown-solo
+11650.659 HEAL player school=1 amount=9891 flag=
+11650.659   -> unknown-solo
+11650.659 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=110 threat=3 group=false,false,false npc=242758 target=true
+11650.659   -> unknown-solo
+11651.007 HIT nameplate1 school=1 amount=1176 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11651.007   -> unknown-solo
+11651.079 HIT nameplate1 school=106 amount=412 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11651.079   -> unknown-solo
+11651.079 HIT nameplate1 school=32 amount=1413 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11651.079   -> unknown-solo
+11651.079 HEAL player school=1 amount=9891 flag=
+11651.079   -> unknown-solo
+11651.229 HIT nameplate1 school=32 amount=9101 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11651.229   -> unknown-solo
+11651.555 HIT nameplate1 school=32 amount=3309 flag=CRITICAL fps=122 threat=3 group=false,false,false npc=242758 target=true
+11651.555   -> unknown-solo
+11651.555 HIT nameplate1 school=32 amount=1414 flag= fps=122 threat=3 group=false,false,false npc=242758 target=true
+11651.555   -> unknown-solo
+11651.555 HEAL player school=1 amount=9898 flag=
+11651.555   -> unknown-solo
+11651.900 CAST player 686 base=686,686
+11651.900 HIT nameplate1 school=36 amount=1764 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11651.900   -> tracker 48181
+11652.044 HIT nameplate1 school=106 amount=412 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11652.044   -> unknown-solo
+11652.143 HIT nameplate1 school=1 amount=1177 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11652.143   -> unknown-solo
+11652.193 HIT nameplate1 school=32 amount=3606 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11652.193   -> unknown-solo
+11652.509 HIT nameplate1 school=32 amount=1655 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11652.509   -> unknown-solo
+11652.702 HIT nameplate1 school=32 amount=6067 flag= fps=124 threat=3 group=false,false,false npc=242758 target=true
+11652.702   -> unknown-solo
+11653.060 HIT nameplate1 school=32 amount=12914 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11653.060   -> unknown-solo
+11653.060 HIT nameplate1 school=106 amount=412 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11653.060   -> unknown-solo
+11653.400 HIT nameplate1 school=36 amount=1760 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11653.400   -> tracker 48181
+11653.511 HIT nameplate1 school=32 amount=3309 flag=CRITICAL fps=114 threat=3 group=false,false,false npc=242758 target=true
+11653.511   -> unknown-solo
+11653.612 START player 686
+11653.612 HIT nameplate1 school=32 amount=3607 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11653.612   -> unknown-solo
+11654.025 HIT nameplate1 school=106 amount=412 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11654.025   -> unknown-solo
+11654.053 HIT nameplate1 school=1 amount=2354 flag=CRITICAL fps=114 threat=3 group=false,false,false npc=242758 target=true
+11654.053   -> unknown-solo
+11654.187 HIT nameplate1 school=32 amount=6068 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11654.187   -> unknown-solo
+11654.524 HIT nameplate1 school=32 amount=1655 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11654.524   -> unknown-solo
+11654.834 CAST pet 54049 base=54049,54049
+11654.834 HIT nameplate1 school=32 amount=2986 flag= fps=107 threat=3 group=false,false,false npc=242758 target=true
+11654.834   -> unknown-solo
+11654.834 HIT nameplate1 school=36 amount=1760 flag= fps=107 threat=3 group=false,false,false npc=242758 target=true
+11654.834   -> tracker 48181
+11655.088 HIT nameplate1 school=106 amount=412 flag= fps=97 threat=3 group=false,false,false npc=242758 target=true
+11655.088   -> unknown-solo
+11655.088 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=97 threat=3 group=false,false,false npc=242758 target=true
+11655.088   -> unknown-solo
+11655.216 CAST player 686 base=686,686
+11655.376 CAST player 234153 base=234153,234153
+11655.519 HIT nameplate1 school=32 amount=1655 flag= fps=99 threat=3 group=false,false,false npc=242758 target=true
+11655.519   -> unknown-solo
+11655.658 HIT nameplate1 school=32 amount=3034 flag= fps=99 threat=3 group=false,false,false npc=242758 target=true
+11655.658   -> unknown-solo
+11655.850 HIT nameplate1 school=32 amount=1414 flag= fps=103 threat=3 group=false,false,false npc=242758 target=true
+11655.850   -> unknown-solo
+11655.850 HEAL player school=1 amount=9898 flag=
+11655.850   -> unknown-solo
+11656.051 HIT nameplate1 school=106 amount=412 flag= fps=100 threat=3 group=false,false,false npc=242758 target=true
+11656.051   -> unknown-solo
+11656.267 HIT nameplate1 school=32 amount=1413 flag= fps=100 threat=3 group=false,false,false npc=242758 target=true
+11656.267   -> unknown-solo
+11656.267 HEAL player school=1 amount=9891 flag=
+11656.267   -> unknown-solo
+11656.267 HIT nameplate1 school=4 amount=6589 flag= fps=100 threat=3 group=false,false,false npc=242758 target=true
+11656.267   -> unknown-solo
+11656.371 HIT nameplate1 school=32 amount=10064 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11656.371   -> unknown-solo
+11656.371 HIT nameplate1 school=36 amount=1778 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11656.371   -> tracker 48181
+11656.519 HIT nameplate1 school=32 amount=1654 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11656.519   -> unknown-solo
+11656.648 HIT nameplate1 school=32 amount=1986 flag= fps=100 threat=3 group=false,false,false npc=242758 target=true
+11656.648   -> unknown-solo
+11656.648 HIT nameplate1 school=32 amount=3607 flag= fps=100 threat=3 group=false,false,false npc=242758 target=true
+11656.648   -> unknown-solo
+11656.750 HIT nameplate1 school=1 amount=1177 flag= fps=103 threat=3 group=false,false,false npc=242758 target=true
+11656.750   -> unknown-solo
+11656.768 HIT nameplate1 school=32 amount=2827 flag=CRITICAL fps=103 threat=3 group=false,false,false npc=242758 target=true
+11656.768   -> unknown-solo
+11656.768 HEAL player school=1 amount=19789 flag=
+11656.768   -> unknown-solo
+11657.242 HIT nameplate1 school=32 amount=1413 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11657.242   -> unknown-solo
+11657.242 HEAL player school=1 amount=9891 flag=
+11657.242   -> unknown-solo
+11657.242 HIT nameplate1 school=106 amount=411 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11657.242   -> unknown-solo
+11657.505 HIT nameplate1 school=32 amount=1655 flag= fps=127 threat=3 group=false,false,false npc=242758 target=true
+11657.505   -> unknown-solo
+11657.674 HIT nameplate1 school=32 amount=2826 flag=CRITICAL fps=125 threat=3 group=false,false,false npc=242758 target=true
+11657.674   -> unknown-solo
+11657.674 HEAL player school=1 amount=19782 flag=
+11657.674   -> unknown-solo
+11657.879 HIT nameplate1 school=36 amount=1792 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11657.879   -> tracker 48181
+11657.879 START player 48181
+11658.077 HIT nameplate1 school=32 amount=3607 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11658.077   -> unknown-solo
+11658.336 HIT nameplate1 school=106 amount=411 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11658.336   -> unknown-solo
+11658.430 HIT nameplate1 school=1 amount=2353 flag=CRITICAL fps=117 threat=3 group=false,false,false npc=242758 target=true
+11658.430   -> unknown-solo
+11658.478 HIT nameplate1 school=32 amount=1655 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11658.478   -> unknown-solo
+11659.314 CAST player 48181 base=48181,48181
+11659.314 HIT nameplate1 school=106 amount=411 flag= fps=95 threat=3 group=false,false,false npc=242758 target=true
+11659.314   -> unknown-solo
+11659.314 HIT nameplate1 school=36 amount=1809 flag= fps=95 threat=3 group=false,false,false npc=242758 target=true
+11659.314   -> tracker 48181
+11659.528 HIT nameplate1 school=32 amount=1655 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11659.528   -> unknown-solo
+11659.628 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=108 threat=3 group=false,false,false npc=242758 target=true
+11659.628   -> unknown-solo
+11659.628 START player 1259790
+11659.875 HIT nameplate1 school=32 amount=26789 flag= fps=107 threat=3 group=false,false,false npc=242758 target=true
+11659.875   -> unknown-solo
+11660.323 HIT nameplate1 school=1 amount=1176 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11660.323   -> unknown-solo
+11660.332 HIT nameplate1 school=106 amount=411 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11660.332   -> unknown-solo
+11660.511 CAST pet 54049 base=54049,54049
+11660.511 HIT nameplate1 school=32 amount=3003 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11660.511   -> unknown-solo
+11660.511 HIT nameplate1 school=32 amount=1655 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11660.511   -> unknown-solo
+11660.756 CAST player 1259790 base=1259790,1259790
+11660.756 HIT nameplate1 school=36 amount=1744 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11660.756   -> tracker 48181
+11660.756 HIT nameplate1 school=8 amount=1056 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11660.756   -> unknown-solo
+11661.107 HIT nameplate1 school=32 amount=3607 flag= fps=106 threat=3 group=false,false,false npc=242758 target=true
+11661.107   -> unknown-solo
+11661.274 HIT nameplate1 school=106 amount=411 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11661.274   -> unknown-solo
+11661.382 START player 686
+11661.549 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=98 threat=3 group=false,false,false npc=242758 target=true
+11661.549   -> unknown-solo
+11661.549 HIT nameplate1 school=8 amount=4223 flag=CRITICAL fps=98 threat=3 group=false,false,false npc=242758 target=true
+11661.549   -> unknown-solo
+11661.732 HIT nameplate1 school=36 amount=11823 flag=CRITICAL fps=89 threat=3 group=false,false,false npc=242758 target=true
+11661.732   -> unknown-solo
+11661.751 HIT nameplate1 school=1 amount=1177 flag= fps=87 threat=3 group=false,false,false npc=242758 target=true
+11661.751   -> unknown-solo
+11662.251 HIT nameplate1 school=32 amount=3034 flag= fps=85 threat=3 group=false,false,false npc=242758 target=true
+11662.251   -> unknown-solo
+11662.251 CAST player 234153 base=234153,234153
+11662.251 HIT nameplate1 school=36 amount=1737 flag= fps=85 threat=3 group=false,false,false npc=242758 target=true
+11662.251   -> tracker 48181
+11662.251 HIT nameplate1 school=106 amount=411 flag= fps=85 threat=3 group=false,false,false npc=242758 target=true
+11662.251   -> unknown-solo
+11662.351 HIT nameplate1 school=8 amount=8447 flag=CRITICAL fps=89 threat=3 group=false,false,false npc=242758 target=true
+11662.351   -> unknown-solo
+11662.547 HIT nameplate1 school=32 amount=1655 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11662.547   -> unknown-solo
+11662.547 HIT nameplate1 school=32 amount=3607 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11662.547   -> unknown-solo
+11662.547 HIT nameplate1 school=4 amount=6589 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11662.547   -> unknown-solo
+11662.687 HIT nameplate1 school=32 amount=1414 flag= fps=90 threat=3 group=false,false,false npc=242758 target=true
+11662.687   -> unknown-solo
+11662.687 HEAL player school=1 amount=9898 flag=
+11662.687   -> unknown-solo
+11662.687 HIT nameplate1 school=36 amount=5159 flag= fps=90 threat=3 group=false,false,false npc=242758 target=true
+11662.687   -> unknown-solo
+11663.232 HIT nameplate1 school=32 amount=1414 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11663.232   -> unknown-solo
+11663.232 HEAL player school=1 amount=9898 flag=
+11663.232   -> unknown-solo
+11663.335 HIT nameplate1 school=106 amount=412 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11663.335   -> unknown-solo
+11663.377 HIT nameplate1 school=1 amount=1177 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11663.377   -> unknown-solo
+11663.535 HIT nameplate1 school=32 amount=1654 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11663.535   -> unknown-solo
+11663.687 HIT nameplate1 school=32 amount=1414 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11663.687   -> unknown-solo
+11663.687 HEAL player school=1 amount=9898 flag=
+11663.687   -> unknown-solo
+11663.687 HIT nameplate1 school=32 amount=6522 flag=CRITICAL fps=120 threat=3 group=false,false,false npc=242758 target=true
+11663.687   -> unknown-solo
+11663.687 HIT nameplate1 school=36 amount=11393 flag=CRITICAL fps=120 threat=3 group=false,false,false npc=242758 target=true
+11663.687   -> unknown-solo
+11663.788 HIT nameplate1 school=36 amount=4160 flag=CRITICAL fps=118 threat=3 group=false,false,false npc=242758 target=true
+11663.788   -> tracker 48181
+11664.082 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=114 threat=3 group=false,false,false npc=242758 target=true
+11664.082   -> unknown-solo
+11664.082 HIT nameplate1 school=32 amount=1413 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11664.082   -> unknown-solo
+11664.082 HEAL player school=1 amount=9891 flag=
+11664.082   -> unknown-solo
+11664.343 HIT nameplate1 school=106 amount=412 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11664.343   -> unknown-solo
+11664.535 HIT nameplate1 school=32 amount=1655 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11664.535   -> unknown-solo
+11664.535 HIT nameplate1 school=32 amount=1413 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11664.535   -> unknown-solo
+11664.535 HEAL player school=1 amount=9891 flag=
+11664.535   -> unknown-solo
+11664.785 HIT nameplate1 school=36 amount=4968 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11664.785   -> unknown-solo
+11665.217 HIT nameplate1 school=32 amount=3034 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11665.217   -> unknown-solo
+11665.217 HIT nameplate1 school=36 amount=1736 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11665.217   -> tracker 48181
+11665.342 HIT nameplate1 school=106 amount=412 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11665.342   -> unknown-solo
+11665.469 HIT nameplate1 school=32 amount=43366 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11665.469   -> unknown-solo
+11665.469 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=116 threat=3 group=false,false,false npc=242758 target=true
+11665.469   -> unknown-solo
+11665.469 HIT nameplate1 school=32 amount=3607 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11665.469   -> unknown-solo
+11665.758 CAST player 234153 base=234153,234153
+11665.758 HIT nameplate1 school=36 amount=10963 flag=CRITICAL fps=113 threat=3 group=false,false,false npc=242758 target=true
+11665.758   -> unknown-solo
+11665.883 HIT nameplate1 school=1 amount=1177 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11665.883   -> unknown-solo
+11666.207 CAST pet 54049 base=54049,54049
+11666.207 HIT nameplate1 school=32 amount=3063 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11666.207   -> unknown-solo
+11666.207 HIT nameplate1 school=32 amount=1413 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11666.207   -> unknown-solo
+11666.207 HEAL player school=1 amount=9891 flag=
+11666.207   -> unknown-solo
+11666.330 HIT nameplate1 school=106 amount=412 flag= fps=107 threat=3 group=false,false,false npc=242758 target=true
+11666.330   -> unknown-solo
+11666.540 HIT nameplate1 school=32 amount=1655 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11666.540   -> unknown-solo
+11666.695 HIT nameplate1 school=32 amount=1413 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11666.695   -> unknown-solo
+11666.695 HEAL player school=1 amount=9891 flag=
+11666.695   -> unknown-solo
+11666.695 HIT nameplate1 school=32 amount=6523 flag=CRITICAL fps=109 threat=3 group=false,false,false npc=242758 target=true
+11666.695   -> unknown-solo
+11666.695 HIT nameplate1 school=4 amount=6589 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11666.695   -> unknown-solo
+11666.695 HIT nameplate1 school=36 amount=1776 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11666.695   -> tracker 48181
+11667.023 HIT nameplate1 school=32 amount=3607 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11667.023   -> unknown-solo
+11667.164 HIT nameplate1 school=32 amount=2827 flag=CRITICAL fps=101 threat=3 group=false,false,false npc=242758 target=true
+11667.164   -> unknown-solo
+11667.164 HEAL player school=1 amount=19789 flag=
+11667.164   -> unknown-solo
+11667.339 HIT nameplate1 school=106 amount=412 flag= fps=98 threat=3 group=false,false,false npc=242758 target=true
+11667.339   -> unknown-solo
+11667.502 HIT nameplate1 school=1 amount=1177 flag= fps=98 threat=3 group=false,false,false npc=242758 target=true
+11667.502   -> unknown-solo
+11667.540 HIT nameplate1 school=32 amount=1655 flag= fps=99 threat=3 group=false,false,false npc=242758 target=true
+11667.540   -> unknown-solo
+11667.540 HIT nameplate1 school=32 amount=2826 flag=CRITICAL fps=99 threat=3 group=false,false,false npc=242758 target=true
+11667.540   -> unknown-solo
+11667.540 HEAL player school=1 amount=19782 flag=
+11667.540   -> unknown-solo
+11668.092 HIT nameplate1 school=32 amount=1413 flag= fps=93 threat=3 group=false,false,false npc=242758 target=true
+11668.092   -> unknown-solo
+11668.092 HEAL player school=1 amount=9891 flag=
+11668.092   -> unknown-solo
+11668.092 HIT nameplate1 school=32 amount=6523 flag=CRITICAL fps=93 threat=3 group=false,false,false npc=242758 target=true
+11668.092   -> unknown-solo
+11668.242 HIT nameplate1 school=36 amount=4149 flag=CRITICAL fps=89 threat=3 group=false,false,false npc=242758 target=true
+11668.242   -> tracker 48181
+11668.242 CAST player 205180 base=205180,205180
+11668.242 HIT nameplate1 school=106 amount=412 flag= fps=89 threat=3 group=false,false,false npc=242758 target=true
+11668.242   -> unknown-solo
+11668.536 HIT nameplate1 school=32 amount=4328 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11668.536   -> unknown-solo
+11668.536 HIT nameplate1 school=32 amount=1655 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11668.536   -> unknown-solo
+11668.761 HIT nameplate1 school=32 amount=3031 flag=CRITICAL fps=91 threat=3 group=false,false,false npc=242758 target=true
+11668.761   -> unknown-solo
+11669.324 HIT nameplate1 school=106 amount=412 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11669.324   -> unknown-solo
+11669.455 HIT nameplate1 school=32 amount=1655 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11669.455   -> unknown-solo
+11669.585 HIT nameplate1 school=1 amount=1176 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11669.585   -> unknown-solo
+11669.691 CAST player 234153 base=234153,234153
+11669.691 HIT nameplate1 school=36 amount=2154 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11669.691   -> tracker 48181
+11670.022 HIT nameplate1 school=32 amount=4328 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11670.022   -> unknown-solo
+11670.126 HIT nameplate1 school=32 amount=1414 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11670.126   -> unknown-solo
+11670.126 HEAL player school=1 amount=9898 flag=
+11670.126   -> unknown-solo
+11670.126 HIT nameplate1 school=32 amount=13480 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11670.126   -> unknown-solo
+11670.281 HIT nameplate1 school=106 amount=412 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11670.281   -> unknown-solo
+11670.547 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=103 threat=3 group=false,false,false npc=242758 target=true
+11670.547   -> unknown-solo
+11670.547 HIT nameplate1 school=32 amount=1414 flag= fps=103 threat=3 group=false,false,false npc=242758 target=true
+11670.547   -> unknown-solo
+11670.547 HEAL player school=1 amount=9898 flag=
+11670.547   -> unknown-solo
+11670.792 HIT nameplate1 school=1 amount=1177 flag= fps=103 threat=3 group=false,false,false npc=242758 target=true
+11670.792   -> unknown-solo
+11671.089 CAST pet 54049 base=54049,54049
+11671.089 CAST player 442726 base=442726,442726
+11671.089 HIT nameplate1 school=32 amount=1413 flag= fps=98 threat=3 group=false,false,false npc=242758 target=true
+11671.089   -> unknown-solo
+11671.089 HIT nameplate1 school=32 amount=5979 flag=CRITICAL fps=98 threat=3 group=false,false,false npc=242758 target=true
+11671.089   -> unknown-solo
+11671.089 HIT nameplate1 school=36 amount=44994 flag=CRITICAL fps=98 threat=3 group=false,false,false npc=242758 target=true
+11671.089   -> unknown-solo
+11671.089 HEAL player school=1 amount=9891 flag=
+11671.089   -> unknown-solo
+11671.089 HIT nameplate1 school=36 amount=2087 flag= fps=98 threat=3 group=false,false,false npc=242758 target=true
+11671.089   -> tracker 48181
+11671.330 HIT nameplate1 school=106 amount=412 flag= fps=100 threat=3 group=false,false,false npc=242758 target=true
+11671.330   -> unknown-solo
+11671.330 HIT nameplate1 school=32 amount=4328 flag= fps=100 threat=3 group=false,false,false npc=242758 target=true
+11671.330   -> unknown-solo
+11671.549 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=109 threat=3 group=false,false,false npc=242758 target=true
+11671.549   -> unknown-solo
+11672.042 HIT nameplate1 school=32 amount=12991 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11672.042   -> unknown-solo
+11672.042 HIT nameplate1 school=36 amount=5541 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11672.042   -> unknown-solo
+11672.294 HIT nameplate1 school=106 amount=412 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11672.294   -> unknown-solo
+11672.404 HIT nameplate1 school=36 amount=4811 flag=CRITICAL fps=120 threat=3 group=false,false,false npc=242758 target=true
+11672.404   -> tracker 48181
+11672.404 HIT nameplate1 school=4 amount=6589 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11672.404   -> unknown-solo
+11672.543 HIT nameplate1 school=32 amount=3309 flag=CRITICAL fps=118 threat=3 group=false,false,false npc=242758 target=true
+11672.543   -> unknown-solo
+11672.543 CAST player 1259790 base=1259790,1259790
+11672.655 HIT nameplate1 school=32 amount=9306 flag=CRITICAL fps=112 threat=3 group=false,false,false npc=242758 target=true
+11672.655   -> unknown-solo
+11673.099 HIT nameplate1 school=36 amount=12682 flag=CRITICAL fps=108 threat=3 group=false,false,false npc=242758 target=true
+11673.099   -> unknown-solo
+11673.302 HIT nameplate1 school=106 amount=412 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11673.302   -> unknown-solo
+11673.523 HIT nameplate1 school=32 amount=1655 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11673.523   -> unknown-solo
+11673.762 HIT nameplate1 school=36 amount=2152 flag= fps=116 threat=3 group=false,false,false npc=242758 target=true
+11673.762   -> tracker 48181
+11673.895 HIT nameplate1 school=32 amount=14088 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11673.895   -> unknown-solo
+11673.895 HIT nameplate1 school=32 amount=3911 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11673.895   -> unknown-solo
+11673.999 HIT nameplate1 school=32 amount=9306 flag=CRITICAL fps=114 threat=3 group=false,false,false npc=242758 target=true
+11673.999   -> unknown-solo
+11674.106 HIT nameplate1 school=36 amount=5541 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11674.106   -> unknown-solo
+11674.106 CAST player 686 base=686,686
+11674.332 HIT nameplate1 school=106 amount=412 flag= fps=111 threat=3 group=false,false,false npc=242758 target=true
+11674.332   -> unknown-solo
+11674.559 HIT nameplate1 school=32 amount=1655 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11674.559   -> unknown-solo
+11675.099 HIT nameplate1 school=36 amount=5030 flag=CRITICAL fps=109 threat=3 group=false,false,false npc=242758 target=true
+11675.099   -> tracker 48181
+11675.099 HIT nameplate1 school=36 amount=5446 flag= fps=109 threat=3 group=false,false,false npc=242758 target=true
+11675.099   -> unknown-solo
+11675.223 HIT nameplate1 school=32 amount=12538 flag= fps=107 threat=3 group=false,false,false npc=242758 target=true
+11675.223   -> unknown-solo
+11675.223 HIT nameplate1 school=32 amount=3910 flag= fps=107 threat=3 group=false,false,false npc=242758 target=true
+11675.223   -> unknown-solo
+11675.332 HIT nameplate1 school=32 amount=4329 flag= fps=106 threat=3 group=false,false,false npc=242758 target=true
+11675.332   -> unknown-solo
+11675.332 HIT nameplate1 school=106 amount=412 flag= fps=106 threat=3 group=false,false,false npc=242758 target=true
+11675.332   -> unknown-solo
+11675.515 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=102 threat=3 group=false,false,false npc=242758 target=true
+11675.515   -> unknown-solo
+11675.754 START player 48181
+11675.754 HIT nameplate1 school=32 amount=14493 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11675.754   -> unknown-solo
+11676.111 HIT nameplate1 school=36 amount=12038 flag=CRITICAL fps=89 threat=3 group=false,false,false npc=242758 target=true
+11676.111   -> unknown-solo
+11676.342 HIT nameplate1 school=106 amount=412 flag= fps=90 threat=3 group=false,false,false npc=242758 target=true
+11676.342   -> unknown-solo
+11676.342 HIT nameplate1 school=36 amount=2104 flag= fps=90 threat=3 group=false,false,false npc=242758 target=true
+11676.342   -> tracker 48181
+11676.552 HIT nameplate1 school=32 amount=1655 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11676.552   -> unknown-solo
+11676.552 HIT nameplate1 school=32 amount=3911 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11676.552   -> unknown-solo
+11676.652 HIT nameplate1 school=32 amount=4328 flag= fps=94 threat=3 group=false,false,false npc=242758 target=true
+11676.652   -> unknown-solo
+11676.964 CAST player 48181 base=48181,48181
+11677.102 HIT nameplate1 school=36 amount=5255 flag= fps=100 threat=3 group=false,false,false npc=242758 target=true
+11677.102   -> unknown-solo
+11677.302 START player 1259790
+11677.302 HIT nameplate1 school=106 amount=412 flag= fps=97 threat=3 group=false,false,false npc=242758 target=true
+11677.302   -> unknown-solo
+11677.447 HIT nameplate1 school=32 amount=14000 flag= fps=94 threat=3 group=false,false,false npc=242758 target=true
+11677.447   -> unknown-solo
+11677.460 HIT nameplate1 school=32 amount=54924 flag=CRITICAL fps=94 threat=3 group=false,false,false npc=242758 target=true
+11677.460   -> unknown-solo
+11677.553 HIT nameplate1 school=32 amount=1654 flag= fps=93 threat=3 group=false,false,false npc=242758 target=true
+11677.553   -> unknown-solo
+11677.745 HIT nameplate1 school=36 amount=4876 flag=CRITICAL fps=101 threat=3 group=false,false,false npc=242758 target=true
+11677.745   -> tracker 48181
+11677.908 HIT nameplate1 school=32 amount=3910 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11677.908   -> unknown-solo
+11677.908 HIT nameplate1 school=32 amount=4328 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11677.908   -> unknown-solo
+11678.097 HIT nameplate1 school=36 amount=5159 flag= fps=106 threat=3 group=false,false,false npc=242758 target=true
+11678.097   -> unknown-solo
+11678.302 CAST player 1259790 base=1259790,1259790
+11678.302 HIT nameplate1 school=106 amount=412 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11678.302   -> unknown-solo
+11678.302 CAST pet 54049 base=54049,54049
+11678.409 HIT nameplate1 school=32 amount=3066 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11678.409   -> unknown-solo
+11678.554 HIT nameplate1 school=32 amount=1655 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11678.554   -> unknown-solo
+11678.812 START player 1259790
+11678.921 HIT nameplate1 school=1 amount=1177 flag= fps=94 threat=3 group=false,false,false npc=242758 target=true
+11678.921   -> unknown-solo
+11679.065 HIT nameplate1 school=36 amount=4866 flag=CRITICAL fps=91 threat=3 group=false,false,false npc=242758 target=true
+11679.065   -> tracker 48181
+11679.065 HIT nameplate1 school=36 amount=5254 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11679.065   -> unknown-solo
+11679.065 HIT nameplate1 school=32 amount=14093 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11679.065   -> unknown-solo
+11679.210 HIT nameplate1 school=32 amount=7820 flag= fps=88 threat=3 group=false,false,false npc=242758 target=true
+11679.210   -> unknown-solo
+11679.210 HIT nameplate1 school=32 amount=4328 flag= fps=88 threat=3 group=false,false,false npc=242758 target=true
+11679.210   -> unknown-solo
+11679.337 HIT nameplate1 school=106 amount=412 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11679.337   -> unknown-solo
+11679.551 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=89 threat=3 group=false,false,false npc=242758 target=true
+11679.551   -> unknown-solo
+11679.755 CAST player 1259790 base=1259790,1259790
+11680.031 HIT nameplate1 school=36 amount=5350 flag= fps=86 threat=3 group=false,false,false npc=242758 target=true
+11680.031   -> unknown-solo
+11680.345 HIT nameplate1 school=106 amount=412 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11680.345   -> unknown-solo
+11680.345 HIT nameplate1 school=36 amount=2069 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11680.345   -> tracker 48181
+11680.463 CAST player 234153 base=234153,234153
+11680.463 HIT nameplate1 school=32 amount=1655 flag= fps=99 threat=3 group=false,false,false npc=242758 target=true
+11680.463   -> unknown-solo
+11680.562 HIT nameplate1 school=32 amount=11731 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11680.562   -> unknown-solo
+11680.562 CAST pet 88461 base=88461,88461
+11680.562 HIT nameplate1 school=32 amount=4328 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11680.562   -> unknown-solo
+11680.599 HIT nameplate1 school=1 amount=1177 flag= fps=98 threat=3 group=false,false,false npc=242758 target=true
+11680.599   -> unknown-solo
+11680.789 HIT nameplate1 school=32 amount=13950 flag= fps=94 threat=3 group=false,false,false npc=242758 target=true
+11680.789   -> unknown-solo
+11680.789 HIT nameplate1 school=32 amount=1413 flag= fps=94 threat=3 group=false,false,false npc=242758 target=true
+11680.789   -> unknown-solo
+11680.789 HEAL player school=1 amount=9891 flag=
+11680.789   -> unknown-solo
+11681.114 HIT nameplate1 school=36 amount=5254 flag= fps=88 threat=3 group=false,false,false npc=242758 target=true
+11681.114   -> unknown-solo
+11681.238 HIT nameplate1 school=32 amount=1413 flag= fps=88 threat=3 group=false,false,false npc=242758 target=true
+11681.238   -> unknown-solo
+11681.238 HEAL player school=1 amount=9891 flag=
+11681.238   -> unknown-solo
+11681.238 HIT nameplate1 school=106 amount=412 flag= fps=88 threat=3 group=false,false,false npc=242758 target=true
+11681.238   -> unknown-solo
+11681.545 HIT nameplate1 school=32 amount=1655 flag= fps=106 threat=3 group=false,false,false npc=242758 target=true
+11681.545   -> unknown-solo
+11681.545 HIT nameplate1 school=32 amount=43366 flag= fps=106 threat=3 group=false,false,false npc=242758 target=true
+11681.545   -> unknown-solo
+11681.718 HIT nameplate1 school=36 amount=2119 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11681.718   -> tracker 48181
+11681.718 START player 1259790
+11681.930 HIT nameplate1 school=32 amount=7821 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11681.930   -> unknown-solo
+11681.930 HIT nameplate1 school=32 amount=4329 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11681.930   -> unknown-solo
+11682.050 HIT nameplate1 school=36 amount=5160 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11682.050   -> unknown-solo
+11682.403 HIT nameplate1 school=32 amount=14638 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11682.403   -> unknown-solo
+11682.545 HIT nameplate1 school=32 amount=1655 flag= fps=94 threat=3 group=false,false,false npc=242758 target=true
+11682.545   -> unknown-solo
+11682.802 CAST player 1259790 base=1259790,1259790
+11682.967 HIT nameplate1 school=36 amount=2073 flag= fps=92 threat=3 group=false,false,false npc=242758 target=true
+11682.967   -> tracker 48181
+11683.076 HIT nameplate1 school=4 amount=6589 flag= fps=93 threat=3 group=false,false,false npc=242758 target=true
+11683.076   -> unknown-solo
+11683.076 HIT nameplate1 school=36 amount=5255 flag= fps=93 threat=3 group=false,false,false npc=242758 target=true
+11683.076   -> unknown-solo
+11683.257 HIT nameplate1 school=32 amount=11731 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11683.257   -> unknown-solo
+11683.257 HIT nameplate1 school=32 amount=4328 flag= fps=91 threat=3 group=false,false,false npc=242758 target=true
+11683.257   -> unknown-solo
+11683.257 CAST player 686 base=686,686
+11683.552 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=94 threat=3 group=false,false,false npc=242758 target=true
+11683.552   -> unknown-solo
+11684.069 HIT nameplate1 school=106 amount=412 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11684.069   -> unknown-solo
+11684.069 HIT nameplate1 school=32 amount=14280 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11684.069   -> unknown-solo
+11684.361 HIT nameplate1 school=32 amount=12503 flag= fps=103 threat=3 group=false,false,false npc=242758 target=true
+11684.361   -> unknown-solo
+11684.361 HIT nameplate1 school=36 amount=5022 flag=CRITICAL fps=103 threat=3 group=false,false,false npc=242758 target=true
+11684.361   -> tracker 48181
+11684.465 HIT nameplate1 school=32 amount=3309 flag=CRITICAL fps=102 threat=3 group=false,false,false npc=242758 target=true
+11684.465   -> unknown-solo
+11684.579 HIT nameplate1 school=32 amount=11731 flag= fps=100 threat=3 group=false,false,false npc=242758 target=true
+11684.579   -> unknown-solo
+11684.579 HIT nameplate1 school=32 amount=4328 flag= fps=100 threat=3 group=false,false,false npc=242758 target=true
+11684.579   -> unknown-solo
+11684.879 START player 686
+11685.061 HIT nameplate1 school=106 amount=412 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11685.061   -> unknown-solo
+11685.556 HIT nameplate1 school=32 amount=3309 flag=CRITICAL fps=110 threat=3 group=false,false,false npc=242758 target=true
+11685.556   -> unknown-solo
+11685.693 HIT nameplate1 school=36 amount=2135 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11685.693   -> tracker 48181
+11685.812 HIT nameplate1 school=32 amount=14527 flag= fps=103 threat=3 group=false,false,false npc=242758 target=true
+11685.812   -> unknown-solo
+11685.906 HIT nameplate1 school=32 amount=11731 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11685.906   -> unknown-solo
+11685.906 HIT nameplate1 school=32 amount=4328 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11685.906   -> unknown-solo
+11686.073 HIT nameplate1 school=106 amount=412 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11686.073   -> unknown-solo
+11686.298 CAST player 686 base=686,686
+11686.412 CAST player 980 base=980,980
+11686.513 HIT nameplate1 school=32 amount=3309 flag=CRITICAL fps=109 threat=3 group=false,false,false npc=242758 target=true
+11686.513   -> unknown-solo
+11686.950 HIT nameplate1 school=36 amount=2093 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11686.950   -> tracker 48181
+11687.035 HIT nameplate1 school=106 amount=412 flag= fps=103 threat=3 group=false,false,false npc=242758 target=true
+11687.035   -> unknown-solo
+11687.160 HIT nameplate1 school=32 amount=7821 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11687.160   -> unknown-solo
+11687.260 HIT nameplate1 school=32 amount=4328 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11687.260   -> unknown-solo
+11687.260 HIT nameplate1 school=32 amount=10040 flag= fps=113 threat=3 group=false,false,false npc=242758 target=true
+11687.260   -> unknown-solo
+11687.404 HIT nameplate1 school=32 amount=14205 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11687.404   -> unknown-solo
+11687.546 HIT nameplate1 school=32 amount=1655 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11687.546   -> unknown-solo
+11688.012 START player 1259790
+11688.012 HIT nameplate1 school=106 amount=412 flag= fps=107 threat=3 group=false,false,false npc=242758 target=true
+11688.012   -> unknown-solo
+11688.359 HIT nameplate1 school=36 amount=2099 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11688.359   -> tracker 48181
+11688.541 HIT nameplate1 school=32 amount=1655 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11688.541   -> unknown-solo
+11688.541 HIT nameplate1 school=32 amount=3911 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11688.541   -> unknown-solo
+11688.541 HIT nameplate1 school=32 amount=9306 flag=CRITICAL fps=96 threat=3 group=false,false,false npc=242758 target=true
+11688.541   -> unknown-solo
+11689.004 CAST player 1259790 base=1259790,1259790
+11689.004 HIT nameplate1 school=106 amount=412 flag= fps=84 threat=3 group=false,false,false npc=242758 target=true
+11689.004   -> unknown-solo
+11689.154 HIT nameplate1 school=32 amount=28848 flag=CRITICAL fps=85 threat=3 group=false,false,false npc=242758 target=true
+11689.154   -> unknown-solo
+11689.476 HIT nameplate1 school=32 amount=1654 flag= fps=89 threat=3 group=false,false,false npc=242758 target=true
+11689.476   -> unknown-solo
+11689.476 START player 686
+11689.641 HIT nameplate1 school=36 amount=2158 flag= fps=92 threat=3 group=false,false,false npc=242758 target=true
+11689.641   -> tracker 48181
+11689.892 HIT nameplate1 school=32 amount=16815 flag=CRITICAL fps=99 threat=3 group=false,false,false npc=242758 target=true
+11689.892   -> unknown-solo
+11689.892 HIT nameplate1 school=32 amount=4328 flag= fps=99 threat=3 group=false,false,false npc=242758 target=true
+11689.892   -> unknown-solo
+11690.083 HIT nameplate1 school=106 amount=412 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11690.083   -> unknown-solo
+11690.547 HIT nameplate1 school=32 amount=1655 flag= fps=99 threat=3 group=false,false,false npc=242758 target=true
+11690.547   -> unknown-solo
+11690.804 HIT nameplate1 school=32 amount=14330 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11690.804   -> unknown-solo
+11690.983 CAST player 686 base=686,686
+11690.983 HIT nameplate1 school=36 amount=2097 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11690.983   -> tracker 48181
+11690.983 HIT nameplate1 school=4 amount=6589 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11690.983   -> unknown-solo
+11690.983 HIT nameplate1 school=106 amount=412 flag= fps=105 threat=3 group=false,false,false npc=242758 target=true
+11690.983   -> unknown-solo
+11691.115 START player 686
+11691.216 HIT nameplate1 school=32 amount=3911 flag= fps=106 threat=3 group=false,false,false npc=242758 target=true
+11691.216   -> unknown-solo
+11691.216 HIT nameplate1 school=32 amount=4329 flag= fps=106 threat=3 group=false,false,false npc=242758 target=true
+11691.216   -> unknown-solo
+11691.555 HIT nameplate1 school=32 amount=1655 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11691.555   -> unknown-solo
+11692.073 HIT nameplate1 school=106 amount=412 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11692.073   -> unknown-solo
+11692.098 HIT nameplate1 school=32 amount=10126 flag= fps=119 threat=3 group=false,false,false npc=242758 target=true
+11692.098   -> unknown-solo
+11692.329 HIT nameplate1 school=36 amount=2100 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11692.329   -> tracker 48181
+11692.499 HIT nameplate1 school=32 amount=14205 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11692.499   -> unknown-solo
+11692.499 CAST player 686 base=686,686
+11692.499 HIT nameplate1 school=32 amount=8407 flag=CRITICAL fps=121 threat=3 group=false,false,false npc=242758 target=true
+11692.499   -> unknown-solo
+11692.499 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=121 threat=3 group=false,false,false npc=242758 target=true
+11692.499   -> unknown-solo
+11692.499 HIT nameplate1 school=4 amount=6589 flag= fps=121 threat=3 group=false,false,false npc=242758 target=true
+11692.499   -> unknown-solo
+11692.499 HIT nameplate1 school=32 amount=9306 flag=CRITICAL fps=121 threat=3 group=false,false,false npc=242758 target=true
+11692.499   -> unknown-solo
+11692.664 START player 48181
+11693.006 HIT nameplate1 school=106 amount=412 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11693.006   -> unknown-solo
+11693.309 HIT nameplate1 school=32 amount=43366 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11693.309   -> unknown-solo
+11693.544 HIT nameplate1 school=32 amount=3310 flag=CRITICAL fps=116 threat=3 group=false,false,false npc=242758 target=true
+11693.544   -> unknown-solo
+11693.649 HIT nameplate1 school=36 amount=2077 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11693.649   -> tracker 48181
+11693.649 HIT nameplate1 school=32 amount=10037 flag= fps=114 threat=3 group=false,false,false npc=242758 target=true
+11693.649   -> unknown-solo
+11693.868 HIT nameplate1 school=32 amount=3259 flag= fps=112 threat=3 group=false,false,false npc=242758 target=true
+11693.868   -> unknown-solo
+11693.868 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=112 threat=3 group=false,false,false npc=242758 target=true
+11693.868   -> unknown-solo
+11693.868 CAST player 48181 base=48181,48181
+11694.080 HIT nameplate1 school=106 amount=412 flag= fps=110 threat=3 group=false,false,false npc=242758 target=true
+11694.080   -> unknown-solo
+11694.225 START player 691
+11694.518 HIT nameplate1 school=32 amount=26986 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11694.518   -> unknown-solo
+11694.518 HIT nameplate1 school=32 amount=1655 flag= fps=120 threat=3 group=false,false,false npc=242758 target=true
+11694.518   -> unknown-solo
+11694.965 HIT nameplate1 school=36 amount=4098 flag=CRITICAL fps=117 threat=3 group=false,false,false npc=242758 target=true
+11694.965   -> tracker 48181
+11694.965 HIT nameplate1 school=4 amount=6589 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11694.965   -> unknown-solo
+11695.076 HIT nameplate1 school=106 amount=412 flag= fps=117 threat=3 group=false,false,false npc=242758 target=true
+11695.076   -> unknown-solo
+11695.195 HIT nameplate1 school=32 amount=3259 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11695.195   -> unknown-solo
+11695.195 HIT nameplate1 school=32 amount=3607 flag= fps=118 threat=3 group=false,false,false npc=242758 target=true
+11695.195   -> unknown-solo
+11695.547 HIT nameplate1 school=32 amount=1654 flag= fps=111 threat=3 group=false,false,false npc=242758 target=true
+11695.547   -> unknown-solo
+11695.984 HIT nameplate1 school=106 amount=412 flag= fps=108 threat=3 group=false,false,false npc=242758 target=true
+11695.984   -> unknown-solo
+11696.260 HIT nameplate1 school=36 amount=1810 flag= fps=101 threat=3 group=false,false,false npc=242758 target=true
+11696.260   -> tracker 48181
+11696.509 HIT nameplate1 school=32 amount=3259 flag= fps=95 threat=3 group=false,false,false npc=242758 target=true
+11696.509   -> unknown-solo
+11696.509 HIT nameplate1 school=32 amount=3607 flag= fps=95 threat=3 group=false,false,false npc=242758 target=true
+11696.509   -> unknown-solo
+11696.509 HIT nameplate1 school=32 amount=1655 flag= fps=95 threat=3 group=false,false,false npc=242758 target=true
+11696.509   -> unknown-solo
+11697.009 HIT nameplate1 school=32 amount=1211 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11697.009   -> unknown-solo
+11697.009 HIT nameplate1 school=106 amount=412 flag= fps=102 threat=3 group=false,false,false npc=242758 target=true
+11697.009   -> unknown-solo
+11697.552 HIT nameplate1 school=32 amount=1655 flag= fps=97 threat=3 group=false,false,false npc=242758 target=true
+11697.552   -> unknown-solo
+11697.552 HIT nameplate1 school=36 amount=1749 flag= fps=97 threat=3 group=false,false,false npc=242758 target=true
+11697.552   -> tracker 48181
+11697.829 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=99 threat=3 group=false,false,false npc=242758 target=true
+11697.829   -> unknown-solo
+11698.085 HIT nameplate1 school=106 amount=412 flag= fps=96 threat=3 group=false,false,false npc=242758 target=true
+11698.085   -> unknown-solo
+11698.533 HIT nameplate1 school=32 amount=1655 flag= fps=94 threat=3 group=false,false,false npc=242758 target=true
+11698.533   -> unknown-solo
+11698.956 HIT nameplate1 school=36 amount=4084 flag=CRITICAL fps=105 threat=3 group=false,false,false npc=242758 target=true
+11698.956   -> tracker 48181
+11699.080 HIT nameplate1 school=106 amount=412 flag= fps=104 threat=3 group=false,false,false npc=242758 target=true
+11699.080   -> unknown-solo
+11699.189 HIT nameplate1 school=32 amount=7755 flag=CRITICAL fps=107 threat=3 group=false,false,false npc=242758 target=true
+11699.189   -> unknown-solo
+11700.071 HIT nameplate1 school=106 amount=412 flag= fps=115 threat=3 group=false,false,false npc=242758 target=true
+11700.071   -> unknown-solo
+11700.290 HIT nameplate1 school=36 amount=1779 flag= fps=122 threat=3 group=false,false,false npc=242758 target=true
+11700.290   -> tracker 48181
+11701.290 TEACH session 3 dur=64
+11701.290 TEACH row 445468 total=233552 overkill=0 override=445468
+11701.290 TEACH row 1259790 total=221390 overkill=0 override=1259790
+11701.290 TEACH row 980 total=218410 overkill=0 override=980
+11701.290 TEACH row 205231 total=212128 overkill=0 override=205231
+11701.290 TEACH row 48181 total=130806 overkill=0 override=48181
+11701.290 TEACH row 1278047 total=130098 overkill=0 override=1278047
+11701.290 TEACH row 1262710 total=122457 overkill=0 override=1262710
+11701.290 TEACH row 686 total=78222 overkill=0 override=686
+11701.290 TEACH row 1286970 total=71381 overkill=0 override=1286970
+11701.290 TEACH row 446285 total=44994 overkill=0 override=446285
+11701.290 TEACH row 234153 total=42400 overkill=0 override=234153
+11701.290 TEACH row 54049 total=27124 overkill=0 override=54049
+11701.290 TEACH row 1287663 total=23748 overkill=0 override=1287663
+11701.290 TEACH row 6603 total=21181 overkill=0 override=6603
+11701.290 TEACH row 1260748 total=13726 overkill=0 override=1260748
+11701.290 TEACH clean seen=1590938 meter=1591617 -> clear
+11701.290 TEACH steady 686 spell=686 mode=new counted=5/7 delay=1.104-1.155 size=10037-14205 -> learned
+11701.290 TEACH steady 234153 spell=234153 mode=new counted=0/6 delay=- size=- -> none
+11701.290 TEACH steady 1259790 spell=1259790 mode=new counted=0/10 delay=- size=- -> none
+11701.290 TEACH proc 1278047 school=32 band=43366-43366 streak=3 learned
+11701.290 TEACH proc 446285 school=36 band=22498-22498 streak=0 reset
+11701.290 TEACH proc 6603 school=1 band=1176-1177 streak=3 learned
+11701.290 TEACH 445468 tally=0 meter=233552 verdict=unpaired
+11701.290 TEACH 1259790 tally=0 meter=221390 verdict=unpaired
+11701.290 TEACH 980 tally=0 meter=218410 verdict=unpaired
+11701.290 TEACH 205231 tally=0 meter=212128 verdict=unpaired
+11701.290 TEACH 48181 tally=97118 meter=130806 verdict=under
+11701.290 TEACH 1278047 tally=130098 meter=130098 verdict=agree
+11701.290 TEACH 1262710 tally=0 meter=122457 verdict=unpaired
+11701.290 TEACH 686 tally=0 meter=78222 verdict=unpaired
+11701.290 TEACH 1286970 tally=0 meter=71381 verdict=unpaired
+11701.290 TEACH 446285 tally=0 meter=44994 verdict=unpaired
+11701.290 TEACH 234153 tally=0 meter=42400 verdict=unpaired
+11701.290 TEACH 54049 tally=0 meter=27124 verdict=unpaired
+11701.290 TEACH 1287663 tally=0 meter=23748 verdict=unpaired
+11701.290 TEACH 6603 tally=21181 meter=21181 verdict=agree
+11701.290 TEACH 1260748 tally=0 meter=13726 verdict=unpaired
+11701.290 TEACH heal 1272114 meter=860326 over=0
+11701.290 TEACH heal 108366 meter=96979 over=0
+11701.290 TEACH heal 143924 meter=857 over=0
