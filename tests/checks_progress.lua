@@ -40,9 +40,9 @@ return function(T)
         function rig.Tick(spellID, learned)
             char.learned[spellID] = learned and { school = 32, period = 2, kind = "dot", misses = 0, unpaired = 0 } or nil
         end
-        function rig.Proc(id, streak, learned)
+        function rig.Proc(id, streak, learned, period)
             char.procs[id] = { school = 106, lo = 100, hi = 110, streak = streak, learned = learned == true, unpaired = 0,
-                seen = 0 }
+                seen = 0, period = period }
         end
         function rig.Unlearn(spellID) char.casts[spellID] = nil end
         -- Teacher.OnRead with `last` (default: a solo read of the current area); returns the popups shown.
@@ -138,7 +138,7 @@ return function(T)
 
     Scenario("change kinds", function()
         local rig = Rig().Warm()
-        local A, B, C, D, E, F, G, H, J = 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009
+        local A, B, C, D, E, F, G, H, J, K = 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009, 9010
         rig.Casts(A, 2)
         Check("progress kinds: fingerprint 2 -> 3 casts is learned!", rig.Fight(function() rig.Casts(A, 1) end)
             == "1 learned! " .. rig.Tex(A))
@@ -166,6 +166,8 @@ return function(T)
             == "1 learned! " .. rig.Tex(G))
         Check("progress kinds: a learned proc that is gone is dropped",
             rig.Fight(function() CombatTextIconsCharDB.procs[G] = nil end) == "1 dropped " .. rig.Tex(G))
+        Check("progress kinds: a rhythm proc candidate counts toward Procs.RHYTHM_STREAK (learning 1/2)",
+            rig.Fight(function() rig.Proc(K, 1, false, 1.5) end) == "1 learning 1/2 " .. rig.Tex(K))
         rig.Proc(H, 2)
         Check("progress kinds: n fell (proc streak 2 -> 0) shows nothing", rig.Fight(function() rig.Proc(H, 0) end) == "")
         rig.Casts(J, 1)

@@ -55,7 +55,7 @@ local function Snapshot()
     end
     for _, entry in ipairs(procList) do
         if not entry.learned and entry.streak > 0 then
-            Claim(entry.spellID, { n = entry.streak, m = Procs.LEARN_STREAK })
+            Claim(entry.spellID, { n = entry.streak, m = entry.period and Procs.RHYTHM_STREAK or Procs.LEARN_STREAK })
         end
     end
 
