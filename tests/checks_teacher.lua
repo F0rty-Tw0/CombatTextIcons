@@ -254,6 +254,32 @@ return function(T)
         Check("teacher: the next read judges both fights against the one session: Smite 30 + 23 agrees with 53, area clear",
             calls == 1 and smite and smite.tally == 53 and smite.verdict == "agree" and F.Get(SMITE).fights == 1
             and Teacher.last.area == "clear")
+
+        do -- the fights' stream records ride the carry too
+            local carry = Rig({ [SMITE] = 2 })
+            local CT, CS = carry.ns.Teacher, carry.S
+            local function Repull(first, second)
+                CT.Start(10)
+                CT.fight.streams = first
+                CT.Finish(20)
+                CT.Start(20.4)
+                CT.fight.streams = second
+                CS.sessionsFail = "secret"
+                carry.Fire()
+                CS.sessionsFail = nil
+                return CT.fight.streams
+            end
+            local S1, S2 = {}, {}
+            local merged = Repull({ [S1] = { school = 32, sum = 100, n = 1, lo = 100, hi = 100 }, [S2] = { school = 32, sum = 50, n = 2, lo = 20, hi = 30 } },
+                { [S1] = { school = 32, sum = 200, n = 2, lo = 90, hi = 110 } })
+            local both, only = merged[S1], merged[S2]
+            Check("teacher: a carry adds a shared stream's sum and n and widens lo/hi (300, 3, 90..110)",
+                both and both.sum == 300 and both.n == 3 and both.lo == 90 and both.hi == 110)
+            Check("teacher: a carry copies a stream only the earlier fight had", only and only.sum == 50 and only.n == 2 and only.lo == 20)
+            local ok, bare = pcall(Repull, { [S1] = { school = 32, sum = 100, n = 1 } }, nil)
+            Check("teacher: a carry into a fight whose streams are nil does not error and copies the record",
+                ok and bare and bare[S1] and bare[S1].sum == 100)
+        end
     end
 
     do -- tally and unknown hits
@@ -1058,6 +1084,26 @@ return function(T)
                 and spy.results == last.rows and #spy.rows == 1 and spy.rows[1].spellID == X and spy.at == 10)
             Check("procs wiring: 339 + 350 + 364 = 1053 meets the row exactly: candidate, streak 1, not learned",
                 Candidate(rig, X) and Candidate(rig, X).streak == 1 and not Candidate(rig, X).learned)
+        end
+
+        do -- the fight's stream records reach Procs.Read as its 7th argument
+            local rig = Rig({})
+            local seventh, read = nil, rig.ns.Procs.Read
+            rig.ns.Procs.Read = function(hits, open, results, rows, at, ticks, streams)
+                seventh = streams
+                return read(hits, open, results, rows, at, ticks, streams)
+            end
+            rig.S.sessions = { Session(1, { Row(X, 1053) }) }
+            rig.ns.Teacher.Start(10)
+            local record = rig.ns.Teacher.fight.streams
+            for _, at in ipairs({ 0, 2, 4, 6 }) do rig.ns.Streams.Feed("k", 32, 1000, "", "enemy", at, true) end
+            local count = 0
+            for _ in pairs(record or {}) do count = count + 1 end
+            Check("procs wiring: Start gives the fight a streams table that a recorded stream lands in", type(record) == "table" and count == 1)
+            rig.ns.Teacher.Seen(1053)
+            rig.ns.Teacher.Finish(20)
+            rig.Fire()
+            Check("procs wiring: Procs.Read gets the fight's streams table as its 7th argument", seventh ~= nil and seventh == record)
         end
 
         do -- Review Focus 3: a cast-pass-learned group is spent, the same cast's other-school group is not

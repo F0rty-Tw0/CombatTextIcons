@@ -37,7 +37,9 @@ local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
-Teacher.fight = nil -- the open fight: { at, tally = { [spellID] = sum }, unknown = { entry, ... }, seen = sum, group }
+-- the open fight: { at, tally = { [spellID] = sum }, unknown = { entry, ... }, ticks = { tick, ... },
+--   streams = { [stream] = record }, seen = sum, group }
+Teacher.fight = nil
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; never saved
 Teacher.OnRead = nil -- function(last), called once per fight when its outcome is final; Progress sets it
@@ -457,13 +459,14 @@ end
 
 -- A quick re-pull: the read met the next fight (in combat the meter answers secret), and the
 -- game extends one meter session over both (run 102226Z: the next read held this fight's rows).
--- This fight's tally, seen and '?' hits join the open one, oldest first, and are judged at its
--- read; this fight gets no outcome of its own.
+-- This fight's tally, seen, '?' hits, ticks and stream records join the open one, oldest first, and are
+-- judged at its read; this fight gets no outcome of its own.
 local function Carry(run, into)
     for spellID, amount in pairs(run.tally) do into.tally[spellID] = (into.tally[spellID] or 0) + amount end
     for index, hit in ipairs(run.unknown) do table.insert(into.unknown, index, hit) end
     for index, tick in ipairs(run.ticks or {}) do table.insert(into.ticks, index, tick) end
     into.seen = into.seen + run.seen
+    into.streams = Streams.JoinFight(into.streams or {}, run.streams or {})
     into.group = into.group or run.group
     if ns.Debug then ns.Debug("TEACH carry %d hits seen=%d", #run.unknown, math.floor(run.seen)) end
 end
@@ -535,7 +538,7 @@ local function Read(run)
         local learnedGroups, rewritten = Learn(run, results, open, rows)
         for _, group in ipairs(learnedGroups) do Teacher.last.learned[group.castID] = #group.hits end
         local hits, openRows = Leftover(run.unknown, learnedGroups), StillOpen(open, rewritten)
-        Procs.Read(hits, openRows, results, rows, run.at, run.ticks)
+        Procs.Read(hits, openRows, results, rows, run.at, run.ticks, run.streams)
     end
     Ledger.SetVerdicts(Teacher.last.rows, run.at)
     Done()
@@ -544,7 +547,8 @@ end
 
 -- Combat began: open a fight (an unfinished one is replaced).
 function Teacher.Start(now, group)
-    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, seen = 0, group = group }
+    local streams = Streams.NewFight()
+    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, seen = 0, group = group, streams = streams }
 end
 
 -- A wound of this size that may be yours was seen, drawn or not (Core's Wound decides which count).
