@@ -558,8 +558,8 @@ return function(T)
     Scenario("rows: procs", function()
         local X, Y = 1287663, 1286716
         local ns = RowsRig(true)
-        local function Proc(school, lo, hi, streak, learned)
-            return { school = school, lo = lo, hi = hi, streak = streak, learned = learned, unpaired = 0, seen = 0 }
+        local function Proc(school, lo, hi, streak, learned, period)
+            return { school = school, lo = lo, hi = hi, streak = streak, learned = learned, unpaired = 0, seen = 0, period = period }
         end
         CombatTextIconsCharDB.procs = {
             [X] = Proc(106, 339, 364, 3, true), [Y] = Proc(106, 5538, 5827, 3, true),
@@ -567,6 +567,7 @@ return function(T)
             [PAIN] = Proc(106, 100, 110, 3, true),      -- learned dot 594 owns the key
             [LIGHTNING] = Proc(106, 100, 110, 3, true), -- learned fingerprint owns the key
             [8092] = Proc(106, 100, 110, 1, false),     -- a vote candidate owns the key
+            [900003] = Proc(32, 1000, 1100, 1, false, 1.5), [900004] = Proc(32, 1000, 1100, 2, true, 1.5), -- rhythm procs
         }
         ns.Procs.Init(CombatTextIconsCharDB)
         local fight = { at = 1, date = 1000, duration = 5, group = false, heal = {},
@@ -585,6 +586,11 @@ return function(T)
         ns.Procs.LEARN_STREAK = 5
         Check("procs panel: the 'of N' is Procs.LEARN_STREAK, not a copy", Find(ns.Panel.Rows(fight), 900001).state == "exact fights 2 of 5")
         ns.Procs.LEARN_STREAK = 3
+        local rhythmCandidate, rhythmLearned = Find(rows, 900003), Find(rows, 900004)
+        Check("procs panel: a rhythm candidate reads 'rhythm fights 1 of 2' (Procs.RHYTHM_STREAK), not the size proc's 'exact fights of 3'",
+            rhythmCandidate ~= nil and rhythmCandidate.group == "learning" and rhythmCandidate.state == "rhythm fights 1 of 2")
+        Check("procs panel: a learned rhythm proc shows its period with its band",
+            rhythmLearned ~= nil and rhythmLearned.group == "learned" and rhythmLearned.state == "school 32, rhythm 1.50 s, size 1000–1100")
         Check("procs panel: first claim wins: learned dot 594, learned fingerprint 188196 and vote 8092 keep their rows",
             CountKey(rows, PAIN) == 1 and Find(rows, PAIN).state == "period 2.00 s" and Find(rows, PAIN).kind == "dot"
             and CountKey(rows, LIGHTNING) == 1 and Find(rows, LIGHTNING).state == "agreed in 2 fights, strikes 1"

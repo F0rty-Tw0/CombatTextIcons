@@ -97,7 +97,9 @@ local function KnownSpells(drew)
     local procList = Procs.List()
     for _, entry in ipairs(procList) do
         if entry.learned then
-            Claim(entry.spellID, "learned", "proc", string.format("school %.0f, size %.0f–%.0f", entry.school, entry.lo, entry.hi))
+            local rhythm = entry.period and string.format("rhythm %.2f s, ", entry.period) or ""
+            Claim(entry.spellID, "learned", "proc",
+                string.format("school %.0f, %ssize %.0f–%.0f", entry.school, rhythm, entry.lo, entry.hi))
         end
     end
     for icon, owner in pairs(TableOwners()) do
@@ -119,7 +121,9 @@ local function KnownSpells(drew)
 
     for _, entry in ipairs(procList) do
         if not entry.learned and entry.streak > 0 then
-            Claim(entry.spellID, "learning", "proc", string.format("exact fights %.0f of %d", entry.streak, Procs.LEARN_STREAK))
+            local label = entry.period and "rhythm fights" or "exact fights"
+            local need = entry.period and Procs.RHYTHM_STREAK or Procs.LEARN_STREAK
+            Claim(entry.spellID, "learning", "proc", string.format("%s %.0f of %d", label, entry.streak, need))
         end
     end
 
