@@ -151,8 +151,26 @@ local function Filter(list, keep)
     return kept
 end
 
+-- Keeps the entries `keep(item, now)` accepts, in order. Runs on every Feed, and mostly nothing expires: then
+-- `list` itself comes back, with no new table.
+local function Prune(list, keep, now)
+    for index, item in ipairs(list) do
+        if not keep(item, now) then
+            local kept = table.move(list, 1, index - 1, 1, {})
+            for later = index + 1, #list do
+                if keep(list[later], now) then kept[#kept + 1] = list[later] end
+            end
+            return kept
+        end
+    end
+    return list
+end
+
+local function CastFresh(cast, now) return now - cast.at <= CAST_LOG end
+local function StreamAlive(stream, now) return now <= stream.lastAt + DEATH * stream.period end
+
 local function PruneCasts(entry, now)
-    entry.casts = Filter(entry.casts, function(cast) return now - cast.at <= CAST_LOG end)
+    entry.casts = Prune(entry.casts, CastFresh, now)
 end
 
 -- Loose lists are oldest first, so the expired hits are a prefix: shift them out in place.
@@ -168,7 +186,7 @@ local function PruneLoose(entry, now)
 end
 
 local function PruneDead(entry, now)
-    entry.streams = Filter(entry.streams, function(stream) return now <= stream.lastAt + DEATH * stream.period end)
+    entry.streams = Prune(entry.streams, StreamAlive, now)
 end
 
 -- Stream rules -----------------------------------------------------------------------
