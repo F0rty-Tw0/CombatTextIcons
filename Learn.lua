@@ -46,6 +46,7 @@ function Learn.PeriodsAgree(a, b) return math.abs(a - b) <= SIG_AGREE * math.max
 
 -- The in-memory tables are the saved ones once Init ran.
 local learned, votes = {}, {}
+local castAt = {} -- [learned spell id] = its last cast (Learn.OnCast), for RowsRead; this session's clock, never saved
 local icons = {} -- [spell id or icon] = true, every id the Spells.lua table knows
 
 for spellID, row in pairs(ns.Spells) do
@@ -273,6 +274,7 @@ local function VoteEntry(spellID, keep)
 end
 
 function Learn.OnCast(castID, now)
+    if IsId(castID) and learned[castID] then castAt[castID] = now end
     if not CanVote(castID) then return end
     local entry = VoteEntry(castID, { [castID] = true })
     entry.casts = entry.casts + 1
@@ -282,12 +284,21 @@ end
 -- A DoT learned under a cast with no meter row of its own is always struck by the net later, so a read drops the non-hot
 -- sigs of every spell cast since `since` that the meter has no row for (heals have no damage row, so hot sigs stay) and
 -- stops its dot and channel votes, in this fight too, until a read lists its row.
-function Learn.RowsRead(rows, since)
+-- A learned dot or channel cast since `since` that drew nothing (`tally`, the fight's drawn totals) and has no row is
+-- struck as unpaired too: the net only judges drawn spells, and twins cast in one frame tie on every tick, so neither
+-- draws (Flame Shock 188389 and its rowless twin 470411 kept Flame Shock '?' for all 4 fights of run shaman4).
+function Learn.RowsRead(rows, since, tally)
     if type(since) ~= "number" then return end
     local listed = {}
     for _, row in ipairs(rows) do
         listed[row.spellID] = true
         if votes[row.spellID] then votes[row.spellID].rowless = nil end
+    end
+    for spellID, entry in pairs(learned) do
+        local cast, drawn = castAt[spellID], tally and tally[spellID]
+        if entry.kind ~= "hot" and type(cast) == "number" and cast >= since and not listed[spellID] and not drawn then
+            Learn.Unpaired(spellID)
+        end
     end
     for spellID, entry in pairs(votes) do
         local cast = entry.lastCast

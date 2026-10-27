@@ -473,8 +473,8 @@ end
 
 -- Safety net (spec 3.3): learned spells and procs face the meter on every read. A drawn
 -- total (tally > 0) that overshoots drops the spell, two unpaired reads in a row drop it,
--- a paired read (agree or under) resets the count. Undrawn spells change nothing. An ID
--- both stores know is judged by both.
+-- a paired read (agree or under) resets the count. Undrawn spells change nothing here (a learned
+-- one cast this fight with no row is struck by Learn.RowsRead). An ID both stores know is judged by both.
 local function SafetyNet(results)
     for _, entry in ipairs(results) do
         for _, store in ipairs({ ns.Learn, Procs }) do
@@ -548,7 +548,7 @@ local function Read(run)
     for _, row in ipairs(full) do lastRows[row.spellID] = { total = row.total, overkill = row.overkill } end
     ns.Casts.NoteRows(full) -- the next fight's casts key by the meter's own rows
     ns.Casts.Rekey(run.unknown, full) -- and so do this fight's unexplained hits
-    ns.Learn.RowsRead(full, run.at) -- casts of this fight with no row of their own lose their dot votes
+    ns.Learn.RowsRead(full, run.at, run.tally) -- this fight's casts with no row: no dot votes; learned, a strike
     if ns.Debug then
         ReportSession(sessionID, again)
         -- grug: override probe (2026-10-25): what each meter row's spell turns into right now.

@@ -965,6 +965,30 @@ return function(T)
             Check("net: ... so the next unpaired read is the second and drops it", not Kept(rig, TRIGGER))
         end
 
+        do -- a learned spell cast this fight that drew nothing and has no row is struck (twins tie, so neither draws)
+            local FS_TWIN = 470411 -- cast in Flame Shock's frame, no meter row (run shaman4)
+            local function Cast(rig, id, at) rig.ns.Learn.OnCast(id, at) end -- every rig fight starts at 10
+            local rig = Rig({}); Seed(rig, FS_TWIN)
+            Cast(rig, FS_TWIN, 5)
+            Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
+            Check("net: undrawn and cast before the fight began: no strike", Kept(rig, FS_TWIN))
+            Cast(rig, FS_TWIN, 15)
+            Step(rig, { [WAND] = 50 }, { Row(WAND, 50), Row(FS_TWIN, 300) })
+            Check("net: undrawn, cast this fight, its own row listed: no strike", Kept(rig, FS_TWIN))
+            Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
+            Check("net: undrawn, cast this fight, no row: one strike keeps it", Kept(rig, FS_TWIN))
+            Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
+            Check("net: ... and the second such read drops it", not Kept(rig, FS_TWIN))
+
+            rig = Rig({})
+            CombatTextIconsCharDB.learned[FS_TWIN] = { school = 2, period = 3, kind = "hot", misses = 0 }
+            rig.ns.Learn.Init()
+            Cast(rig, FS_TWIN, 15)
+            Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
+            Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
+            Check("net: a hot has no damage row, so two such reads keep it", Kept(rig, FS_TWIN))
+        end
+
         do -- the meter may list one spell in two rows: they are one row (sum of total and overkill)
             local rig = Rig({}); Seed(rig, TRIGGER)
             local last = Step(rig, { [TRIGGER] = 1000 }, { Row(TRIGGER, 900), Row(TRIGGER, 100) })
