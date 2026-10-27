@@ -307,6 +307,7 @@ return function(T)
         for _, cast in ipairs({ { 7.0, 9003, "dot" }, { 7.8, 9005, "dot" }, { 8.0, 9001, "dot" }, { 8.2, 9006, "channel" },
             { 8.6, 9001, "dot" }, { 9.5, 9002, "dot" } }) do
             Streams.LogCast("k", cast[2], cast[3], cast[1])
+            if cast[1] == 8.6 then Streams.StopChannel(8.6) end -- the next cast stops the channel, as in the game
         end
         local log = Streams.CastLog("k")
         Check("cast log: oldest first with at / castID / kind; every logged cast calls Learn.OnCast",
@@ -338,6 +339,20 @@ return function(T)
             .. " of their first tick (Wither 445468, not Haunt 48181)", Stepped("w1", 1451, 3) == "445468")
         Check("owners: one loose tick, or ticks more than x1.5 apart (900 -> 1753), leave the birth window's owners",
             Stepped("w2", 1451, 1) == "48181" and Stepped("w3", 900, 3) == "48181")
+        -- Void Torrent 263165: 3 s channel, first tick in its cast frame (run shadow-steady: 0 / 0.87 / 1.77 / 2.63)
+        local function Torrent(key, stop)
+            Streams.LogCast(key, 9007, "dot", 9.2) -- inside [10 - 1.08, 10 - 0.45]
+            Streams.LogCast(key, 263165, "channel", 10)
+            if stop then Streams.StopChannel(stop) end
+            for _, t in ipairs({ 10, 10.9, 11.8, 12.7 }) do rig.Hit(key, t) end
+            local live = Streams.Live(key, 12.7)[1]
+
+            return live and table.concat(live.owners, ",")
+        end
+        Check("owners: a birth whose hits all land inside one own channel has that channel as its only owner",
+            Torrent("vt1") == "263165" and Streams.Live("vt1", 12.7)[1].ownerKind[263165] == "channel")
+        Check("owners: a channel stopped before the birth's last hit leaves the birth window's owners",
+            Torrent("vt2", 12.5) == "9007")
         Streams.LogCast("r", 1, "dot", 0); Streams.LogCast("r", 2, "dot", 35); Streams.LogCast("r", 3, "dot", 36)
         log = Streams.CastLog("r")
         Check("cast log: entries older than 35 s are dropped (35 stays, 0 goes)", #log == 2 and log[1].castID == 2)

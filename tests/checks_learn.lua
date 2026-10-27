@@ -760,6 +760,25 @@ return function(T)
         Check(name .. ": CHANNEL_STOP ends it (a later hit is hidden)", rig.Hit(4, 800, 32) == nil)
     end
 
+    -- An unknown channel whose first tick lands in its cast frame (Void Torrent 263165: 3 s, ticks 0 / 0.9 / 1.8 / 2.7)
+    for _, reversed in ipairs({ false, true }) do
+        local function Torrents(stopAfter)
+            local rig = Rig()
+            for _, start in ipairs({ 0, 30, 60 }) do
+                rig.Channel(start, 9600, "nameplate1", reversed)
+                for _, dt in ipairs({ 0, 0.9, 1.8 }) do rig.Hit(start + dt, 7000, 32) end
+                if stopAfter < 2.7 then rig.Stop(start + stopAfter) end
+                rig.Hit(start + 2.7, 7000, 32)
+                if stopAfter >= 2.7 then rig.Stop(start + stopAfter) end
+            end
+            return rig.Learned(9600)
+        end
+        local name = "channel owner" .. (reversed and " (CHANNEL_START first)" or "")
+        local learned = Torrents(2.75)
+        Check(name .. ": ticks inside the channel teach it as a channel", learned ~= nil and learned.kind == "channel")
+        Check(name .. ": a CHANNEL_STOP before the 4th tick leaves the channel unlearned", Torrents(2.0) == nil)
+    end
+
     -- Haste for learned spells (Task 3.1): saved periods are haste-free bases, expected = base / (1 + h/100)
     do -- learned at 10 % (real 2.0 -> base 2.2), cast at 40 %: ticks every 2.2 / 1.4 = 1.571 s
         local rig = Rig()

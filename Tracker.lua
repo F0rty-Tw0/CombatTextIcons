@@ -572,6 +572,7 @@ end
 -- A stop naming another cast (a late stop of an earlier channel) is ignored.
 function Tracker.OnChannelStop(now, castGUID)
     if channel and NamesOtherCast(channel, castGUID) then return end
+    Streams.StopChannel(now)
     -- A learned channel that lasted past its first due tick and never ticked is a miss.
     if channel and channel.learned and not channelTickAt
         and now - channel.castAt >= channel.period + Tolerance(channel.period) then

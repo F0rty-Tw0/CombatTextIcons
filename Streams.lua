@@ -42,6 +42,7 @@ Streams.SIZE_GUARD, Streams.CRIT_LO, Streams.CRIT_HI = SIZE_GUARD, CRIT_LO, CRIT
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 
+local channelCast      -- the newest channel's cast-log entry; Streams.StopChannel stamps its `stop`
 local current          -- [stream] = { school, sum, n, lo, hi }: this fight's share of each stream (Streams.NewFight)
 
 -- Adds a hit to the stream's record in the current fight when shouldRecord. sum and n take every number; lo and
@@ -272,6 +273,18 @@ local function Owners(entry, birth, period, heal)
     return owners, ownerKind, ownerAt
 end
 
+-- A birth whose hits all land inside the key's newest own channel, from its start to `now` with no stop between, is
+-- that channel's alone: a channel's ticks exist only while it channels. Void Torrent 263165 (3 s, 4 ticks, the first
+-- in its cast frame) never had an owner: the birth window ends half a period before the first hit. Returns the owner
+-- lists Owners returns, holding only that channel, else nil.
+local function ChannelOwners(entry, first, now)
+    local cast = channelCast
+    if not cast or cast.at > first or (cast.stop and cast.stop < now) then return nil end
+    for _, logged in ipairs(entry.casts) do
+        if logged == cast then return { cast.castID }, { [cast.castID] = "channel" }, { [cast.castID] = cast.at } end
+    end
+end
+
 -- Where a birth at `birth` with `period` really starts: loose hits of its school one period apart, two or more,
 -- walked back from it are its first ticks, before a size step broke them off (too few for a stream). The owners
 -- are the casts before that first tick. Run 20261025T181738Z: Haunt's damage-taken buff (+21 %) stepped Wither's
@@ -349,7 +362,9 @@ function Streams.Feed(key, school, amount, flagText, kind, now, shouldRecord)
         local amount = BirthAmount({ a, b, c, hit })
         local start, lead = a.at, {}
         if not heal then start, lead = Start(entry, school, a.at, period, amount) end
-        local owners, ownerKind, ownerAt = Owners(entry, start, period, heal)
+        local owners, ownerKind, ownerAt
+        if not heal then owners, ownerKind, ownerAt = ChannelOwners(entry, a.at, now) end
+        if not owners then owners, ownerKind, ownerAt = Owners(entry, start, period, heal) end
         stream = {
             school = school, period = period, birth = a.at, lastAt = now, count = 4,
             lastAmount = BirthAmount({ a, b, c, hit }),
@@ -410,6 +425,7 @@ function Streams.LogCast(key, castID, kind, now)
         if cast.kind == "dot" and cast.at == now and cast.castID == castID then
             cast.kind = "channel"
             swapped = true
+            channelCast = cast
             break
         end
     end
@@ -422,8 +438,16 @@ function Streams.LogCast(key, castID, kind, now)
             if #other.casts < before then removed = true end
         end
     end
-    if not swapped then entry.casts[#entry.casts + 1] = { at = now, castID = castID, kind = "channel" } end
+    if not swapped then
+        channelCast = { at = now, castID = castID, kind = "channel" }
+        entry.casts[#entry.casts + 1] = channelCast
+    end
     if not (swapped or removed) then ns.Learn.OnCast(castID, now) end
+end
+
+-- The player's channel stopped (CHANNEL_STOP): the newest channel owns no hit after `now`.
+function Streams.StopChannel(now)
+    if channelCast and not channelCast.stop then channelCast.stop = now end
 end
 
 -- The key's logged casts, oldest first (callers never mutate).
