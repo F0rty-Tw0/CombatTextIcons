@@ -272,10 +272,10 @@ end
 
 -- Draws a hit whose stream fits a learned rhythm proc (ticks that share no size band) with that row's icon; a
 -- hit before its stream is born is named by a logged cast of the proc's row that its band holds (Procs.NameCast).
--- Returns whether it drew.
-local function RhythmWound(plate, stream, school, amount, flagText, now)
+-- `candidates` is Casts.Candidates for the hit. Returns whether it drew.
+local function RhythmWound(plate, stream, school, amount, flagText, candidates)
     local rhythmID = Teacher.AreaClear()
-        and (Procs.NameStream(stream) or Procs.NameCast(school, amount, flagText, Casts.Candidates(plate, now)))
+        and (Procs.NameStream(stream) or Procs.NameCast(school, amount, flagText, candidates))
     if not rhythmID then return false end
     if ns.Debug then ns.Debug("  -> rhythm %s", ShowValue(rhythmID)) end
     Teacher.Drawn(rhythmID, amount)
@@ -357,8 +357,9 @@ local function Wound(plate, unit, flagText, amount, school, now)
     end
     if solo then
         if ProcWound(plate, school, amount, flagText) then return end
-        if RhythmWound(plate, stream, school, amount, flagText, now) then return end
-        Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now), flagText, Casts.Candidates(plate, now))
+        local candidates = Casts.Candidates(plate, now) -- one list for both: drawing changes no cast log
+        if RhythmWound(plate, stream, school, amount, flagText, candidates) then return end
+        Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now), flagText, candidates)
         if not Teacher.AreaClear() then
             if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
             return
