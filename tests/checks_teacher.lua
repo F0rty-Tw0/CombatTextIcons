@@ -2010,6 +2010,21 @@ return function(T)
             function(r) r.ns.Teacher.Drawn(MIND_BLAST, 79642) end)
         Check("steady (i): a learned base whose drawn tally already fills its row -> meter, nothing learned",
             last.area == "clear" and Learned(last) == nil and Outcome(VOID_BLAST) == "meter")
+
+        -- Run shaman3 fresh F1: Lava Burst 51505 casts key by API base 73899 until a read shows row 51505;
+        -- the meter has no 73899 row, so the first fight's steady cluster went "-> meter" and was lost.
+        local LAVA_BURST, LAVA_BASE = 51505, 73899
+        local lavas = {}
+        for index, t in ipairs({ 10, 15, 20, 25 }) do
+            lavas[#lavas + 1] = { t - VARIED[index], SWD }
+            lavas[#lavas + 1] = { t, LAVA_BURST }
+            lavas[#lavas + 1] = { t + 0.30, nil, ({ 52000, 55000, 58000, 61000 })[index], 4 }
+        end
+        rig, last = SteadyFight(lavas, { Row(LAVA_BURST, 226000) },
+            function(r) r.S.baseSpells[LAVA_BURST] = LAVA_BASE end)
+        Check("steady (j): a first fight keyed by API base 73899 learns under its own row 51505 (before: -> meter)",
+            last.area == "clear" and last.learned and last.learned[LAVA_BURST] == 4
+            and rig.ns.Fingerprints.IsLearned(LAVA_BURST))
     end
 
     do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899

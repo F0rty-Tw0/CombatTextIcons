@@ -54,6 +54,21 @@ function Casts.NoteRows(rows)
     for _, row in ipairs(rows) do ownRows[row.spellID] = true end
 end
 
+-- The same read for the fight it ends: its unexplained hits (and their candidates) keyed by an API
+-- base with no row of its own move to their cast's row (Lava Burst 73899 -> 51505), so the first
+-- fight that shows a row can learn it.
+function Casts.Rekey(hits, rows)
+    local own = {}
+    for _, row in ipairs(rows) do own[row.spellID] = true end
+    local function Move(cast)
+        if cast.castSpell and own[cast.castSpell] and not own[cast.castID] then cast.castID = cast.castSpell end
+    end
+    for _, hit in ipairs(hits) do
+        Move(hit)
+        for _, candidate in ipairs(hit.candidates or {}) do Move(candidate) end
+    end
+end
+
 -- A learned chain fingerprint (Chain Lightning): its later hits land on new plates.
 local CHAIN_GAP = 0.15   -- each later hit lands this long after the previous one at most
 local CHAIN_MAX = 5      -- hits one chain shows at most
