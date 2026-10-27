@@ -225,6 +225,14 @@ function Fingerprints.Alias(meterID)
     return aliases[meterID]
 end
 
+function Fingerprints.IsAliasTarget(castID)
+    for _, target in pairs(aliases) do
+        if target == castID then return true end
+    end
+
+    return false
+end
+
 function Fingerprints.Forget()
     for spellID in pairs(casts) do casts[spellID] = nil end
     for meterID in pairs(aliases) do aliases[meterID] = nil end

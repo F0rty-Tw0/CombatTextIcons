@@ -243,7 +243,10 @@ function Learn.VoteList()
     return list
 end
 
-local function CanVote(spellID) return IsId(spellID) and not Learn.IsKnownIcon(spellID) end
+-- A cast some meter row aliases to never votes: a DoT learned under it is judged against that row, so it can only score over.
+local function CanVote(spellID)
+    return IsId(spellID) and not Learn.IsKnownIcon(spellID) and not ns.Fingerprints.IsAliasTarget(spellID)
+end
 
 -- Drops the spell with the fewest casts (lowest id on ties) that is not in `keep`.
 local function EvictVoteSpell(keep)

@@ -657,6 +657,23 @@ return function(T)
             Check("physical: school " .. school .. " is learned after the third plate (p 0.0008)", rig.Learned(id) ~= nil)
         end
 
+        -- alias target: 205180 has 2 votes at P 1.69; a third cast and stream learns it, unless row 446285 aliases to it
+        -- (its draws would be judged against that row, so they could only score over)
+        for _, aliased in ipairs({ false, true }) do
+            rig = Rig()
+            if aliased then rig.ns.Fingerprints.SetAlias(446285, 205180) end
+            CombatTextIconsCharDB.votes[205180] = { casts = 2, sigs = { { kind = "dot", school = 32, period = 1.69, votes = 2, expected = 0.2 } } }
+            rig.Cast(0, 205180)
+            for k = 1, 5 do rig.Hit(k * 1.69, 1000, 32) end
+            if aliased then
+                Check("alias target: a cast that row 446285 aliases to gets no vote, so it is not learned",
+                    rig.Learned(205180) == nil and rig.Votes(205180).casts == 2 and Sig(rig, 205180).votes == 2)
+            else
+                Check("alias target: control, the same spell with no alias on it is learned by the third vote",
+                    rig.Learned(205180) ~= nil and Near(rig.Learned(205180).period, 1.69, 0.03))
+            end
+        end
+
         -- channel: Mind Flay-like, P 1.0, both event orders; one entry and one count per channel
         for _, reversed in ipairs({ false, true }) do
             local name = "channel" .. (reversed and " (CHANNEL_START first)" or "")
