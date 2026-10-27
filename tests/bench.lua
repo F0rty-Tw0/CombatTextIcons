@@ -1,11 +1,14 @@
 -- Bench: the scoreboard's replays under scenarios that vary the order the addon learns in. A harness for the fix
 -- loop: deterministic (seeded Park-Miller streams from synth.lua, never math.random), no scenario touches the addon.
 --
---   lua tests/bench.lua [--only id[,id...]] [--json path] [--k N]
+--   lua tests/bench.lua [--only id[,id...]] [--json path] [--k N] [--gate path | --save-gate path]
 --
 -- --json writes every scenario that ran (class -> right, wrong, unknown, fights, min, mean, max, maxWrong, curve), the
 -- base runs, the flakes and the seconds as sorted-key JSON. synth adds case -> class -> kind -> cell (right, wrong,
 -- unknown, fights, and for a perturbed case baseRight, baseWrong); a fabricated case sits under class all, kind fresh.
+-- --save-gate writes this tree's gate numbers (tests/gate.lua) to a Lua file; --gate judges this tree against such a
+-- file and prints `GATE: KEEP` (exit 0) or `GATE: REJECT <reasons>` (exit 2); an error exits 1. Both need the base,
+-- shuffle, loo and flake scenarios, the file's k to equal this run's, and exclude each other.
 --
 --   base     tests/score.lua's runs (fresh and start), rebuilt on cached slices and checked against score_lib's path
 --   shuffle  each log's fights in K seeded orders from an empty store, times shifted so the clock never runs back
@@ -17,6 +20,7 @@
 -- The druid is the hold-out class: shown, never in TOTAL.
 
 local Synth = dofile("tests/synth.lua")
+local G = dofile("tests/gate.lua")
 
 -- Fisher-Yates on a copy, drawing from the seeded stream (Synth.Seeded spreads small seeds).
 local function Permute(list, seed)
@@ -128,7 +132,7 @@ do
     assert(not pcall(ParseRuns, "== base ==\nBENCH done in 1 s\n"), "ParseRuns: output with no per-run lines is an error")
 end
 
-local ONLY, JSON, K = nil, nil, 8
+local ONLY, JSON, K, GATE, SAVE_GATE = nil, nil, 8, nil, nil
 do
     local index = 1
     while index <= #arg do
@@ -143,11 +147,30 @@ do
             index = index + 1
             K = assert(tonumber(arg[index]), "--k needs a number")
             assert(K >= 1 and K == math.floor(K), "--k must be a positive whole number")
+        elseif flag == "--gate" then
+            index = index + 1
+            GATE = assert(arg[index], "--gate needs a path")
+        elseif flag == "--save-gate" then
+            index = index + 1
+            SAVE_GATE = assert(arg[index], "--save-gate needs a path")
         else
             error("unknown option " .. flag)
         end
         index = index + 1
     end
+end
+
+-- Gate checks before the logs load, so a bad call costs under a second.
+local BASELINE
+if GATE and SAVE_GATE then error("--gate and --save-gate exclude each other") end
+if GATE or SAVE_GATE then
+    for _, id in ipairs({ "base", "shuffle", "loo", "flake" }) do
+        if ONLY and not ONLY[id] then error("--gate/--save-gate need scenario " .. id) end
+    end
+end
+if GATE then
+    BASELINE = G.LoadBaseline(GATE)
+    if BASELINE.k ~= K then error("gate baseline k = " .. BASELINE.k .. ", this run k = " .. K) end
 end
 
 local wallStart = os.time()
@@ -642,3 +665,48 @@ if JSON then
 end
 Out("")
 Out(string.format("BENCH done in %d s", os.time() - wallStart)) -- wall time: os.clock is CPU and misses the flake children
+
+-- The gate's numbers from the in-memory results (unrounded): the loo and base shares, the hold-out druid's base
+-- shares, each other class's worst shuffle seed, the flakes, and the tree's short commit (+dirty when tracked files differ from it).
+local function GitOutput(command)
+    local pipe = io.popen(command)
+    local text = pipe and pipe:read("a") or ""
+    if pipe then pipe:close() end
+
+    return (text:gsub("%s+$", ""))
+end
+local function Commit()
+    local short = GitOutput("git rev-parse --short HEAD")
+    local changes = GitOutput("git status --porcelain --untracked-files=no")
+    if short == "" then return "?" end
+
+    return changes == "" and short or short .. "+dirty"
+end
+local function GateNumbers()
+    local holdout = {}
+    for _, run in ipairs(results.base.runs) do holdout[run.class] = run.holdout end
+    local druid = assert(results.base.classes.druid, "gate: no druid class in base")
+    local maxWrong = {}
+    for class, summary in pairs(results.shuffle.classes) do
+        if not holdout[class] then maxWrong[class] = summary.maxWrong end
+    end
+    local numbers = { looRight = results.loo.total.right, baseWrong = results.base.total.wrong, druidRight = druid.right,
+        druidWrong = druid.wrong, maxWrong = maxWrong, flakes = #results.flakes, k = results.shuffle.k, commit = Commit() }
+
+    return numbers
+end
+if SAVE_GATE then
+    local text = G.GateText(GateNumbers())
+    local file = assert(io.open(SAVE_GATE, "w"))
+    file:write(text)
+    file:close()
+    Out("GATE saved " .. SAVE_GATE)
+elseif GATE then
+    local verdict, reasons = G.Judge(BASELINE, GateNumbers())
+    if verdict == "KEEP" then
+        Out("GATE: KEEP")
+    else
+        Out("GATE: REJECT " .. table.concat(reasons, "; "))
+        os.exit(2)
+    end
+end
