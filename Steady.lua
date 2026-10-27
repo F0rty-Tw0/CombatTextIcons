@@ -10,8 +10,11 @@
 -- must fit the base's row (total + overkill + tolerance, less what was drawn under it). Learned
 -- hits become fingerprint samples. A base learned before the fight keeps learning the hits it
 -- missed (Void Blast in its cast frame, Mind Blast at a new distance): its pairs need its school and
--- the padded size band. With /cti debug each cast spell seen MIN_CASTS times logs one TEACH steady
--- line.
+-- the padded size band. A cluster also needs more than luck: a steady '?' stream (two DoT series)
+-- puts a like-sized hit in one delay window after 3 of 5 casts by chance (Devouring Plague 335467),
+-- so a cluster that a Poisson tail (times the windows tried) cannot tell from luck learns nothing
+-- and marks no hit shared. With /cti debug each cast spell seen MIN_CASTS times logs
+-- one TEACH steady line.
 
 local _, ns = ...
 local Fingerprints, Procs, Casts = ns.Fingerprints, ns.Procs, ns.Casts
@@ -24,6 +27,8 @@ local SHARE = 0.6       -- of a cast spell's casts a window must count
 local MIN_CASTS = 3     -- casts a window must count at least
 local SIZE_SPREAD = 1.5 -- the biggest counted hit at most this times the smallest
 local EPS = 1e-6        -- float slack on window edges
+local ALPHA = 0.01      -- a cluster learns when luck alone gives it this often or less (Learn.lua's value)
+local WINDOWS = 15      -- delay windows the scan tries (Casts' UNKNOWN_WAIT 1.5 / SPREAD): the multiple comparisons
 
 -- How the pass treats a base this read: "new" (unlearned), "base" (learned before this read: it
 -- learns the hits it missed), or nil (learned by this read's exact-sum passes: skipped).
@@ -182,8 +187,26 @@ local function Fits(castID, hits, rows, tally)
     return sum <= room
 end
 
--- One cast spell's result: { spell, castID, casts, counted (nil without one cluster), outcome }.
-local function SpellResults(hits, learnedNow)
+-- How often luck alone gives `counted`'s count: each of `casts` casts finds a hit of the counted
+-- school and size range in one window with chance (like hits * SPREAD / span of the fight's '?' hits),
+-- the tail of that count, times the WINDOWS tried.
+local function Luck(counted, casts, hits, span)
+    local school, low, high = counted[1].hit.school, nil, nil
+    for _, pair in ipairs(counted) do
+        low, high = math.min(low or pair.hit.size, pair.hit.size), math.max(high or pair.hit.size, pair.hit.size)
+    end
+    local like = 0
+    for _, hit in ipairs(hits) do
+        if hit.school == school and hit.size >= low and hit.size <= high then like = like + 1 end
+    end
+    local chance = span > 0 and math.min(1, like / span * SPREAD) or 1
+
+    return math.min(1, ns.Learn.PoissonTail(casts * chance, #counted) * WINDOWS)
+end
+
+-- One cast spell's result: { spell, castID, casts, counted (nil without one cluster, or when luck
+-- explains it: then luckCounted), outcome }.
+local function SpellResults(hits, learnedNow, span)
     local pairsOf, castsOf, baseOf, modeOf = PairsBySpell(hits, learnedNow)
     local spells = {}
     for spell in pairs(pairsOf) do spells[#spells + 1] = spell end
@@ -194,6 +217,12 @@ local function SpellResults(hits, learnedNow)
         local clusters = Clusters(pairsOf[spell], math.max(MIN_CASTS, math.ceil(SHARE * casts - EPS)))
         local result = { spell = spell, castID = baseOf[spell], mode = modeOf[spell], casts = casts, outcome = "none" }
         if #clusters == 1 then result.counted = clusters[1].best.counted end
+        if result.counted then
+            local p = Luck(result.counted, casts, hits, span)
+            if p > ALPHA then
+                result.luckCounted, result.counted, result.outcome = result.counted, nil, string.format("luck=%.2g", p)
+            end
+        end
         if #clusters >= 2 then result.outcome = "clusters=" .. #clusters end
         results[#results + 1] = result
     end
@@ -244,10 +273,11 @@ local function Report(results)
     if not ns.Debug then return end
     for _, result in ipairs(results) do
         if result.casts >= MIN_CASTS then
+            local counted = result.counted or result.luckCounted
             ns.Debug("TEACH steady %d spell=%d mode=%s counted=%d/%d delay=%s size=%s -> %s", result.castID, result.spell,
-                result.mode, result.counted and #result.counted or 0, result.casts,
-                Range(result.counted, function(pair) return pair.delay end),
-                Range(result.counted, function(pair) return pair.hit.size end), result.outcome)
+                result.mode, counted and #counted or 0, result.casts,
+                Range(counted, function(pair) return pair.delay end),
+                Range(counted, function(pair) return pair.hit.size end), result.outcome)
         end
     end
 end
@@ -265,7 +295,12 @@ function Steady.Learn(run, rows, learned)
         if hit.size and hit.candidates and not spent[hit] then hits[#hits + 1] = hit end
     end
 
-    local results = SpellResults(hits, learnedNow)
+    local first, last
+    for _, hit in ipairs(run.unknown) do
+        first, last = math.min(first or hit.at, hit.at), math.max(last or hit.at, hit.at)
+    end
+
+    local results = SpellResults(hits, learnedNow, first and last - first or 0)
     local bases = Gate(results, rows, run.tally)
     Report(results)
 

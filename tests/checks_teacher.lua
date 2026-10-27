@@ -1898,6 +1898,18 @@ return function(T)
         Check("steady (d2): every cast steady at both 0.30 and 0.80 -> two clusters, nothing learned",
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "clusters=2")
 
+        -- Priest Devouring Plague 335467 (lead L24): 5 MB casts beside a ~1/s ~1K shadow DoT stream; the first tick
+        -- after 3 of them falls at ~0.94 s by coincidence. 3 of 5 across the 15 delay windows is luck, not a pattern.
+        local ticks, casts = {}, { 10.56, 15.55, 20.564, 25.2, 30.8 }
+        for index = 0, 25 do ticks[#ticks + 1] = { 10.5 + index, nil, 900 + (index * 70) % 201 } end
+        for _, t in ipairs(casts) do ticks[#ticks + 1] = { t, MIND_BLAST } end
+        table.sort(ticks, function(a, b) return a[1] < b[1] end)
+        rig, last = SteadyFight(ticks, { Row(MIND_BLAST, 30000) })
+        local luckOutcome = Outcome(MIND_BLAST)
+        Check("steady (l): 3 of 5 casts with a DoT tick at the same delay among a 1/s stream is luck -> nothing learned",
+            last.area == "clear" and Learned(last) == nil and not rig.ns.Fingerprints.IsLearned(MIND_BLAST)
+            and luckOutcome ~= nil and luckOutcome:find("^luck=") ~= nil)
+
         rig, last = SteadyFight(Rotation(VARIED), { Row(MIND_BLAST, 74250), Row(SWP_ROW, 17750) })
         Check("steady (e1): the MB hits sum over the 8092 row -> meter, nothing learned",
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "meter")
