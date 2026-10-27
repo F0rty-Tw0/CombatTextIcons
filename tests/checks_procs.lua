@@ -674,6 +674,10 @@ return function(T)
         ns, procs = Rig()
         Pass(ns, {}, X, Str({ 32, 1.0, 4000, 1600, 1700 }, { 32, 1.5, 6000, 1900, 2000 }))
         Check("procs rhythm group: records at periods 1.0 and 1.5 never join", next(procs) == nil)
+        ns, procs = Rig()
+        Pass(ns, {}, X, Str({ 32, 1.0, 4000, 900, 950 }, { 32, 1.0, 6000, 5900, 6100 }))
+        Check("procs rhythm group: records of hits 900 and 5900 at one period never join (the group would span a crit)",
+            next(procs) == nil)
 
         ns, procs = Rig()
         Pass(ns, {}, { { id = 5, total = 10000 }, { id = 6, total = 10000 } }, Str({ 32, 1.0, 9800, 1600, 1700 }))

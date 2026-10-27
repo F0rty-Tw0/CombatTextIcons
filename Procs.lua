@@ -434,7 +434,7 @@ end
 
 -- Rhythm groups: this fight's stream records that hold a normal hit, sorted by school, period, sum. Every
 -- prefix of a run of one school whose periods sit near the run's first is a group: the fight total of one
--- proc that ticked as several streams.
+-- proc that ticked as several streams. A run ends before a record that would make its hits span a crit.
 local function RhythmGroups(streams)
     local list = {}
     for stream, rec in pairs(streams) do
@@ -454,7 +454,9 @@ local function RhythmGroups(streams)
         for j = i, #list do
             local rec = list[j]
             if rec.school ~= first.school or not PeriodNear(first.period, rec.period) then break end
-            sum, count, lo, hi = sum + rec.sum, count + rec.n, math.min(lo, rec.lo), math.max(hi, rec.hi)
+            local low, high = math.min(lo, rec.lo), math.max(hi, rec.hi)
+            if j > i and high >= low * CRIT_LO then break end -- a crit apart: two procs, not one
+            sum, count, lo, hi = sum + rec.sum, count + rec.n, low, high
             groups[#groups + 1] = { school = first.school, period = first.period, sum = sum, count = count, lo = lo, hi = hi }
         end
     end
