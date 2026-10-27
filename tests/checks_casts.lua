@@ -698,6 +698,41 @@ do -- Phase 3: records and Claim
         local frame = ns.Casts.Claim(Plate("nameplate1"), 32, 20.2, 20000)
         return before == "learned" and frame == "learned"
     end)
+    -- Run shaman4 fight 2: Totemic Projection 108287 (no meter row) 0.26 s after a Lava Burst turned its 113K hit into '?'.
+    -- Mind Blast learned at 0.2 s with sizes 18000-25000; OTHER is cast 0.05 s after it.
+    local OTHER, OTHER_BASE = 1234567, 7654321
+    local function AfterOther(setup, at, size)
+        local ns, S = Rig(function(n) LearnSized(n, 8092, 8092, { 18000, 21000, 25000 }) end)
+        if setup then setup(ns, S) end
+        Cast(ns, S, 8092, 10, "nameplate1")
+        Cast(ns, S, OTHER, 10.05, "nameplate1")
+        return (ns.Casts.Claim(Plate("nameplate1"), 32, at or 10.2, size or 20000))
+    end
+    local function Rowless(ns) -- a read found OTHER cast with no row (Learn.RowsRead)
+        ns.Learn.OnCast(OTHER, 1)
+        ns.Learn.RowsRead({ { spellID = 8092 } }, 0)
+    end
+    Scenario("claim: a cast after the learned one that a read showed rowless spoils no hit inside the learned window and sizes", function()
+        return AfterOther(Rowless) == "learned" and AfterOther() == "ambiguous"
+    end)
+    Scenario("claim: a rowless cast still spoils a hit in the padded sizes only, a late hit, or when its base is an own row", function()
+        local function OwnBase(ns, S)
+            S.baseSpells[OTHER] = OTHER_BASE
+            Rowless(ns)
+            ns.Casts.NoteRows({ { spellID = OTHER_BASE } })
+        end
+        return AfterOther(Rowless, 10.2, 14000) == "ambiguous" and AfterOther(Rowless, 10.32) == "ambiguous"
+            and AfterOther(OwnBase) == "ambiguous"
+    end)
+    Scenario("claim: a cast whose row is a learned proc of another school spoils no sure hit; of the hit's school it does", function()
+        local function WithProc(school)
+            return AfterOther(function(n)
+                CombatTextIconsCharDB.procs = { [OTHER] = { school = school, lo = 3000, hi = 6000, learned = true } }
+                n.Procs.Init(CombatTextIconsCharDB)
+            end)
+        end
+        return WithProc(12) == "learned" and WithProc(32) == "ambiguous"
+    end)
     Scenario("claim: two learned records that both fit are 'ambiguous' with no record", function()
         local ns, S = Rig(function(n) Wand(n) Learn3(n, 585, 4, 0.2) end)
         Cast(ns, S, WAND, 10, "nameplate1")

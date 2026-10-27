@@ -6,7 +6,7 @@
 -- the icon) and `base` (Casts.Base, for fingerprints and the teacher).
 
 local ADDON, ns = ...
-local Learn, Tracker, Fingerprints = ns.Learn, ns.Tracker, ns.Fingerprints
+local Learn, Tracker, Fingerprints, Procs = ns.Learn, ns.Tracker, ns.Fingerprints, ns.Procs
 
 local Casts = {}
 ns.Casts = Casts
@@ -194,6 +194,13 @@ function Casts.NoteCast(castID, now, castGUID)
     end
 end
 
+-- Whether normal-scale `size` lies inside the learned sizes of the record's cast spell, unpadded.
+local function InLearnedSizes(record, size)
+    local small, big = Fingerprints.Band(record.base, record.spellID)
+
+    return small ~= nil and IsNumber(size) and small <= size and size <= big
+end
+
 -- Does `record` still wait for a hit of `school` on `plate` at `now`? "in": its first hit
 -- lands on the cast's plate inside its delay window (RecordWindow), or a chain's later hit lands on a
 -- new plate within CHAIN_GAP of the one before (CHAIN_MAX in all). "late": a first hit past the
@@ -209,9 +216,7 @@ local function Fits(record, fp, plate, school, now, size)
         local low, high = RecordWindow(record)
         if plate ~= record.plate then return false end
         if age < low - SLACK then
-            local small, big = Fingerprints.Band(record.base, record.spellID)
-            return not record.seen and age >= low - WATCH and small ~= nil and IsNumber(size)
-                and small <= size and size <= big and "late"
+            return not record.seen and age >= low - WATCH and InLearnedSizes(record, size) and "late"
         end
         if age <= high + SLACK then return "in" end
 
@@ -239,13 +244,25 @@ local function Count(found, fits, record)
     return found or record, math.max(fits, 1)
 end
 
+-- Whether the logged cast `entry` cannot have made a hit of `school`, on what the meter taught: its base's row is a
+-- learned proc of another school (Flame Shock's school-12 hits, cast after a Lava Burst), or the meter showed the
+-- cast rowless (Learn.Rowless) and its base is no own row (Totemic Projection 108287 after a Lava Burst, run shaman4
+-- fight 2).
+local function Harmless(entry, school)
+    local proc = Procs.Get(entry.base)
+    if proc then return proc.school ~= school end
+
+    return Learn.Rowless(entry.spellID) and not ownRows[entry.base]
+end
+
 -- A harmful non-tracker cast on `plate` within UNKNOWN_WAIT, after `since`, that no fingerprint
 -- knows could just as well have made the hit. One cast before the learned cast (or in its frame)
 -- does not: run 20261025T172757Z lost 4 Void Blast hits to Void Eruption and SW:Death that way.
-local function UnlearnedCastAt(plate, now, since)
+-- When `sure`, neither does a cast the meter says cannot have made a hit of `school` (Harmless).
+local function UnlearnedCastAt(plate, now, since, sure, school)
     for _, entry in ipairs(log) do
         if now - entry.at <= UNKNOWN_WAIT and entry.at > since and not entry.tracker and entry.plate == plate
-            and not Fingerprints.IsLearned(entry.base) then
+            and not Fingerprints.IsLearned(entry.base) and not (sure and Harmless(entry, school)) then
             return true
         end
     end
@@ -270,10 +287,20 @@ function Casts.InSizes(low, high, size)
     return size >= PAD_LO * low and size <= PAD_HI * high
 end
 
+-- Whether a hit at `now` of normal-scale `size` fits `record` on its learned evidence alone: inside the
+-- learned window (no centre) and the learned sizes.
+local function Sure(record, now, size)
+    local low, high = Fingerprints.Window(record.base, record.spellID)
+    local age = now - record.at
+
+    return low ~= nil and age >= low - SLACK and age <= high + SLACK and InLearnedSizes(record, size)
+end
+
 -- Whose hit is this? "learned", record: the open records that fit (InBand, then Fits) are all
 -- casts of one spell (the oldest answers; Void Blast can fire twice in one frame) and no
 -- unlearned cast is on the plate. Records that fit late answer only when none fits in its window. "ambiguous": records of two spells fit, or an unlearned cast is on the plate (spec 6.1
--- read literally: that alone spoils the answer, fit or not). nil: nothing to say. `size` is the
+-- read literally: that alone spoils the answer, fit or not), unless the hit is Sure for the one record and the meter
+-- says that cast cannot have made it (Harmless). nil: nothing to say. `size` is the
 -- hit's normal-scale size (Streams.NormalAmount), nil when unknown. A "learned" answer's third value is true when
 -- the record fit only late. Draws nothing; Accept is the only writer of hops.
 function Casts.Claim(plate, school, now, size)
@@ -292,7 +319,10 @@ function Casts.Claim(plate, school, now, size)
     end
     local lateOnly = fits == 0 and late ~= nil
     if lateOnly then found, fits = late, lateFits end
-    if fits >= 2 or UnlearnedCastAt(plate, now, found and found.at or -math.huge) then return "ambiguous" end
+    local sure = fits == 1 and not lateOnly and Sure(found, now, size)
+    if fits >= 2 or UnlearnedCastAt(plate, now, found and found.at or -math.huge, sure, school) then
+        return "ambiguous"
+    end
     if fits == 1 then return "learned", found, lateOnly end
 end
 

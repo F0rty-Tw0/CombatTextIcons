@@ -562,6 +562,36 @@ return function(T)
             drawn[1] == "tex:8092" and Find(rig.ns.Teacher.last, MIND_BLAST).verdict == "agree")
     end
 
+    do -- a rowless cast after a learned spell leaves its killing blow to it (run shaman4 F2, Totemic Projection 108287)
+        local OTHER = 1234567
+        local rig = Rig({})
+        local F, S, Core = rig.ns.Fingerprints, rig.S, rig.ns.Core
+        for castAt, size in ipairs({ 18000, 21000, 25000 }) do
+            F.Add(MIND_BLAST, { school = 32, delay = 0.2, castAt = castAt, hops = 1, spell = MIND_BLAST, size = size })
+        end
+        -- One short fight: Mind Blast at t (unless `alone`), OTHER at t + 0.1, Mind Blast's 25000 killing blow at t + 0.2;
+        -- the session holds Mind Blast's row 20000 + 5000 overkill (`alone`: a Smite row only). Returns the hit's texture.
+        local function Kill(t, session, alone)
+            S.now = t - 1
+            Core.PLAYER_REGEN_DISABLED()
+            if not alone then rig.Cast(t, "nameplate1", MIND_BLAST) end
+            rig.Cast(t + 0.1, "nameplate1", OTHER)
+            local drawn = not alone and rig.Hit(t + 0.2, "nameplate1", 25000, 32) or nil
+            S.now = t + 5
+            Core.PLAYER_REGEN_ENABLED()
+            local row = alone and Row(SMITE, 1000) or Row(MIND_BLAST, 20000, 5000)
+            S.sessions = { Session(session, { row }) }
+            pcall(rig.Fire)
+            return drawn
+        end
+        local before = Kill(100, 701)
+        Kill(200, 702, true)
+        local drawn = Kill(300, 703)
+        Check("teacher short fights: OTHER spoils Mind Blast's killing blow until a read shows OTHER rowless, then it draws Mind Blast and agrees",
+            before ~= "tex:8092" and rig.ns.Learn.Rowless(OTHER) and drawn == "tex:8092"
+            and Find(rig.ns.Teacher.last, MIND_BLAST).verdict == "agree")
+    end
+
     do -- a sum that does not match the row teaches nothing
         local rig = Pull(300)
         local F = rig.ns.Fingerprints

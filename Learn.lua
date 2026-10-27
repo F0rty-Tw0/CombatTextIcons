@@ -313,6 +313,13 @@ function Learn.RowsRead(rows, since, tally)
     end
 end
 
+-- Whether a read found `spellID` cast with no meter row of its own (RowsRead) and no read has listed it since.
+function Learn.Rowless(spellID)
+    local entry = IsId(spellID) and votes[spellID]
+
+    return type(entry) == "table" and entry.rowless == true
+end
+
 -- The sig of `entry` closest to (kind, school, base) within SIG_AGREE, else a new one
 -- (a full entry first drops its fewest-votes sig, lowest expected on ties).
 local function FindSig(entry, kind, school, base)
