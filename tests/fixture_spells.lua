@@ -66,4 +66,6 @@ return {
     -- Priest (never shipped; here so the priest replays fire its CHANNEL_START, as the game does)
     -- Mind Flay: sc_priest_shadow.cpp (mind_flay_base_t channeled, duration/period from spell data); Wowhead 15407 periodic 750 ms, 4.5 s
     [15407] = { icon = 15407, school = 32, period = 0.75, hasted = true, duration = 4.5, mode = "channel" },
+    -- Void Torrent: sc_priest_shadow.cpp (void_torrent_t channeled = true, tick_zero = true, dot_duration = spell data); Wowhead 263165 channeled 3 s, effect 1 interval 1 s
+    [263165] = { icon = 263165, school = 32, period = 1, hasted = true, duration = 3, mode = "channel" },
 }
