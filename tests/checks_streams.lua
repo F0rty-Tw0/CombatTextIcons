@@ -55,8 +55,14 @@ return function(T)
             #rig.births == 1 and born.key == "k" and born.stream.school == 32 and born.stream.period == 2 and born.now == 6)
         rig = Rig(); Streams = rig.ns.Streams
         rig.Hit("g", 0); rig.Hit("g", 2); rig.Hit("g", 5); rig.Hit("g", 8)         -- gaps 2 / 3 / 3
-        rig.Hit("f", 0); rig.Hit("f", 0.3); rig.Hit("f", 0.6); rig.Hit("f", 0.9)   -- gaps under PERIOD_MIN
-        Check("streams: disagreeing gaps and gaps under 0.5 s form nothing", #Streams.Live("g", 8) == 0 and #Streams.Live("f", 0.9) == 0)
+        rig.Hit("f", 0); rig.Hit("f", 0.3); rig.Hit("f", 0.6); rig.Hit("f", 0.9)   -- gaps under PERIOD_MIN less its slack
+        Check("streams: disagreeing gaps and gaps under 0.4 s form nothing", #Streams.Live("g", 8) == 0 and #Streams.Live("f", 0.9) == 0)
+        rig.Hit("j", 0); rig.Hit("j", 0.512); rig.Hit("j", 1.018); rig.Hit("j", 1.514) -- gaps 0.512 / 0.506 / 0.496 (shaman3)
+        local jit = Streams.Live("j", 1.514)[1]
+        Check("streams: a ~0.5 s rhythm with one gap jittered under 0.5 s is born at its 4th hit",
+            jit ~= nil and math.abs(jit.period - 0.5047) < 0.001 and jit.birth == 0)
+        rig.Hit("u", 0); rig.Hit("u", 0.45); rig.Hit("u", 0.81); rig.Hit("u", 1.26) -- gaps 0.45 / 0.36 / 0.45
+        Check("streams: a gap under PERIOD_MIN less its slack forms nothing", #Streams.Live("u", 1.26) == 0)
 
         -- several sets fit: the smaller timing error wins; a tie goes to the latest a
         rig = Rig(); Streams = rig.ns.Streams

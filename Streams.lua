@@ -134,6 +134,11 @@ end
 -- How far a hit may land from a time predicted with `period` and still fit it.
 function Streams.Slack(period) return math.max(SLACK_MIN, SLACK_SHARE * period) end
 
+-- The shortest gap a birth pairs: PERIOD_MIN less its slack, the jitter every other gap is allowed. A rhythm at
+-- ~0.50 s jitters both ways (run shaman3, proc 1297908: gaps 0.512 / 0.506 / 0.496 / 0.499), so a hard 0.5 on one
+-- gap kept its stream unborn.
+local GAP_MIN = PERIOD_MIN - Streams.Slack(PERIOD_MIN)
+
 -- Pruning ----------------------------------------------------------------------------
 
 -- Keeps the entries `keep` accepts, in order.
@@ -204,20 +209,21 @@ end
 
 -- For the hit c = hits[third] and the period `gap`: the best loose hits (a, b) before it, as
 -- indexes, and their timing error. b and a each sit one gap before the next within the slack;
--- each walk goes back from the newer hit and stops once the gap is too long.
+-- each walk goes back from the newer hit and stops once the gap is too long. No gap is under GAP_MIN.
 local function BestPair(hits, third, gap, new, heal)
     local c, slack = hits[third], Streams.Slack(gap)
+    local low = math.max(gap - slack, GAP_MIN)
     local bestA, bestB, bestError
     for second = third - 1, 1, -1 do
         local b = hits[second]
         local bGap = c.at - b.at
         if bGap > gap + slack then break end
-        if bGap >= gap - slack and AgreesWithAll(heal, b, c, new) then
+        if bGap >= low and AgreesWithAll(heal, b, c, new) then
             for first = second - 1, 1, -1 do
                 local a = hits[first]
                 local aGap = b.at - a.at
                 if aGap > gap + slack then break end
-                if aGap >= gap - slack and AgreesWithAll(heal, a, b, c, new) then
+                if aGap >= low and AgreesWithAll(heal, a, b, c, new) then
                     local err = math.abs(bGap - gap) + math.abs(aGap - gap)
                     if Better(err, a.at, bestError, bestA and hits[bestA].at) then
                         bestA, bestB, bestError = first, second, err
@@ -238,7 +244,7 @@ local function FindBirth(hits, new, heal, now)
     for third = #hits, 1, -1 do
         local gap = now - hits[third].at
         if gap > PERIOD_MAX then break end
-        if gap >= PERIOD_MIN and AgreesWithAll(heal, hits[third], new) then
+        if gap >= GAP_MIN and AgreesWithAll(heal, hits[third], new) then
             local first, second, err = BestPair(hits, third, gap, new, heal)
             if first and Better(err, hits[first].at, bestError, bestA and hits[bestA].at) then
                 bestA, bestB, bestC, bestError = first, second, third, err
