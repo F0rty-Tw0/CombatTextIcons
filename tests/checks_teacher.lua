@@ -706,8 +706,9 @@ return function(T)
                     ok and rig.ns.Teacher.area == area and not learned and last.area == "group"
                     and Find(last, SMITE).verdict == "agree")
                 rig, ok, last, learned = Crowd(area, 173, false, true)
-                Check("crowd: grouped only at read time counts as a group fight (" .. area .. ")",
-                    ok and rig.ns.Teacher.area == area and last.area == "group" and not learned)
+                -- priest3: joining the dungeon group 2 s after a solo dummy fight lost that fight's read
+                Check("crowd: grouped only at read time is still a solo fight: it reads clear and learns (" .. area .. ")",
+                    ok and rig.ns.Teacher.area == "clear" and last.area == "clear" and learned)
             end
         end
 
@@ -825,8 +826,10 @@ return function(T)
             Check("crowd saved: a short read saves nothing new", Unchanged())
             Crowd("clear", 300, true, nil, Preset)
             Check("crowd saved: a group read saves nothing new", Unchanged())
-            Crowd("clear", 173, false, true, Preset)
-            Check("crowd saved: a read grouped at read time saves nothing new", Unchanged())
+            local groupedLate = Crowd("clear", 173, false, true, Preset)
+            local savedLate = CombatTextIconsCharDB.area
+            Check("crowd saved: a solo read grouped only at read time saves its clear verdict",
+                savedLate and savedLate.state == "clear" and savedLate.map == groupedLate.S.map)
             Crowd("crowded", 173, nil, nil, function(rig) Preset(rig) rig.S.map = nil end)
             Check("crowd saved: a read with no map drops the older verdict instead of keeping it for a map it no longer describes",
                 CombatTextIconsCharDB.area == nil)
@@ -1694,10 +1697,15 @@ return function(T)
             and rig.ns.Teacher.fight.tally[X] == nil and Logged("HIDDEN (crowded)") and not Logged("-> proc"))
 
         rig = ProcRig()
+        Wound(rig, 350)
+        local soloGroup = rig.ns.Teacher.fight.group
+        rig = ProcRig()
         rig.S.group = true
         Check("procs route: in a group the proc hit stays hidden and unrecorded",
             Wound(rig, 350) == nil and #rig.ns.Teacher.fight.unknown == 0 and rig.ns.Teacher.fight.tally[X] == nil
             and not Logged("-> proc"))
+        Check("group: a wound while grouped makes the fight a group fight; a solo wound does not",
+            not soloGroup and rig.ns.Teacher.fight.group == true)
 
         rig = ProcRig()
         rig.S.threat.nameplate1 = false

@@ -51,11 +51,6 @@ local store = nil       -- the character table; its `area` = { state, map } is t
 local lastSession = nil -- ID of the session processed last
 local lastRows = {}     -- that session's rows at its last read, by spell ID: { total, overkill }
 
-local function InGroup()
-    local inGroup = IsInGroup()
-    return not Plain(inGroup) or inGroup -- unknown counts as grouped
-end
-
 -- The map the player stands on as a plain positive integer, or nil.
 local function CurrentMap()
     local ok, map = pcall(C_Map.GetBestMapForUnit, "player")
@@ -517,7 +512,9 @@ local function Done()
     if Teacher.OnRead then Teacher.OnRead(Teacher.last) end
 end
 
--- The crowd check: "group" (the state is kept) for a group fight; "short" (the state is kept)
+-- The crowd check: "group" (the state is kept) for a fight that started grouped or saw a wound while
+-- grouped; the group state at read time does not count (priest3: joining the dungeon group 2 s after a
+-- solo dummy fight lost that fight's whole read); "short" (the state is kept)
 -- when the wounds seen are below half the meter's total, so the session holds damage this fight
 -- never saw (run 102226Z: 20306 seen against 4211377); else "clear" when the wounds
 -- seen fit the meter's rows (their total plus overkill, within the judge's tolerance), else
@@ -528,8 +525,7 @@ local function CrowdCheck(run, rows)
         total, overkill = total + row.total, overkill + row.overkill
     end
 
-    local grouped = run.group or InGroup()
-    if grouped then return "group", total end
+    if run.group then return "group", total end
     if run.seen < total / 2 then return "short", total end
 
     local tolerance = math.max(1, total / 100)
@@ -655,6 +651,11 @@ end
 function Teacher.Start(now, group)
     local streams = Streams.NewFight()
     Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, seen = 0, group = group, streams = streams }
+end
+
+-- A wound landed while the player was grouped: the fight's read will not learn.
+function Teacher.Grouped()
+    if Teacher.fight then Teacher.fight.group = true end
 end
 
 -- A wound of this size that may be yours was seen, drawn or not (Core's Wound decides which count).

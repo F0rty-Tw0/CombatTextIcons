@@ -299,7 +299,9 @@ end
 -- (run 153349Z: strangers on 8 nearby dummies made both reads crowded).
 local function Wound(plate, unit, flagText, amount, school, now)
     local fightsYou = FightsYou(unit, now)
-    local solo = fightsYou and not InGroup()
+    local grouped = InGroup()
+    if grouped then Teacher.Grouped() end
+    local solo = fightsYou and not grouped
     local text = HitText(flagText, amount)
     if ns.Debug then
         ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit, ShowValue(school),
