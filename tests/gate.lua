@@ -3,8 +3,8 @@
 --
 --   lua tests/gate.lua    runs the start-up asserts and prints nothing
 --
--- A baseline is { looRight, baseWrong, druidRight, druidWrong, maxWrong = { [class] = n }, k, commit }; a candidate is
--- the same plus flakes. Every number is a percentage of the meter, compared as raw floats.
+-- A baseline is { looRight, baseRight, baseWrong, chainRight, druidRight, druidWrong, maxWrong = { [class] = n }, k,
+-- commit }; a candidate is the same plus flakes. Every number is a percentage of the meter, compared as raw floats.
 
 local G = {}
 
@@ -20,7 +20,9 @@ local function SortedClasses(maxWrong)
 end
 
 -- KEEP when nothing got worse past its step and something got better past its step; else REJECT with every reason.
--- Improvements: looRight up, baseWrong down, any baseline class's maxWrong down. The druid and the flakes never improve.
+-- Improvements: looRight up, baseRight up, baseWrong down, any baseline class's maxWrong down. baseRight counts because
+-- a stale learned entry lives only in a real start save, which loo and shuffle never replay (2026-10-27, user's call);
+-- chainRight then guards the replay that carries learning across logs. The druid, chain and flakes never improve.
 function G.Judge(baseline, candidate)
     local reasons, improved = {}, false
     local function Check(label, delta, step, lowerIsBetter, canImprove)
@@ -30,6 +32,8 @@ function G.Judge(baseline, candidate)
         improved = improved or canImprove and better
     end
     Check("looRight", candidate.looRight - baseline.looRight, STEP, false, true)
+    Check("baseRight", candidate.baseRight - baseline.baseRight, STEP, false, true)
+    Check("chainRight", candidate.chainRight - baseline.chainRight, STEP, false, false)
     Check("baseWrong", candidate.baseWrong - baseline.baseWrong, STEP, true, true)
     for _, class in ipairs(SortedClasses(baseline.maxWrong)) do
         local now = candidate.maxWrong[class]
@@ -57,7 +61,9 @@ function G.GateText(numbers)
 
     return table.concat({
         "return {\n",
+        string.format("    baseRight = %.4f,\n", numbers.baseRight),
         string.format("    baseWrong = %.4f,\n", numbers.baseWrong),
+        string.format("    chainRight = %.4f,\n", numbers.chainRight),
         string.format("    commit = %q,\n", numbers.commit),
         string.format("    druidRight = %.4f,\n", numbers.druidRight),
         string.format("    druidWrong = %.4f,\n", numbers.druidWrong),
@@ -70,7 +76,8 @@ end
 
 local function CheckBaseline(t, path)
     if type(t) ~= "table" then error("gate baseline " .. path .. ": not a table") end
-    for _, field in ipairs({ "baseWrong", "commit", "druidRight", "druidWrong", "k", "looRight", "maxWrong" }) do
+    for _, field in ipairs({ "baseRight", "baseWrong", "chainRight", "commit", "druidRight", "druidWrong", "k", "looRight",
+        "maxWrong" }) do
         if t[field] == nil then error("gate baseline " .. path .. ": missing " .. field) end
     end
     if type(t.maxWrong) ~= "table" then error("gate baseline " .. path .. ": maxWrong is not a table") end
@@ -88,7 +95,8 @@ function G.LoadBaseline(path)
 end
 
 do -- start-up asserts
-    local B = { looRight = 60, baseWrong = 1, druidRight = 20, druidWrong = 0.5, maxWrong = { shaman = 0.5, warlock = 1 } }
+    local B = { looRight = 60, baseRight = 40, baseWrong = 1, chainRight = 55, druidRight = 20, druidWrong = 0.5,
+        maxWrong = { shaman = 0.5, warlock = 1 } }
     local function C(overrides)
         local copy = { flakes = 0, maxWrong = {} }
         for key, value in pairs(B) do copy[key] = value end
@@ -117,20 +125,25 @@ do -- start-up asserts
     Expect(C({ druidRight = 19.93 }), "REJECT", "nothing improved", "druidRight within its step")
     Expect(C({ druidRight = 19.88 }), "REJECT", "druidRight -0.12; nothing improved", "druidRight past its step")
     Expect(C({ flakes = 1 }), "REJECT", "flakes 1; nothing improved", "a flake")
+    Expect(C({ baseRight = 40.1 }), "KEEP", "", "baseRight rises is an improvement")
+    Expect(C({ baseRight = 40.1, looRight = 59.9 }), "REJECT", "looRight -0.10", "baseRight up does not cover a looRight drop")
+    Expect(C({ baseRight = 40.1, chainRight = 54.9 }), "REJECT", "chainRight -0.10", "chainRight drops")
+    Expect(C({ chainRight = 56 }), "REJECT", "nothing improved", "chainRight rises is no improvement")
+    Expect(C({ baseRight = 39.9, looRight = 60.1 }), "REJECT", "baseRight -0.10", "baseRight drops")
     Expect(C({ looRight = 59.9, baseWrong = 1.06, maxWrong = { shaman = 0.7, warlock = 1.1 }, flakes = 2, druidWrong = 0.8 }),
         "REJECT", "looRight -0.10; baseWrong +0.06; maxWrong shaman +0.20; maxWrong warlock +0.10; flakes 2; druidWrong +0.30; nothing improved",
         "every reason, in order")
     local ok, message = pcall(G.Judge, B, C({ maxWrong = { shaman = 0.5 } }))
     assert(not ok and message:find("warlock", 1, true), "Judge: a baseline class missing from the run is an error naming it")
 
-    local sample = { looRight = 61.9012, baseWrong = 0.8123, druidRight = 12.3456, druidWrong = 0.4321, k = 8, commit = "5071da7",
+    local sample = { looRight = 61.9012, baseRight = 40.1234, baseWrong = 0.8123, chainRight = 57.8, druidRight = 12.3456, druidWrong = 0.4321, k = 8, commit = "5071da7",
         maxWrong = { warlock = 0.6, shaman = 0, priest = 0.9 } }
     local text = G.GateText(sample)
-    assert(text == 'return {\n    baseWrong = 0.8123,\n    commit = "5071da7",\n    druidRight = 12.3456,\n    druidWrong = 0.4321,\n'
+    assert(text == 'return {\n    baseRight = 40.1234,\n    baseWrong = 0.8123,\n    chainRight = 57.8000,\n    commit = "5071da7",\n    druidRight = 12.3456,\n    druidWrong = 0.4321,\n'
         .. '    k = 8,\n    looRight = 61.9012,\n    maxWrong = { priest = 0.9000, shaman = 0.0000, warlock = 0.6000 },\n}\n',
         "GateText: the baseline text, keys and classes sorted")
     local back = load(text)()
-    for _, field in ipairs({ "looRight", "baseWrong", "druidRight", "druidWrong", "k", "commit" }) do
+    for _, field in ipairs({ "looRight", "baseRight", "baseWrong", "chainRight", "druidRight", "druidWrong", "k", "commit" }) do
         assert(back[field] == sample[field], "GateText: " .. field .. " round-trips")
     end
     for class, value in pairs(sample.maxWrong) do

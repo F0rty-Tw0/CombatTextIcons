@@ -691,7 +691,8 @@ local function GateNumbers()
     for class, summary in pairs(results.shuffle.classes) do
         if not holdout[class] then maxWrong[class] = summary.maxWrong end
     end
-    local numbers = { looRight = results.loo.total.right, baseWrong = results.base.total.wrong, druidRight = druid.right,
+    local numbers = { looRight = results.loo.total.right, baseRight = results.base.total.right,
+        baseWrong = results.base.total.wrong, chainRight = results.chain.total.right, druidRight = druid.right,
         druidWrong = druid.wrong, maxWrong = maxWrong, flakes = #results.flakes, k = results.shuffle.k, commit = Commit() }
 
     return numbers
