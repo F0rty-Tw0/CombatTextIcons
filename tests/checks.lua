@@ -150,6 +150,26 @@ return function(T)
         local ns = T.Boot(function() CombatTextIconsCharDB = { chainSchools = { [188443] = 8 } } end)
         Check("migration: chainSchools nil after login", CombatTextIconsCharDB.chainSchools == nil)
     end
+    do -- first-login hint: once per character, only with the addon on
+        local function Hints(S)
+            local count = 0
+            for _, line in ipairs(S.prints) do
+                if line:find("'?' icons are hits it hasn't learned yet", 1, true) then count = count + 1 end
+            end
+            return count
+        end
+        local ns = T.Boot()
+        local S = T.State()
+        local fresh = Hints(S)
+        ns.Core.PLAYER_LOGIN()
+        Check("hint: a new character's first login prints the hint once; a second login (reload) does not",
+            fresh == 1 and Hints(S) == 1)
+        T.Boot(function() CombatTextIconsCharDB = {} end)
+        Check("hint: a character with saved data gets no hint", Hints(T.State()) == 0)
+        T.Boot(function() CombatTextIconsDB = { enabled = false } end)
+        Check("hint: a new character with the addon off gets no hint, and its table is made",
+            Hints(T.State()) == 0 and type(CombatTextIconsCharDB) == "table")
+    end
     do
         -- learned fingerprint cast, solo, no SetMeterOn call: its record opens and claims the hit
         local ns, S = T.Boot(), nil
@@ -175,13 +195,13 @@ return function(T)
     end
 
     do
-        local ns, S = T.Boot(function(S) S.meterAvailable = false end), T.State()
+        local ns, S = T.Boot(function(S) S.meterAvailable = false; CombatTextIconsCharDB = {} end), T.State()
         ns.Meter.Init()
         Check("stamp: unavailable meter prints one chat line with the reason, not again on a second Init",
             #S.prints == 1 and S.prints[1]:find("'?' for unlearned hits is off (unavailable)", 1, true) ~= nil)
     end
     do -- spec §4.6: a client with no meter API at all
-        local ok, ns = pcall(T.Boot, function() C_DamageMeter = nil end)
+        local ok, ns = pcall(T.Boot, function() C_DamageMeter = nil; CombatTextIconsCharDB = {} end)
         local S = T.State()
         Check("meter: no C_DamageMeter at login raises no error and turns the meter off ('unavailable')",
             ok and not ns.Meter.Available() and #S.prints == 1 and S.prints[1]:find("(unavailable)", 1, true) ~= nil)

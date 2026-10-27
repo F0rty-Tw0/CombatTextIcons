@@ -462,6 +462,7 @@ function Core.ADDON_LOADED(name)
 end
 
 function Core.PLAYER_LOGIN()
+    local fresh = type(CombatTextIconsCharDB) ~= "table" -- this character's first login with the addon
     Meter.Init()
     Learn.Init()
     -- Learn.Init made the character table; saved data is checked, never trusted.
@@ -473,6 +474,10 @@ function Core.PLAYER_LOGIN()
     Ledger.Init(charDB)
     Teacher.Init(charDB)
     if db.enabled then Core.SuppressBlizzard() end
+    if fresh and db.enabled then
+        print(PREFIX .. "'?' icons are hits it hasn't learned yet. Fight a few mobs solo and they turn into your spell icons."
+            .. " /cti for options.")
+    end
     MinimapButton.Init() -- last: a UI error here must not skip the combat setup above
 end
 
