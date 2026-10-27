@@ -379,6 +379,8 @@ end
 -- Learning from '?' hits (spec 6.5): rewrites the learned rows of `results` against the
 -- session's meter `rows`. Whole sums pair first; a row and a group that no whole sum agreed
 -- with then try `top`; last, the steady pass (Steady.lua) learns from steady hits no sum explained.
+-- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so
+-- the DoT's draws were other spells' (a stale save's Nature DoT under Lava Burst 51505 drew Surging Totem's ticks).
 -- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
 local function Learn(run, results, open, rows)
     local groups = Groups(run.unknown)
@@ -387,6 +389,10 @@ local function Learn(run, results, open, rows)
     Pass(groups, open, owners, function(group) return group end, seen, results, learned, rewritten)
     Pass(groups, open, owners, function(group) return group.top end, seen, results, learned, rewritten)
     for _, way in ipairs(Steady.Learn(run, rows, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(learned) do
+        local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)
+        if dot and fp and fp.learned and fp.school ~= dot.school then ns.Learn.Drop(way.castID) end
+    end
 
     return learned, rewritten
 end

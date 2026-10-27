@@ -7,7 +7,8 @@
 -- 20261025T180045Z); a window qualifies when it counts at least MIN_CASTS and SHARE of the casts, the biggest hit at most SIZE_SPREAD times
 -- the smallest. Overlapping qualifying windows are one cluster; two clusters teach nothing. A hit
 -- counted for two cast spells or two bases teaches neither. The meter judges last: the counted hits
--- must fit the base's row (total + overkill + tolerance, less what was drawn under it). Learned
+-- must fit the base's row (total + overkill + tolerance, less what was drawn under it, unless a learned
+-- DoT of another school drew it). Learned
 -- hits become fingerprint samples. A base learned before the fight keeps learning the hits it
 -- missed (Void Blast in its cast frame, Mind Blast at a new distance): its pairs need its school and
 -- the padded size band. A cluster also needs more than luck: a steady '?' stream (two DoT series)
@@ -176,13 +177,19 @@ local function RowOf(castID, rows)
 end
 
 -- Whether the counted hits of `castID` fit its row: total + overkill + Judge's tolerance, less what
--- was drawn under it this fight.
+-- was drawn under it this fight. A learned DoT of the cast in another school than the hits drew by votes, not by the
+-- meter, so its draws take no room: a stale save's Nature DoT under Lava Burst 51505 drew 260K of other Nature hits,
+-- and the 6 Fire hits that sum to the row learned nothing until a fight later (run shaman3 start, fight 1).
 local function Fits(castID, hits, rows, tally)
     local row = RowOf(castID, rows)
     if not row then return false end
-    local sum = 0
-    for _, pair in ipairs(hits) do sum = sum + pair.hit.amount end
-    local room = row.total + row.overkill + math.max(1, row.total / 100) - (tally[castID] or 0)
+    local dot, sum, dotSchool = ns.Learn.Get(castID), 0, false
+    for _, pair in ipairs(hits) do
+        sum = sum + pair.hit.amount
+        if dot and pair.hit.school == dot.school then dotSchool = true end
+    end
+    local drawn = (dot and not dotSchool) and 0 or (tally[castID] or 0)
+    local room = row.total + row.overkill + math.max(1, row.total / 100) - drawn
 
     return sum <= room
 end

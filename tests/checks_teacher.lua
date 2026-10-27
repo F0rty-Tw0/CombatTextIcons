@@ -2049,6 +2049,27 @@ return function(T)
         Check("steady (j): a first fight keyed by API base 73899 learns under its own row 51505 (before: -> meter)",
             last.area == "clear" and last.learned and last.learned[LAVA_BURST] == 4
             and rig.ns.Fingerprints.IsLearned(LAVA_BURST))
+
+        -- Run shaman3 start F1: a stale save learned 51505 as a Nature DoT, which drew 260K of other Nature hits under
+        -- 51505. Its draws take no room from the Fire hits, and the learned Fire fingerprint drops the DoT. The DoT is
+        -- seeded at the fight's end: with no Nature ticks here, two tickless casts would drop it first (Learn.Missed).
+        local fires = {}
+        for _, event in ipairs(lavas) do
+            fires[#fires + 1] = event[2] and event or { event[1], nil, event[3], "", 4 }
+        end
+        local function StaleDotDrew(r)
+            CombatTextIconsCharDB.learned[LAVA_BURST] = { school = 8, period = 1.65, kind = "dot", misses = 0 }
+            r.ns.Learn.Init()
+            r.ns.Teacher.Drawn(LAVA_BURST, 150000)
+        end
+        rig, last = SteadyFight(fires, { Row(LAVA_BURST, 226000) }, nil, StaleDotDrew)
+        Check("steady (o): a stale Nature DoT's 150K under 51505 leaves the 4 Fire hits room -> learned, DoT dropped",
+            last.area == "clear" and last.learned and last.learned[LAVA_BURST] == 4
+            and rig.ns.Fingerprints.IsLearned(LAVA_BURST) and rig.ns.Learn.Get(LAVA_BURST) == nil)
+        rig, last = SteadyFight(fires, { Row(LAVA_BURST, 200000), Row(SWP_ROW, 26000) }, nil, StaleDotDrew)
+        Check("steady (o2): Fire hits (226K) over the row (200K) still -> meter: nothing learned, the DoT kept",
+            last.area == "clear" and not (last.learned and last.learned[LAVA_BURST])
+            and not rig.ns.Fingerprints.IsLearned(LAVA_BURST) and rig.ns.Learn.Get(LAVA_BURST) ~= nil)
     end
 
     do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899
