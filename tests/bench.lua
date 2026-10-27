@@ -1,27 +1,26 @@
 -- Bench: the scoreboard's replays under scenarios that vary the order the addon learns in. A harness for the fix
--- loop: deterministic (a local Park-Miller Rng, never math.random), no scenario touches the addon.
+-- loop: deterministic (seeded Park-Miller streams from synth.lua, never math.random), no scenario touches the addon.
 --
 --   lua tests/bench.lua [--only id[,id...]] [--json path] [--k N]
 --
 -- --json writes every scenario that ran (class -> right, wrong, unknown, fights, min, mean, max, maxWrong, curve), the
--- base runs, the flakes and the seconds as sorted-key JSON.
+-- base runs, the flakes and the seconds as sorted-key JSON. synth adds case -> class -> kind -> cell (right, wrong,
+-- unknown, fights, and for a perturbed case baseRight, baseWrong); a fabricated case sits under class all, kind fresh.
 --
 --   base     tests/score.lua's runs (fresh and start), rebuilt on cached slices and checked against score_lib's path
 --   shuffle  each log's fights in K seeded orders from an empty store, times shifted so the clock never runs back
 --   chain    each class's logs' fights in log order as one session from an empty store (per-fight right % curve)
 --   loo      leave-one-out: a class's other logs chained first, then the held-out log's fights, scored on those alone
 --   flake    two child runs of base: the per-run lines must match (flakes: 0), else one `flake: <label>` each
+--   synth    tests/synth.lua's perturbed and fabricated logs, scored like the real ones (synthetic: shown, never gated)
 --
 -- The druid is the hold-out class: shown, never in TOTAL.
 
-local function Rng(seed) -- Park-Miller: the same numbers on every Lua version (checks_streams.lua)
-    local state = seed
-    return function() state = (state * 16807) % 2147483647 return state / 2147483647 end
-end
+local Synth = dofile("tests/synth.lua")
 
--- Fisher-Yates on a copy. Park-Miller from a small seed starts tiny and correlated across seeds, so the seed is spread.
+-- Fisher-Yates on a copy, drawing from the seeded stream (Synth.Seeded spreads small seeds).
 local function Permute(list, seed)
-    local copy, rand = table.move(list, 1, #list, 1, {}), Rng(seed * 1103515245 % 2147483646 + 1)
+    local copy, rand = table.move(list, 1, #list, 1, {}), Synth.Seeded(seed)
     for i = #copy, 2, -1 do
         local j = 1 + math.floor(rand() * i)
         copy[i], copy[j] = copy[j], copy[i]
@@ -157,14 +156,20 @@ local H, Setup = L.H, L.Setup
 local ScoreFight, NewScore, NewTotal, ClassLabel, Add, Pct, Line, Out = L.ScoreFight, L.NewScore, L.NewTotal, L.ClassLabel, L.Add,
     L.Pct, L.Line, L.Out
 
+-- The slices that carry meter rows, as log.fights holds them.
+local function WithRows(slices)
+    local fights = {}
+    for _, slice in ipairs(slices) do
+        if slice.rows and #slice.rows > 0 then fights[#fights + 1] = slice end
+    end
+    return fights
+end
+
 -- Every log once: slices (tail included, for base), fights (slices with rows), the class's start save when there is one.
 local LOGS = L.LoadLogs()
 for _, log in ipairs(LOGS) do
     log.slices = H.SplitFights(log.name, { log = log.opts.log, fixture = log.opts.fixture, label = log.log })
-    log.fights = {}
-    for _, slice in ipairs(log.slices) do
-        if slice.rows and #slice.rows > 0 then log.fights[#log.fights + 1] = slice end
-    end
+    log.fights = WithRows(log.slices)
 end
 
 local function SameBases(bases, count)
@@ -403,6 +408,161 @@ local function RunLoo()
     results.loo = record
 end
 
+-- synth ------------------------------------------------------------------------------------------------------
+-- Copies of the slices with seen dropped: strangers inserted into a log leave its TEACH seen totals stale. log.slices
+-- itself is never written.
+local function Unseen(slices)
+    local copies = {}
+    for index, slice in ipairs(slices) do
+        local copy = {}
+        for key, value in pairs(slice) do copy[key] = value end
+        copy.seen = nil
+        copies[index] = copy
+    end
+    return copies
+end
+
+-- How many HIT events (kind "U", the unit events ParseLog makes of HIT lines) a slice holds.
+local function HitCount(events)
+    local count = 0
+    for _, event in ipairs(events) do
+        if event.kind == "U" then count = count + 1 end
+    end
+    return count
+end
+do
+    assert(HitCount({ { kind = "U" }, { kind = "C" }, { kind = "R" }, { kind = "U" } }) == 2, "HitCount: counts the U events only")
+end
+
+-- A perturbed log must parse like its source: the same fights, each with the same number of HITs (group: at least
+-- that many, strangers are added), the same rows in order with the same amounts. alias is the one exception: some rows
+-- move to spellID + ALIAS_OFFSET, all from a single original ID.
+local function CheckParse(case, log, slices)
+    local where = case .. " " .. log.log
+    local fights, original, changed = WithRows(slices), nil, 0
+    assert(#fights == #log.fights, where .. ": " .. #fights .. " fights with rows, the source has " .. #log.fights)
+    for index, fight in ipairs(fights) do
+        local want, got = log.fights[index].rows, fight.rows
+        local wantHits, gotHits = HitCount(log.fights[index].events), HitCount(fight.events)
+        local sameHits = gotHits == wantHits or (case == "group" and gotHits > wantHits)
+        assert(sameHits, where .. ": fight " .. index .. " has " .. gotHits .. " HITs, the source has " .. wantHits)
+        assert(#got == #want, where .. ": fight " .. index .. " has " .. #got .. " rows, the source has " .. #want)
+        for at, row in ipairs(want) do
+            local now = got[at]
+            local same = now.spellID == row.spellID
+            local oneSource = (original or row.spellID) == row.spellID
+            local aliased = case == "alias" and now.spellID == row.spellID + Synth.ALIAS_OFFSET and oneSource
+            assert(same or aliased, where .. ": fight " .. index .. " row " .. at .. " is spell " .. now.spellID .. ", the source has " .. row.spellID)
+            assert(now.totalAmount == row.totalAmount and now.overkillAmount == row.overkillAmount,
+                where .. ": fight " .. index .. " row " .. at .. " amounts differ from the source")
+            if not same then original, changed = row.spellID, changed + 1 end
+        end
+    end
+    assert(case ~= "alias" or changed > 0, where .. ": alias changed no row")
+end
+
+local KINDS = { "fresh", "start" }
+
+-- One replay of a log's class over `slices`: fresh (no charDB) or from the log's start save.
+local function ScoreKind(log, kind, slices)
+    return ScoreSession(log.class, slices, SameBases(log.bases, #slices), { charDB = kind == "start" and log.start or nil })
+end
+
+-- The JSON cell of a line: its shares and fights, plus the unperturbed base's right and wrong when there is one.
+local function Cell(score, base)
+    local summary = Summary(score)
+    local cell = { right = summary.right, wrong = summary.wrong, unknown = summary.unknown, fights = summary.fights }
+    if base then cell.baseRight, cell.baseWrong = Pct(base.right, base.meter), Pct(base.wrong, base.meter) end
+    return cell
+end
+
+-- One class under one perturbation: its logs' perturbed replays and their bases, pooled per kind.
+local function PoolClass(case, class, seeds, Base)
+    local pooled = {}
+    for _, log in ipairs(byClass[class]) do
+        local lines = Synth.Perturb(log.opts.log, case, seeds[log])
+        if not lines then
+            Out("synth " .. case .. " " .. log.log .. ": nothing to perturb")
+        else
+            local slices = H.SplitFights("x", { log = lines, fixture = log.opts.fixture, label = log.log })
+            CheckParse(case, log, slices)
+            local scored = case == "group" and Unseen(slices) or slices
+            for _, kind in ipairs(KINDS) do
+                if kind == "fresh" or log.start then
+                    local label = case .. " " .. class .. " " .. kind .. " (synthetic)"
+                    pooled[kind] = pooled[kind] or { score = NewScore(label), base = NewScore(label) }
+                    Add(pooled[kind].score, ScoreKind(log, kind, scored))
+                    Add(pooled[kind].base, Base(log, case, kind))
+                end
+            end
+        end
+    end
+    return pooled
+end
+
+-- Prints each kind's pooled line against the same logs unperturbed, and records the cell the line is formatted from.
+local function Report(record, case, class, pooled)
+    for _, kind in ipairs(KINDS) do
+        local side = pooled[kind]
+        if side and side.score.fights > 0 then
+            local cell = Cell(side.score, side.base)
+            Line(side.score, string.format("  base %5.1f/%4.1f  Δright %+5.1f  Δwrong %+4.1f", cell.baseRight, cell.baseWrong,
+                cell.right - cell.baseRight, cell.wrong - cell.baseWrong))
+            record[case][class] = record[case][class] or {}
+            record[case][class][kind] = cell
+        end
+    end
+end
+
+-- Per perturbation and class: the pooled line against the same logs unperturbed. The hold-out is left alone, and so
+-- is a class whose logs have no lines to perturb (the priest logs load from fixtures: opts.log is nil).
+local function RunPerturbed(record)
+    local seeds, bases = {}, {} -- log -> its index in LOGS; log -> base key -> the score, replayed once
+    for index, log in ipairs(LOGS) do seeds[log] = index end
+    local function Base(log, case, kind)
+        local key = case == "group" and "unseen " .. kind or kind
+        bases[log] = bases[log] or {}
+        bases[log][key] = bases[log][key] or ScoreKind(log, kind, case == "group" and Unseen(log.slices) or log.slices)
+        return bases[log][key]
+    end
+    for _, case in ipairs(Synth.PERTURB_CASES) do
+        record[case] = {}
+        for _, class in ipairs(classOrder) do
+            local first = byClass[class][1]
+            if first.opts.log and not first.holdout then Report(record, case, class, PoolClass(case, class, seeds, Base)) end
+        end
+    end
+end
+
+-- Fabricated logs: Synth.FIGHTS fights each, scored from an empty store with no base spells.
+local function RunFabricated(record)
+    for _, case in ipairs(Synth.FABRICATE_CASES) do
+        local slices = H.SplitFights("x", { log = Synth.Fabricate(case, 1), fixture = { startArea = "clear" }, label = case })
+        local fights = #WithRows(slices)
+        assert(fights == Synth.FIGHTS, case .. ": expected " .. Synth.FIGHTS .. " fights with rows, got " .. fights)
+        local score = ScoreSession("synthetic", slices, SameBases({}, #slices), { label = case .. " (synthetic)" })
+        Line(score)
+        record[case] = { all = { fresh = Cell(score) } }
+    end
+end
+
+local function RunSynth()
+    local before = {}
+    for index, log in ipairs(LOGS) do
+        before[index] = {}
+        for at, slice in ipairs(log.slices) do before[index][at] = slice.seen end
+    end
+    local record = {}
+    RunPerturbed(record)
+    RunFabricated(record)
+    for index, log in ipairs(LOGS) do
+        for at, slice in ipairs(log.slices) do
+            assert(slice.seen == before[index][at], "synth wrote seen of " .. log.log .. " slice " .. at)
+        end
+    end
+    results.synth = record
+end
+
 -- flake ------------------------------------------------------------------------------------------------------
 -- Two child runs of base, their per-run lines compared by label: a replay that depends on anything but the logs differs.
 local function RunFlake()
@@ -433,7 +593,7 @@ local function RunFlake()
 end
 
 local SCENARIOS = { { id = "base", run = RunBase }, { id = "shuffle", run = RunShuffle }, { id = "chain", run = RunChain },
-    { id = "loo", run = RunLoo }, { id = "flake", run = RunFlake } }
+    { id = "loo", run = RunLoo }, { id = "synth", run = RunSynth }, { id = "flake", run = RunFlake } }
 if ONLY then
     local known = {}
     for _, scenario in ipairs(SCENARIOS) do known[scenario.id] = true end
@@ -470,6 +630,7 @@ local function Export()
             out.runs[run.label] = { right = run.right, wrong = run.wrong, unknown = run.unknown }
         end
     end
+    out.synth = results.synth
     out.flakes = results.flakes
     out.seconds = os.time() - wallStart
     return out
