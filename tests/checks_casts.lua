@@ -179,6 +179,18 @@ return function(T)
         Check("soleCast: the older cast aged out of the window -> the newer one",
             (Casts.SoleCast(P1, 41.75) or {}).spellID == 8092)
 
+        -- Run shaman3 start: a stale save learned Lava Burst 51505 as a Nature DoT; its Fire hits sat unexplained.
+        CombatTextIconsCharDB.learned = { [51505] = { school = 8, period = 1.65, kind = "dot", misses = 0 } }
+        rig.ns.Learn.Init(CombatTextIconsCharDB)
+        rig.Cast(50, "nameplate1", 51505)
+        local function Named(list) return #list == 1 and list[1].castSpell == 51505 end
+        Check("soleCast: a learned DoT's cast stays the cast for a hit of another school (Fire 4 vs its Nature 8 ticks)",
+            (Casts.SoleCast(P1, 50.4, 4) or {}).spellID == 51505 and Casts.SoleCast(P1, 50.4, 8) == nil
+            and Casts.SoleCast(P1, 50.4) == nil and Named(Casts.Candidates(P1, 50.4, 4))
+            and #Casts.Candidates(P1, 50.4, 8) == 0)
+        Check("soleCast: a table tracker spell (no learned school) hides hits of every school",
+            Casts.SoleCast(P1, 20.25, 4) == nil)
+
         S.harmful[2061] = false
         rig.Cast(50, "nameplate1", 2061)
         Check("soleCast: a non-harmful cast is not logged", Casts.SoleCast(P1, 50.25) == nil)

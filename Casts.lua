@@ -181,8 +181,9 @@ end
 function Casts.NoteCast(castID, now, castGUID)
     SweepRecords(now)
     local base = Casts.Base(castID)
+    local learned = Learn.Get(castID)
     local entry = { spellID = castID, base = base, at = now, plate = CastPlate(castID, castGUID, now),
-        tracker = Learn.IsKnownIcon(castID) }
+        tracker = Learn.IsKnownIcon(castID), ticks = learned and learned.school }
     log[#log + 1] = entry
     while now - log[1].at > UNKNOWN_WAIT or #log > LOG_MAX do table.remove(log, 1) end
 
@@ -300,10 +301,17 @@ function Casts.Accept(record, plate, now)
     record.hops, record.plates[plate], record.last = record.hops + 1, true, now
 end
 
--- The one harmful cast that can explain a hit on `plate` at `at`: the log entries in
--- [at - UNKNOWN_WAIT, at] share one base spell (the newest of them answers), not a tracker
--- spell, cast at `plate`. Else nil. The teacher learns under the entry's `base`.
-function Casts.SoleCast(plate, at)
+-- Whether a tracker cast's ticks explain a hit of `school`: a learned DoT only its own school's
+-- (a stale save learned Lava Burst as a Nature DoT and hid its Fire hits, run shaman3 start);
+-- a table spell, or a hit of unknown school, every school.
+local function Ticks(entry, school)
+    return entry.tracker and (entry.ticks == nil or school == nil or entry.ticks == school)
+end
+
+-- The one harmful cast that can explain a hit of `school` on `plate` at `at`: the log entries in
+-- [at - UNKNOWN_WAIT, at] share one base spell (the newest of them answers), whose ticks don't
+-- explain the hit, cast at `plate`. Else nil. The teacher learns under the entry's `base`.
+function Casts.SoleCast(plate, at, school)
     if plate == nil then return nil end
     local found
     for _, entry in ipairs(log) do
@@ -312,18 +320,18 @@ function Casts.SoleCast(plate, at)
             found = entry
         end
     end
-    if found and not found.tracker and found.plate == plate then return found end
+    if found and not Ticks(found, school) and found.plate == plate then return found end
 end
 
--- Every cast that may have made a hit on `plate` at `at`, for the steady pass (Steady.lua): the
--- non-tracker log entries cast at `plate` in [at - UNKNOWN_WAIT, at], learned bases too, oldest
+-- Every cast that may have made a hit of `school` on `plate` at `at`, for the steady pass (Steady.lua):
+-- the log entries whose ticks don't explain it, cast at `plate` in [at - UNKNOWN_WAIT, at], learned bases too, oldest
 -- first, as { castID = base, castAt, castSpell }. A spell logged twice in one frame (Void Blast) is
 -- one cast. Empty when `plate` is nil.
-function Casts.Candidates(plate, at)
+function Casts.Candidates(plate, at, school)
     local list, seen = {}, nil -- seen: made on the first cast that passes (most hits have none)
     if plate == nil then return list end
     for _, entry in ipairs(log) do
-        if at - UNKNOWN_WAIT <= entry.at and entry.at <= at and entry.plate == plate and not entry.tracker then
+        if at - UNKNOWN_WAIT <= entry.at and entry.at <= at and entry.plate == plate and not Ticks(entry, school) then
             local key = entry.spellID .. "@" .. entry.at
             seen = seen or {}
             if not seen[key] then

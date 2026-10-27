@@ -344,7 +344,8 @@ local function Wound(plate, unit, flagText, amount, school, now)
         end
         if ns.Debug then ns.Debug("  -> tracker unknown") end
         if not InGroup() then
-            Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now), flagText, Casts.Candidates(plate, now))
+            Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now, school), flagText,
+                Casts.Candidates(plate, now, school))
         end
         Ledger.Add("damage", UnknownKey(school), amount)
         return Display.Plate(plate, UnknownTexture(), text, flagText, school)
@@ -357,9 +358,9 @@ local function Wound(plate, unit, flagText, amount, school, now)
     end
     if solo then
         if ProcWound(plate, school, amount, flagText) then return end
-        local candidates = Casts.Candidates(plate, now) -- one list for both: drawing changes no cast log
+        local candidates = Casts.Candidates(plate, now, school) -- one list for both: drawing changes no cast log
         if RhythmWound(plate, stream, school, amount, flagText, candidates) then return end
-        Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now), flagText, candidates)
+        Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now, school), flagText, candidates)
         if not Teacher.AreaClear() then
             if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
             return
