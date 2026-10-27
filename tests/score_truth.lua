@@ -14,6 +14,9 @@ return {
     -- Rot and Decay (PvP, War Mode: each Shadow Bolt adds 2 s to Agony), unconfirmed. 35 is the observed bound: a wider
     -- life would excuse draws no real tick explains.
     [980] = { casts = { 980 }, life = 35 },
+    -- Unstable Affliction: DoT 8 s, life 14. SimC sc_warlock_init.cpp (talents.unstable_affliction = 1259790),
+    -- tests/fixture_spells.lua:45-46 (duration = 8); the logs' CAST lines read `player 1259790 base=1259790`
+    [1259790] = { casts = { 1259790 }, life = 14 },
     -- Lava Burst: direct, life 3. SimC sc_shaman.cpp lava_burst_t (spell_power_mod.direct from spell 285452, no dot);
     -- Wowhead 51505: 2 s cast, duration n/a, no periodic effect. The logs' CAST lines read `player 51505 base=73899`:
     -- 73899 is the API base, never cast itself, so it stays out of `casts`
