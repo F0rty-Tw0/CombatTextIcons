@@ -58,6 +58,7 @@ local areas = {}       -- { castID, icon, school, period, ends }
 local spreads = {}     -- { castID, spreads, ends, armed = { [plate] = true } }
 local channel          -- the channel instance (also listed under its plate)
 local channelTickAt    -- time of the last tick matched to the channel
+local NONE = {}        -- an empty list for the loops below to walk when there is none: never written
 local missCasts = {}   -- recent harmful player casts: { castID, at }
 local speeds = {}      -- [tick icon] = learned real period / haste-adjusted table period
 local loose = {}       -- [plate or unit token] = { [school] = time of the last unattributed hit }
@@ -89,7 +90,7 @@ local function Tolerance(period) return math.max(0.25, 0.2 * period) end
 -- The period a remembered hit and `now` agree on: the remembered hit's gap to
 -- the cast and `now`'s gap to the remembered hit are the same within tolerance.
 local function RhythmPeriod(instance, now)
-    for _, seen in ipairs(instance.seen or {}) do
+    for _, seen in ipairs(instance.seen or NONE) do
         local period = seen - instance.castAt
         if math.abs((now - seen) - period) <= Tolerance(period) then return period end
     end
@@ -107,7 +108,7 @@ end
 local function Remember(plate, school, now)
     loose[plate] = loose[plate] or {}
     loose[plate][school] = now
-    for _, instance in ipairs(instances[plate] or {}) do
+    for _, instance in ipairs(instances[plate] or NONE) do
         if MaybeFirstTick(instance, school, now) then
             instance.seen = instance.seen or {}
             instance.seen[#instance.seen + 1] = now
@@ -167,14 +168,14 @@ end
 local function SpellsOf(instance) return instance.icons or { instance.castID } end
 
 local function HasIcon(instance, id)
-    for _, icon in ipairs(instance.icons or {}) do
+    for _, icon in ipairs(instance.icons or NONE) do
         if icon == id then return true end
     end
     return false
 end
 
 local function FindInstance(plate, castID)
-    for _, instance in ipairs(instances[plate] or {}) do
+    for _, instance in ipairs(instances[plate] or NONE) do
         if instance.castID == castID or HasIcon(instance, castID) then return instance end
     end
 end
@@ -269,7 +270,7 @@ end
 -- The instances under `key` (plate or unit token) a hit fits, each with its multiple.
 local function InstanceCandidates(key, school, amount, flagText, now)
     local found = {}
-    for _, instance in ipairs(instances[key] or {}) do
+    for _, instance in ipairs(instances[key] or NONE) do
         local multiple = Phase(instance, school, amount, flagText, now)
         if multiple then found[#found + 1] = { instance = instance, multiple = multiple } end
     end
@@ -282,7 +283,7 @@ end
 function Tracker.ExplainsHits(key, school, hits, P)
     if not Plain(school) then return false end
     local tolerance = Streams.Slack(P)
-    for _, instance in ipairs(instances[key] or {}) do
+    for _, instance in ipairs(instances[key] or NONE) do
         local base, period = instance.lastTick or instance.castAt, instance.period
         if instance.school == school and base and period and period > 0 then
             local explained = true
@@ -393,7 +394,7 @@ end
 -- one set of ticks, not two competing ones. Returns whether it joined.
 local function MergeBurst(key, castID, spell, hot, now)
     local base = BasePeriod(spell.period, spell.hasted)
-    for _, instance in ipairs(instances[key] or {}) do
+    for _, instance in ipairs(instances[key] or NONE) do
         if instance.icons and not instance.channel and instance.hot == hot and instance.school == spell.school
             and math.abs(now - instance.castAt) <= CAST_BURST and Learn.PeriodsAgree(instance.base, base) then
             instance.icons[#instance.icons + 1] = castID
@@ -434,7 +435,7 @@ end
 
 -- The stream's instance, only while it is still listed (a dead one must not swallow icons).
 local function AliveInstance(stream)
-    for _, listed in ipairs(instances[stream.key] or {}) do
+    for _, listed in ipairs(instances[stream.key] or NONE) do
         if listed == stream.instance then return listed end
     end
 end
@@ -593,7 +594,7 @@ end
 -- A miss event hit `plate`: a learned DoT still waiting for its first tick, cast
 -- just before, may have been resisted. It must not count as a missing tick.
 function Tracker.OnMiss(plate, now)
-    for _, instance in ipairs(instances[plate] or {}) do
+    for _, instance in ipairs(instances[plate] or NONE) do
         if instance.learned and not instance.lastTick and now - instance.castAt <= MISS_WINDOW then
             instance.missed = true
         end
@@ -604,7 +605,7 @@ end
 function Tracker.QualifiesByPhase(plate, school, amount, flagText, now)
     Housekeeping(now)
     if not Plain(school) then return false end
-    for _, instance in ipairs(instances[plate] or {}) do
+    for _, instance in ipairs(instances[plate] or NONE) do
         if Phase(instance, school, amount, flagText, now) then return true end
     end
     return false
@@ -707,7 +708,7 @@ function Tracker.OnPlateRemoved(plate, guid, now)
     if guid ~= nil then
         PruneParked(now)
         local list = {}
-        for _, instance in ipairs(instances[plate] or {}) do
+        for _, instance in ipairs(instances[plate] or NONE) do
             if instance ~= channel then list[#list + 1] = instance end
         end
         parked[guid] = { at = now, instances = list, loose = loose[plate], streams = Streams.Take(plate) }
