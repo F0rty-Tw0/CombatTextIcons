@@ -350,20 +350,25 @@ local function Union(entry, group)
     SetFloor(entry, floor)
 end
 
--- A counted pair for a candidate: one more exact fight, or a restart when the group is another proc's.
+-- A counted pair for a candidate: one more exact fight, or a restart when the group is another proc's. An off-size
+-- group of the same school is first a miss that keeps the streak and band (Malevolence 446285 hit 22498 in four lock2
+-- fights, 18748 in F3); a candidate's unpaired counts misses in a row, and the UNPAIRED_MAX-th one restarts it.
 local function Grow(entry, group)
-    if entry.school ~= group.school or not Overlaps(entry, group) then
-        entry.school, entry.lo, entry.hi, entry.streak = group.school, group.lo, group.hi, 1
-        SetFloor(entry, group.floor or group.lo)
+    local sameSchool = entry.school == group.school
+    if sameSchool and Overlaps(entry, group) then
+        Union(entry, group)
+        entry.streak, entry.unpaired = entry.streak + 1, 0
+        if entry.streak < LEARN_STREAK then return "" end
+        entry.learned = true
 
-        return " restart"
+        return " learned"
     end
-    Union(entry, group)
-    entry.streak = entry.streak + 1
-    if entry.streak < LEARN_STREAK then return "" end
-    entry.learned, entry.unpaired = true, 0
+    entry.unpaired = entry.unpaired + 1
+    if sameSchool and entry.streak > 0 and entry.unpaired < UNPAIRED_MAX then return " miss" end
+    entry.school, entry.lo, entry.hi, entry.streak, entry.unpaired = group.school, group.lo, group.hi, 1, 0
+    SetFloor(entry, group.floor or group.lo)
 
-    return " learned"
+    return " restart"
 end
 
 -- The state x event table for one target; returns the log suffix of a change, nil when nothing changed.

@@ -275,8 +275,25 @@ return function(T)
         Check("procs read state: candidate + other school -> restart (streak 1, the group's school and band)",
             Is(procs[7], 106, 340, 360, 1) and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=340-360 streak=1 restart")
 
+        -- Malevolence 446285 hit 22498 in four lock2 fights and 18748 in F3: one off-size fight must not undo the streak
         procs, world, lines = Once({ N(106, 5500) }, { { id = 7, total = 5500 } }, Seed(7, 106, 339, 364, 2))
-        Check("procs read state: candidate + same school but bands that do not overlap -> restart",
+        Check("procs read state: candidate + same school but bands that do not overlap -> miss (streak and band kept, unpaired 1)",
+            Is(procs[7], 106, 339, 364, 2) and procs[7].unpaired == 1
+            and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=339-364 streak=2 miss")
+
+        local missed = function(p) p[7] = Entry(106, 339, 364, 2); p[7].unpaired = 1 end
+        procs, world, lines = Once({ N(106, 5500) }, { { id = 7, total = 5500 } }, missed)
+        Check("procs read state: a second off-size fight in a row -> restart (streak 1, the group's band, unpaired 0)",
+            Is(procs[7], 106, 5500, 5500, 1) and procs[7].unpaired == 0
+            and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=5500-5500 streak=1 restart")
+
+        procs, world, lines = Once({ N(106, 340), N(106, 360) }, { { id = 7, total = 700 } }, missed)
+        Check("procs read state: a match in the band after a miss -> learned, the miss forgotten (unpaired 0)",
+            Is(procs[7], 106, 339, 364, 3, true) and procs[7].unpaired == 0
+            and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=339-364 streak=3 learned")
+
+        procs, world, lines = Once({ N(106, 5500) }, { { id = 7, total = 5500 } }, Seed(7, 106, 339, 364, 0))
+        Check("procs read state: streak 0 + off-size match -> restart at once (nothing to keep)",
             Is(procs[7], 106, 5500, 5500, 1) and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=5500-5500 streak=1 restart")
 
         procs, world, lines = Once({ N(106, 50) }, { { id = 7, total = 700 } }, Seed(7, 106, 339, 364, 2))
