@@ -678,35 +678,55 @@ local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shado
     -- logThreat: the hits' threat= answers drive the stub and seen is the replay's own (strangers on other dummies)
     [REPLAY_CROWD] = { startArea = "crowded", logThreat = true },
 }
--- Replays a TEACH-bearing log one fight at a time with the meter on. Each fight is the slice of events after
--- the previous TEACH clean line up to its own; the tail after the last one is a run with no rows (its read
--- skips). The char DB and the crowd area carry from fight to fight; opts.charDB seeds the first, opts.haste
--- reaches the stub. opts.log (debug lines) and opts.fixture stand in for a fixture file; opts.setup(ns, S) runs
--- after each fight's boot. runs[i] = { hits, info, last = Teacher.last, rows = the log's meter rows }.
-local function ReplayFights(name, opts)
+-- A TEACH-bearing log splits into fights: each is the slice of events after the previous TEACH clean line up to
+-- its own; the tail after the last one is a slice with no rows (its read skips). opts.log (debug lines) and
+-- opts.fixture stand in for a fixture file; opts.label names the log for StartArea (default name).
+-- slices[i] = { log, name, events, rows = the log's meter rows, seen, logThreat, startArea }.
+local function SplitFights(name, opts)
     local fixture = opts.fixture or assert(FIGHT_FIXTURES[name], "no fight fixture " .. name)
     local log = opts.log or LoadLog(name .. ".sv.lua")
     local fights, all = ParseTeach(log, fixture.rowIDs), ParseLog(name, log)
-    local runs, charDB, area, prevEnd = {}, opts.charDB, fixture.startArea, 0
+    local slices, prevEnd = {}, 0
     for i = 1, #fights + 1 do
         local fight = fights[i]
         local endLine = fight and fight.endLine or math.huge
-        local slice = {}
+        local events = {}
         for _, event in ipairs(all) do
-            if event.line > prevEnd and event.line < endLine then slice[#slice + 1] = event end
+            if event.line > prevEnd and event.line < endLine then events[#events + 1] = event end
         end
-        if #slice == 0 then break end
-        local hits, _, info = Replay(name, {
-            labels = { haste = 0, castPlates = {}, targets = TargetsFromLog(slice) }, events = slice,
-            haste = opts.haste, meter = true, sessionRows = fight and fight.rows, logThreat = fixture.logThreat,
-            seen = not fixture.logThreat and fight and fight.seen or nil,
-            area = area, charDB = charDB and DeepCopy(charDB), setup = opts.setup,
+        if #events == 0 then break end
+        slices[#slices + 1] = { log = opts.label or name, name = name, events = events, rows = fight and fight.rows,
+            seen = not fixture.logThreat and fight and fight.seen or nil, logThreat = fixture.logThreat, startArea = fixture.startArea }
+        prevEnd = endLine
+    end
+    return slices
+end
+-- A log's first slice starts in its fixture's area; the rest of its slices keep the area carried from the fight before.
+local function StartArea(slices, i, carried)
+    if i == 1 or slices[i].log ~= slices[i - 1].log then return slices[i].startArea end
+
+    return carried
+end
+-- Replays slices one fight at a time with the meter on. The char DB and the crowd area carry from fight to
+-- fight; opts.charDB seeds the first, opts.haste reaches the stub. opts.setup(ns, S) runs after each fight's
+-- boot. Replay appends channel STOPs to the events it gets, so it gets a copy and the slices replay again alike.
+-- runs[i] = { hits, info, last = Teacher.last, rows = the log's meter rows }.
+local function ReplaySlices(slices, opts)
+    local runs, charDB, area = {}, opts.charDB, nil
+    for i, slice in ipairs(slices) do
+        local events = table.move(slice.events, 1, #slice.events, 1, {})
+        local hits, _, info = Replay(slice.name, {
+            labels = { haste = 0, castPlates = {}, targets = TargetsFromLog(events) }, events = events,
+            haste = opts.haste, meter = true, sessionRows = slice.rows, logThreat = slice.logThreat, seen = slice.seen,
+            area = StartArea(slices, i, area), charDB = charDB and DeepCopy(charDB), setup = opts.setup,
         })
-        runs[#runs + 1] = { hits = hits, info = info, last = info.teacher.last, rows = fight and fight.rows }
-        charDB, area, prevEnd = info.charDB, info.teacher.area, endLine
+        runs[#runs + 1] = { hits = hits, info = info, last = info.teacher.last, rows = slice.rows }
+        charDB, area = info.charDB, info.teacher.area
     end
     return runs
 end
+-- Replays a TEACH-bearing log one fight at a time: SplitFights, then ReplaySlices.
+local function ReplayFights(name, opts) return ReplaySlices(SplitFights(name, opts), opts) end
 
 -- Scoring --------------------------------------------------------------------------
 
@@ -1298,6 +1318,31 @@ local function ReplayFightsChecks()
         #priest == ORACLE[PRIEST_DUMMY].runs and priest[4].last and priest[4].last.skip == "no sessions" and #priest[4].hits >= 965)
     Check(PRIEST_DUMMY .. ": every read ran, area and meter total equal the log's", Mirrors(priest, PRIEST_DUMMY))
     Check(PRIEST_DUMMY .. ": the char DB is carried from fight to fight", Carried(priest))
+
+    local areas = { { log = "a", startArea = "clear" }, { log = "a", startArea = "clear" }, { log = "b", startArea = "crowded" } }
+    Check("StartArea: the first slice takes its fixture's area", StartArea(areas, 1, "crowded") == "clear")
+    Check("StartArea: a later slice of the same log keeps the carried area", StartArea(areas, 2, "crowded") == "crowded")
+    Check("StartArea: the first slice of the next log takes its own fixture's area", StartArea(areas, 3, "clear") == "crowded")
+    Check("SplitFights: log is opts.label", SplitFights(SHADOW_DOTS, { label = "L" })[1].log == "L")
+    Check("SplitFights: log is the name without opts.label", SplitFights(SHADOW_DOTS, {})[1].log == SHADOW_DOTS)
+    local priestSlices = SplitFights(PRIEST_DUMMY, {})
+    Check("SplitFights: one slice per fight, an empty tail dropped", #SplitFights(SHADOW_DOTS, {}) == ORACLE[SHADOW_DOTS].runs)
+    Check("SplitFights: a non-empty tail is a slice with no rows", #priestSlices == ORACLE[PRIEST_DUMMY].runs and priestSlices[4].rows == nil)
+
+    local lockLines = {} -- tests/score_lib.lua's ReadLines, repeated: it loads this file, so this file cannot load it
+    for line in io.lines(ROOT .. "/tests/score/lock.txt") do
+        if line:match("^[%d%.]+ ") then lockLines[#lockLines + 1] = line end
+    end
+    local lockSlices = SplitFights("x", { log = lockLines, fixture = { startArea = "crowded" }, label = "lock" })
+    local counts = {}
+    for i, slice in ipairs(lockSlices) do counts[i] = #slice.events end
+    local firstRun, secondRun = ReplaySlices(lockSlices, {}), ReplaySlices(lockSlices, {})
+    local unchanged = #lockSlices >= 2
+    for i, slice in ipairs(lockSlices) do unchanged = unchanged and #slice.events == counts[i] end
+    local sameHits = #firstRun == #secondRun
+    for i, run in ipairs(firstRun) do sameHits = sameHits and #run.hits == #secondRun[i].hits end
+    Check("ReplaySlices: replays a copy of each slice's events (Replay appends channel STOPs), leaving the slices as they were", unchanged)
+    Check("ReplaySlices: a second replay of the same slices draws the same hits", sameHits)
 end
 
 -- Main -----------------------------------------------------------------------------
