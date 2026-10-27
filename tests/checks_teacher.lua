@@ -529,6 +529,39 @@ return function(T)
             and F.Get(MIND_BLAST).fights == 1 and F.Get(MIND_BLAST).strikes == 0)
     end
 
+    do -- short fights whose hit shares its frame with another cast learn through the candidates (run lock F1)
+        local OTHER = 1234567
+        local rig = Rig({}, true)
+        local F, S, Core = rig.ns.Fingerprints, rig.S, rig.ns.Core
+        -- One kill: Mind Blast at t, another harmful cast at t + 0.1 on the same plate (so the hit has no sole cast),
+        -- Mind Blast's hit at t + 0.2; the session holds Mind Blast's row with `overkill`.
+        local function SharedKill(t, session, amount, flag, total, overkill)
+            S.now = t - 1
+            Core.PLAYER_REGEN_DISABLED()
+            rig.Cast(t, "nameplate1", MIND_BLAST)
+            rig.Cast(t + 0.1, "nameplate1", OTHER)
+            rig.Hit(t + 0.2, "nameplate1", amount, 32, flag)
+            S.now = t + 5
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(session, { Row(MIND_BLAST, total, overkill) }) }
+            pcall(rig.Fire)
+        end
+        SharedKill(100, 601, 19000, nil, 19000, 4000)
+        SharedKill(200, 602, 40000, "CRITICAL", 40000, 6000)
+        local entry = F.Get(MIND_BLAST)
+        Check("teacher short fights, shared frame: two one-cast kills add sized samples at 0.2 s under Mind Blast, none for the other cast",
+            entry and not entry.learned and #entry.samples == 2 and entry.samples[2].size == 20000
+            and math.abs(entry.samples[1].delay - 0.2) < 1e-6 and entry.samples[1].spell == MIND_BLAST and F.Get(OTHER) == nil
+            and entry.over == 0)
+        SharedKill(300, 603, 25000, nil, 20000, 5000)
+        local low, high = F.Band(MIND_BLAST, MIND_BLAST)
+        Check("teacher short fights, shared frame: a killing blow (25000 on screen, meter 20000 + 5000 overkill) teaches Mind Blast",
+            F.IsLearned(MIND_BLAST) and low == 19000 and high == 25000 and F.Get(OTHER) == nil)
+        local drawn = ShortFight(rig, 400, 604, { { 22000 } }, 22000, 0)
+        Check("teacher short fights, shared frame: a later lone kill's hit draws Mind Blast and agrees",
+            drawn[1] == "tex:8092" and Find(rig.ns.Teacher.last, MIND_BLAST).verdict == "agree")
+    end
+
     do -- a sum that does not match the row teaches nothing
         local rig = Pull(300)
         local F = rig.ns.Fingerprints
@@ -1183,7 +1216,7 @@ return function(T)
             end
             rig.S.sessions = { Session(nextSession, meter) }
             rig.ns.Teacher.Start(10, group)
-            for _, hit in ipairs(hits) do rig.ns.Teacher.Unknown(P1, hit[1], hit[2], hit[5] or 60.25, hit[4], hit[3] or "") end
+            for _, hit in ipairs(hits) do rig.ns.Teacher.Unknown(P1, hit[1], hit[2], hit[5] or 60.25, hit[4], hit[3] or "", hit[6]) end
             rig.ns.Teacher.Seen(seen or total)
             rig.ns.Teacher.Finish(20)
             return pcall(rig.Fire)
@@ -1423,6 +1456,39 @@ return function(T)
             ReadWith(rig, HITS, { { Z, 3530 } })
             Check("one hit per cast: each cast's largest never aliases a row of another ID",
                 rig.ns.Fingerprints.Alias(Z) == nil and rig.ns.Fingerprints.Get(MIND_BLAST) == nil)
+        end
+
+        do -- each cast's largest by candidates (run lock F1): a hit whose frame holds another cast has no sole cast
+            local Z, W = 1234567, 1234568
+            local function Candidate(id, at) return { castID = id, castAt = at, castSpell = id } end
+            -- Z cast at 60, 70 and 80, W 0.3 s after each: Z's 1060 / 1070 / 1080 hit and a 200 tick name both casts
+            local HITS = {}
+            for _, t in ipairs({ 60, 70, 80 }) do
+                local candidates = { Candidate(Z, t), Candidate(W, t + 0.3) }
+                HITS[#HITS + 1] = { 32, 1000 + t, "", nil, t + 0.5, candidates }
+                HITS[#HITS + 1] = { 32, 200, "", nil, t + 1.0, candidates }
+            end
+
+            local rig = Rig({})
+            ReadWith(rig, HITS, { { Z, 3210 } })
+            local F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            local delays = {}
+            for _, sample in ipairs(F.Get(Z) and F.Get(Z).samples or {}) do delays[#delays + 1] = sample.delay end
+            Check("candidates: no hit has a sole cast; Z's largest per cast (1060 + 1070 + 1080) meets row 3210 -> Z learned from 3 hits at 0.5 s, W nothing",
+                F.IsLearned(Z) and last.learned[Z] == 3 and Find(last, Z).verdict == "agree" and F.Get(W) == nil
+                and #delays == 3 and math.abs(delays[1] - 0.5) < 1e-9 and math.abs(delays[3] - 0.5) < 1e-9)
+
+            rig = Rig({})
+            ReadWith(rig, HITS, { { Y, 3210 } })
+            Check("candidates: each cast's largest never pairs a row of another ID (no alias, no fingerprint)",
+                rig.ns.Fingerprints.Alias(Y) == nil and rig.ns.Fingerprints.Get(Z) == nil and rig.ns.Fingerprints.Get(W) == nil)
+
+            -- Z cast at 60 and 61: the 1100 hit names both casts and goes to the newest, so 1000 + 1100 meets row 2100
+            rig = Rig({})
+            ReadWith(rig, { { 32, 1000, "", nil, 60.5, { Candidate(Z, 60) } },
+                { 32, 1100, "", nil, 61.2, { Candidate(Z, 60), Candidate(Z, 61) } } }, { { Z, 2100 } })
+            Check("candidates: a hit naming two casts of one base counts for the newest only (1000 + 1100 meets 2100, not 1100 twice)",
+                rig.ns.Teacher.last.learned[Z] == 2 and #rig.ns.Fingerprints.Get(Z).samples == 2)
         end
 
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks

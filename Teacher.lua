@@ -9,9 +9,11 @@
 -- its base spell (Casts.Base): the meter files an override (Void Blast 450983) under its
 -- base's row (Mind Blast 8092). The '?' hits one unlearned cast can explain are summed per
 -- school; when a sum agrees with exactly one unpaired row (never one Procs tracks), those
--- hits become fingerprint samples. Then the steady pass (Steady.lua) learns from '?' hits at a
--- steady delay and size that no sum explained, for unlearned bases and for the hits a learned
--- base missed, bounded by the meter row. A read that meets a
+-- hits become fingerprint samples. A hit whose frame also holds another cast has no sole cast, so
+-- each cast's largest hit among those naming it a candidate is also summed against its own row.
+-- Then the steady pass (Steady.lua) learns from '?' hits at a steady delay and size that no
+-- sum explained, for unlearned bases and for the hits a learned base missed, bounded by the
+-- meter row. A read that meets a
 -- secret value or an error is skipped whole. The verdicts also unlearn DoTs, channels and
 -- procs whose drawn total overshoots the meter or never pairs with a row, and go to the
 -- Ledger, which attaches them to the saved fight. A solo fight is also a crowd check: when
@@ -313,6 +315,57 @@ local function Groups(unknown)
     return list
 end
 
+-- Groups each unlearned base's '?' hits by school through their candidates (Casts.Candidates), not the sole
+-- cast: a hit whose frame also holds another spell's cast has no sole cast, so its own cast's group misses it
+-- (run lock F1: both Haunt 48181 hits shared a frame with Darkglare or Unstable Affliction, and the two summed
+-- to its row exactly). A hit goes to the newest candidate cast of each base; each cast keeps its largest hit.
+-- A group { castID, school, cand = { castID, sum, hits, castOf } } pairs only with the cast's own row (Pairs:
+-- `cand` is no group); `castOf[hit]` is the candidate that hit is learned under. Hits in `spent` are skipped.
+local function CandidateGroups(unknown, spent)
+    local byKey, list = {}, {}
+    for _, hit in ipairs(unknown) do
+        local newest = {}
+        for _, candidate in ipairs(not spent[hit] and hit.candidates or {}) do
+            local castID = candidate.castID
+            local older = newest[castID]
+            if not Fingerprints.IsLearned(castID) and (not older or candidate.castAt > older.castAt) then
+                newest[castID] = candidate
+            end
+        end
+        for castID, candidate in pairs(newest) do
+            local key = castID .. ":" .. hit.school
+            local group = byKey[key]
+            if not group then
+                group = { castID = castID, school = hit.school, topOf = {}, castOf = {} }
+                byKey[key] = group
+                list[#list + 1] = group
+            end
+            local top = group.topOf[candidate.castAt]
+            if not top or hit.amount > top.amount then
+                group.topOf[candidate.castAt] = hit
+                group.castOf[hit] = candidate
+            end
+        end
+    end
+    for _, group in ipairs(list) do
+        group.cand = { castID = group.castID, sum = 0, hits = {}, castOf = group.castOf }
+        for _, hit in ipairs(unknown) do
+            local candidate = group.castOf[hit]
+            if candidate and group.topOf[candidate.castAt] == hit then
+                group.cand.sum = group.cand.sum + hit.amount
+                group.cand.hits[#group.cand.hits + 1] = hit
+            end
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.castID ~= b.castID then return a.castID < b.castID end
+
+        return a.school < b.school
+    end)
+
+    return list
+end
+
 -- Whether the cast pass may pair `way` (a group, or its `top`) with a row: the sum agrees, and a
 -- row of another ID belongs to no one else. It is not a row Procs tracks (a castless proc's own;
 -- spec 3.1 Rev 4), the cast has no row of its own this session, and the row is not the own row
@@ -361,8 +414,9 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
             local row, way = item.row, WayOf(group)
             if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Pairs(group, way, row, owners) then
                 for _, hit in ipairs(way.hits) do
-                    Fingerprints.Add(group.castID, { school = hit.school, delay = hit.at - hit.castAt,
-                        castAt = hit.castAt, hops = 1, spell = hit.castSpell, size = hit.size })
+                    local cast = way.castOf and way.castOf[hit] or { castAt = hit.castAt, castSpell = hit.castSpell }
+                    Fingerprints.Add(group.castID, { school = hit.school, delay = hit.at - cast.castAt,
+                        castAt = cast.castAt, hops = 1, spell = cast.castSpell, size = hit.size })
                 end
                 if row.spellID ~= group.castID then Fingerprints.SetAlias(row.spellID, group.castID) end
                 learned[#learned + 1] = way
@@ -378,7 +432,8 @@ end
 
 -- Learning from '?' hits (spec 6.5): rewrites the learned rows of `results` against the
 -- session's meter `rows`. Whole sums pair first; a row and a group that no whole sum agreed
--- with then try `top`; last, the steady pass (Steady.lua) learns from steady hits no sum explained.
+-- with then try `top`; then each cast's largest hit by candidates (CandidateGroups) tries the cast's
+-- own row; last, the steady pass (Steady.lua) learns from steady hits no sum explained.
 -- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so
 -- the DoT's draws were other spells' (a stale save's Nature DoT under Lava Burst 51505 drew Surging Totem's ticks).
 -- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
@@ -388,6 +443,12 @@ local function Learn(run, results, open, rows)
     local seen, learned, rewritten = { rows = {}, groups = {} }, {}, {}
     Pass(groups, open, owners, function(group) return group end, seen, results, learned, rewritten)
     Pass(groups, open, owners, function(group) return group.top end, seen, results, learned, rewritten)
+    local spent = {}
+    for _, way in ipairs(learned) do
+        for _, hit in ipairs(way.hits) do spent[hit] = true end
+    end
+    Pass(CandidateGroups(run.unknown, spent), open, owners, function(group) return group.cand end,
+        { rows = seen.rows, groups = {} }, results, learned, rewritten)
     for _, way in ipairs(Steady.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(learned) do
         local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)
