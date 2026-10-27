@@ -60,6 +60,7 @@ function Procs.Init(charDB)
             entry.streak, entry.unpaired = Count(entry.streak), Count(entry.unpaired)
             entry.seen = IsNumber(entry.seen) and entry.seen >= 0 and entry.seen or 0
             entry.learned = entry.learned == true
+            entry.rest = entry.rest == true or nil
             entry.floor = IsNumber(entry.floor) and entry.floor > 0 and entry.floor < entry.lo and entry.floor or nil
         else
             bad[#bad + 1] = id
@@ -83,7 +84,7 @@ function Procs.Has(id)
     if not IsNumber(id) then return false end
     local entry = procs[id]
 
-    return entry ~= nil and (entry.learned or (entry.streak > 0 and not entry.period))
+    return entry ~= nil and (entry.learned or (entry.streak > 0 and not entry.period and not entry.rest))
 end
 
 -- true / false for a plain flag text, nil (unknown) for a nil or secret one: the crit rule of Streams.Size.
@@ -310,7 +311,7 @@ local function Groups(hits, ticks)
     table.sort(drawnSchools)
     for _, school in ipairs(drawnSchools) do
         if drawn[school].lo then
-            drawn[school].floor = drawn[school].lo
+            drawn[school].floor, drawn[school].drawn = drawn[school].lo, true
             groups[#groups + 1] = drawn[school]
         end
     end
@@ -404,7 +405,8 @@ local function Apply(target, group)
     if entry and entry.period then return nil end
     if entry then return Step(entry, group, target) end
     if not group then return nil end
-    procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, streak = 1, learned = false, unpaired = 0, seen = 0 }
+    procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, streak = 1, learned = false, unpaired = 0, seen = 0,
+        rest = group.rest }
     SetFloor(procs[target.id], group.floor or group.lo)
 
     return ""
@@ -530,11 +532,96 @@ local function RhythmPass(open, results, rows, at, streams, taken)
     end
 end
 
--- Read: the size pass, then the rhythm pass when the fight's streams are given.
+-- Remainder pass (L14) ------------------------------------------------------------------------------
+-- Wither 445468's growing ticks split into many size groups, yet its row equalled its school's remainder exactly in
+-- 12 of 13 warlock fights (lock, lock2): every '?' hit and drawn tick of school 36 no matched group held.
+
+-- Whether a matched group of the hit's school holds it: a normal in [floor, hi], a crit in the group's crit window.
+local function Held(taken, school, amount, crit)
+    for _, group in ipairs(taken[school] or {}) do
+        if crit == false and (group.floor or group.lo) <= amount and amount <= group.hi then return true end
+        if crit == true and group.lo * CRIT_LO <= amount and amount <= group.hi * CRIT_HI then return true end
+    end
+
+    return false
+end
+
+-- One remainder group per school (rest = true): every '?' hit no matched group holds and every drawn tick, its band
+-- from their normals. A school with no normal left, or whose drawn group matched, has none.
+local function Remainders(hits, ticks, matches)
+    local taken, whole = {}, {}
+    for _, group in pairs(matches) do
+        if group.drawn then whole[group.school] = true end
+        taken[group.school] = taken[group.school] or {}
+        table.insert(taken[group.school], group)
+    end
+    local bySchool, schools = {}, {}
+    local function Add(school, amount, crit)
+        if not (IsNumber(school) and IsNumber(amount) and amount > 0) or whole[school] then return end
+        local rest = bySchool[school]
+        if not rest then
+            rest = { school = school, sum = 0, count = 0, rest = true }
+            bySchool[school], schools[#schools + 1] = rest, school
+        end
+        rest.sum, rest.count = rest.sum + amount, rest.count + 1
+        if crit == false then rest.lo, rest.hi = math.min(rest.lo or amount, amount), math.max(rest.hi or amount, amount) end
+    end
+    for _, hit in ipairs(hits) do
+        if not Held(taken, hit.school, hit.amount, hit.crit) then Add(hit.school, hit.amount, hit.crit) end
+    end
+    for _, tick in ipairs(ticks or {}) do Add(tick.school, tick.amount, tick.crit) end
+    table.sort(schools)
+    local list = {}
+    for _, school in ipairs(schools) do
+        local rest = bySchool[school]
+        if rest.lo then
+            rest.floor = rest.lo
+            list[#list + 1] = rest
+        end
+    end
+
+    return list
+end
+
+-- The open rows no size group fits (a row cast near the hits too, but not a '?' hit's sole cast) against each school's
+-- remainder, both ways unique; a pair joins matches, and a row the size pass did not list joins targets only then.
+local function RemainderMatches(hits, ticks, groups, targets, matches, open, results, rows)
+    local listed, candidates = {}, {}
+    for index, target in ipairs(targets) do
+        listed[target.id] = true
+        candidates[#candidates + 1] = { target = target, index = index }
+    end
+    local sole = {}
+    for _, hit in ipairs(hits) do
+        if hit.castID then sole[hit.castID] = true end
+    end
+    for _, target in ipairs(Targets(open, results, rows, sole)) do
+        if not listed[target.id] then candidates[#candidates + 1] = { target = target } end
+    end
+    local free, at = {}, {}
+    for _, item in ipairs(candidates) do
+        local target, fits = item.target, false
+        for _, group in ipairs(groups) do
+            if target.lo <= group.sum and group.sum <= target.hi then fits = true break end
+        end
+        if target.kind == "open" and not fits then free[#free + 1], at[#free + 1] = target, item.index end
+    end
+    for i, group in pairs(Matches(Remainders(hits, ticks, matches), free)) do
+        local index = at[i]
+        if not index then
+            targets[#targets + 1] = free[i]
+            index = #targets
+        end
+        matches[index] = group
+    end
+end
+
+-- Read: the size pass, the remainder pass, then the rhythm pass when the fight's streams are given.
 function Procs.Read(hits, open, results, rows, at, ticks, streams)
     local targets = Targets(open, results, rows, Cast(hits))
     local groups = Groups(hits, ticks)
     local matches = Matches(groups, targets)
+    RemainderMatches(hits, ticks, groups, targets, matches, open, results, rows)
     local taken = {}
     for index in pairs(matches) do
         if targets[index].kind == "open" then taken[targets[index].id] = true end

@@ -206,8 +206,8 @@ return function(T)
         Check("procs read ticks: a learned DoT's drawn ticks join their school's '?' hits in one more group (343-412, 2265);"
             .. " without them nothing matches", withTicks and next((Once(unknownHalf, { { id = 1287663, total = 2265 } }))) == nil)
         procs = Once({ N(106, 1000), N(106, 1000), N(106, 1800) }, { { id = 1, total = 3800 } })
-        Check("procs read step: groups a crit apart or more (1000, 1800 = 1000 x 1.8) stay apart (no 3800 group)",
-            next(procs) == nil)
+        Check("procs read step: groups a crit apart or more (1000, 1800 = 1000 x 1.8) stay apart (no 3800 group; only the"
+            .. " school's remainder pairs the row)", Is(procs[1], 106, 1000, 1800, 1) and procs[1].rest == true)
     end
 
     -- A ticking proc's cut-short last tick and its walk-split runs (runs 20261025T192458Z, 194821Z: Surging Totem 73921) ---
@@ -220,7 +220,8 @@ return function(T)
         Check("procs read run: walk-split groups (9458 | 11314-11955) less than a crit apart are one group with the crits in its"
             .. " window (55559)", Is(procs[73921], 8, 9458, 11955, 1) and procs[73921].floor == nil)
         procs = Once({ N(8, 1000), N(8, 1000), N(8, 500) }, { { id = 1, total = 2500 } })
-        Check("procs read partial: a core under 3 normals takes no lone hit (1000, 1000 + 500 is no 2500 group)", next(procs) == nil)
+        Check("procs read partial: a core under 3 normals takes no lone hit (1000, 1000 + 500 is no 2500 group; only the"
+            .. " school's remainder pairs the row)", Is(procs[1], 8, 500, 1000, 1) and procs[1].rest == true)
 
         local cast = { school = 106, amount = 700, crit = false, castID = 7 }
         procs = Once({ cast }, { { id = 7, total = 700 } })
@@ -233,6 +234,49 @@ return function(T)
         Check("procs read under: one lone hit below a learned band lowers only its floor (band 330-360, floor 200)",
             Is(procs[7], 106, 330, 360, 3, true) and procs[7].floor == 200
             and lines[1] == "TEACH proc 7 school=106 band=330-360 floor=200 streak=3 widen")
+    end
+
+    -- Remainder pass (L14): a school's '?' hits and drawn ticks no matched group holds, against the rows no group fits ---
+    -- Wither 445468's row equalled its school's remainder exactly in 12 of 13 warlock fights (lock, lock2).
+    do
+        local function ReadWith(hitList, specs, ticks, seed)
+            local ns, procs = Rig()
+            if seed then seed(procs) end
+            local world = World(specs)
+            ns.Procs.Read(hitList, world.open, world.results, world.rows, AT, ticks)
+
+            return procs, ns
+        end
+        -- 1000 | 2000 are a crit apart (no run), 9000 fits neither crit window, 500's flag is unknown, 700 is a drawn tick
+        local mixed = { N(36, 1000), N(36, 2000), C(36, 9000), U(36, 500) }
+        local procs, ns = ReadWith(mixed, { { id = 1, total = 13200 } }, { N(36, 700) })
+        Check("procs read rest: the school's remainder (normals, orphan crit, unknown flag, drawn tick: 13200) pairs a row no group fits;"
+            .. " band 700-2000 from its normals, marked rest, not Has",
+            Is(procs[1], 36, 700, 2000, 1) and procs[1].rest == true and ns.Procs.Has(1) == false and Count(procs) == 1)
+
+        procs = ReadWith({ N(36, 1000), N(36, 2000), N(36, 22498) }, { { id = 1, total = 3000 }, { id = 2, total = 22498 } })
+        Check("procs read rest: a hit a matched group holds (Malevolence 22498) leaves the remainder's sum and band (3000, 1000-2000)",
+            Is(procs[1], 36, 1000, 2000, 1) and procs[1].rest == true and Is(procs[2], 36, 22498, 22498, 1) and procs[2].rest == nil)
+
+        local candidate = { N(36, 1000), { school = 36, amount = 2000, crit = false, candidates = { { castID = 1 } } } }
+        local sole = { N(36, 1000), { school = 36, amount = 2000, crit = false, castID = 1 } }
+        local cast = ReadWith(candidate, { { id = 1, total = 3000 } })
+        local solo = ReadWith(sole, { { id = 1, total = 3000 } })
+        Check("procs read rest: a row cast near the hits joins the remainder pass; a row that is a '?' hit's sole cast does not",
+            Is(cast[1], 36, 1000, 2000, 1) and cast[1].rest == true and next(solo) == nil)
+
+        local twoRows = ReadWith({ N(36, 1000), N(36, 2000) }, { { id = 1, total = 3000 }, { id = 2, total = 3000 } })
+        Check("procs read rest: one remainder fitting two rows pairs neither", next(twoRows) == nil)
+
+        local under = { id = 7, total = 5000, tally = 3000, verdict = "under" } -- complement window [2000, 2000]
+        procs = ReadWith({ N(106, 500), N(106, 1500) }, { under }, nil, Seed(7, 106, 330, 360, 3, true))
+        Check("procs read rest: an under row's complement is no remainder target (remainder 2000, band stays 330-360)",
+            Is(procs[7], 106, 330, 360, 3, true) and Count(procs) == 1)
+
+        procs, ns = ReadWith({ N(36, 1000), N(36, 2000) }, { { id = 1, total = 3000 } }, nil,
+            function(p) p[1] = Entry(36, 1000, 2000, 2); p[1].rest = true end)
+        Check("procs read rest: a third exact remainder learns the row as a size proc, and Has counts it once learned",
+            Is(procs[1], 36, 1000, 2000, 3, true) and ns.Procs.Has(1) == true and ns.Procs.Name(36, 1500, "") == 1)
     end
 
     -- Exact match and two-way uniqueness --------------------------------------------------------
@@ -510,6 +554,16 @@ return function(T)
             ns.Procs.Has(7) == true and ns.Procs.Has(9) == true and ns.Procs.Has(10) == true
             and ns.Procs.Has(8) == false and ns.Procs.Has(99) == false)
         Check("procs has: a secret, string or nil id gives false and raises no error", ok and secret == false and text == false and nothing == false)
+        procs[11] = Entry(106, 339, 364, 2, false)
+        procs[11].rest = true
+        procs[12] = Entry(106, 339, 364, 3, true)
+        procs[12].rest = true
+        Check("procs has: a remainder candidate (rest) gives false, so it blocks no cast learner; a learned one gives true",
+            ns.Procs.Has(11) == false and ns.Procs.Has(12) == true)
+        local saved = { procs = { [5] = Entry(36, 100, 200, 1), [6] = Entry(36, 100, 200, 1) } }
+        saved.procs[5].rest, saved.procs[6].rest = "yes", true
+        ns.Procs.Init(saved)
+        Check("procs init: a saved rest is kept only as true", saved.procs[5].rest == nil and saved.procs[6].rest == true)
     end
     -- One rule, no copies: Procs exports the learn streak and the crit rule ----------------------------
     do
