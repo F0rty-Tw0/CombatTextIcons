@@ -8,8 +8,12 @@
 -- Keyed by the meter row's spell ID. Source per row: SimC midnight branch (engine/class_modules) and Wowhead, as of 2026-10-27.
 
 return {
-    -- Agony: DoT 18 s, life 29. SimC sc_warlock_actions.cpp (agony_t), tests/fixture_spells.lua:23-24 (duration = 18)
-    [980] = { casts = { 980 }, life = 29 },
+    -- Agony: DoT 18 s. SimC sc_warlock_actions.cpp (agony_t), tests/fixture_spells.lua:23-24 (duration = 18). Life 35, not
+    -- 29: in run lock2 one unbroken Agony tick stream lands 34.4 s after its last cast (F1: cast 12431.229, tick
+    -- 12465.661), past 18 s + pandemic in fights with no Darkglare too (Midnight's Darkglare extends nothing). Likely
+    -- Rot and Decay (PvP, War Mode: each Shadow Bolt adds 2 s to Agony), unconfirmed. 35 is the observed bound: a wider
+    -- life would excuse draws no real tick explains.
+    [980] = { casts = { 980 }, life = 35 },
     -- Lava Burst: direct, life 3. SimC sc_shaman.cpp lava_burst_t (spell_power_mod.direct from spell 285452, no dot);
     -- Wowhead 51505: 2 s cast, duration n/a, no periodic effect. The logs' CAST lines read `player 51505 base=73899`:
     -- 73899 is the API base, never cast itself, so it stays out of `casts`
