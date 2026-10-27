@@ -400,16 +400,20 @@ local function Step(entry, group, target)
 end
 
 -- Apply(target, group): creates a candidate or steps the existing entry; returns the log suffix of a change.
+-- A school's remainder that equals an open row exactly (overkill 0) is learned at once: its spell is often cast once
+-- a fight (Wither 445468), so waiting LEARN_STREAK fights lost F1-F3 of every warlock run. Inside an overkill window
+-- it stays a candidate.
 local function Apply(target, group)
     local entry = procs[target.id]
     if entry and entry.period then return nil end
     if entry then return Step(entry, group, target) end
     if not group then return nil end
-    procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, streak = 1, learned = false, unpaired = 0, seen = 0,
+    local learned = group.rest == true and target.overkill == 0
+    procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, streak = 1, learned = learned, unpaired = 0, seen = 0,
         rest = group.rest }
     SetFloor(procs[target.id], group.floor or group.lo)
 
-    return ""
+    return learned and " learned" or ""
 end
 
 local function Weaker(idA, a, idB, b)

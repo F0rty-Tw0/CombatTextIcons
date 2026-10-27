@@ -207,7 +207,7 @@ return function(T)
             .. " without them nothing matches", withTicks and next((Once(unknownHalf, { { id = 1287663, total = 2265 } }))) == nil)
         procs = Once({ N(106, 1000), N(106, 1000), N(106, 1800) }, { { id = 1, total = 3800 } })
         Check("procs read step: groups a crit apart or more (1000, 1800 = 1000 x 1.8) stay apart (no 3800 group; only the"
-            .. " school's remainder pairs the row)", Is(procs[1], 106, 1000, 1800, 1) and procs[1].rest == true)
+            .. " school's remainder pairs the row)", Is(procs[1], 106, 1000, 1800, 1, true) and procs[1].rest == true)
     end
 
     -- A ticking proc's cut-short last tick and its walk-split runs (runs 20261025T192458Z, 194821Z: Surging Totem 73921) ---
@@ -221,7 +221,7 @@ return function(T)
             .. " window (55559)", Is(procs[73921], 8, 9458, 11955, 1) and procs[73921].floor == nil)
         procs = Once({ N(8, 1000), N(8, 1000), N(8, 500) }, { { id = 1, total = 2500 } })
         Check("procs read partial: a core under 3 normals takes no lone hit (1000, 1000 + 500 is no 2500 group; only the"
-            .. " school's remainder pairs the row)", Is(procs[1], 8, 500, 1000, 1) and procs[1].rest == true)
+            .. " school's remainder pairs the row)", Is(procs[1], 8, 500, 1000, 1, true) and procs[1].rest == true)
 
         local cast = { school = 106, amount = 700, crit = false, castID = 7 }
         procs = Once({ cast }, { { id = 7, total = 700 } })
@@ -251,19 +251,22 @@ return function(T)
         local mixed = { N(36, 1000), N(36, 2000), C(36, 9000), U(36, 500) }
         local procs, ns = ReadWith(mixed, { { id = 1, total = 13200 } }, { N(36, 700) })
         Check("procs read rest: the school's remainder (normals, orphan crit, unknown flag, drawn tick: 13200) pairs a row no group fits;"
-            .. " band 700-2000 from its normals, marked rest, not Has",
-            Is(procs[1], 36, 700, 2000, 1) and procs[1].rest == true and ns.Procs.Has(1) == false and Count(procs) == 1)
+            .. " band 700-2000 from its normals, marked rest, learned at once (an exact sum, overkill 0), so Has",
+            Is(procs[1], 36, 700, 2000, 1, true) and procs[1].rest == true and ns.Procs.Has(1) == true and Count(procs) == 1)
+        procs, ns = ReadWith({ N(36, 1000), N(36, 2000) }, { { id = 1, total = 2990, overkill = 20 } })
+        Check("procs read rest: a remainder inside an overkill window (3000 in [2990, 3010]) is only a candidate, not Has",
+            Is(procs[1], 36, 1000, 2000, 1) and procs[1].rest == true and ns.Procs.Has(1) == false)
 
         procs = ReadWith({ N(36, 1000), N(36, 2000), N(36, 22498) }, { { id = 1, total = 3000 }, { id = 2, total = 22498 } })
         Check("procs read rest: a hit a matched group holds (Malevolence 22498) leaves the remainder's sum and band (3000, 1000-2000)",
-            Is(procs[1], 36, 1000, 2000, 1) and procs[1].rest == true and Is(procs[2], 36, 22498, 22498, 1) and procs[2].rest == nil)
+            Is(procs[1], 36, 1000, 2000, 1, true) and procs[1].rest == true and Is(procs[2], 36, 22498, 22498, 1) and procs[2].rest == nil)
 
         local candidate = { N(36, 1000), { school = 36, amount = 2000, crit = false, candidates = { { castID = 1 } } } }
         local sole = { N(36, 1000), { school = 36, amount = 2000, crit = false, castID = 1 } }
         local cast = ReadWith(candidate, { { id = 1, total = 3000 } })
         local solo = ReadWith(sole, { { id = 1, total = 3000 } })
         Check("procs read rest: a row cast near the hits joins the remainder pass; a row that is a '?' hit's sole cast does not",
-            Is(cast[1], 36, 1000, 2000, 1) and cast[1].rest == true and next(solo) == nil)
+            Is(cast[1], 36, 1000, 2000, 1, true) and cast[1].rest == true and next(solo) == nil)
 
         local twoRows = ReadWith({ N(36, 1000), N(36, 2000) }, { { id = 1, total = 3000 }, { id = 2, total = 3000 } })
         Check("procs read rest: one remainder fitting two rows pairs neither", next(twoRows) == nil)
