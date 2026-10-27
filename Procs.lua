@@ -615,7 +615,9 @@ function Procs.NameCast(school, amount, flagText, candidates)
     local crit = Procs.Crit(flagText) -- nil: unknown
     local found
     for _, cast in ipairs(candidates or {}) do
-        for _, id in ipairs({ cast.castID, cast.castSpell }) do
+        -- the cast's base, then its own spell; no base, nothing (runs per hit, so no table per cast)
+        local id, nextID = cast.castID, cast.castSpell
+        while id ~= nil do
             local entry = procs[id]
             if id ~= found and entry and entry.learned == true and entry.period and entry.school == school then
                 local lo, hi = entry.lo * PAD_LO, entry.hi * PAD_HI
@@ -626,6 +628,7 @@ function Procs.NameCast(school, amount, flagText, candidates)
                     found = id
                 end
             end
+            id, nextID = nextID, nil
         end
     end
 
