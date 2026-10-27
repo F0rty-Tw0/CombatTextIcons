@@ -1,5 +1,5 @@
 -- Test-only spell table: the Warlock and Hunter rows the addon shipped in
--- Spells.lua until 2026-10-24, kept to drive the Tracker's table modes in the
+-- Spells.lua until 2026-10-24 (plus the priest channels the replays need), kept to drive the Tracker's table modes in the
 -- unit checks. The shipped ns.Spells is empty; T.Boot(setup, true) (or T.BootSpells) loads this
 -- table into ns.Spells before Learn.lua reads it, and the replays use it only to
 -- know which recorded casts were channels. Never loaded by the addon.
@@ -62,4 +62,8 @@ return {
     [466930] = { icon = 468572, school = 32, period = 1, hasted = false, duration = 8, mode = "target" },
     -- Boomstick: SimC hunter.txt; sc_hunter.cpp (boomstick_t), confirmed
     [1261193] = { icon = 1261215, school = 1, period = 1, hasted = true, duration = 3, mode = "channel" },
+
+    -- Priest (never shipped; here so the priest replays fire its CHANNEL_START, as the game does)
+    -- Mind Flay: sc_priest_shadow.cpp (mind_flay_base_t channeled, duration/period from spell data); Wowhead 15407 periodic 750 ms, 4.5 s
+    [15407] = { icon = 15407, school = 32, period = 0.75, hasted = true, duration = 4.5, mode = "channel" },
 }
