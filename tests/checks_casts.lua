@@ -595,42 +595,54 @@ do -- Phase 3: records and Claim
     -- Shadow Bolt 686 learned at 1.104-1.155 s; the next fight it lands at ~0.98-1.0 s (run 20261025T180045Z).
     local SB = 686
     local function LearnBolt(n) LearnSized(n, SB, SB, { 10064, 12503, 10126 }, { 1.104, 1.13, 1.155 }) end
+    -- Under the window, only a size inside the learned 10064-12503 is drawn (early); 9000 is in the padded band only.
+    local UNDER = 9000
+    Scenario("early: a first hit up to WATCH under the window, sized inside the learned sizes, is drawn (LB 0.37-0.44 s of 0.50-0.60 s)", function()
+        local function Under(delay, size)
+            local ns, S = Rig(LearnBolt)
+            Cast(ns, S, SB, 100, "nameplate1")
+            return ns.Casts.Claim(Plate("nameplate1"), 32, 100 + delay, size)
+        end
+        return Under(0.98, 10321) == "learned" and Under(0.85, 10321) == nil and Under(0.98, UNDER) == nil
+    end)
+    -- 0.85 s is under the early range of the learned window, inside it once the centre moves to ~1.0 s.
+    local PROBE = 0.85
     Scenario("centre: one hit seen under the window moves the next cast's window to it (1.0 s of 1.10-1.16 s)", function()
         local ns, S = Rig(LearnBolt)
         local p1 = Plate("nameplate1")
         Cast(ns, S, SB, 100, "nameplate1")
-        local under = ns.Casts.Claim(p1, 32, 100.98, 10321)
+        local under = ns.Casts.Claim(p1, 32, 100.98, UNDER)
         Cast(ns, S, SB, 101.5, "nameplate1")
-        local kind, record = ns.Casts.Claim(p1, 32, 102.5, 10273)
+        local kind, record = ns.Casts.Claim(p1, 32, 101.5 + PROBE, 10273)
         return under == nil and kind == "learned" and record.at == 101.5
     end)
     Scenario("centre: two hits seen in the watch range move nothing", function()
         local ns, S = Rig(LearnBolt)
         local p1 = Plate("nameplate1")
         Cast(ns, S, SB, 100, "nameplate1")
-        ns.Casts.Claim(p1, 32, 100.95, 10500)
-        ns.Casts.Claim(p1, 32, 101.0, 10300)
+        ns.Casts.Claim(p1, 32, 100.95, UNDER)
+        ns.Casts.Claim(p1, 32, 101.0, UNDER + 200)
         Cast(ns, S, SB, 101.5, "nameplate1")
-        return ns.Casts.Claim(p1, 32, 102.5, 10273) == nil
+        return ns.Casts.Claim(p1, 32, 101.5 + PROBE, 10273) == nil
     end)
     Scenario("centre: a centre older than CENTRE_AGE (10 s, cast to cast) or from an ended fight is ignored", function()
         local ns, S = Rig(LearnBolt)
         local p1 = Plate("nameplate1")
         Cast(ns, S, SB, 100, "nameplate1")
-        ns.Casts.Claim(p1, 32, 100.98, 10321)
+        ns.Casts.Claim(p1, 32, 100.98, UNDER)
         Cast(ns, S, SB, 111, "nameplate1")
-        local stale = ns.Casts.Claim(p1, 32, 112.0, 10273)
+        local stale = ns.Casts.Claim(p1, 32, 111 + PROBE, 10273)
         Cast(ns, S, SB, 120, "nameplate1")
-        ns.Casts.Claim(p1, 32, 120.98, 10321)
+        ns.Casts.Claim(p1, 32, 120.98, UNDER)
         ns.Casts.Flush(121.5)
         Cast(ns, S, SB, 122, "nameplate1")
-        return stale == nil and ns.Casts.Claim(p1, 32, 123.0, 10273) == nil
+        return stale == nil and ns.Casts.Claim(p1, 32, 122 + PROBE, 10273) == nil
     end)
     Scenario("late: a record that saw a hit near its window takes no late hit (Darkglare's beam after a spoiled bolt)", function()
         local ns, S = Rig(LearnBolt)
         local p1 = Plate("nameplate1")
         Cast(ns, S, SB, 200, "nameplate1")
-        ns.Casts.Claim(p1, 32, 200.98, 10321)
+        ns.Casts.Claim(p1, 32, 200.98, UNDER)
         return ns.Casts.Claim(p1, 32, 202.0, 7821) == nil
     end)
     Scenario("late: a record that saw nothing near its window still takes a late hit", function()

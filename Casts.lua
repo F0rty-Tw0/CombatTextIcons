@@ -183,13 +183,20 @@ end
 -- new plate within CHAIN_GAP of the one before (CHAIN_MAX in all). "late": a first hit past the
 -- window, up to LATE times its top (Mind Blast's travel varies with distance), while the record has
 -- seen no hit in its watch range: one it saw was its own, spoiled (Darkglare's beam took Shadow Bolt's
--- late slot after an ambiguous hit, run 20261025T180045Z). Else false.
-local function Fits(record, fp, plate, school, now)
+-- late slot after an ambiguous hit, run 20261025T180045Z). An early first hit, up to WATCH under the
+-- window, fits the same weak way when `size` is inside the learned sizes, unpadded: Lava Burst learned
+-- at 0.50-0.60 s in a first fight landed at 0.37-0.44 s in every later one. Else false.
+local function Fits(record, fp, plate, school, now, size)
     if school ~= fp.school then return false end
     if record.hops == 0 then
         local age = now - record.at
         local low, high = RecordWindow(record)
-        if plate ~= record.plate or age < low - SLACK then return false end
+        if plate ~= record.plate then return false end
+        if age < low - SLACK then
+            local small, big = Fingerprints.Band(record.base, record.spellID)
+            return not record.seen and age >= low - WATCH and small ~= nil and IsNumber(size)
+                and small <= size and size <= big and "late"
+        end
         if age <= high + SLACK then return "in" end
 
         return not record.seen and age <= LATE * high + SLACK and "late"
@@ -259,7 +266,7 @@ function Casts.Claim(plate, school, now, size)
     for _, record in ipairs(records) do
         Settle(record, now)
         local fp = Live(record, now)
-        local fit = fp and Casts.InBand(record.base, record.spellID, size) and Fits(record, fp, plate, school, now)
+        local fit = fp and Casts.InBand(record.base, record.spellID, size) and Fits(record, fp, plate, school, now, size)
         if fp then Watch(record, fp, plate, school, now, size) end
         if fit == "in" then
             found, fits = Count(found, fits, record)
