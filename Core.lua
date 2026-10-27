@@ -309,7 +309,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
             ShowIsTarget(unit))
     end
     local spellID = Tracker.Identify(plate, school, amount, flagText, now)
-    if fightsYou or (spellID and spellID ~= Tracker.UNKNOWN) then Teacher.Seen(amount) end
+    if fightsYou or (spellID and spellID ~= Tracker.UNKNOWN) then Teacher.Seen(amount, now) end
     -- A learned proc (exact meter sums) outranks a learned DoT's answer (votes) or an ambiguous one.
     local voted = spellID == Tracker.UNKNOWN or (spellID and Learn.Get(spellID))
     if voted and solo and ProcWound(plate, school, amount, flagText) then return end

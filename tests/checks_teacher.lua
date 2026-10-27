@@ -816,6 +816,61 @@ return function(T)
                 before and rig.ns.Teacher.area == "clear" and not rig.ns.Teacher.AreaClear())
         end
 
+        do -- the live crowd check: lock3 F3, a world boss after clear dummies, drew a learned proc on strangers' hits
+            -- A clear read of one Smite row `total` over the fight 10..`finish` saves the pace (total per second).
+            local function PaceAfter(total, finish, preset)
+                local rig = Rig({ [SMITE] = 2 })
+                CombatTextIconsCharDB.pace = preset
+                rig.ns.Teacher.Init(CombatTextIconsCharDB)
+                rig.S.sessions = { Session(1, { Row(SMITE, total) }) }
+                rig.ns.Teacher.Start(10)
+                rig.ns.Teacher.Drawn(SMITE, total)
+                rig.ns.Teacher.Seen(total, 11)
+                rig.ns.Teacher.Finish(finish)
+                pcall(rig.Fire)
+                return CombatTextIconsCharDB.pace
+            end
+            Check("crowd live: a clear read saves its pace (1000 over 10 s = 100)", PaceAfter(1000, 20) == 100)
+            Check("crowd live: a faster clear read raises the pace, a slower one keeps it",
+                PaceAfter(1000, 20, 50) == 100 and PaceAfter(1000, 20, 400) == 400)
+            Check("crowd live: a saved pace that is not a positive number is dropped on load",
+                PaceAfter(1000, 20, "fast") == 100 and PaceAfter(1000, 20, -5) == 100
+                and PaceAfter(1000, 20, 1 / 0) == 100)
+
+            local PROC = 1287663
+            -- A clear-area fight from t 10 at saved pace `pace`: a proc hit (350, school 106) at 11, a stranger's wound
+            -- of `crowd` at 12, then a proc hit at 13 and at 30. Returns what the last three proc hits drew.
+            local function Boss(pace, crowd)
+                local rig = Rig({})
+                SeedProc(rig, PROC, true)
+                CombatTextIconsCharDB.pace = pace
+                rig.ns.Teacher.Init(CombatTextIconsCharDB)
+                SlashCmdList.COMBATTEXTICONS("debug")
+                rig.S.now = 10
+                rig.ns.Core.PLAYER_REGEN_DISABLED()
+                local first = rig.Hit(11, "nameplate1", 350, 106)
+                rig.Hit(12, "nameplate1", crowd, 1)
+                return first, rig.Hit(13, "nameplate1", 350, 106), rig.ns.Teacher.AreaClear()
+            end
+            local tex = "tex:" .. PROC
+            -- pace 100: the bound is 4 x 100 x 5 s (the wait) = 2000 at 13 s; seen there is 350 + crowd + 350 (the
+            -- hit itself)
+            local first, after, clear = Boss(100, 1301)
+            Check("crowd live: seen at the bound (2001 > 2000) turns the fight crowded: the proc no longer draws",
+                first == tex and after == nil and not clear and Logged("TEACH crowd live seen=2001 pace=100"))
+            first, after, clear = Boss(100, 1300)
+            Check("crowd live: seen at the bound (2000) keeps the fight clear", first == tex and after == tex and clear)
+            first, after = Boss(nil, 100000)
+            Check("crowd live: with no saved pace (no clear read yet) nothing turns crowded",
+                first == tex and after == tex)
+            local rig = Rig({})
+            rig.ns.Teacher.Start(10)
+            rig.ns.Teacher.fight.crowded = true
+            rig.ns.Teacher.Finish(12)
+            rig.ns.Teacher.Start(20)
+            Check("crowd live: the next fight starts clear again", rig.ns.Teacher.AreaClear())
+        end
+
         do -- the verdict is saved with the map it was decided on and restored on entering the world, on that map only
             -- A boot whose saved char DB holds `area` and whose player stands on `map` (nil: the API answers nothing).
             local function BootArea(area, map)

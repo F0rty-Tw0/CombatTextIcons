@@ -21,7 +21,9 @@
 -- learning runs (the leftover '?' hits and still-open rows then go to Procs.Read), else it
 -- is "crowded" and that fight teaches nothing; seen below half the rows' total is "short" and
 -- teaches nothing either. The area is saved with the map it was decided on and comes back on entering the
--- world there (EnterWorld); anywhere else the world starts "crowded". With /cti debug each outcome logs TEACH lines.
+-- world there (EnterWorld); anywhere else the world starts "crowded". Mid-fight, seen wounds far past the best pace
+-- a clear read measured make that fight crowded at once (Teacher.Seen), before its read. With /cti debug each
+-- outcome logs TEACH lines.
 -- Each fight's outcome, a read or a skip, ends with one Teacher.OnRead(Teacher.last) call
 -- (Progress shows what the fight taught). A fight whose read meets the next fight is carried
 -- into it (Carry) and has no outcome of its own. A fight whose newest session is the one read
@@ -35,19 +37,27 @@ local Teacher = {}
 ns.Teacher = Teacher
 
 local READ_DELAY = 1 -- seconds after combat the session is read
+-- The live crowd check: a fight's seen wounds past CROWD_PACE times the best pace a clear read measured (meter total
+-- per second of fight) make it crowded at once, after its first CROWD_WAIT seconds (an opener burst is no crowd).
+-- lock3 F3: the area was clear, then a world boss had strangers' wounds at 30x the best pace (clear fights peak below
+-- 2.1x), and a learned proc drew 234195 against its row's 15682 before the read could turn the area crowded.
+local CROWD_PACE, CROWD_WAIT = 4, 5
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
 -- the open fight: { at, tally = { [spellID] = sum }, unknown = { entry, ... }, ticks = { tick, ... },
---   streams = { [stream] = record }, seen = sum, group }
+--   streams = { [stream] = record }, seen = sum, live = this fight's own seen (no carried fight's), crowded = the live
+--   crowd check fired, carried = seconds of fights carried in, duration = seconds in combat (set at Finish), group }
 Teacher.fight = nil
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; a read saves it with its map (SaveArea)
 Teacher.OnRead = nil -- function(last), called once per fight when its outcome is final; Progress sets it
 
-local store = nil       -- the character table; its `area` = { state, map } is the last read's verdict and where it was made
+-- the character table; its `area` = { state, map } is the last read's verdict and where it was made, its `pace` the
+-- best meter total per second of a clear read (the live crowd check's yardstick)
+local store = nil
 local lastSession = nil -- ID of the session processed last
 local lastRows = {}     -- that session's rows at its last read, by spell ID: { total, overkill }
 
@@ -58,13 +68,15 @@ local function CurrentMap()
 end
 
 -- Saved data is checked, never trusted: adopts charDB.area when it is { state = "clear" | "crowded", map = a map ID },
--- else drops it. The state itself waits for Teacher.EnterWorld.
+-- else drops it, and charDB.pace when it is a positive finite number. The state itself waits for Teacher.EnterWorld.
 function Teacher.Init(charDB)
     store = charDB
     local saved = charDB.area
     local valid = type(saved) == "table" and (saved.state == "clear" or saved.state == "crowded")
         and IsNumber(saved.map) and saved.map > 0 and saved.map % 1 == 0
     charDB.area = valid and { state = saved.state, map = saved.map } or nil
+    local pace = charDB.pace
+    if not (IsNumber(pace) and pace > 0 and pace < math.huge) then charDB.pace = nil end
 end
 
 -- The player entered the world (login, reload, a loading screen): the saved verdict stands on the map it was made
@@ -563,6 +575,7 @@ local function Carry(run, into)
     for index, hit in ipairs(run.unknown) do table.insert(into.unknown, index, hit) end
     for index, tick in ipairs(run.ticks or {}) do table.insert(into.ticks, index, tick) end
     into.seen = into.seen + run.seen
+    into.carried = (into.carried or 0) + (run.duration or 0)
     into.streams = Streams.JoinFight(into.streams or {}, run.streams or {})
     into.group = into.group or run.group
     if ns.Debug then ns.Debug("TEACH carry %d hits seen=%d", #run.unknown, math.floor(run.seen)) end
@@ -581,6 +594,13 @@ local function ReportSession(sessionID, again)
                 again and " again" or "")
         end
     end
+end
+
+-- A clear read's meter `total` over `duration` seconds of combat raises the saved pace when it beats it.
+local function SavePace(total, duration)
+    if not (store and IsNumber(duration) and duration > 0) then return end
+    local pace = total / duration
+    if not store.pace or pace > store.pace then store.pace = pace end
 end
 
 -- The timer callback of one fight: read the newest session and judge it.
@@ -637,6 +657,7 @@ local function Read(run)
         ns.Debug("TEACH clean seen=%d meter=%d -> %s", math.floor(run.seen), math.floor(total), area)
     end
     if area == "clear" then
+        SavePace(total, run.duration)
         local learnedGroups, rewritten = Learn(run, results, open, rows)
         for _, group in ipairs(learnedGroups) do Teacher.last.learned[group.castID] = #group.hits end
         local hits, openRows = Leftover(run.unknown, learnedGroups), StillOpen(open, rewritten)
@@ -650,7 +671,8 @@ end
 -- Combat began: open a fight (an unfinished one is replaced).
 function Teacher.Start(now, group)
     local streams = Streams.NewFight()
-    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, seen = 0, group = group, streams = streams }
+    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, seen = 0, live = 0, group = group,
+        streams = streams }
 end
 
 -- A wound landed while the player was grouped: the fight's read will not learn.
@@ -658,16 +680,24 @@ function Teacher.Grouped()
     if Teacher.fight then Teacher.fight.group = true end
 end
 
--- A wound of this size that may be yours was seen, drawn or not (Core's Wound decides which count).
-function Teacher.Seen(amount)
+-- A wound of this size that may be yours was seen at `now`, drawn or not (Core's Wound decides which count). Past the
+-- live crowd check's bound (CROWD_PACE) the fight is crowded until it ends.
+function Teacher.Seen(amount, now)
     local fight = Teacher.fight
     if not (fight and IsNumber(amount)) then return end
-    fight.seen = fight.seen + amount
+    fight.seen, fight.live = fight.seen + amount, fight.live + amount
+    local pace = store and store.pace
+    if fight.crowded or not (pace and IsNumber(now)) then return end
+    if fight.live > CROWD_PACE * pace * math.max(now - fight.at, CROWD_WAIT) then
+        fight.crowded = true
+        if ns.Debug then ns.Debug("TEACH crowd live seen=%d pace=%d", math.floor(fight.live), math.floor(pace)) end
+    end
 end
 
--- The last solo fight's wounds fit the meter and the meter is readable.
+-- The last solo fight's wounds fit the meter, the meter is readable, and the open fight is not crowded.
 function Teacher.AreaClear()
-    return Teacher.area == "clear" and Meter.Available()
+    local fight = Teacher.fight
+    return Teacher.area == "clear" and Meter.Available() and not (fight and fight.crowded)
 end
 
 -- A hit was drawn with this spell's icon.
@@ -712,6 +742,7 @@ function Teacher.Finish(now)
         Done()
         return
     end
+    if IsNumber(now) then fight.duration = now - fight.at + (fight.carried or 0) end
     if not Meter.Available() then
         Teacher.last = { skip = "meter off" }
         Done()
