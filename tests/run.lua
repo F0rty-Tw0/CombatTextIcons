@@ -295,6 +295,7 @@ local function ParseLog(name, log)
         local hitTarget = rest:match("^HIT .*target=(%a+)$")
         local hitThreat = rest:match("^HIT .* threat=(%S+) ")
         local hitNPC = rest:match("^HIT .* npc=(%S+)")
+        local hitGroup = rest:match("^HIT .* group=([^,%s]+),")
         local skipped = rest:match("^STAMP %d+$") or rest:match("^RESOLVE ") or rest:match("^START ")
         if route then
             assert(lastHit ~= nil, "route line with no HIT " .. name .. ":" .. index)
@@ -320,6 +321,8 @@ local function ParseLog(name, log)
             event.target = hitTarget and hitTarget == "true"    -- nil when the log has no target= (older logs)
             if hitThreat then event.threat = tonumber(hitThreat) or false end -- false: threat=nil (not on its list)
             event.npc = tonumber(hitNPC)                        -- nil: no creature ID (Player, nil, secret, older logs)
+            -- IsInGroup()'s logged answer; secret or err count as grouped, as Core's InGroup does; nil: older logs
+            if hitGroup then event.group = hitGroup ~= "false" end
             if pendingRead and pendingRead.t == event.t then
                 event.read, pendingRead.paired, pendingRead = pendingRead, true, nil
             end
@@ -357,8 +360,9 @@ local function ParseTeach(lines, rowIDs)
         if seen then
             open = { endLine = index, seen = tonumber(seen), meter = tonumber(meter), area = area, rows = {} }
             fights[#fights + 1] = open
-        elseif text:match("^[%d%.]+ TEACH proc ") or text:match("^[%d%.]+ TEACH steady ") then
-            -- Procs' streak lines and the steady pass's lines sit between the clean line and the rows: report only
+        elseif text:match("^[%d%.]+ TEACH proc ") or text:match("^[%d%.]+ TEACH steady ")
+            or text:match("^[%d%.]+ TEACH rhythm ") then
+            -- Procs', the steady pass's and the rhythm pass's lines sit between the clean line and the rows: report only
         elseif id and open then
             local amount = tonumber(rowMeter)
             local fixes = rowIDs and rowIDs[#fights] or {}
@@ -610,6 +614,10 @@ local function Replay(name, opts)
     local excluded = fixtureLabels.excludePhases or {}
     local hits = {}
     S.now = events[1].t
+    -- a log that records IsInGroup per hit replays it: the fight starts in the first hit's answer
+    for _, event in ipairs(events) do
+        if event.group ~= nil then S.group = event.group break end
+    end
     Core.PLAYER_REGEN_DISABLED()
     for _, event in ipairs(events) do
         S.now, phase = event.t, event.phase
@@ -620,6 +628,7 @@ local function Replay(name, opts)
             route = nil
             local logged = (opts.logThreat or opts.replayThreat) and event.threat
             if logged ~= nil then S.threat[event.unit] = logged end
+            if event.group ~= nil then S.group = event.group end
             -- the logged creature ID, so the dummy rule learns it as in game (Core.CreatureID parses this shape)
             if opts.replayThreat then
                 local npc = event.npc
@@ -708,10 +717,12 @@ local function SplitFights(name, opts)
         for _, event in ipairs(all) do
             if event.line > prevEnd and event.line < endLine then events[#events + 1] = event end
         end
-        if #events == 0 then break end
-        slices[#slices + 1] = { log = opts.label or name, name = name, events = events, rows = fight and fight.rows,
-            seen = not fixture.logThreat and fight and fight.seen or nil, logThreat = fixture.logThreat,
-            replayThreat = fixture.replayThreat, startArea = fixture.startArea }
+        -- a read with no damage events (a heal-only "fight", seen=0 meter=0) is no slice; the fights after it still are
+        if #events > 0 then
+            slices[#slices + 1] = { log = opts.label or name, name = name, events = events, rows = fight and fight.rows,
+                seen = not fixture.logThreat and fight and fight.seen or nil, logThreat = fixture.logThreat,
+                replayThreat = fixture.replayThreat, startArea = fixture.startArea }
+        end
         prevEnd = endLine
     end
     return slices
@@ -1353,6 +1364,16 @@ local function ReplayFightsChecks()
     local priestSlices = SplitFights(PRIEST_DUMMY, {})
     Check("SplitFights: one slice per fight, an empty tail dropped", #SplitFights(SHADOW_DOTS, {}) == ORACLE[SHADOW_DOTS].runs)
     Check("SplitFights: a non-empty tail is a slice with no rows", #priestSlices == ORACLE[PRIEST_DUMMY].runs and priestSlices[4].rows == nil)
+    local healOnly = { "1.0 CAST player 1", "1.0 TEACH clean seen=0 meter=0 -> clear", "2.0 HEAL player school=1 amount=5 flag=",
+        "2.0   -> HIDDEN (crowded)", "2.5 TEACH clean seen=0 meter=0 -> clear", "3.0 CAST player 1",
+        "3.5 TEACH clean seen=0 meter=0 -> clear" }
+    local afterHeal = SplitFights("x", { log = healOnly, fixture = {} })
+    Check("SplitFights: a heal-only read is no slice and the fights after it still are",
+        #afterHeal == 2 and afterHeal[2].events[1].t == 3.0)
+    local rhythm = ParseTeach({ "1.0 TEACH clean seen=5 meter=5 -> clear",
+        "1.0 TEACH rhythm 7 school=32 p=1.70 band=1-2 streak=1", "1.0 TEACH 7 tally=0 meter=5 verdict=unpaired" })
+    Check("ParseTeach: a rhythm line between the clean line and the rows keeps the rows",
+        #rhythm == 1 and #rhythm[1].rows == 1 and rhythm[1].rows[1].spellID == 7)
 
     local lockLines = {} -- tests/score_lib.lua's ReadLines, repeated: it loads this file, so this file cannot load it
     for line in io.lines(ROOT .. "/tests/score/lock.txt") do
