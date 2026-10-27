@@ -1669,6 +1669,35 @@ return function(T)
         rig.S.threat.nameplate1 = false
         for _ = 1, 4 do Wound(rig) end
         Check("rhythm route: a mob not fighting you -> no rhythm route", rig.ns.Teacher.fight.tally[X] == nil and not Logged("-> rhythm"))
+
+        -- A lone hit before any stream is born: a logged cast of the entry's ID, 0.4 s earlier, names it.
+        local function CastRig(castID, castUnit)
+            local r = RhythmRig()
+            if castID then r.Cast(10, castUnit or "nameplate1", castID) end
+            return r
+        end
+        local function Lone(r, amount, flag) return r.Hit(10.4, "nameplate1", amount, 106, flag) end
+
+        rig = CastRig(X)
+        Check("rhythm cast: a lone in-band hit 0.4 s after a cast of the entry's ID draws the rhythm icon, tallied, with the route line",
+            Lone(rig, 350) == ICON and rig.ns.Teacher.fight.tally[X] == 350 and Logged("  -> rhythm " .. X))
+        rig = CastRig(nil)
+        Check("rhythm cast: the same hit with no cast draws ?", Lone(rig, 350) == UNKNOWN and not Logged("-> rhythm"))
+        rig = CastRig(8092)
+        Check("rhythm cast: a cast of another ID draws ?", Lone(rig, 350) == UNKNOWN and not Logged("-> rhythm"))
+        rig = CastRig(X)
+        Check("rhythm cast: an out-of-band hit (200) draws ? despite the cast", Lone(rig, 200) == UNKNOWN and not Logged("-> rhythm"))
+        rig = CastRig(X)
+        Check("rhythm cast: a crit at twice the band (700, flag CRITICAL) with the cast draws the rhythm icon",
+            Lone(rig, 700, "CRITICAL") == ICON and Logged("  -> rhythm " .. X))
+        rig = CastRig(X)
+        rig.S.threat.nameplate1, rig.S.target = false, nil -- the cast targeted the mob, which would make it fight you
+        Lone(rig, 350)
+        Check("rhythm cast: a mob not fighting you gets no rhythm icon", rig.ns.Teacher.fight.tally[X] == nil and not Logged("-> rhythm"))
+        rig = CastRig(X)
+        rig.ns.Teacher.area = "crowded"
+        Lone(rig, 350)
+        Check("rhythm cast: crowded -> no rhythm route", rig.ns.Teacher.fight.tally[X] == nil and not Logged("-> rhythm"))
     end
 
     do -- Teacher.OnRead: called once per fight with Teacher.last, at the end of Read and on every skip path

@@ -606,3 +606,28 @@ function Procs.NameStream(stream)
 
     return found
 end
+
+-- Procs.NameCast(school, amount, flagText, candidates): the one learned rhythm entry, keyed by a cast that may
+-- have made the hit (Casts.Candidates), whose school matches and whose padded band holds the hit (the normal or
+-- crit test of Procs.Name), or nil for none or several. Names the ticks before the stream is born.
+function Procs.NameCast(school, amount, flagText, candidates)
+    if not (IsNumber(school) and IsNumber(amount)) then return nil end
+    local crit = Procs.Crit(flagText) -- nil: unknown
+    local found
+    for _, cast in ipairs(candidates or {}) do
+        for _, id in ipairs({ cast.castID, cast.castSpell }) do
+            local entry = procs[id]
+            if id ~= found and entry and entry.learned == true and entry.period and entry.school == school then
+                local lo, hi = entry.lo * PAD_LO, entry.hi * PAD_HI
+                local normal = lo <= amount and amount <= hi
+                local big = lo * CRIT_LO <= amount and amount <= hi * CRIT_HI
+                if (crit ~= true and normal) or (crit ~= false and big) then
+                    if found then return nil end
+                    found = id
+                end
+            end
+        end
+    end
+
+    return found
+end

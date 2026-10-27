@@ -270,10 +270,12 @@ local function ProcWound(plate, school, amount, flagText)
     return true
 end
 
--- Draws a hit whose stream fits a learned rhythm proc (ticks that share no size band) with that row's icon.
+-- Draws a hit whose stream fits a learned rhythm proc (ticks that share no size band) with that row's icon; a
+-- hit before its stream is born is named by a logged cast of the proc's row that its band holds (Procs.NameCast).
 -- Returns whether it drew.
-local function RhythmWound(plate, stream, school, amount, flagText)
-    local rhythmID = Teacher.AreaClear() and Procs.NameStream(stream)
+local function RhythmWound(plate, stream, school, amount, flagText, now)
+    local rhythmID = Teacher.AreaClear()
+        and (Procs.NameStream(stream) or Procs.NameCast(school, amount, flagText, Casts.Candidates(plate, now)))
     if not rhythmID then return false end
     if ns.Debug then ns.Debug("  -> rhythm %s", ShowValue(rhythmID)) end
     Teacher.Drawn(rhythmID, amount)
@@ -290,7 +292,8 @@ end
 -- area is clear (Teacher.AreaClear); else it stays hidden (route "meter off" or "crowded"). While the
 -- area is clear a learned proc that fits the hit (Procs.Name) draws its icon instead of the question
 -- mark; so does a learned rhythm proc that fits the stream the hit extends or births
--- (Procs.NameStream), ranked below the Tracker and Casts.
+-- (Procs.NameStream), or that a recent cast of its row and the hit's size name before the stream is born
+-- (Procs.NameCast), ranked below the Tracker and Casts.
 -- The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
 -- (run 153349Z: strangers on 8 nearby dummies made both reads crowded).
@@ -354,7 +357,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     end
     if solo then
         if ProcWound(plate, school, amount, flagText) then return end
-        if RhythmWound(plate, stream, school, amount, flagText) then return end
+        if RhythmWound(plate, stream, school, amount, flagText, now) then return end
         Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now), flagText, Casts.Candidates(plate, now))
         if not Teacher.AreaClear() then
             if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
