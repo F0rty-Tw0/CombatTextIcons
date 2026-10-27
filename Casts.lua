@@ -1,5 +1,5 @@
--- Combat Text Icons: casts. This module holds the cast log (the harmful casts that
--- can explain a hit) and the open records: a cast whose fingerprint is learned waits
+-- Combat Text Icons: casts. This module holds the cast log (the harmful casts, the player's
+-- and the pet's, that can explain a hit) and the open records: a cast whose fingerprint is learned waits
 -- for its hit, and Claim and Accept turn that hit into a direct-hit icon.
 -- An override cast (Void Blast 450983 over Mind Blast 8092) is filed by the meter under
 -- its base spell's row, so every entry and record keeps both: `spellID` (the cast, for
@@ -75,7 +75,7 @@ local CHAIN_MAX = 5      -- hits one chain shows at most
 
 local UNKNOWN_WAIT = 1.5 -- a hit is explained by a cast at most this long before it
 local LOG_MAX = 20       -- cast log entries kept at most
-local log = {}           -- harmful player casts, oldest first: { spellID, base, at, plate, tracker }
+local log = {}           -- harmful player and pet casts, oldest first: { spellID, base, at, plate, tracker }
 
 -- Open records: a learned cast waiting for its hit. A hit that fits one is drawn with the
 -- cast's icon; Accept is the only writer of hops. Claim only notes what each record saw (its centre).
@@ -178,11 +178,21 @@ local function CastPlate(castID, castGUID, now)
     return Tracker.TargetPlate()
 end
 
-function Casts.NoteCast(castID, now, castGUID)
+-- A pet's cast lands on the pet's target: the player's target plate while the pet attacks it (UnitIsUnit plain true),
+-- else no plate, so its hits name no cast. It never takes the player's cast start.
+local function PetPlate()
+    local ok, same = pcall(UnitIsUnit, "target", "pettarget")
+    if ok and Plain(same) and same then return Tracker.TargetPlate() end
+end
+
+-- A harmful cast of the player, or of the pet when `pet` (the meter files pet damage under the player's own rows).
+function Casts.NoteCast(castID, now, castGUID, pet)
     SweepRecords(now)
     local base = Casts.Base(castID)
     local learned = Learn.Get(castID)
-    local entry = { spellID = castID, base = base, at = now, plate = CastPlate(castID, castGUID, now),
+    local plate
+    if pet then plate = PetPlate() else plate = CastPlate(castID, castGUID, now) end
+    local entry = { spellID = castID, base = base, at = now, plate = plate,
         tracker = Learn.IsKnownIcon(castID), ticks = learned and learned.school }
     log[#log + 1] = entry
     while now - log[1].at > UNKNOWN_WAIT or #log > LOG_MAX do table.remove(log, 1) end

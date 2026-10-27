@@ -523,15 +523,17 @@ function Core.UNIT_COMBAT(unit, event, flagText, amount, school)
     end
 end
 
+-- The pet's harmful casts join the cast log too: the meter lists pet damage among the player's own rows
+-- (Shadow Bite 54049, Bite 17253), so the teacher learns them like the player's.
 function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     if not db.enabled then return end
     if ns.Debug then
         ns.Debug("CAST %s %s base=%s", unit, ShowValue(spellID), Plain(spellID) and ShowBase(spellID) or "?")
     end
     local now = GetTime()
-    if unit == "player" and Plain(spellID) then
+    if (unit == "player" or unit == "pet") and Plain(spellID) then
         local harmful = C_Spell.IsSpellHarmful and C_Spell.IsSpellHarmful(spellID)
-        if Plain(harmful) and harmful then Casts.NoteCast(spellID, now, castGUID) end
+        if Plain(harmful) and harmful then Casts.NoteCast(spellID, now, castGUID, unit == "pet") end
     end
     Tracker.OnCast(unit, spellID, now)
 end

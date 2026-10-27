@@ -517,6 +517,48 @@ return function(T)
             drawn[1] ~= "tex:8092" and drawn[2] == "tex:8092")
     end
 
+    do -- pet damage is the player's own (2026-10-28): the meter lists the pet's spells among the player's rows
+        local BITE = 54049 -- Shadow Bite: the pet's cast and its hit share a frame (lock3)
+        -- One kill by the pet: its cast at t on the player's target, its hit at t; the session holds the pet's row.
+        local function PetKill(rig, t, session, amount)
+            local S, Core = rig.S, rig.ns.Core
+            S.now = t - 1
+            Core.PLAYER_REGEN_DISABLED()
+            S.now, S.target = t, "nameplate1"
+            Core.UNIT_SPELLCAST_SUCCEEDED("pet", "p" .. t, BITE)
+            local drawn = rig.Hit(t, "nameplate1", amount, 32)
+            S.now = t + 5
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(session, { Row(BITE, amount) }) }
+            pcall(rig.Fire)
+            return drawn
+        end
+        local function Taught(petTarget)
+            local rig = Rig({})
+            for index = 1, 3 do PetKill(rig, 100 * index, 600 + index, 3000 + 50 * index) end
+            rig.S.petTarget = petTarget
+            return rig, PetKill(rig, 400, 604, 3100)
+        end
+        local rig, drawn = Taught(true)
+        Check("teacher pet: three one-cast pet kills teach the pet's spell; its next hit draws the pet spell's icon",
+            rig.ns.Fingerprints.IsLearned(BITE) and drawn == "tex:" .. BITE)
+        rig, drawn = Taught(false)
+        Check("teacher pet: a pet cast while the pet attacks another mob than the target names no hit on the target",
+            rig.ns.Fingerprints.IsLearned(BITE) and drawn ~= "tex:" .. BITE)
+
+        -- A pet cast between the player's cast start and its finish keeps the start's plate (run 134732Z's retarget).
+        rig = Rig({ [MIND_BLAST] = 32 })
+        local S, Core = rig.S, rig.ns.Core
+        S.now, S.target = 30, "nameplate4"
+        Core.UNIT_SPELLCAST_START("player", "g1", MIND_BLAST)
+        S.now = 30.5
+        Core.UNIT_SPELLCAST_SUCCEEDED("pet", "p30", BITE)
+        S.now, S.target = 31.5, "nameplate6"
+        Core.UNIT_SPELLCAST_SUCCEEDED("player", "g1", MIND_BLAST)
+        Check("teacher pet: a pet cast mid-cast does not take the player's cast start",
+            rig.Hit(31.75, "nameplate4", 20000, 32) == "tex:" .. MIND_BLAST)
+    end
+
     do -- a learned spell's killing blow: tally above the meter total, within its overkill
         local rig = Rig({})
         local F = rig.ns.Fingerprints
