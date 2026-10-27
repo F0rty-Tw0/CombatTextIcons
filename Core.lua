@@ -160,7 +160,7 @@ end
 
 -- grug: temporary probe for missing direct hits (Lightning Bolt): /cti debug logs
 -- hits, teacher verdicts and casts to CombatTextIconsDB.debugLog. Remove after the in-game run.
-local DEBUG_MAX = 20000 -- an AoE pull fills 3000 lines in under a minute
+local DEBUG_MAX = 100000 -- an AoE pull fills 3000 lines in under a minute; 20000 cut a 12-minute run short
 
 local function Debug(format, ...)
     local log = db.debugLog
