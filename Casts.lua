@@ -251,7 +251,8 @@ end
 -- casts of one spell (the oldest answers; Void Blast can fire twice in one frame) and no
 -- unlearned cast is on the plate. Records that fit late answer only when none fits in its window. "ambiguous": records of two spells fit, or an unlearned cast is on the plate (spec 6.1
 -- read literally: that alone spoils the answer, fit or not). nil: nothing to say. `size` is the
--- hit's normal-scale size (Streams.NormalAmount), nil when unknown. Draws nothing; Accept is the only writer of hops.
+-- hit's normal-scale size (Streams.NormalAmount), nil when unknown. A "learned" answer's third value is true when
+-- the record fit only late. Draws nothing; Accept is the only writer of hops.
 function Casts.Claim(plate, school, now, size)
     if not (Plain(plate) and Plain(school) and Plain(now)) then return nil end
     local found, fits, late, lateFits = nil, 0, nil, 0
@@ -266,9 +267,10 @@ function Casts.Claim(plate, school, now, size)
             late, lateFits = Count(late, lateFits, record)
         end
     end
-    if fits == 0 then found, fits = late, lateFits end
+    local lateOnly = fits == 0 and late ~= nil
+    if lateOnly then found, fits = late, lateFits end
     if fits >= 2 or UnlearnedCastAt(plate, now, found and found.at or -math.huge) then return "ambiguous" end
-    if fits == 1 then return "learned", found end
+    if fits == 1 then return "learned", found, lateOnly end
 end
 
 -- The hit is drawn: the record has taken one more hit.

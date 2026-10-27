@@ -106,6 +106,29 @@ return function(T)
             proc and proc.texture == "tex:73921" and #fed == 1 and fed[1] == 5000)
     end
 
+    do -- Lightning Bolt hits 0.33-0.47 s after its cast drew as a mislearned Lava Burst DoT: a learned cast fingerprint wins
+        local DOT, BOLT = 51505, 188196
+        local function Run(boltLearned, delay)
+            local rig = Rig()
+            local ns = rig.ns
+            CombatTextIconsCharDB.learned = { [DOT] = { school = 8, period = 1.65, kind = "dot", misses = 0 } }
+            ns.Learn.Init(CombatTextIconsCharDB)
+            if boltLearned then
+                for castAt = 1, 3 do ns.Fingerprints.Add(BOLT, { school = 8, delay = 0.4, castAt = castAt, hops = 1 }) end
+            end
+            rig.Cast(10, DOT, "nameplate1")
+            rig.Cast(11.65 - delay, BOLT, "nameplate1")
+            local bolt = rig.Hit(11.65, "nameplate1", "WOUND", 90, 8)
+
+            return bolt and bolt.texture
+        end
+        Check("core: a hit a learned cast fingerprint fits in its window draws the cast, not a learned DoT's answer",
+            Run(true, 0.4) == "tex:" .. BOLT)
+        Check("core: with no learned fingerprint the learned DoT still answers the hit", Run(false, 0.4) == "tex:" .. DOT)
+        Check("core: a hit the fingerprint fits only late (0.9 s of a 0.4 s window) stays with the learned DoT",
+            Run(true, 0.9) == "tex:" .. DOT)
+    end
+
     do
         local rig = Rig()
         Check("core: PLAYER_REGEN_DISABLED exists and runs",

@@ -308,14 +308,23 @@ local function Wound(plate, unit, flagText, amount, school, now)
     -- A learned proc (exact meter sums) outranks a learned DoT's answer (votes) or an ambiguous one.
     local voted = spellID == Tracker.UNKNOWN or (spellID and Learn.Get(spellID))
     if voted and solo and ProcWound(plate, school, amount, flagText) then return end
-    if spellID and spellID ~= Tracker.UNKNOWN then
+    local named = spellID and spellID ~= Tracker.UNKNOWN
+    local kind, record, late, claimed
+    if named and Learn.Get(spellID) then
+        -- A learned DoT's answer is votes; a learned cast fingerprint that fits the hit in its window is exact
+        -- (Lightning Bolt hits drawn as a mislearned Lava Burst DoT): the cast wins. The one Claim serves both.
+        kind, record, late = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText))
+        claimed = true
+        if kind == "learned" and not late and fightsYou and record.spellID ~= spellID then named = false end
+    end
+    if named then
         if ns.Debug then ns.Debug("  -> tracker %s", ShowValue(spellID)) end
         Teacher.Drawn(spellID, amount)
         if Learn.Get(spellID) then Teacher.Ticked(school, amount, flagText) end
         Ledger.Add("damage", spellID, amount)
         return Display.Plate(plate, SpellTexture(spellID), text, flagText, school)
     end
-    local kind, record = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText))
+    if not claimed then kind, record = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText)) end
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
         Casts.Accept(record, plate, now)
