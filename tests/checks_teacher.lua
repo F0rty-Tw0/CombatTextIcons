@@ -565,10 +565,11 @@ return function(T)
         -- by Seen; the session holds a Smite 53 row and a Mind Blast 120 row. `group` is the Start argument,
         -- `grouped` the IsInGroup answer at read time. Returns the rig, whether the read raised no error,
         -- Teacher.last and whether the Mind Blast '?' hit was learned (one sample; a fingerprint needs three).
-        local function Crowd(area, seen, group, grouped)
+        local function Crowd(area, seen, group, grouped, prep)
             local rig = Rig({ [SMITE] = 2 }, true)
             local S, Teacher = rig.S, rig.ns.Teacher
             Teacher.area = area
+            if prep then prep(rig) end
             S.sessions = { Session(1, { Row(SMITE, 53), Row(MIND_BLAST, 120) }) }
             Teacher.Start(9, group)
             Teacher.Drawn(SMITE, 53)
@@ -707,6 +708,73 @@ return function(T)
             rig.ns.Meter.Disable("test")
             Check("crowd: clear but meter disabled -> AreaClear false",
                 before and rig.ns.Teacher.area == "clear" and not rig.ns.Teacher.AreaClear())
+        end
+
+        do -- the verdict is saved with the map it was decided on and restored on entering the world, on that map only
+            -- A boot whose saved char DB holds `area` and whose player stands on `map` (nil: the API answers nothing).
+            local function BootArea(area, map)
+                return T.Boot(function(S)
+                    S.map = map
+                    CombatTextIconsCharDB = { area = area }
+                end)
+            end
+            local MAP = 2022
+
+            for _, state in ipairs({ "clear", "crowded" }) do
+                local ns = BootArea({ state = state, map = MAP }, MAP)
+                Check("crowd saved: the same map restores " .. state,
+                    ns.Teacher.area == state and ns.Teacher.AreaClear() == (state == "clear")
+                    and CombatTextIconsCharDB.area.state == state and CombatTextIconsCharDB.area.map == MAP)
+            end
+
+            local ns = BootArea({ state = "clear", map = MAP }, MAP + 1)
+            Check("crowd saved: another map boots crowded, and the saved verdict stays for its own map",
+                ns.Teacher.area == "crowded" and CombatTextIconsCharDB.area.state == "clear" and CombatTextIconsCharDB.area.map == MAP)
+
+            for label, map in pairs({ nil_ = false, text = "2022", secret = Secret(MAP), zero = 0, fraction = 2022.5 }) do
+                ns = BootArea({ state = "clear", map = MAP }, map or nil)
+                Check("crowd saved: a current map that is " .. label .. " boots crowded", ns.Teacher.area == "crowded")
+            end
+
+            local bad = { text = "clear", state = { state = "maybe", map = MAP }, noState = { map = MAP },
+                noMap = { state = "clear" }, textMap = { state = "clear", map = "2022" }, zero = { state = "clear", map = 0 },
+                fraction = { state = "clear", map = 2022.5 }, negative = { state = "clear", map = -1 } }
+            for label, area in pairs(bad) do
+                ns = BootArea(area, MAP)
+                Check("crowd saved: a saved area that is " .. label .. " is dropped on load",
+                    CombatTextIconsCharDB.area == nil and ns.Teacher.area == "crowded")
+            end
+
+            ns = BootArea(nil, MAP)
+            Check("crowd saved: no saved area boots crowded and saves nothing", ns.Teacher.area == "crowded" and CombatTextIconsCharDB.area == nil)
+
+            for _, case in ipairs({ { "crowded", 173, "clear" }, { "clear", 300, "crowded" } }) do
+                local rig = Crowd(case[1], case[2])
+                local S, saved = rig.S, CombatTextIconsCharDB.area
+                Check("crowd saved: a " .. case[3] .. " read saves { state, map = the current map }",
+                    saved and saved.state == case[3] and saved.map == S.map and saved.map ~= nil)
+            end
+
+            local kept = { state = "clear", map = 7 }
+            local function Preset(rig) CombatTextIconsCharDB.area = { state = kept.state, map = kept.map } end
+            local function Unchanged() local a = CombatTextIconsCharDB.area return a and a.state == kept.state and a.map == kept.map end
+            Crowd("clear", 86, nil, nil, Preset)
+            Check("crowd saved: a short read saves nothing new", Unchanged())
+            Crowd("clear", 300, true, nil, Preset)
+            Check("crowd saved: a group read saves nothing new", Unchanged())
+            Crowd("clear", 173, false, true, Preset)
+            Check("crowd saved: a read grouped at read time saves nothing new", Unchanged())
+            Crowd("crowded", 173, nil, nil, function(rig) Preset(rig) rig.S.map = nil end)
+            Check("crowd saved: a read with no map drops the older verdict instead of keeping it for a map it no longer describes",
+                CombatTextIconsCharDB.area == nil)
+
+            local rig = Crowd("crowded", 173)
+            SlashCmdList.COMBATTEXTICONS("forget")
+            Check("crowd saved: /cti forget keeps the saved area",
+                CombatTextIconsCharDB.area and CombatTextIconsCharDB.area.state == "clear" and rig.ns.Teacher.area == "clear")
+            rig.S.map = rig.S.map + 1
+            rig.ns.Core.PLAYER_ENTERING_WORLD()
+            Check("crowd saved: a loading screen onto another map turns crowded", rig.ns.Teacher.area == "crowded")
         end
 
         -- The debug log: the clean line comes before the row lines; a fractional seen is floored.

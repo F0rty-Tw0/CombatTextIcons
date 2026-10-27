@@ -18,7 +18,8 @@
 -- the wounds seen that may be yours (Teacher.Seen) fit the meter's rows the area is "clear" and
 -- learning runs (the leftover '?' hits and still-open rows then go to Procs.Read), else it
 -- is "crowded" and that fight teaches nothing; seen below half the rows' total is "short" and
--- teaches nothing either. With /cti debug each outcome logs TEACH lines.
+-- teaches nothing either. The area is saved with the map it was decided on and comes back on entering the
+-- world there (EnterWorld); anywhere else the world starts "crowded". With /cti debug each outcome logs TEACH lines.
 -- Each fight's outcome, a read or a skip, ends with one Teacher.OnRead(Teacher.last) call
 -- (Progress shows what the fight taught). A fight whose read meets the next fight is carried
 -- into it (Carry) and has no outcome of its own. A fight whose newest session is the one read
@@ -41,15 +42,48 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 --   streams = { [stream] = record }, seen = sum, group }
 Teacher.fight = nil
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
-Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; never saved
+Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; a read saves it with its map (SaveArea)
 Teacher.OnRead = nil -- function(last), called once per fight when its outcome is final; Progress sets it
 
+local store = nil       -- the character table; its `area` = { state, map } is the last read's verdict and where it was made
 local lastSession = nil -- ID of the session processed last
 local lastRows = {}     -- that session's rows at its last read, by spell ID: { total, overkill }
 
 local function InGroup()
     local inGroup = IsInGroup()
     return not Plain(inGroup) or inGroup -- unknown counts as grouped
+end
+
+-- The map the player stands on as a plain positive integer, or nil.
+local function CurrentMap()
+    local ok, map = pcall(C_Map.GetBestMapForUnit, "player")
+    if ok and IsNumber(map) and map > 0 and map % 1 == 0 then return map end
+end
+
+-- Saved data is checked, never trusted: adopts charDB.area when it is { state = "clear" | "crowded", map = a map ID },
+-- else drops it. The state itself waits for Teacher.EnterWorld.
+function Teacher.Init(charDB)
+    store = charDB
+    local saved = charDB.area
+    local valid = type(saved) == "table" and (saved.state == "clear" or saved.state == "crowded")
+        and IsNumber(saved.map) and saved.map > 0 and saved.map % 1 == 0
+    charDB.area = valid and { state = saved.state, map = saved.map } or nil
+end
+
+-- The player entered the world (login, reload, a loading screen): the saved verdict stands on the map it was made
+-- on and nowhere else.
+function Teacher.EnterWorld()
+    local saved = store and store.area
+    local map = CurrentMap()
+    Teacher.area = saved and map == saved.map and saved.state or "crowded"
+end
+
+-- A read decided `area`: it is kept with the current map; with no map nothing may be kept (an older verdict would
+-- then describe another place).
+local function SaveArea(area)
+    if not store then return end
+    local map = CurrentMap()
+    store.area = map and { state = area, map = map } or nil
 end
 
 -- "agree" when the drawn total fits the meter's (overkill is damage the meter holds but the
@@ -530,7 +564,10 @@ local function Read(run)
     Teacher.last = { session = sessionID, rows = results, learned = {} }
 
     local area, total = CrowdCheck(run, rows)
-    if area ~= "group" and area ~= "short" then Teacher.area = area end
+    if area ~= "group" and area ~= "short" then
+        Teacher.area = area
+        SaveArea(area)
+    end
     Teacher.last.area = area
     if ns.Debug then
         ns.Debug("TEACH clean seen=%d meter=%d -> %s", math.floor(run.seen), math.floor(total), area)

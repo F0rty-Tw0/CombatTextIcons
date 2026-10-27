@@ -58,7 +58,7 @@ local function InstallStubs()
         plates = {}, target = nil, petTarget = true, group = false, haste = 0, harmful = {},
         cvars = {}, cvarFail = {}, cvarDefaults = {}, prints = {}, guid = "Player-1-00000001", attackable = {},
         interface = 120105, helpful = {}, autoRepeat = {}, spellNames = {}, guids = {}, threat = {},
-        sessions = {}, timers = {}, sourceCalls = {}, frames = {},
+        sessions = {}, timers = {}, sourceCalls = {}, frames = {}, map = 1, -- map: the map the player stands on, constant unless a check moves it
         baseSpells = { [450983] = 8092 }, -- override cast -> its base spell (Void Blast -> Mind Blast)
     }
     issecretvalue = IsSecret
@@ -152,6 +152,7 @@ local function InstallStubs()
         IsAutoRepeatSpell = function(id) return S.autoRepeat[id] == true end,
     }
     -- An override cast answers its base spell (S.baseSpells), any other ID itself; the deprecated global is unset.
+    C_Map = { GetBestMapForUnit = function() return S.map end }
     C_SpellBook = { FindBaseSpellByID = function(id) return S.baseSpells[id] or id end }
     FindBaseSpellByID = nil
     C_NamePlate = {
@@ -230,6 +231,7 @@ local function Boot(setup, withSpells)
     end
     ns.Core.ADDON_LOADED(ADDON)
     ns.Core.PLAYER_LOGIN()
+    ns.Core.PLAYER_ENTERING_WORLD()
     return ns
 end
 
@@ -531,7 +533,8 @@ end
 -- opts.noise = seed: stranger hits (opts.noSameFrame: none at each own read); opts.crowd: three at each
 -- recorded type-0 stamp (see AddNoise); opts.minPhase: the first phase that gets strangers.
 -- opts.area ("clear" | "crowded", default "clear"): the crowd check's state when the fight starts; every
--- replay was written for "an unexplained solo hit draws '?'", so clear is the default.
+-- replay was written for "an unexplained solo hit draws '?'", so clear is the default. A boot char DB that holds
+-- a saved area (opts.charDB) leaves the default to the addon: it restores or refuses the saved one itself.
 -- opts.noSeen: the crowd check is off (Teacher.Seen does nothing).
 -- opts.meter: the Teacher's read runs (the timers fire) against S.sessions = opts.sessionRows, or none; opts.seen
 -- overwrites Teacher.fight.seen before the fight ends; info.seen is the seen the read judges. opts.logThreat:
@@ -545,7 +548,8 @@ local function Replay(name, opts)
         if opts.charDB then CombatTextIconsCharDB = opts.charDB end
     end)
     if opts.setup then opts.setup(ns, S) end -- tests/score.lua: class stubs and its own tally of draws
-    ns.Teacher.area = opts.area or "clear"
+    -- no opts.area: keep the area the addon restored when the boot char DB holds a saved one, else "clear"
+    if opts.area or type(CombatTextIconsCharDB.area) ~= "table" then ns.Teacher.area = opts.area or "clear" end
     if opts.noSeen then
         -- the test session holds only the labeled hits, not the whole meter, so the crowd check cannot judge it
         ns.Teacher.Seen = function() end
@@ -701,9 +705,14 @@ local function SplitFights(name, opts)
     end
     return slices
 end
--- A log's first slice starts in its fixture's area; the rest of its slices keep the area carried from the fight before.
-local function StartArea(slices, i, carried)
-    if i == 1 or slices[i].log ~= slices[i - 1].log then return slices[i].startArea end
+-- A log's first slice starts in its fixture's area, or in the one the addon restores (nil) when the char DB it
+-- boots with holds a saved area; the rest of its slices keep the area carried from the fight before.
+local function StartArea(slices, i, carried, charDB)
+    if i == 1 or slices[i].log ~= slices[i - 1].log then
+        if charDB and type(charDB.area) == "table" then return nil end
+
+        return slices[i].startArea
+    end
 
     return carried
 end
@@ -718,7 +727,7 @@ local function ReplaySlices(slices, opts)
         local hits, _, info = Replay(slice.name, {
             labels = { haste = 0, castPlates = {}, targets = TargetsFromLog(events) }, events = events,
             haste = opts.haste, meter = true, sessionRows = slice.rows, logThreat = slice.logThreat, seen = slice.seen,
-            area = StartArea(slices, i, area), charDB = charDB and DeepCopy(charDB), setup = opts.setup,
+            area = StartArea(slices, i, area, charDB), charDB = charDB and DeepCopy(charDB), setup = opts.setup,
         })
         runs[#runs + 1] = { hits = hits, info = info, last = info.teacher.last, rows = slice.rows }
         charDB, area = info.charDB, info.teacher.area
@@ -1323,6 +1332,10 @@ local function ReplayFightsChecks()
     Check("StartArea: the first slice takes its fixture's area", StartArea(areas, 1, "crowded") == "clear")
     Check("StartArea: a later slice of the same log keeps the carried area", StartArea(areas, 2, "crowded") == "crowded")
     Check("StartArea: the first slice of the next log takes its own fixture's area", StartArea(areas, 3, "clear") == "crowded")
+    local saved = { area = { state = "clear", map = 1 } }
+    Check("StartArea: a first slice booting with a saved area leaves the area to the addon (nil)", StartArea(areas, 1, "crowded", saved) == nil)
+    Check("StartArea: a first slice with no saved area still takes its fixture's area", StartArea(areas, 1, "crowded", {}) == "clear")
+    Check("StartArea: a later slice of the same log keeps the carried area even with a saved area", StartArea(areas, 2, "crowded", saved) == "crowded")
     Check("SplitFights: log is opts.label", SplitFights(SHADOW_DOTS, { label = "L" })[1].log == "L")
     Check("SplitFights: log is the name without opts.label", SplitFights(SHADOW_DOTS, {})[1].log == SHADOW_DOTS)
     local priestSlices = SplitFights(PRIEST_DUMMY, {})

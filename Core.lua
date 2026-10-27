@@ -457,8 +457,14 @@ function Core.PLAYER_LOGIN()
     Casts.InitOwnRows(charDB)
     Procs.Init(charDB)
     Ledger.Init(charDB)
+    Teacher.Init(charDB)
     if db.enabled then Core.SuppressBlizzard() end
     MinimapButton.Init() -- last: a UI error here must not skip the combat setup above
+end
+
+-- Login, reload and every loading screen: the crowd verdict comes back on the map it was made on.
+function Core.PLAYER_ENTERING_WORLD()
+    Teacher.EnterWorld()
 end
 
 function Core.PLAYER_LOGOUT()
@@ -547,6 +553,7 @@ end
 
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_LOGIN")
+events:RegisterEvent("PLAYER_ENTERING_WORLD")
 events:RegisterEvent("PLAYER_LOGOUT")
 events:RegisterEvent("PLAYER_REGEN_ENABLED")
 events:RegisterEvent("PLAYER_REGEN_DISABLED")
