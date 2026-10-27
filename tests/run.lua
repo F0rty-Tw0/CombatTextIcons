@@ -86,7 +86,8 @@ local function InstallStubs()
         return true
     end
     -- threat[unit]: nil = the mob fights you (1), false = not on its threat list, "error" = restricted,
-    -- or any value to return. Fixtures hold no threat data, so replays treat every mob as yours.
+    -- or any value to return. Fixtures hold no threat data, so replays treat every mob as yours unless they
+    -- replay the log's threat= answers (opts.logThreat / opts.replayThreat).
     UnitThreatSituation = function(_, unit)
         local value = S.threat[unit]
         if value == nil then return 1 end
@@ -293,6 +294,7 @@ local function ParseLog(name, log)
         local hitUnit, school, amount, flag = rest:match("^HIT (%S+) school=(%d+) amount=(%d+) flag=(%S*) fps=")
         local hitTarget = rest:match("^HIT .*target=(%a+)$")
         local hitThreat = rest:match("^HIT .* threat=(%S+) ")
+        local hitNPC = rest:match("^HIT .* npc=(%S+)")
         local skipped = rest:match("^STAMP %d+$") or rest:match("^RESOLVE ") or rest:match("^START ")
         if route then
             assert(lastHit ~= nil, "route line with no HIT " .. name .. ":" .. index)
@@ -317,6 +319,7 @@ local function ParseLog(name, log)
             event.amount, event.school = tonumber(amount), tonumber(school)
             event.target = hitTarget and hitTarget == "true"    -- nil when the log has no target= (older logs)
             if hitThreat then event.threat = tonumber(hitThreat) or false end -- false: threat=nil (not on its list)
+            event.npc = tonumber(hitNPC)                        -- nil: no creature ID (Player, nil, secret, older logs)
             if pendingRead and pendingRead.t == event.t then
                 event.read, pendingRead.paired, pendingRead = pendingRead, true, nil
             end
@@ -538,8 +541,9 @@ end
 -- opts.noSeen: the crowd check is off (Teacher.Seen does nothing).
 -- opts.meter: the Teacher's read runs (the timers fire) against S.sessions = opts.sessionRows, or none; opts.seen
 -- overwrites Teacher.fight.seen before the fight ends; info.seen is the seen the read judges. opts.logThreat:
--- each logged hit's threat= answer drives the threat stub. opts.labels / opts.events replace the fixture's labels
--- and events (a slice of a log); info.charDB is the char DB after the fight.
+-- each logged hit's threat= answer drives the threat stub. opts.replayThreat: the same threat answers, plus each
+-- hit's npc= as its unit's creature GUID; seen stays the logged one (opts.seen). opts.labels / opts.events
+-- replace the fixture's labels and events (a slice of a log); info.charDB is the char DB after the fight.
 -- Each UNIT_COMBAT hit records its last "  -> " debug line as hit.route; info.teacher is the booted Teacher.
 local function Replay(name, opts)
     local fixtureLabels = opts.labels or labels[name]
@@ -614,7 +618,13 @@ local function Replay(name, opts)
         if event.kind == "U" then
             draws = {}
             route = nil
-            if opts.logThreat and event.threat ~= nil then S.threat[event.unit] = event.threat end
+            local logged = (opts.logThreat or opts.replayThreat) and event.threat
+            if logged ~= nil then S.threat[event.unit] = logged end
+            -- the logged creature ID, so the dummy rule learns it as in game (Core.CreatureID parses this shape)
+            if opts.replayThreat then
+                local npc = event.npc
+                S.guids[event.unit] = npc and string.format("Creature-0-0-0-0-%d-%s", npc, event.unit) or nil
+            end
             Core.UNIT_COMBAT(event.unit, event.event, event.flag, event.amount, event.school)
             local hit, draw = { event = event, noise = event.noise, route = route }, draws[#draws]
             draws = {}
@@ -685,7 +695,7 @@ local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shado
 -- A TEACH-bearing log splits into fights: each is the slice of events after the previous TEACH clean line up to
 -- its own; the tail after the last one is a slice with no rows (its read skips). opts.log (debug lines) and
 -- opts.fixture stand in for a fixture file; opts.label names the log for StartArea (default name).
--- slices[i] = { log, name, events, rows = the log's meter rows, seen, logThreat, startArea }.
+-- slices[i] = { log, name, events, rows = the log's meter rows, seen, logThreat, replayThreat, startArea }.
 local function SplitFights(name, opts)
     local fixture = opts.fixture or assert(FIGHT_FIXTURES[name], "no fight fixture " .. name)
     local log = opts.log or LoadLog(name .. ".sv.lua")
@@ -700,7 +710,8 @@ local function SplitFights(name, opts)
         end
         if #events == 0 then break end
         slices[#slices + 1] = { log = opts.label or name, name = name, events = events, rows = fight and fight.rows,
-            seen = not fixture.logThreat and fight and fight.seen or nil, logThreat = fixture.logThreat, startArea = fixture.startArea }
+            seen = not fixture.logThreat and fight and fight.seen or nil, logThreat = fixture.logThreat,
+            replayThreat = fixture.replayThreat, startArea = fixture.startArea }
         prevEnd = endLine
     end
     return slices
@@ -726,7 +737,8 @@ local function ReplaySlices(slices, opts)
         local events = table.move(slice.events, 1, #slice.events, 1, {})
         local hits, _, info = Replay(slice.name, {
             labels = { haste = 0, castPlates = {}, targets = TargetsFromLog(events) }, events = events,
-            haste = opts.haste, meter = true, sessionRows = slice.rows, logThreat = slice.logThreat, seen = slice.seen,
+            haste = opts.haste, meter = true, sessionRows = slice.rows, logThreat = slice.logThreat,
+            replayThreat = slice.replayThreat, seen = slice.seen,
             area = StartArea(slices, i, area, charDB), charDB = charDB and DeepCopy(charDB), setup = opts.setup,
         })
         runs[#runs + 1] = { hits = hits, info = info, last = info.teacher.last, rows = slice.rows }
@@ -1356,6 +1368,29 @@ local function ReplayFightsChecks()
     for i, run in ipairs(firstRun) do sameHits = sameHits and #run.hits == #secondRun[i].hits end
     Check("ReplaySlices: replays a copy of each slice's events (Replay appends channel STOPs), leaving the slices as they were", unchanged)
     Check("ReplaySlices: a second replay of the same slices draws the same hits", sameHits)
+
+    -- 5 target hits over 2 s on a mob with no threat list (a dummy of ID 242759), then non-target hits with
+    -- no threat list: one on another dummy of that ID, one on a mob of another ID.
+    local function Hit(t, plate, npc, target)
+        return string.format("%.3f HIT %s school=1 amount=100 flag= fps=60 threat=nil group=false,false,false npc=%d "
+            .. "target=%s", t, plate, npc, tostring(target))
+    end
+    local dummyLines = {}
+    for i = 0, 4 do dummyLines[#dummyLines + 1] = Hit(100 + i * 0.6, "nameplate1", 242759, true) end
+    dummyLines[#dummyLines + 1] = Hit(103, "nameplate2", 242759, false)
+    dummyLines[#dummyLines + 1] = Hit(103.5, "nameplate3", 1234, false)
+    local function DummyRoutes(fixture)
+        fixture.startArea = "clear"
+        local hits = ReplaySlices(SplitFights("x", { log = dummyLines, fixture = fixture }), {})[1].hits
+        return hits[6].route, hits[7].route
+    end
+    local dummy, stranger = DummyRoutes({ replayThreat = true })
+    local _, strangerOff = DummyRoutes({})
+    local dummyNoNPC = DummyRoutes({ logThreat = true }) -- threat answers only
+    Check("replayThreat: a non-target hit with threat=nil on a mob of an unlearned ID stays hidden (without it: drawn)",
+        stranger == "  -> HIDDEN" and strangerOff == ROUTE_UNKNOWN)
+    Check("replayThreat: the hits' npc= IDs teach the dummy rule; another dummy of that ID draws ? (threat only: no)",
+        dummy == ROUTE_UNKNOWN and dummyNoNPC == "  -> HIDDEN")
 end
 
 -- Main -----------------------------------------------------------------------------
