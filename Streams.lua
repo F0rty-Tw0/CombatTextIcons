@@ -377,7 +377,7 @@ function Streams.LogCast(key, castID, kind, now)
             end
         end
         entry.casts[#entry.casts + 1] = { at = now, castID = castID, kind = kind }
-        ns.Learn.OnCast(castID)
+        ns.Learn.OnCast(castID, now)
 
         return
     end
@@ -403,7 +403,7 @@ function Streams.LogCast(key, castID, kind, now)
         end
     end
     if not swapped then entry.casts[#entry.casts + 1] = { at = now, castID = castID, kind = "channel" } end
-    if not (swapped or removed) then ns.Learn.OnCast(castID) end
+    if not (swapped or removed) then ns.Learn.OnCast(castID, now) end
 end
 
 -- The key's logged casts, oldest first (callers never mutate).

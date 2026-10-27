@@ -77,6 +77,7 @@ end
 local function PruneVoteEntry(entry)
     if type(entry) ~= "table" or type(entry.sigs) ~= "table" then return false end
     if type(entry.casts) ~= "number" or not (entry.casts >= 0) then return false end
+    entry.lastCast = nil -- a cast time is this session's clock; it is not kept across a load
     local kept = {}
     for _, sig in ipairs(entry.sigs) do
         if ValidSig(sig) then kept[#kept + 1] = sig end
@@ -271,10 +272,34 @@ local function VoteEntry(spellID, keep)
     return entry
 end
 
-function Learn.OnCast(castID)
+function Learn.OnCast(castID, now)
     if not CanVote(castID) then return end
     local entry = VoteEntry(castID, { [castID] = true })
     entry.casts = entry.casts + 1
+    entry.lastCast = now
+end
+
+-- A DoT learned under a cast with no meter row of its own is always struck by the net later, so a read drops the non-hot
+-- sigs of every spell cast since `since` that the meter has no row for (heals have no damage row, so hot sigs stay) and
+-- stops its dot and channel votes, in this fight too, until a read lists its row.
+function Learn.RowsRead(rows, since)
+    if type(since) ~= "number" then return end
+    local listed = {}
+    for _, row in ipairs(rows) do
+        listed[row.spellID] = true
+        if votes[row.spellID] then votes[row.spellID].rowless = nil end
+    end
+    for spellID, entry in pairs(votes) do
+        local cast = entry.lastCast
+        if type(cast) == "number" and cast >= since and not listed[spellID] and not learned[spellID] then
+            local kept = {}
+            for _, sig in ipairs(entry.sigs) do
+                if sig.kind == "hot" then kept[#kept + 1] = sig end
+            end
+            entry.sigs = kept
+            entry.rowless = true
+        end
+    end
 end
 
 -- The sig of `entry` closest to (kind, school, base) within SIG_AGREE, else a new one
@@ -307,7 +332,8 @@ local function WindowCasts(key, stream)
     local rows, order = {}, {}
     for _, cast in ipairs(ns.Streams.CastLog(key)) do
         local inside = cast.at >= stream.birth - RATE_WINDOW and cast.at <= stream.birth
-        if inside and CanVote(cast.castID) then
+        local rowless = cast.kind ~= "hot" and votes[cast.castID] and votes[cast.castID].rowless -- RowsRead
+        if inside and not rowless and CanVote(cast.castID) then
             local row = rows[cast.castID]
             if not row then
                 row = { n = 0 }

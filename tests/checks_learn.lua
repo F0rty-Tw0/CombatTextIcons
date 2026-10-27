@@ -640,6 +640,26 @@ return function(T)
         Check("hot: a foreign HoT stream on another unit gets no votes and no expected",
             #rig.Streams("party3") == 1 and rig.Votes(139).casts == 1 and #rig.Votes(139).sigs == 0)
 
+        -- rowless: a read found the cast with no meter row (Learn.RowsRead), so its dot rhythms stop voting; a hot still votes
+        for _, row in ipairs({ { "dot", false }, { "dot", true }, { "hot", true } }) do
+            local kind, rowless = row[1], row[2]
+            rig = Rig()
+            if kind == "hot" then
+                rig.S.harmful[139], rig.S.helpful[139] = false, true
+                rig.Cast(0, 139, "party2")
+                rig.Votes(139).rowless = rowless or nil
+                for j = 1, 4 do rig.Heal(2.5 * j, "party2", 800) end
+            else
+                rig.Cast(0, 205180)
+                rig.Votes(205180).rowless = rowless or nil
+                for k = 1, 5 do rig.Hit(k * 1.69, 1000, 32) end
+            end
+            local id = kind == "hot" and 139 or 205180
+            local votes = Sig(rig, id) and Sig(rig, id).votes or 0
+            Check("rowless: a " .. kind .. " cast" .. (rowless and " a read found no row for" or " with a row") .. " gets "
+                .. (rowless and kind == "dot" and "no vote" or "its vote"), votes == (rowless and kind == "dot" and 0 or 1))
+        end
+
         -- physical: school 1 needs 3 votes, the school-32 control learns at 2 (p 0.0063); P 1.0, plates at 0 / 20 / 40
         for _, row in ipairs({ { 1, 9006 }, { 32, 9007 } }) do
             rig, events = Rig(), {}

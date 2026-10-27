@@ -1023,6 +1023,61 @@ return function(T)
             Strike(rig, PROC)
             Check("net proc: ... so the next unpaired read is the second and drops it", Gone(rig))
         end
+
+        do -- a cast cast this fight with no meter row of its own loses its dot votes at the read: a DoT learned under it is always struck
+            local WITHER, WITHER_ROW = 442726, 445468 -- the cast has no row; its ticks pay under another ID
+            local function Votes(rig)
+                CombatTextIconsCharDB.votes[WITHER] = { casts = 1, sigs = { { kind = "dot", school = 36, period = 1.0, votes = 1, expected = 0.06 } } }
+                rig.ns.Learn.Init()
+            end
+            -- One fight at `at`: the cast (and 5 school-36 hits 1.0 s apart when `hits`), then its read against `rows`.
+            local function Fight(rig, at, hits, rows)
+                nextSession = nextSession + 1
+                rig.S.sessions = { Session(nextSession, rows) }
+                rig.ns.Teacher.Start(at)
+                rig.Cast(at + 1, "nameplate1", WITHER)
+                if hits then
+                    for k = 1, 5 do rig.Hit(at + 1 + k, "nameplate1", 1000, 36) end
+                end
+                rig.ns.Teacher.Finish(at + 20)
+                assert(pcall(rig.Fire))
+            end
+
+            local rig = Rig({}); Votes(rig)
+            Fight(rig, 10, false, { Row(WITHER_ROW, 5000) })
+            Check("net votes: a cast with no row of its own loses its dot sig at the read", #rig.ns.Learn.Votes(WITHER).sigs == 0)
+            Fight(rig, 100, true, { Row(WITHER_ROW, 5000) })
+            Check("net votes: ... and its next cast and rhythm gets no vote, so nothing is learned",
+                rig.ns.Learn.Get(WITHER) == nil and #rig.ns.Learn.Votes(WITHER).sigs == 0)
+            Fight(rig, 200, false, { Row(WITHER, 5000), Row(WITHER_ROW, 5000) })
+            Fight(rig, 300, true, { Row(WITHER, 5000), Row(WITHER_ROW, 5000) })
+            Check("net votes: ... until a read lists the cast's own row, after which its rhythm votes again",
+                #rig.ns.Learn.Votes(WITHER).sigs == 1 and rig.ns.Learn.Votes(WITHER).sigs[1].votes == 1)
+
+            rig = Rig({}); Votes(rig)
+            Fight(rig, 10, false, { Row(WITHER, 5000), Row(WITHER_ROW, 5000) })
+            Check("net votes: control, a cast whose own row is in the read keeps its sig", #rig.ns.Learn.Votes(WITHER).sigs == 1)
+            Fight(rig, 100, true, { Row(WITHER, 5000), Row(WITHER_ROW, 5000) })
+            Check("net votes: ... and its next cast and rhythm is the second vote and learns it", rig.ns.Learn.Get(WITHER) ~= nil)
+
+            rig = Rig({}); Votes(rig)
+            local sigs = CombatTextIconsCharDB.votes[WITHER].sigs
+            sigs[2] = { kind = "hot", school = 2, period = 3.0, votes = 1, expected = 0.1 }
+            Fight(rig, 10, false, { Row(WITHER_ROW, 5000) })
+            local left = rig.ns.Learn.Votes(WITHER).sigs
+            Check("net votes: a hot sig survives the read (heals have no damage row); the dot sig goes",
+                #left == 1 and left[1].kind == "hot")
+
+            rig = Rig({}); Votes(rig)
+            Fight(rig, 10, false, { Row(WITHER_ROW, 5000) })
+            rig.S.sessions = { Session(nextSession + 1, { Row(WITHER_ROW, 5000) }) }
+            nextSession = nextSession + 1
+            CombatTextIconsCharDB.votes[WITHER].sigs[1] = { kind = "dot", school = 36, period = 1.0, votes = 1, expected = 0.06 }
+            rig.ns.Teacher.Start(100); rig.ns.Teacher.Finish(120)
+            assert(pcall(rig.Fire))
+            Check("net votes: a spell not cast this fight keeps its sigs (no cast since the fight began)",
+                #rig.ns.Learn.Votes(WITHER).sigs == 1)
+        end
     end
 
     do -- castless procs: what Teacher hands to Procs.Read (spec 3.1 inputs, 3.3) and the crit flag on '?' hits
