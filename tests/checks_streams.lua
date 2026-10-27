@@ -102,6 +102,23 @@ return function(T)
         Check("streams: record: a crit adds to sum and n but not to lo or hi",
             rec.sum == 7500 and rec.n == 6 and rec.lo == 1000 and rec.hi == 1100)
 
+        -- Run lock2 F3: Darkglare's first beam (10461) came a period before a stream born at 13502, a step up as the
+        -- DoTs it counts went on; left loose, it put the stream's sum 5.9 % under the 205231 row.
+        local function Led(key, lead)
+            rig = Rig(); Streams = rig.ns.Streams
+            fight = Streams.NewFight()
+            Streams.Feed(key, 32, lead, "", "enemy", 0, true)
+            local born = Fed(rig, key, { 2, 4, 6, 8 }, 13502, true)
+
+            return born and fight[born]
+        end
+        rec = Led("g1", 10461)
+        Check("streams: record: a birth's lead tick, a period back and a buff's step smaller (10461 -> 13502), is noted too",
+            rec and rec.sum == 4 * 13502 + 10461 and rec.n == 5 and rec.lo == 10461 and rec.hi == 13502)
+        rec = Led("g2", 8000)
+        Check("streams: record: a tick more than x1.5 smaller (8000 -> 13502) is no lead tick",
+            rec and rec.sum == 4 * 13502 and rec.n == 4 and rec.lo == 13502)
+
         for _, record in ipairs({ false, "nil" }) do
             rig = Rig(); Streams = rig.ns.Streams
             fight = Streams.NewFight()

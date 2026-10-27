@@ -278,6 +278,7 @@ end
 -- opener ticks 1451 -> 1753 past SIZE_GUARD one period after every Haunt cast, and the birth window taught Haunt
 -- a DoT; Devouring Plague's ticks change size on a refresh the same way.
 -- Each such tick is a normal hit that agrees with the other ticks and sits a buff's step (x1 to x1.5) from `amount`.
+-- Returns that start and the ticks walked back (lead ticks, newest first), however few.
 local function Start(entry, school, birth, period, amount)
     local slack, hits = Streams.Slack(period), entry.loose[school] or {}
     local function Step(hit)
@@ -286,21 +287,21 @@ local function Start(entry, school, birth, period, amount)
 
         return ratio > 1 and ratio <= STEP_MAX
     end
-    local at, steps, first = birth, 0, nil
+    local at, lead = birth, {}
     while true do
         local found
         for _, hit in ipairs(hits) do
             local err = math.abs(at - period - hit.at)
-            if err <= slack and Step(hit) and (not first or Agree(hit.amount, false, first.amount, false))
+            if err <= slack and Step(hit) and (not lead[1] or Agree(hit.amount, false, lead[1].amount, false))
                 and (not found or err < math.abs(at - period - found.at)) then
                 found = hit
             end
         end
         if not found then break end
-        at, steps, first = found.at, steps + 1, first or found
+        at, lead[#lead + 1] = found.at, found
     end
 
-    return steps >= 2 and at or birth
+    return #lead >= 2 and at or birth, lead
 end
 
 -- Drops the stream with the oldest last hit while the key holds too many.
@@ -346,7 +347,9 @@ function Streams.Feed(key, school, amount, flagText, kind, now, shouldRecord)
         local a, b, c = hits[first], hits[second], hits[third]
         local period = (now - a.at) / 3
         local amount = BirthAmount({ a, b, c, hit })
-        local owners, ownerKind, ownerAt = Owners(entry, heal and a.at or Start(entry, school, a.at, period, amount), period, heal)
+        local start, lead = a.at, {}
+        if not heal then start, lead = Start(entry, school, a.at, period, amount) end
+        local owners, ownerKind, ownerAt = Owners(entry, start, period, heal)
         stream = {
             school = school, period = period, birth = a.at, lastAt = now, count = 4,
             lastAmount = BirthAmount({ a, b, c, hit }),
@@ -359,6 +362,17 @@ function Streams.Feed(key, school, amount, flagText, kind, now, shouldRecord)
         entry.streams[#entry.streams + 1] = stream
         CapStreams(entry)
         for _, h in ipairs({ a, b, c, hit }) do Note(stream, h.amount, h.crit, shouldRecord) end
+        -- The lead ticks are the stream's own first ticks: the record counts them (one is enough for the sum; the
+        -- owners move only on two) and the loose list gives them up (Darkglare 205231's first beam, run lock2 F3).
+        if #lead > 0 then
+            for _, h in ipairs(lead) do Note(stream, h.amount, h.crit, shouldRecord) end
+            entry.loose[school] = Filter(entry.loose[school], function(h)
+                for _, tick in ipairs(lead) do
+                    if tick == h then return false end
+                end
+                return true
+            end)
+        end
         ns.Learn.OnBirth(key, stream, now)
 
         return stream
