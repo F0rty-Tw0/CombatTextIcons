@@ -156,7 +156,8 @@ end
 local function Prune(list, keep, now)
     for index, item in ipairs(list) do
         if not keep(item, now) then
-            local kept = table.move(list, 1, index - 1, 1, {})
+            local kept = {}
+            for earlier = 1, index - 1 do kept[earlier] = list[earlier] end
             for later = index + 1, #list do
                 if keep(list[later], now) then kept[#kept + 1] = list[later] end
             end

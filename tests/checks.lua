@@ -8,7 +8,10 @@ return function(T)
     local Check, Secret = T.Check, T.Secret
     local DAMAGE, TAKEN = 0, 7
 
-    -- Lua 5.1 syntax: luac 5.4 accepts operators WoW's Lua 5.1 rejects.
+    -- Lua 5.1 syntax: luac 5.4 accepts operators WoW's Lua 5.1 rejects, and library calls it lacks
+    -- (table.move in Streams' Prune raised "attempt to call a nil value" in game, 5761a25).
+    local LIB_52 = { "table%.unpack", "table%.move", "table%.pack", "utf8%.", "math%.type", "math%.tointeger",
+        "string%.pack", "string%.unpack", "coroutine%.isyieldable" }
     do
         for _, file in ipairs(T.TocFiles()) do
             local handle = assert(io.open(T.Root .. "/" .. file, "rb"))
@@ -17,7 +20,8 @@ return function(T)
             local code = source:gsub("%-%-%[(=*)%[.-%]%1%]", ""):gsub("%-%-[^\n]*", "")
             code = code:gsub("%[(=*)%[.-%]%1%]", '""'):gsub('"[^"\n]*"', '""'):gsub("'[^'\n]*'", "''")
             local bad = code:match("%f[%w_]goto%f[^%w_]") or code:match("//") or code:match("[&|]")
-                or code:match("<<") or code:match(">>") or code:match("~[^=]") or code:match("table%.unpack")
+                or code:match("<<") or code:match(">>") or code:match("~[^=]")
+            for _, call in ipairs(LIB_52) do bad = bad or code:match(call) end
             Check("Lua 5.1 syntax: " .. file .. (bad and (" uses " .. bad) or ""), not bad)
         end
     end
