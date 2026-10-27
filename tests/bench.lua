@@ -231,17 +231,17 @@ end
 -- only teach. bases[i] is slice i's base spells; opts.charDB seeds the first slice. score.curve[n] = { pos = the
 -- slice's index, right, meter, wrong, unknown } of the n-th scored fight, for a per-position curve.
 local function ScoreSession(class, slices, bases, opts)
-    local score, tallies, boots = NewScore(opts.label or class), {}, 0
+    local score, tallies, records, boots = NewScore(opts.label or class), {}, {}, 0
     score.curve = {}
     local runs = H.ReplaySlices(slices, { charDB = opts.charDB, setup = function(ns, S)
         boots = boots + 1
-        Setup(class, bases[boots], tallies)(ns, S)
+        Setup(class, bases[boots], tallies, records)(ns, S)
     end })
     for index = opts.first or 1, #runs do
         local run = runs[index]
         if run.rows and #run.rows > 0 then
             local fight = NewScore("fight")
-            ScoreFight(run.rows, tallies[index], run.last, fight)
+            ScoreFight(run.rows, tallies[index], run.last, fight, records[index])
             Add(score, fight)
             score.curve[#score.curve + 1] = { pos = index, right = fight.right, meter = fight.meter, wrong = fight.wrong,
                 unknown = fight.unknown }
@@ -351,6 +351,7 @@ local function RunShuffle()
             rights[seed], wrongs[seed] = Pct(score.right, score.meter), Pct(score.wrong, score.meter)
             pooled.right, pooled.wrong, pooled.unknown = pooled.right + score.right / K, pooled.wrong + score.wrong / K,
                 pooled.unknown + score.unknown / K
+            pooled.orphan = pooled.orphan + score.orphan / K
             pooled.fights, pooled.meter = score.fights, score.meter
         end
         local right, maxWrong = Spread(rights), math.max(table.unpack(wrongs))

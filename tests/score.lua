@@ -5,9 +5,12 @@
 --
 -- Truth is the damage meter, per fight and spell row (M = its total); T is what the replay drew under that row's
 -- icon (Teacher.Drawn amounts, paired to rows by ID or by the replay's own alias). Per row:
---   right = min(T, M)   '?' = M - right   wrong = T beyond M * 1.05; a drawn ID with no row is wrong in full.
--- Each is a share of the summed M. right + '?' = 100 %; wrong is extra. Blind spot: two equal-sized spells that
--- swap icons still score right. Hidden hits (crowded) draw nothing, so they count as '?'.
+--   o = the drawn amount no cast of the row could explain (strict, below)   T' = T - o
+--   right = min(T', M)   '?' = M - right   wrong = o + T' beyond M * 1.05; a drawn ID with no row is wrong in full.
+-- Each is a share of the summed M. right + '?' = 100 %; wrong is extra; `strict` is the summed o over M (inside wrong).
+-- Strict: a hit drawn under a row in tests/score_truth.lua with no cast of that row within its life before it (and at
+-- least one player cast in the fight) is an orphan. Rows not in the table are never checked. Blind spot: two spells
+-- that swap icons inside each other's cast window still score right. Hidden hits (crowded) draw nothing: '?'.
 --
 -- Each log replays from an empty store, and also from tests/score/<log>.start.lua when one exists: the char save
 -- written at the end of the class's previous log (the store as that log began, unless /cti forget ran between).
