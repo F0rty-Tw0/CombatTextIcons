@@ -298,11 +298,12 @@ end
 -- first, as { castID = base, castAt, castSpell }. A spell logged twice in one frame (Void Blast) is
 -- one cast. Empty when `plate` is nil.
 function Casts.Candidates(plate, at)
-    local list, seen = {}, {}
+    local list, seen = {}, nil -- seen: made on the first cast that passes (most hits have none)
     if plate == nil then return list end
     for _, entry in ipairs(log) do
         if at - UNKNOWN_WAIT <= entry.at and entry.at <= at and entry.plate == plate and not entry.tracker then
             local key = entry.spellID .. "@" .. entry.at
+            seen = seen or {}
             if not seen[key] then
                 seen[key] = true
                 list[#list + 1] = { castID = entry.base, castAt = entry.at, castSpell = entry.spellID }
