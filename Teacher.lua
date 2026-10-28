@@ -21,8 +21,8 @@
 -- learning runs (the leftover '?' hits and still-open rows then go to Procs.Read, then to
 -- Ground.Castless), else it
 -- is "crowded" and that fight teaches nothing; seen below half the rows' total is "short" and
--- teaches nothing either. The area is saved with the map it was decided on and comes back on entering the
--- world there (EnterWorld); anywhere else the world starts "crowded". Mid-fight, seen wounds far past the best pace
+-- teaches nothing either. Each map keeps the verdict last decided on it, which comes back on entering the
+-- world there (EnterWorld); a map with none starts "crowded". Mid-fight, seen wounds far past the best pace
 -- a clear read measured make that fight crowded at once (Teacher.Seen), before its read. With /cti debug each
 -- outcome logs TEACH lines.
 -- Each fight's outcome, a read or a skip, ends with one Teacher.OnRead(Teacher.last) call
@@ -66,7 +66,7 @@ Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {..
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; a read saves it with its map (SaveArea)
 Teacher.OnRead = nil -- function(last), called once per fight when its outcome is final; Progress sets it
 
--- the spec's store; its `area` = { state, map } is the last read's verdict and where it was made, its `pace` the
+-- the spec's store; its `areas` = { [map ID] = "clear" | "crowded" } is each map's last read verdict, its `pace` the
 -- best meter total per second of a clear read (the live crowd check's yardstick)
 local store = nil
 local lastSession = nil -- ID of the session processed last
@@ -75,41 +75,53 @@ local epoch = 0         -- counts Init calls: a read queued under an older one i
 local jobs = {}         -- judgings waiting their turn, oldest first (sliced reads, below)
 local judging = nil     -- the coroutine of the judging under way
 
+local AREAS = { clear = true, crowded = true } -- a saved verdict's states
+
+local function IsMap(map) return IsNumber(map) and map > 0 and map % 1 == 0 end
+local function IsArea(state) return Plain(state) and AREAS[state] == true end
+
 -- The map the player stands on as a plain positive integer, or nil.
 local function CurrentMap()
     local ok, map = pcall(C_Map.GetBestMapForUnit, "player")
-    if ok and IsNumber(map) and map > 0 and map % 1 == 0 then return map end
+    if ok and IsMap(map) then return map end
 end
 
--- Saved data is checked, never trusted: adopts charDB.area when it is { state = "clear" | "crowded", map = a map ID },
--- else drops it, and charDB.pace when it is a positive finite number. The state itself waits for Teacher.EnterWorld
+-- Saved data is checked, never trusted: keeps each charDB.areas entry of a map ID and "clear" or "crowded", drops
+-- the rest; an older save's single charDB.area = { state, map } joins them unless its map has its own; keeps
+-- charDB.pace when it is a positive finite number. The state itself waits for Teacher.EnterWorld
 -- (a spec swap keeps it: the place did not change). charDB is a spec's store (Core's UseSpec): a swap drops the
 -- judgings under way or waiting and the reads not fired yet, as a /reload does, so the spec before teaches nothing
 -- into this one. The meter's last session (Growth) stays: it is the meter's, not the spec's.
 function Teacher.Init(charDB)
     store, epoch, jobs, judging, Teacher.last = charDB, epoch + 1, {}, nil, nil
-    local saved = charDB.area
-    local valid = type(saved) == "table" and (saved.state == "clear" or saved.state == "crowded")
-        and IsNumber(saved.map) and saved.map > 0 and saved.map % 1 == 0
-    charDB.area = valid and { state = saved.state, map = saved.map } or nil
+    local areas = {}
+    if type(charDB.areas) == "table" then
+        for map, state in pairs(charDB.areas) do
+            if IsMap(map) and IsArea(state) then areas[map] = state end
+        end
+    end
+    local old = charDB.area
+    if type(old) == "table" and IsMap(old.map) and IsArea(old.state) and areas[old.map] == nil then
+        areas[old.map] = old.state
+    end
+    charDB.area, charDB.areas = nil, next(areas) and areas or nil
     local pace = charDB.pace
     if not (IsNumber(pace) and pace > 0 and pace < math.huge) then charDB.pace = nil end
 end
 
--- The player entered the world (login, reload, a loading screen): the saved verdict stands on the map it was made
--- on and nowhere else.
+-- The player entered the world (login, reload, a loading screen): the map's own saved verdict, else "crowded".
 function Teacher.EnterWorld()
-    local saved = store and store.area
     local map = CurrentMap()
-    Teacher.area = saved and map == saved.map and saved.state or "crowded"
+    Teacher.area = map and store and store.areas and store.areas[map] or "crowded"
 end
 
--- A read decided `area`: it is kept with the current map; with no map nothing may be kept (an older verdict would
--- then describe another place).
+-- A read decided `area`: it is kept for the current map; with no map nothing is kept.
+-- grug: no cap on maps; an entry is a few bytes and the game has a few thousand maps at most.
 local function SaveArea(area)
-    if not store then return end
     local map = CurrentMap()
-    store.area = map and { state = area, map = map } or nil
+    if not (store and map) then return end
+    store.areas = store.areas or {}
+    store.areas[map] = area
 end
 
 -- "agree" when the drawn total fits the meter's (overkill is damage the meter holds but the

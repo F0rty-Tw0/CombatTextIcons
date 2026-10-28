@@ -588,7 +588,7 @@ local function Replay(name, opts)
     end)
     if opts.setup then opts.setup(ns, S) end -- tests/score.lua: class stubs and its own tally of draws
     -- no opts.area: keep the area the addon restored when the boot char DB holds a saved one, else "clear"
-    if opts.area or type(Store().area) ~= "table" then ns.Teacher.area = opts.area or "clear" end
+    if opts.area or type(Store().areas) ~= "table" then ns.Teacher.area = opts.area or "clear" end
     if opts.noSeen then
         -- the test session holds only the labeled hits, not the whole meter, so the crowd check cannot judge it
         ns.Teacher.Seen = function() end
@@ -768,10 +768,10 @@ local function SplitFights(name, opts)
     return slices
 end
 -- A log's first slice starts in its fixture's area, or in the one the addon restores (nil) when the char DB it
--- boots with holds a saved area; the rest of its slices keep the area carried from the fight before.
+-- boots with holds saved areas; the rest of its slices keep the area carried from the fight before.
 local function StartArea(slices, i, carried, charDB)
     if i == 1 or slices[i].log ~= slices[i - 1].log then
-        if charDB and type(charDB.area) == "table" then return nil end
+        if charDB and (type(charDB.area) == "table" or type(charDB.areas) == "table") then return nil end
 
         return slices[i].startArea
     end

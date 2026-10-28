@@ -165,7 +165,7 @@ return function(T)
         local spec = T.Store()
         Check("migration: an old save's learning is dropped at login; only the spec stores stay",
             table.concat(keys, ",") == "specs" and ns.Learn.Get(589) == nil and ns.Procs.Get(10) == nil
-            and ns.Fingerprints.Alias(75) == nil and spec.area == nil and spec.pace == nil
+            and ns.Fingerprints.Alias(75) == nil and spec.area == nil and spec.areas == nil and spec.pace == nil
             and next(spec.ownRows) == nil)
         ns.Core.PLAYER_LOGIN()
         Check("migration: a login with spec stores keeps them", T.Store() == spec)

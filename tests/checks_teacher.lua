@@ -871,73 +871,106 @@ return function(T)
             Check("crowd live: the next fight starts clear again", rig.ns.Teacher.AreaClear())
         end
 
-        do -- the verdict is saved with the map it was decided on and restored on entering the world, on that map only
-            -- A boot whose saved char DB holds `area` and whose player stands on `map` (nil: the API answers nothing).
-            local function BootArea(area, map)
+        do -- each map keeps the verdict last decided on it, restored on entering the world there (shamanresto 17:53:
+            -- the one saved verdict was for map 2537, so a fight on 2266 drew no proc and no '?')
+            -- A boot whose saved spec store holds `areas` (or an older save's single `area`) and whose player stands on
+            -- `map` (nil: the API answers nothing).
+            local function BootArea(areas, map, area)
                 return T.Boot(function(S)
                     S.map = map
-                    CombatTextIconsCharDB = { area = area }
+                    CombatTextIconsCharDB = { areas = areas, area = area }
                 end)
             end
-            local MAP = 2022
+            local MAP, OTHER = 2022, 2537
 
             for _, state in ipairs({ "clear", "crowded" }) do
-                local ns = BootArea({ state = state, map = MAP }, MAP)
+                local ns = BootArea({ [MAP] = state }, MAP)
                 Check("crowd saved: the same map restores " .. state,
                     ns.Teacher.area == state and ns.Teacher.AreaClear() == (state == "clear")
-                    and T.Store().area.state == state and T.Store().area.map == MAP)
+                    and T.Store().areas[MAP] == state)
             end
 
-            local ns = BootArea({ state = "clear", map = MAP }, MAP + 1)
-            Check("crowd saved: another map boots crowded, and the saved verdict stays for its own map",
-                ns.Teacher.area == "crowded" and T.Store().area.state == "clear" and T.Store().area.map == MAP)
+            local ns = BootArea({ [MAP] = "clear" }, MAP + 1)
+            Check("crowd saved: a map with no verdict boots crowded, and the saved one stays for its own map",
+                ns.Teacher.area == "crowded" and T.Store().areas[MAP] == "clear" and T.Store().areas[MAP + 1] == nil)
+
+            for _, case in ipairs({ { MAP, "clear" }, { OTHER, "crowded" } }) do
+                ns = BootArea({ [MAP] = "clear", [OTHER] = "crowded" }, case[1])
+                Check("crowd saved: of two saved maps, map " .. case[1] .. " restores its own " .. case[2],
+                    ns.Teacher.area == case[2] and T.Store().areas[MAP] == "clear"
+                    and T.Store().areas[OTHER] == "crowded")
+            end
 
             for label, map in pairs({ nil_ = false, text = "2022", secret = Secret(MAP), zero = 0, fraction = 2022.5 }) do
-                ns = BootArea({ state = "clear", map = MAP }, map or nil)
+                ns = BootArea({ [MAP] = "clear" }, map or nil)
                 Check("crowd saved: a current map that is " .. label .. " boots crowded", ns.Teacher.area == "crowded")
             end
 
-            local bad = { text = "clear", state = { state = "maybe", map = MAP }, noState = { map = MAP },
-                noMap = { state = "clear" }, textMap = { state = "clear", map = "2022" }, zero = { state = "clear", map = 0 },
-                fraction = { state = "clear", map = 2022.5 }, negative = { state = "clear", map = -1 } }
-            for label, area in pairs(bad) do
-                ns = BootArea(area, MAP)
-                Check("crowd saved: a saved area that is " .. label .. " is dropped on load",
-                    T.Store().area == nil and ns.Teacher.area == "crowded")
+            local bad = { state = { [MAP] = "maybe" }, tableState = { [MAP] = { state = "clear" } },
+                textMap = { ["2022"] = "clear" }, zero = { [0] = "clear" }, fraction = { [2022.5] = "clear" },
+                negative = { [-1] = "clear" } }
+            for label, areas in pairs(bad) do
+                areas[OTHER] = "clear"
+                ns = BootArea(areas, MAP)
+                local count = 0
+                for _ in pairs(T.Store().areas) do count = count + 1 end
+                Check("crowd saved: a saved verdict that is " .. label .. " is dropped on load, the good one kept",
+                    count == 1 and T.Store().areas[OTHER] == "clear" and ns.Teacher.area == "crowded")
+            end
+            ns = BootArea("clear", MAP)
+            Check("crowd saved: saved areas that are no table are dropped",
+                T.Store().areas == nil and ns.Teacher.area == "crowded")
+
+            ns = BootArea(nil, MAP, { state = "clear", map = MAP })
+            Check("crowd saved: an older save's single verdict is kept for its map",
+                ns.Teacher.area == "clear" and T.Store().areas[MAP] == "clear" and T.Store().area == nil)
+            ns = BootArea({ [MAP] = "crowded" }, MAP, { state = "clear", map = MAP })
+            Check("crowd saved: a map's own verdict beats an older save's single one", ns.Teacher.area == "crowded")
+            local badOld = { text = "clear", state = { state = "maybe", map = MAP }, noMap = { state = "clear" },
+                fraction = { state = "clear", map = 2022.5 } }
+            for label, area in pairs(badOld) do
+                ns = BootArea(nil, MAP, area)
+                Check("crowd saved: an older save's single verdict that is " .. label .. " is dropped",
+                    T.Store().area == nil and T.Store().areas == nil and ns.Teacher.area == "crowded")
             end
 
             ns = BootArea(nil, MAP)
-            Check("crowd saved: no saved area boots crowded and saves nothing", ns.Teacher.area == "crowded" and T.Store().area == nil)
+            Check("crowd saved: no saved area boots crowded and saves nothing",
+                ns.Teacher.area == "crowded" and T.Store().areas == nil)
 
             for _, case in ipairs({ { "crowded", 173, "clear" }, { "clear", 300, "crowded" } }) do
                 local rig = Crowd(case[1], case[2])
-                local S, saved = rig.S, T.Store().area
-                Check("crowd saved: a " .. case[3] .. " read saves { state, map = the current map }",
-                    saved and saved.state == case[3] and saved.map == S.map and saved.map ~= nil)
+                Check("crowd saved: a " .. case[3] .. " read saves its verdict for the current map",
+                    rig.S.map ~= nil and T.Store().areas[rig.S.map] == case[3])
             end
 
-            local kept = { state = "clear", map = 7 }
-            local function Preset(rig) T.Store().area = { state = kept.state, map = kept.map } end
-            local function Unchanged() local a = T.Store().area return a and a.state == kept.state and a.map == kept.map end
+            local function Preset(rig) T.Store().areas = { [7] = "clear" } end
+            local function Unchanged()
+                local areas = T.Store().areas
+                return areas and areas[7] == "clear" and next(areas, next(areas)) == nil
+            end
             Crowd("clear", 86, nil, nil, Preset)
             Check("crowd saved: a short read saves nothing new", Unchanged())
             Crowd("clear", 300, true, nil, Preset)
             Check("crowd saved: a group read saves nothing new", Unchanged())
             local groupedLate = Crowd("clear", 173, false, true, Preset)
-            local savedLate = T.Store().area
             Check("crowd saved: a solo read grouped only at read time saves its clear verdict",
-                savedLate and savedLate.state == "clear" and savedLate.map == groupedLate.S.map)
+                T.Store().areas[groupedLate.S.map] == "clear" and T.Store().areas[7] == "clear")
             Crowd("crowded", 173, nil, nil, function(rig) Preset(rig) rig.S.map = nil end)
-            Check("crowd saved: a read with no map drops the older verdict instead of keeping it for a map it no longer describes",
-                T.Store().area == nil)
+            Check("crowd saved: a read with no map saves nothing and keeps the other maps' verdicts", Unchanged())
 
             local rig = Crowd("crowded", 173)
+            local first = rig.S.map
             SlashCmdList.COMBATTEXTICONS("forget")
-            Check("crowd saved: /cti forget keeps the saved area",
-                T.Store().area and T.Store().area.state == "clear" and rig.ns.Teacher.area == "clear")
-            rig.S.map = rig.S.map + 1
+            Check("crowd saved: /cti forget keeps the saved areas",
+                T.Store().areas[first] == "clear" and rig.ns.Teacher.area == "clear")
+            rig.S.map = first + 1
             rig.ns.Core.PLAYER_ENTERING_WORLD()
             Check("crowd saved: a loading screen onto another map turns crowded", rig.ns.Teacher.area == "crowded")
+            rig.S.map = first
+            rig.ns.Core.PLAYER_ENTERING_WORLD()
+            Check("crowd saved: a loading screen back onto a judged map restores its verdict",
+                rig.ns.Teacher.area == "clear")
         end
 
         -- The debug log: the clean line comes before the row lines; a fractional seen is floored.
@@ -2996,7 +3029,7 @@ return function(T)
         while #rig.S.timers > 0 do rig.Fire() end
         local storeB = T.Store()
         Check("spec swap: a read queued before the swap is dropped (no outcome, nothing saved in the new spec)",
-            outcomes == 0 and rig.ns.Teacher.last == nil and storeB.area == nil and next(storeB.ownRows) == nil)
+            outcomes == 0 and rig.ns.Teacher.last == nil and storeB.areas == nil and next(storeB.ownRows) == nil)
 
         rig = Rig({ [SMITE] = 2 })
         outcomes = 0
@@ -3008,13 +3041,13 @@ return function(T)
         end
         rig.Fight({ [SMITE] = { 30 } }, { Session(1, { Row(SMITE, 30) }) })
         local ran = pcall(rig.Fire)
-        local paused = outcomes == 0 and #rig.S.timers == 1 and storeA.area ~= nil
+        local paused = outcomes == 0 and #rig.S.timers == 1 and storeA.areas ~= nil
         Swap(rig, SPEC_B)
         local drained = pcall(function() while #rig.S.timers > 0 do rig.Fire() end end)
         debugprofilestop = nil
         storeB = T.Store()
         Check("spec swap: a judging paused mid-way is dropped; what it taught before the swap stays in the old spec",
-            ran and paused and drained and outcomes == 0 and rig.ns.Teacher.last == nil and storeB.area == nil
+            ran and paused and drained and outcomes == 0 and rig.ns.Teacher.last == nil and storeB.areas == nil
             and storeB.pace == nil and next(storeB.ownRows) == nil and storeA.ownRows[SMITE] == true)
     end
 end
