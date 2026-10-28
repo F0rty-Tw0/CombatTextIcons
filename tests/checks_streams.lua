@@ -599,6 +599,44 @@ return function(T)
         Check("haste: a secret haste at birth stores the real period and never errors", ok and Near(secret.Sig(9406).period, 1, 1e-9))
     end
 
+    -- Physical tally: a cast that owns melee noise births only by luck learns no rhythm ----------------------------
+    -- Run druid F11: Ravage 441591 (a direct hit) won a physical 1.30 s sig with 4 votes against 0.82 expected while it
+    -- owned 9 physical births against 8.1 expected over all its sigs. Here 10 births at P 4 land on plates the spell
+    -- was cast on 6 s earlier (in its rate window, outside the owner window: 0.233 expected each, no vote), then three
+    -- P 1 trials vote for it: the sig's p is 0.0008, its physical tally 3 votes against 2.5 expected.
+    do
+        local function Noisy(school, id)
+            local rig = Fresh()
+            for index = 1, 10 do
+                local key, t = "n" .. index, 5000 + 100 * index
+                rig.Cast(key, t, id)
+                for step = 0, 3 do rig.Hit(key, t + 6 + 4 * step, 1000, school) end
+            end
+            for _ = 1, 3 do rig.Trial(school, id, 1) end
+            return rig
+        end
+        local melee, spell = Noisy(1, 9411), Noisy(32, 9412)
+        local tally = melee.ns.Learn.Votes(9411) and melee.ns.Learn.Votes(9411).physical
+        Check("physical tally: a 3-vote sig (p 0.0008) is not learned while the physical tally is luck",
+            melee.ns.Learn.Get(9411) == nil and melee.Sig(9411, 2) and melee.Sig(9411, 2).votes == 3)
+        Check("physical tally: 3 votes against 2.5 expected (10 noise births at 0.233, 3 trials at 0.058)",
+            tally and tally.votes == 3 and Near(tally.expected, 10 * 0.7 * 4 / 12 + 3 * 0.7 / 12, 1e-9))
+        Check("physical tally: the same births of school 32 still learn (only physical noise needs it)",
+            spell.ns.Learn.Get(9412) ~= nil)
+        local saved = Fresh(function()
+            CombatTextIconsCharDB = { learned = {}, votes = {
+                [9413] = { casts = 2, sigs = { { kind = "dot", school = 1, period = 1, votes = 2, expected = 0.3 },
+                    { kind = "dot", school = 1, period = 4, votes = 0, expected = 2 },
+                    { kind = "dot", school = 32, period = 2, votes = 1, expected = 0.1 } } },
+                [9414] = { casts = 2, sigs = {}, physical = { votes = 5, expected = 9 } },
+                [9415] = { casts = 2, sigs = {}, physical = { votes = -1, expected = 9 } } } }
+        end).ns.Learn
+        local old, kept, bad = saved.Votes(9413).physical, saved.Votes(9414).physical, saved.Votes(9415).physical
+        Check("physical tally: a save without one starts from its physical sigs; a valid one is kept, a bad one reset",
+            old and kept and bad and old.votes == 2 and Near(old.expected, 2.3, 1e-9) and kept.votes == 5
+            and kept.expected == 9 and bad.votes == 0 and bad.expected == 0)
+    end
+
     -- Caps and eviction -----------------------------------------------------------------------
     do
         local rig = Fresh()

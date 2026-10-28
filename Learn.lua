@@ -3,7 +3,8 @@
 -- A DoT, channel or HoT that Spells.lua does not know (it ships empty: every spell) is learned from Streams:
 -- each stream birth (a ground patch's wide one aside) gives every spell cast just before it a vote (`votes`),
 -- plus an expected count of the votes luck alone would give it. A spell is
--- learned when its votes beat that luck (PoissonTail). Sig and learned periods
+-- learned when its votes beat that luck (PoissonTail); a physical one also over all its physical births
+-- (`physical`, see OnBirth). Sig and learned periods
 -- are haste-free bases. Learned spells are served to the Tracker like table
 -- rows. Two consecutive casts without a tick drop a spell again, as do the
 -- teacher's meter reads (two unpaired reads in a row, or at once when over). Saved data is
@@ -74,7 +75,15 @@ local function ValidSig(sig)
     return type(sig.votes) == "number" and sig.votes >= 0 and type(sig.expected) == "number" and sig.expected >= 0
 end
 
--- Rebuilds `entry.sigs` from its valid sigs, the SIGS_MAX with the most votes. False when the entry is invalid.
+local function ValidTally(tally)
+    if type(tally) ~= "table" then return false end
+
+    return type(tally.votes) == "number" and tally.votes >= 0 and type(tally.expected) == "number"
+        and tally.expected >= 0
+end
+
+-- Rebuilds `entry.sigs` from its valid sigs, the SIGS_MAX with the most votes. An invalid or missing `physical`
+-- tally (a save from before it) starts from the kept physical sigs. False when the entry is invalid.
 local function PruneVoteEntry(entry)
     if type(entry) ~= "table" or type(entry.sigs) ~= "table" then return false end
     if type(entry.casts) ~= "number" or not (entry.casts >= 0) then return false end
@@ -86,6 +95,17 @@ local function PruneVoteEntry(entry)
     table.sort(kept, function(a, b) return a.votes > b.votes end)
     while #kept > SIGS_MAX do kept[#kept] = nil end
     entry.sigs = kept
+    if ValidTally(entry.physical) then
+        entry.physical = { votes = entry.physical.votes, expected = entry.physical.expected }
+    else
+        entry.physical = { votes = 0, expected = 0 }
+        for _, sig in ipairs(kept) do
+            if sig.school == 1 then
+                entry.physical.votes = entry.physical.votes + sig.votes
+                entry.physical.expected = entry.physical.expected + sig.expected
+            end
+        end
+    end
 
     return true
 end
@@ -278,7 +298,7 @@ local function VoteEntry(spellID, keep)
     local count = 0
     for _ in pairs(votes) do count = count + 1 end
     if count >= VOTE_SPELLS then EvictVoteSpell(keep) end
-    entry = { casts = 0, sigs = {} }
+    entry = { casts = 0, sigs = {}, physical = { votes = 0, expected = 0 } }
     votes[spellID] = entry
 
     return entry
@@ -380,25 +400,34 @@ end
 -- A wide stream (Streams.Feed: its frames hit many plates at once) is a ground patch's, never a target DoT's: the
 -- Tracker would draw it under the cast, whose row is another ID's, until two unpaired reads drop it (synthetic Blood
 -- DK: Death and Decay ticks on all 4 plates each second, learned as a DoT in fight 1). Ground.lua learns those.
+-- Melee noise gives physical births all fight long (run druid F6: hits of 4263, 3914, 4292 on the GCD's beat), so a
+-- physical cast tries many rhythms and one can win by luck: run druid F11, Ravage 441591 (a direct hit) won a physical
+-- 1.30 s sig with 4 votes against 0.82 expected (births of 1.0 to 1.6 s in F6, F7, F9, F11), while its casts owned 9
+-- physical births against 8.1 expected over all its sigs. It then drew 16 melee hits (89K) under its icon in F11-F12
+-- and its row stayed under the meter, so no read struck it. So a physical sig also needs the cast's physical tally
+-- (all its physical births, kept across sigs) to beat luck.
 function Learn.OnBirth(key, stream, now)
     if stream.wide then return end
     if ns.Tracker.ExplainsHits(key, stream.school, stream.hits, stream.period) then return end
     local base = stream.period * (1 + (Learn.Haste() or 0) / 100)
     if base < PERIOD_MIN or base > PERIOD_MAX then return end -- not a tick rhythm; Init would drop the sig
 
+    local physical = stream.school == 1
     local rows, order = WindowCasts(key, stream)
-    local sigs, keep = {}, {}
+    local sigs, entries, keep = {}, {}, {}
     for _, spellID in ipairs(order) do
         local row = rows[spellID]
         local chance = math.min(1, row.n * CHANCE_RATE * stream.period / RATE_WINDOW)
         keep[spellID] = true
-        local sig, existed = FindSig(VoteEntry(spellID, keep), row.kind, stream.school, base)
+        local entry = VoteEntry(spellID, keep)
+        local sig, existed = FindSig(entry, row.kind, stream.school, base)
         if existed then
             local weight = sig.votes + sig.expected
             sig.period = (weight * sig.period + chance * base) / (weight + chance)
         end
         sig.expected = sig.expected + chance
-        sigs[spellID] = sig
+        if physical then entry.physical.expected = entry.physical.expected + chance end
+        sigs[spellID], entries[spellID] = sig, entry
     end
 
     local voted = {}
@@ -410,13 +439,17 @@ function Learn.OnBirth(key, stream, now)
             sig.votes = sig.votes + 1
             sig.lastCast = castAt
             voted[spellID] = sig
+            if physical then entries[spellID].physical.votes = entries[spellID].physical.votes + 1 end
         end
     end
 
-    local need = stream.school == 1 and VOTES_MIN_PHYSICAL or VOTES_MIN
+    local need = physical and VOTES_MIN_PHYSICAL or VOTES_MIN
     local won = {}
     for spellID, sig in pairs(voted) do
-        if sig.votes >= need and Learn.PoissonTail(sig.expected, sig.votes) <= ALPHA then won[#won + 1] = spellID end
+        local tally = entries[spellID].physical
+        local lucky = Learn.PoissonTail(sig.expected, sig.votes) > ALPHA
+            or physical and Learn.PoissonTail(tally.expected, tally.votes) > ALPHA
+        if sig.votes >= need and not lucky then won[#won + 1] = spellID end
     end
     table.sort(won)
     for _, spellID in ipairs(won) do
