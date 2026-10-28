@@ -7,7 +7,9 @@
 -- area result of the first solo read since login (always) or a later area change, "learned!",
 -- "dropped", "learning n/m". More changes than rows fold the rest into "+K more". A skipped
 -- read or a group fight shows nothing. A fight that starts before the previous read is
--- done takes a new snapshot; that earlier fight's changes are lost.
+-- done takes a new snapshot; that earlier fight's changes are lost. A fight that starts while
+-- a read is still judged (Teacher's sliced reads) pauses it: that read then shows what it
+-- changed after the new snapshot, and the new fight's own read shows nothing.
 --
 -- /cti progress on|off sets CombatTextIconsDB.showProgress (nil = on). Off ignores fight
 -- starts and reads; turning it off also drops a snapshot taken.

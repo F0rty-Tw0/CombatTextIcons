@@ -97,17 +97,22 @@ local function Median(list)
     return list[math.ceil(#list / 2)]
 end
 
--- The stacks of `times` (cast times, oldest first) live at `at` for `life`, and the newest cast whose age at `at` lies
--- in [from, to] (a series start), or nil.
+-- The stacks of `times` (cast times, oldest first) live at `at` for `life`, the newest cast whose age at `at` lies in
+-- [from, to] (a series start) or nil, and the youngest age past `life` (math.huge when none): no longer life below it
+-- changes the count.
 local function Stacks(times, at, life, from, to)
-    local n, start = 0, nil
+    local n, start, past = 0, nil, math.huge
     for _, castAt in ipairs(times) do
         local age = at - castAt
-        if age >= -EPS and age <= life + EPS then n = n + 1 end
+        if age >= -EPS and age <= life + EPS then
+            n = n + 1
+        elseif age >= -EPS and age < past then
+            past = age
+        end
         if from and age >= from - EPS and age <= to + EPS then start = castAt end
     end
 
-    return n, start
+    return n, start, past
 end
 
 -- The first index of `sorted` whose value is at least `value`.
@@ -157,12 +162,15 @@ end
 
 -- One plate's walk as the draw route takes it, added into `walk`: { hits, sum, extended, ones (the extensions one
 -- period on), steps, expected, gaps, casts = { [castAt] = delay of the first taken tick it had a stack in },
--- starts = { [castAt] = true } }.
+-- starts = { [castAt] = true }, past = the youngest cast age it compared past the life }.
 local function Walk(plate, pattern, walk)
     local series, seeds = nil, {}
     for _, hit in ipairs(plate.list) do
+        ns.Teacher.Yield()
         local slack = Streams.Slack(series and series.period or pattern.period)
-        local n, start = Stacks(plate.times, hit.at, pattern.life, pattern.low - slack, pattern.low + SPREAD + slack)
+        local n, start, past = Stacks(plate.times, hit.at, pattern.life, pattern.low - slack,
+            pattern.low + SPREAD + slack)
+        walk.past = math.min(walk.past, past)
         local tick
         if n > 0 and Stack.Running(series, hit.at) then
             local multiple = Stack.Multiple(series, hit.at)
@@ -192,7 +200,8 @@ local function Walk(plate, pattern, walk)
             end
             -- the next slots, one and two periods on, find an agreeing hit by luck
             local width = 4 * Streams.Slack(series.period)
-            local ahead = Stacks(plate.times, hit.at + series.period, pattern.life)
+            local ahead, _, beyond = Stacks(plate.times, hit.at + series.period, pattern.life)
+            walk.past = math.min(walk.past, beyond)
             if ahead > 0 then
                 local share = Share(plate.sizes, series.unit * ahead)
                 walk.expected = walk.expected + math.min(1, plate.rate * width * share)
@@ -205,22 +214,37 @@ end
 local function Walked(plates, low, period, life)
     local pattern = { low = low, period = period, life = life }
     pattern.walk = { hits = {}, sum = 0, extended = 0, ones = 0, steps = 0, expected = 0, gaps = {}, casts = {},
-        starts = {} }
+        starts = {}, past = math.huge }
     for _, plate in ipairs(plates) do Walk(plate, pattern, pattern.walk) end
 
     return pattern
 end
 
+-- The first whole-second life past `life` at which a cast `past` seconds old is live, or past LIFE_HI.
+local function NextLife(life, past)
+    if past > LIFE_HI + EPS then return LIFE_HI + 1 end
+    local later = math.max(life + 1, math.floor(past) - 1)
+    while past > later + EPS do later = later + 1 end
+
+    return later
+end
+
 -- The best pattern of one cast spell's `plates` (smallest luck past every test), or nil, with the outcome.
+-- A walk sees its life only through which casts are live at the ages it compares (Stacks), so the lives up to the
+-- youngest age it compared past its life (walk.past) walk alike and score the same p: only the first of them is walked,
+-- and a later one could not replace it (best takes a strictly smaller p). The re-walk at twice the period also starts
+-- at a life of its own. BugSack 2026-10-28, "script ran too long" in Stacks and Stack.Multiple under this loop: every
+-- life 2-30 walked every hit; the replays walked 315100 hits in one read (druid fight 11), 5.9 s of Lua.
 local function Best(plates)
     local candidates, tries = {}, 0
     for _, plate in ipairs(plates) do
         local keys = {}
         for _, castAt in ipairs(plate.times) do
+            ns.Teacher.Yield()
             for index, hit in ipairs(plate.list) do
                 local delay = hit.at - castAt
-                local key = string.format("%.3f", delay)
-                if delay > EPS and delay <= WAIT + EPS and not keys[key] then
+                local key = delay > EPS and delay <= WAIT + EPS and string.format("%.3f", delay)
+                if key and not keys[key] then
                     keys[key] = true
                     local period, count, tried = Period(plate.list, index)
                     tries = tries + tried * (LIFE_HI - LIFE_LO + 1)
@@ -233,15 +257,21 @@ local function Best(plates)
     end
     local best, luck = nil, nil
     for _, candidate in ipairs(candidates) do
-        for life = math.max(LIFE_LO, math.ceil(LIFE_TICKS * candidate.period - EPS)), LIFE_HI do
+        local life = math.max(LIFE_LO, math.ceil(LIFE_TICKS * candidate.period - EPS))
+        while life <= LIFE_HI do
             local pattern = Walked(plates, candidate.low, candidate.period, life)
+            local later = NextLife(life, pattern.walk.past)
             -- A walk that took most of its ticks two periods apart runs on half its series' period: it walks at twice
             -- that, else it learns nothing. Run lock F3: the seed's chain (size-blind) liked 0.734 s, the walk took
             -- all 12 of Unstable Affliction's ticks ~1.47 s apart and learned 0.739: the draw would take hits between.
             local twice = 2 * candidate.period
-            if 2 * pattern.walk.ones < pattern.walk.extended and twice <= PERIOD_HI + EPS
-                and life >= LIFE_TICKS * twice - EPS then
-                pattern = Walked(plates, candidate.low, twice, life)
+            if 2 * pattern.walk.ones < pattern.walk.extended and twice <= PERIOD_HI + EPS then
+                if life >= LIFE_TICKS * twice - EPS then
+                    pattern = Walked(plates, candidate.low, twice, life)
+                    later = math.min(later, NextLife(life, pattern.walk.past))
+                else
+                    later = math.min(later, math.ceil(LIFE_TICKS * twice - EPS))
+                end
             end
             local walk, casts = pattern.walk, 0
             for _ in pairs(walk.casts) do casts = casts + 1 end
@@ -255,6 +285,7 @@ local function Best(plates)
                     best = pattern
                 end
             end
+            life = later
         end
     end
 

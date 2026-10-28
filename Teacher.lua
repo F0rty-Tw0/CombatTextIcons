@@ -640,16 +640,22 @@ local function Learn(run, results, open, rows)
     local seen, learned, rewritten = { rows = {}, groups = {} }, {}, {}
     Pass(groups, open, owners, function(group) return group end, seen, results, learned, rewritten)
     Pass(groups, open, owners, function(group) return group.top end, seen, results, learned, rewritten)
+    Teacher.Yield()
     local spent = {}
     for _, way in ipairs(learned) do
         for _, hit in ipairs(way.hits) do spent[hit] = true end
     end
     Pass(CandidateGroups(run.unknown, spent), open, owners, function(group) return group.cand end,
         { rows = seen.rows, groups = {} }, results, learned, rewritten)
+    Teacher.Yield()
     for _, way in ipairs(Steady.Learn(run, rows, learned)) do learned[#learned + 1] = way end
+    Teacher.Yield()
     for _, way in ipairs(Ground.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    Teacher.Yield()
     for _, way in ipairs(Chain.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    Teacher.Yield()
     DotPass(run, rows, open, rewritten, results, learned)
+    Teacher.Yield()
     for _, way in ipairs(Stack.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(learned) do
         local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)
@@ -712,10 +718,11 @@ local function ReportHeals(sessionID)
     for _, row in ipairs(rows) do ns.Debug("TEACH heal %s meter=%s over=%s", row.spellID, row.total, row.overkill) end
 end
 
--- The fight's outcome is final: report it and hand it to Teacher.OnRead.
-local function Done()
-    Report(Teacher.last)
-    if Teacher.OnRead then Teacher.OnRead(Teacher.last) end
+-- The fight's outcome `last` is final: it becomes Teacher.last, is reported and goes to Teacher.OnRead.
+local function Done(last)
+    Teacher.last = last
+    Report(last)
+    if Teacher.OnRead then Teacher.OnRead(last) end
 end
 
 -- The crowd check: "group" (the state is kept) for a fight that started grouped or saw a wound while
@@ -798,18 +805,69 @@ local function SavePace(total, duration)
     if not store.pace or pace > store.pace then store.pace = pace end
 end
 
--- The timer callback of one fight: read the newest session and judge it.
-local function Read(run)
-    local sessionID, reason = NewestSession()
-    local rows
-    if sessionID then rows, reason = ReadRows(sessionID) end
-    if not rows and reason == "secret" and Teacher.fight then
-        Carry(run, Teacher.fight)
+-- Sliced reads. BugSack 2026-10-28: "script ran too long" twice after a fight, in Stack.lua's Stacks and
+-- Stack.Multiple under one read's Stack.Learn (7 casts on one plate, life 27 of 2-30): the read ran every pass in one
+-- C_Timer callback, and WoW stops a script that runs past its time limit; the replays' slowest read took 5.9 s of Lua
+-- (druid fight 11). So a fight's judging runs in a coroutine that yields at its hot loops (Teacher.Yield) once
+-- SLICE_MS of the frame are spent, and resumes on the next frame. One judging runs at a time, in the order the
+-- fights' reads fired. A judging that has yielded waits while a fight is open (Teacher.fight) and goes on when it
+-- ends (Teacher.Finish), so what is learned never changes mid-fight. The meter is still read when the read fires: a
+-- read that meets the next fight still carries into it, and one judged late keeps its own session's rows. A /reload
+-- drops a judging under way: what its finished passes taught stays, the rest of that fight teaches nothing and it
+-- has no outcome.
+local SLICE_MS = 10
+local jobs = {}        -- judgings waiting their turn, oldest first
+local judging = nil    -- the coroutine of the judging under way
+local sliceEnd = nil   -- the debugprofilestop() time past which the running slice yields
+local resuming = false -- a slice waits on C_Timer.After(0)
+
+-- Yields the judging under way once its slice is spent; else does nothing (outside a judging, or with no
+-- debugprofilestop, as in the test harness unless a check sets one).
+function Teacher.Yield()
+    local clock = debugprofilestop
+    if clock and judging and coroutine.running() == judging and clock() >= sliceEnd then coroutine.yield() end
+end
+
+local Slice
+
+-- Queues a slice on the next frame while a judging is under way or waiting.
+local function Later()
+    if resuming or not (judging or jobs[1]) then return end
+    resuming = pcall(C_Timer.After, 0, function()
+        resuming = false
+        Slice()
+    end)
+end
+
+-- Runs one slice: the judging under way goes on unless a fight is open, else the oldest waiting one starts (with
+-- `now`, even mid-fight, as a read did before). An error ends that judging and goes on to the caller.
+function Slice(now)
+    if not judging then
+        if not jobs[1] or (Teacher.fight and not now) then return end
+        judging = coroutine.create(table.remove(jobs, 1))
+    elseif Teacher.fight then
         return
     end
+    local clock = debugprofilestop
+    sliceEnd = clock and clock() + SLICE_MS
+    local thread = judging
+    local ok, problem = coroutine.resume(thread)
+    if coroutine.status(thread) == "dead" then judging = nil end
+    Later()
+    local trace = debug and debug.traceback -- the judging's own stack, for BugSack
+    if not ok then error(trace and trace(thread, tostring(problem)) or problem, 0) end
+end
+
+-- Queues a judging; with none under way or waiting it starts at once.
+local function Judge(job)
+    jobs[#jobs + 1] = job
+    if not judging and #jobs == 1 then Slice(true) end
+end
+
+-- One fight's judging of the session read for it: `sessionID` and its `rows`, else the skip `reason`.
+local function Judging(run, sessionID, rows, reason)
     if not rows then
-        Teacher.last = { skip = reason }
-        Done()
+        Done({ skip = reason })
         return
     end
 
@@ -817,9 +875,8 @@ local function Read(run)
     if again then rows = Growth(full) end
     if #rows == 0 and again then
         -- leftover ticks re-entered combat for a moment and dealt nothing the meter counts
-        Teacher.last = { skip = "duplicate session" }
         Ledger.Drop(run.at)
-        Done()
+        Done({ skip = "duplicate session" })
         return
     end
     lastSession, lastRows = sessionID, {}
@@ -840,28 +897,44 @@ local function Read(run)
     end
     local results, open = Verdicts(run.tally, rows)
     SafetyNet(results)
-    Teacher.last = { session = sessionID, rows = results, learned = {} }
+    -- a fight that ends while this judging waits clears Teacher.last: this one keeps its own until Done
+    local last = { session = sessionID, rows = results, learned = {} }
+    Teacher.last = last
 
     local area, total = CrowdCheck(run, rows)
     if area ~= "group" and area ~= "short" then
         Teacher.area = area
         SaveArea(area)
     end
-    Teacher.last.area = area
+    last.area = area
     if ns.Debug then
         ns.Debug("TEACH clean seen=%d meter=%d -> %s", math.floor(run.seen), math.floor(total), area)
     end
     if area == "clear" then
         SavePace(total, run.duration)
         local learnedGroups, rewritten = Learn(run, results, open, rows)
-        for _, group in ipairs(learnedGroups) do Teacher.last.learned[group.castID] = #group.hits end
+        for _, group in ipairs(learnedGroups) do last.learned[group.castID] = #group.hits end
         local hits, openRows = Leftover(run.unknown, learnedGroups), StillOpen(open, rewritten)
+        Teacher.Yield()
         Procs.Read(hits, openRows, results, rows, run.at, run.ticks, run.streams)
+        Teacher.Yield()
         Ground.Castless(run, hits, openRows, rows, results)
     end
-    Ledger.SetVerdicts(Teacher.last.rows, run.at)
-    Done()
+    Ledger.SetVerdicts(last.rows, run.at)
+    Done(last)
     ReportHeals(sessionID)
+end
+
+-- The timer callback of one fight: read the newest session now, then judge it (Judge).
+local function Read(run)
+    local sessionID, reason = NewestSession()
+    local rows
+    if sessionID then rows, reason = ReadRows(sessionID) end
+    if not rows and reason == "secret" and Teacher.fight then
+        Carry(run, Teacher.fight)
+        return
+    end
+    Judge(function() Judging(run, sessionID, rows, reason) end)
 end
 
 -- Combat began: open a fight (an unfinished one is replaced).
@@ -941,20 +1014,18 @@ function Teacher.Finish(now)
     local fight = Teacher.fight
     Teacher.fight = nil
     Teacher.last = nil
+    Later() -- a judging that waited for this fight goes on
     if not fight then
-        Teacher.last = { skip = "no fight" }
-        Done()
+        Judge(function() Done({ skip = "no fight" }) end)
         return
     end
     if IsNumber(now) then fight.duration = now - fight.at + (fight.carried or 0) end
     if not Meter.Available() then
-        Teacher.last = { skip = "meter off" }
-        Done()
+        Judge(function() Done({ skip = "meter off" }) end)
         return
     end
 
     if not pcall(C_Timer.After, READ_DELAY, function() Read(fight) end) then
-        Teacher.last = { skip = "read failed" }
-        Done()
+        Judge(function() Done({ skip = "read failed" }) end)
     end
 end

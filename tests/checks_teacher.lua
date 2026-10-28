@@ -2745,40 +2745,103 @@ return function(T)
         -- and each recast lands at a new phase of the 1.4 s timer: only a step (another stack count, the same size a
         -- stack) restarts the series after each buff edge.
         CASTS = { 10, 13.1, 15.9, 19.5, 22.1, 25.7, 28.3, 31.1, 34.5, 37.3, 40.9, 43.5 }
-        rig = Rig({})
-        S, Core = rig.S, rig.ns.Core
-        SlashCmdList.COMBATTEXTICONS("debug")
-        S.now = 8
-        Core.PLAYER_REGEN_DISABLED()
-        sum, next = 0, 1
-        for k = 0, 26 do
-            local at = 11.3 + 1.4 * k
-            while CASTS[next] and CASTS[next] <= at - 0.05 do
-                rig.Cast(CASTS[next], "nameplate1", UA)
-                next = next + 1
+        -- The buffed fight on a new rig, ended with its read queued (session `id` holds its row).
+        local function BuffFight(id)
+            local buffed = Rig({})
+            local S, Core = buffed.S, buffed.ns.Core
+            SlashCmdList.COMBATTEXTICONS("debug")
+            S.now = 8
+            Core.PLAYER_REGEN_DISABLED()
+            local sum, next = 0, 1
+            for k = 0, 26 do
+                local at = 11.3 + 1.4 * k
+                while CASTS[next] and CASTS[next] <= at - 0.05 do
+                    buffed.Cast(CASTS[next], "nameplate1", UA)
+                    next = next + 1
+                end
+                local stacks = 0
+                for _, castAt in ipairs(CASTS) do
+                    if at - castAt >= 0 and at - castAt <= 8 then stacks = stacks + 1 end
+                end
+                local unit = ((k >= 5 and k <= 9) or (k >= 15 and k <= 19)) and 3600 or 3000
+                if stacks > 0 then
+                    buffed.Hit(at, "nameplate1", unit * stacks, 32)
+                    sum = sum + unit * stacks
+                end
             end
-            local stacks = 0
-            for _, castAt in ipairs(CASTS) do
-                if at - castAt >= 0 and at - castAt <= 8 then stacks = stacks + 1 end
-            end
-            local unit = ((k >= 5 and k <= 9) or (k >= 15 and k <= 19)) and 3600 or 3000
-            if stacks > 0 then
-                rig.Hit(at, "nameplate1", unit * stacks, 32)
-                sum = sum + unit * stacks
-            end
+            S.now = 60
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(id, { Row(UA, sum + 5000) }) }
+            return buffed
         end
-        S.now = 60
-        Core.PLAYER_REGEN_ENABLED()
-        S.sessions = { Session(nextSession, { Row(UA, sum + 5000) }) }
+        -- The TEACH stack line of UA's learning, or nil.
+        local function Taught()
+            local found
+            for _, line in ipairs(CombatTextIconsDB.debugLog) do
+                found = line:match("TEACH stack " .. UA .. " casts=%d+ %-> learned .*") or found
+            end
+            return found
+        end
+        rig = BuffFight(nextSession)
         nextSession = nextSession + 1
         pcall(rig.Fire)
-        local life
-        for _, line in ipairs(CombatTextIconsDB.debugLog) do
-            life = line:match("TEACH stack " .. UA .. " casts=%d+ %-> learned .* life=(%d+)") or life
-        end
+        local whole, wholeLast = Taught(), rig.ns.Teacher.last
+        local wholeSamples = #rig.ns.Fingerprints.Get(UA).samples
         -- Without the steps the walks break at each buff edge and the best is a 27 s life that keeps 14 ticks.
         Check("stack (b): a x1.2 buff twice while stacks live -> the steps restart the walk, learned with an 8 s life",
-            life == "8")
+            whole ~= nil and whole:match(" life=(%d+)") == "8")
+
+        -- BugSack 2026-10-28: "script ran too long" in Stacks and Stack.Multiple under Stack.Learn, one read's work in
+        -- one C_Timer callback. The same fight read with a clock that moves 1 ms per look: each call runs one slice
+        -- (Teacher's SLICE_MS = 10 looks past the slice's first), and the judging learns what the whole read did. A
+        -- fight that opens mid-judging pauses it; its own read is judged after. WoW's Lua 5.1 cannot yield inside a
+        -- pcall, so a yield under one fails the check.
+        local looks, depth, yieldsInPcall = 0, 0, 0
+        local pcallBefore, yieldBefore = pcall, coroutine.yield
+        local outcomes, calls, most, paused, pausedLast, samples = {}, 0, 0, nil, nil, nil
+        local ran, problem = pcall(function()
+            local sliced = BuffFight(nextSession)
+            nextSession = nextSession + 1
+            local Teacher = sliced.ns.Teacher
+            Teacher.OnRead = function(last) outcomes[#outcomes + 1] = last end
+            debugprofilestop = function()
+                looks = looks + 1
+                return looks
+            end
+            pcall = function(...)
+                depth = depth + 1
+                local results = table.pack(pcallBefore(...))
+                depth = depth - 1
+                return table.unpack(results, 1, results.n)
+            end
+            coroutine.yield = function(...)
+                if depth > 0 then yieldsInPcall = yieldsInPcall + 1 end
+                return yieldBefore(...)
+            end
+            local function Call()
+                looks, calls = 0, calls + 1
+                sliced.Fire()
+                most = math.max(most, looks)
+            end
+            Call()
+            Teacher.Start(70)
+            Call()
+            paused = looks == 0 and #outcomes == 0
+            Teacher.Finish(80)
+            pausedLast = Teacher.last
+            while #sliced.S.timers > 0 do Call() end
+            samples = #sliced.ns.Fingerprints.Get(UA).samples
+        end)
+        debugprofilestop, pcall, coroutine.yield = nil, pcallBefore, yieldBefore
+        local first, second = outcomes[1], outcomes[2]
+        Check("sliced read: no call runs past its slice, the judging spans calls, no yield under a pcall, and it "
+            .. "learns what the whole read did (" .. tostring(problem or calls .. " calls, " .. most .. " looks") .. ")",
+            ran and calls > 3 and most <= 11 and yieldsInPcall == 0 and Taught() == whole and first ~= nil
+            and wholeLast.learned[UA] ~= nil and first.learned[UA] == wholeLast.learned[UA] and Find(first, UA).verdict == Find(wholeLast, UA).verdict
+            and samples == wholeSamples)
+        Check("sliced read: a fight that opens mid-judging pauses it; its end resumes it, and its own read is judged "
+            .. "after (the same session: a duplicate)",
+            ran and paused and pausedLast == nil and #outcomes == 2 and second.skip == "duplicate session")
     end
 
     do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899

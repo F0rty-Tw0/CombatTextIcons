@@ -548,6 +548,7 @@ local function Repeat(list)
     end
     local best, bestCount = nil, 0
     for i, at in ipairs(wide) do
+        ns.Teacher.Yield()
         for j = i + 1, #wide do
             local gap = wide[j] - at
             if gap > PERIOD_HI + EPS then break end
@@ -635,6 +636,7 @@ function Ground.Castless(run, hits, open, rows, results)
 
     local found, tried, holders = {}, {}, {}
     for _, frame in ipairs(frames) do
+        ns.Teacher.Yield()
         local low, high = SeedBand(frame)
         local key = low and frame.school .. ":" .. low .. ":" .. high
         if key and not tried[key] then
