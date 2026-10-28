@@ -169,6 +169,7 @@ local function OwnRow(castID, open, rewritten)
         end
     end
 end
+Chain.OwnRow = OwnRow -- the stack pass (Stack.lua) pairs with an own row the same way
 
 -- The chain pass of one read. `run` is the fight (its '?' hits and casts), `open` and `rewritten` the cast pass's
 -- unpaired rows and the ones paired, `results` the read's verdicts, `learned` the ways learned so far (their hits are

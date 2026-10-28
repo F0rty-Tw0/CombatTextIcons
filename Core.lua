@@ -288,8 +288,10 @@ end
 -- The hit route: the tracker names DoT and channel ticks and a learned cast fingerprint
 -- names a direct hit (Casts.Claim); both draw at once, in a group too. Two learned DoTs that
 -- both fit draw the question mark at once. Whatever nothing names is fed to the streams; solo
--- on a mob fighting you it also goes to the teacher, and draws the question mark only while the
--- area is clear (Teacher.AreaClear); else it stays hidden (route "meter off" or "crowded"). While the
+-- on a mob fighting you a hit no proc names may tick a learned stack spell's series (Casts.StackTick)
+-- and draw it, else it also goes to the teacher, and draws the question mark only while the
+-- area is clear (Teacher.AreaClear); else it stays hidden (route "meter off" or "crowded"). In a group
+-- such a hit on a mob fighting you may still tick a stack series; in a crowded fight no hit does. While the
 -- area is clear a learned proc that fits the hit (Procs.Name) draws its icon instead of the question
 -- mark; so does a learned rhythm proc that fits the stream the hit extends or births
 -- (Procs.NameStream), or that a recent cast of its row and the hit's size name before the stream is born
@@ -365,10 +367,25 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if not Procs.Name(school, amount, flagText) then
         stream = Streams.Feed(plate, school, amount, flagText, "enemy", now, solo)
     end
+    local candidates
     if solo then
         if ProcWound(plate, school, amount, flagText) then return end
-        local candidates = Casts.Candidates(plate, now, school) -- one list for both: drawing changes no cast log
+        candidates = Casts.Candidates(plate, now, school) -- one list for both: drawing changes no cast log
         if RhythmWound(plate, stream, school, amount, flagText, candidates) then return end
+    end
+    -- A learned stack spell's tick (Casts.StackTick) takes a hit nothing named on a mob fighting you, after the
+    -- streams saw it and, solo, the procs had it: lock2 fight 4, Agony 980's ticks agree with Unstable Affliction's
+    -- one stack and draw as a rhythm proc. In a group it is the only route left (lock3 fight 4: 420524 of the row). Not
+    -- in a crowded fight: strangers' hits on the plate pass for steps (lock3 fight 3).
+    local stack = fightsYou and not crowded
+        and Casts.StackTick(plate, school, now, Streams.NormalAmount(amount, flagText), flagText)
+    if stack then
+        if ns.Debug then ns.Debug("  -> stack %s", ShowValue(stack.spellID)) end
+        Teacher.Drawn(stack.base, amount)
+        Ledger.Add("damage", stack.base, amount)
+        return Display.Plate(plate, SpellTexture(stack.spellID), text, flagText, school)
+    end
+    if solo then
         Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now, school), flagText, candidates)
         if not Teacher.AreaClear() then
             if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
@@ -541,8 +558,8 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     if (unit == "player" or unit == "pet") and Plain(spellID) then
         local harmful = C_Spell.IsSpellHarmful and C_Spell.IsSpellHarmful(spellID)
         if Plain(harmful) and harmful then
-            Casts.NoteCast(spellID, now, castGUID, unit == "pet")
-            Teacher.Cast(spellID, Casts.Base(spellID), now)
+            local plate = Casts.NoteCast(spellID, now, castGUID, unit == "pet")
+            Teacher.Cast(spellID, Casts.Base(spellID), now, plate)
         end
     end
     Tracker.OnCast(unit, spellID, now)

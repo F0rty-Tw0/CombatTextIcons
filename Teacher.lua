@@ -32,7 +32,7 @@
 
 local _, ns = ...
 local Meter, Fingerprints, Procs, Ledger, Streams = ns.Meter, ns.Fingerprints, ns.Procs, ns.Ledger, ns.Streams
-local Steady, Ground, Chain = ns.Steady, ns.Ground, ns.Chain
+local Steady, Ground, Chain, Stack = ns.Steady, ns.Ground, ns.Chain, ns.Stack
 
 local Teacher = {}
 ns.Teacher = Teacher
@@ -52,9 +52,9 @@ local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
 -- the open fight: { at, tally = { [spellID] = sum }, unknown = { entry, ... }, ticks = { tick, ... },
---   casts = { { spellID, base, at }, ... }, streams = { [stream] = record }, seen = sum, live = this fight's own seen
---   (no carried fight's), crowded = the live crowd check fired, carried = seconds of fights carried in, duration =
---   seconds in combat (set at Finish), group }
+--   casts = { { spellID, base, at, plate }, ... }, streams = { [stream] = record }, seen = sum, live = this fight's
+--   own seen (no carried fight's), crowded = the live crowd check fired, carried = seconds of fights carried in,
+--   duration = seconds in combat (set at Finish), group }
 Teacher.fight = nil
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; a read saves it with its map (SaveArea)
@@ -588,8 +588,9 @@ end
 -- own row; then the steady pass (Steady.lua) learns from steady hits no sum explained; then the ground pass
 -- (Ground.lua) learns a rowless cast's ticks on many plates, bounded by one open row; then the chain pass (Chain.lua)
 -- learns a cast's hops from plate to plate under its own open row, before the DoT pass: a proven chain is direct hits,
--- so they leave the school's '?' sum the DoT pass bounds; last, the DoT pass learns a cast's DoT from its school's
--- streams, bounded by its own open row.
+-- so they leave the school's '?' sum the DoT pass bounds; then the DoT pass learns a cast's DoT from its school's
+-- streams, bounded by its own open row; last, the stack pass (Stack.lua) learns a stacking DoT's ticks on its cast's
+-- plate under its own open row.
 -- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so
 -- the DoT's draws were other spells' (a stale save's Nature DoT under Lava Burst 51505 drew Surging Totem's ticks).
 -- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
@@ -609,6 +610,7 @@ local function Learn(run, results, open, rows)
     for _, way in ipairs(Ground.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(Chain.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     DotPass(run, rows, open, rewritten, results, learned)
+    for _, way in ipairs(Stack.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(learned) do
         local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)
         if dot and fp and fp.learned and fp.school ~= dot.school then ns.Learn.Drop(way.castID) end
@@ -854,11 +856,12 @@ function Teacher.AreaClear()
     return Teacher.area == "clear" and Meter.Available() and not (fight and fight.crowded)
 end
 
--- A harmful cast of the player or the pet (`base` is Casts.Base of `spellID`), for the ground pass.
-function Teacher.Cast(spellID, base, now)
+-- A harmful cast of the player or the pet (`base` is Casts.Base of `spellID`), for the ground pass; `plate` (the
+-- cast's, nil when none) for the stack pass.
+function Teacher.Cast(spellID, base, now, plate)
     local fight = Teacher.fight
     if not (fight and IsNumber(spellID) and IsNumber(base) and IsNumber(now)) then return end
-    fight.casts[#fight.casts + 1] = { spellID = spellID, base = base, at = now }
+    fight.casts[#fight.casts + 1] = { spellID = spellID, base = base, at = now, plate = plate }
 end
 
 -- A hit was drawn with this spell's icon.

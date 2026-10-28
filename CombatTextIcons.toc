@@ -17,6 +17,7 @@ Casts.lua
 Steady.lua
 Ground.lua
 Chain.lua
+Stack.lua
 Teacher.lua
 Display.lua
 Progress.lua

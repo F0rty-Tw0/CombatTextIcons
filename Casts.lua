@@ -88,6 +88,14 @@ local records = {}      -- oldest first: { spellID, base, at, plate, hops, plate
 local SPLASH = 0.5      -- a cast's splash lands on other plates at most this long after its own hit (Splash)
 local QUIET = 1.5       -- and only when no unclaimed hit like it landed on another plate this long before that hit
 local wounds = {}       -- the hits Claim was asked about lately, oldest first: { plate, school, size, at, claimed }
+local STACK_MAX = 40    -- learned stack casts kept at most (StackTick)
+local stackCasts = {}   -- the learned stack spells' casts with a plate, oldest first: { spellID, base, at, plate }
+local series = {}       -- [base .. "@" .. plate] = a stack spell's running series on that plate (Stack.Tick)
+local seeds = {}        -- [base .. "@" .. plate] = hits that may start its series, oldest first: { at, unit, n, crit }
+-- A series starts on a step: two ticks whose sizes over their live stacks lie within this share of each other. One
+-- stack's size holds to the unit while the stack count changes (lock3 fight 4: 10925 crit at 1 stack, 21851 crit at
+-- 2; 10163 at 2, 15245 at 3); a stranger's steady 1655 then Agony's 3607 at one stack more is 9 % off (lock2).
+local STEP_GUARD = 0.01
 
 -- Travel time follows distance, and distance changes per fight: Shadow Bolt 686 learned at 1.10-1.16 s
 -- landed at 0.92-1.09 s the next fight, 1.12-1.26 s the one after (run 20261025T180045Z). So each cast
@@ -184,7 +192,7 @@ end
 function Casts.Flush(now)
     for _, record in ipairs(records) do Settle(record, math.huge) end
     SweepRecords(now)
-    centres, wounds = {}, {}
+    centres, wounds, series, seeds = {}, {}, {}, {}
 end
 
 -- The cast in progress (UNIT_SPELLCAST_START): a spell with a cast time keeps the target it started
@@ -217,6 +225,7 @@ local function PetPlate()
 end
 
 -- A harmful cast of the player, or of the pet when `pet` (the meter files pet damage under the player's own rows).
+-- Returns the cast's plate (nil when none).
 function Casts.NoteCast(castID, now, castGUID, pet)
     SweepRecords(now)
     local base = Casts.Base(castID)
@@ -228,12 +237,19 @@ function Casts.NoteCast(castID, now, castGUID, pet)
     log[#log + 1] = entry
     while now - log[1].at > UNKNOWN_WAIT or #log > LOG_MAX do table.remove(log, 1) end
 
-    local ground = Fingerprints.IsLearned(base) and Fingerprints.Get(base).pattern == "ground"
-    if (entry.plate or ground) and Fingerprints.IsLearned(base) then
+    local pattern = Fingerprints.IsLearned(base) and Fingerprints.Get(base).pattern
+    if pattern == "stack" then
+        if plate then
+            stackCasts[#stackCasts + 1] = { spellID = castID, base = base, at = now, plate = plate }
+            if #stackCasts > STACK_MAX then table.remove(stackCasts, 1) end
+        end
+    elseif (entry.plate or pattern == "ground") and pattern then
         records[#records + 1] = { spellID = castID, base = base, at = now, plate = entry.plate, hops = 0, plates = {},
             last = now }
         if #records > RECORD_MAX then table.remove(records, 1) end
     end
+
+    return plate
 end
 
 -- Whether normal-scale `size` lies inside the learned sizes of the record's cast spell, unpadded.
@@ -360,10 +376,14 @@ end
 -- knows could just as well have made the hit. One cast before the learned cast (or in its frame)
 -- does not: run 20261025T172757Z lost 4 Void Blast hits to Void Eruption and SW:Death that way.
 -- When `sure`, neither does a cast the meter says cannot have made a hit of `school` (Harmless).
+-- A learned stack spell's cast still counts as unlearned: its fingerprint names its ticks, and learning it must not
+-- open other casts' claims. Lock2 fight 5: once Unstable Affliction's cast at +0.25 s stopped spoiling Haunt's claim,
+-- Haunt's padded band took 1278047's 43366, 26 ms before its own 26876.
 local function UnlearnedCastAt(plate, now, since, sure, school)
     for _, entry in ipairs(log) do
+        local learned = Fingerprints.IsLearned(entry.base) and Fingerprints.Get(entry.base).pattern ~= "stack"
         if now - entry.at <= UNKNOWN_WAIT and entry.at > since and not entry.tracker and entry.plate == plate
-            and not Fingerprints.IsLearned(entry.base) and not (sure and Harmless(entry, school)) then
+            and not learned and not (sure and Harmless(entry, school)) then
             return true
         end
     end
@@ -462,6 +482,70 @@ function Casts.Accept(record, plate, now)
     record.plates[plate] = true
     if plate ~= record.plate and record.hops == 0 then return end
     record.hops, record.last = record.hops + 1, now
+end
+
+-- A learned stack spell (Stack.lua): each cast adds a stack on its plate for the learned life, and one series per spell
+-- and plate ticks while any lives. A running one takes each hit one or two periods after its last tick whose size over
+-- the live stacks agrees with the last tick's, as the stack pass walked it (Stack.Running, Multiple, Agree, Tick). A
+-- crit counts on its normal scale (Streams.NormalAmount: x2; lock3's crits are x2.15, inside SIZE_GUARD).
+-- With none running, each hit of the spell's school on the plate while a stack lives is a seed, and a series starts on
+-- a step only: a hit one or two learned periods after a seed of the same crit state, its size over the live stacks
+-- within STEP_GUARD of the seed's, at another stack count. The stack pass learned from a start in a cast's window, but
+-- that start takes any size: lock3 fight 3's crowd started a series on a 1007 (one stack is ~3258) and drew 9 hits of
+-- ~900 a stack, lock2 fight 4's took Shadow of Nathreza's 1655 and Agony's 3607; and lock3 fight 4's first tick came
+-- 2.95 s after the cast, outside the window.
+-- The cast whose series a hit of `school` and normal-scale `size` (`flagText` tells a crit) on `plate` at `now` ticks
+-- (the newest live cast of its spell), or nil: none, or the series of two spells. The series steps to the hit.
+function Casts.StackTick(plate, school, now, size, flagText)
+    if not (Plain(plate) and Plain(school) and IsNumber(size) and size > 0) then return nil end
+    local crit = Plain(flagText) and flagText == "CRITICAL"
+    local Stack = ns.Stack
+    for index = #stackCasts, 1, -1 do
+        local fp = Fingerprints.Get(stackCasts[index].base)
+        if not (fp and fp.learned and fp.pattern == "stack") or now - stackCasts[index].at > fp.life then
+            table.remove(stackCasts, index)
+        end
+    end
+    local found, foundKey, foundTick
+    local tried = {}
+    for _, cast in ipairs(stackCasts) do
+        local fp, key = Fingerprints.Get(cast.base), cast.base .. "@" .. tostring(plate)
+        if cast.plate == plate and fp.school == school and not tried[key] then
+            tried[key] = true
+            local running = series[key]
+            local n, newest = 0, nil
+            for _, other in ipairs(stackCasts) do
+                if other.base == cast.base and other.plate == plate then n, newest = n + 1, other end
+            end
+            local tick
+            if Stack.Running(running, now) then
+                local multiple = Stack.Multiple(running, now)
+                if multiple and Stack.Agree(size / n, running.unit) then
+                    tick = Stack.Tick(running, now, size, n, multiple)
+                end
+            else
+                local list = seeds[key] or {}
+                seeds[key] = list
+                while list[1] and not Stack.Running({ at = list[1].at, period = fp.period }, now) do
+                    table.remove(list, 1)
+                end
+                for _, seed in ipairs(list) do
+                    local from = { at = seed.at, period = fp.period }
+                    local multiple = Stack.Multiple(from, now)
+                    if not tick and multiple and seed.n ~= n and seed.crit == crit
+                        and Stack.Agree(size / n, seed.unit, STEP_GUARD) then
+                        tick = Stack.Tick(from, now, size, n, multiple)
+                    end
+                end
+                if not tick then list[#list + 1] = { at = now, unit = size / n, n = n, crit = crit } end
+            end
+            if tick and found then return nil end
+            if tick then found, foundKey, foundTick = newest, key, tick end
+        end
+    end
+    if found then series[foundKey] = foundTick end
+
+    return found
 end
 
 -- Whether a tracker cast's ticks explain a hit of `school`: a learned DoT only its own school's

@@ -973,4 +973,52 @@ end
         Check("fingerprints: a saved sample keeps its cast spell", select(2, F.Window(1, VOID_BLAST)) == 0.2
             and F.Get(1).samples[1].spell == VOID_BLAST)
     end
+
+    do -- a learned stack spell (Stack.lua): Unstable Affliction 1259790 ticks every ~1.33 s, live stacks x one stack
+        local UA, HAUNT = 1259790, 48181
+        local function StackRig(setup)
+            local rig = Rig()
+            for castAt = 1, 3 do
+                rig.ns.Fingerprints.Add(UA, { school = 32, delay = 1.3, castAt = castAt, hops = 1, tick = 0, period = 1.33,
+                    life = 8 })
+            end
+            if setup then setup(rig) end
+            return rig
+        end
+        local function Drew(hit, id) return hit ~= nil and hit.texture == "tex:" .. id end
+        -- lock3 fight 4: one stack's ticks then two stacks' (10925 crit, 21851 crit), the same unit at a new count
+        local function Steps(setup, first, second)
+            local rig = StackRig(setup)
+            rig.Cast(100, UA, "nameplate1")
+            local seed = rig.Hit(101.33, "nameplate1", "WOUND", first, 32)
+            rig.Cast(102, UA, "nameplate1")
+            local step = rig.Hit(102.66, "nameplate1", "WOUND", second, 32)
+            local after = rig.Hit(103.99, "nameplate1", "WOUND", second, 32)
+            return Drew(seed, UA), Drew(step, UA), Drew(after, UA)
+        end
+        local seed, step, after = Steps(nil, 3258, 6517)
+        Check("stack: a hit in a cast's window starts no series; one a period on at another stack count and the same "
+            .. "unit does, and the next tick extends it", not seed and step and after)
+        local _, stranger = Steps(nil, 1655, 3607)
+        Check("stack: a stranger's 1655 then Agony's 3607 at one stack more (9 % off a stack's size) start no series "
+            .. "(lock2)", stranger == false)
+        local _, grouped = Steps(function(r) r.S.group = true end, 3258, 6517)
+        Check("stack: in a group the stack spell's step still draws (lock3 fight 4)", grouped)
+        local _, crowded = Steps(function(r)
+            r.ns.Teacher.Start(99)
+            r.ns.Teacher.fight.crowded = true
+        end, 3258, 6517)
+        Check("stack: in a crowded fight no stack tick draws (lock3 fight 3)", crowded == false)
+        -- lock2 fight 5: Haunt cast, Unstable Affliction cast 0.25 s later, then 1278047's 43366 in Haunt's window
+        local spoil = StackRig(function(r)
+            for castAt = 1, 3 do
+                r.ns.Fingerprints.Add(HAUNT, { school = 32, delay = 0.55, castAt = castAt, hops = 1, size = 24000 })
+            end
+        end)
+        spoil.Cast(200, HAUNT, "nameplate1")
+        spoil.Cast(200.25, UA, "nameplate1")
+        local proc = spoil.Hit(200.55, "nameplate1", "WOUND", 43366, 32)
+        Check("stack: a learned stack spell's cast still spoils another cast's claim, as an unlearned one did",
+            proc ~= nil and proc.texture == spoil.ns.Meter.UNKNOWN_ICON)
+    end
 end

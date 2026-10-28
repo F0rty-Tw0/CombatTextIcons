@@ -8,7 +8,9 @@
 -- size (crits divided by CRIT_FACTOR); a claim needs a hit inside the padded band (Casts.lua).
 -- `castAliases` maps a meter row ID to the cast ID (Auto Shot 75 -> Shoot 5019). A ground spell's samples
 -- (Ground.lua) carry `tick`: 0 for its first tick, whose delays alone give the window, k for its kth tick after that;
--- they make the pattern "ground" with a `period` and `ticks` (Casts.lua walks them).
+-- they make the pattern "ground" with a `period` and `ticks` (Casts.lua walks them). A stack spell's samples
+-- (Stack.lua) carry its `period` and a stack's `life` (tick 0: a cast that started a series, whose delays give the
+-- window; tick 1: the others); they make the pattern "stack" with the medians.
 -- Saved data is checked on load and never trusted.
 
 local _, ns = ...
@@ -21,6 +23,7 @@ local SAMPLES = 16    -- samples kept per entry, oldest dropped (one steady figh
 local DELAYS = 8      -- delays kept per learned entry, oldest dropped
 local LEARN_CASTS = 3 -- samples from this many different casts, one school, teach a spell
 local STRIKES = 2     -- teacher overshoots in a row that delete an entry
+local PATTERNS = { single = true, chain = true, ground = true, stack = true } -- the patterns a saved entry may hold
 
 Fingerprints.LEARN_CASTS = LEARN_CASTS -- the panel shows "casts n of LEARN_CASTS"
 
@@ -30,6 +33,7 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 local function HitSize(value) return IsNumber(value) and value > 0 and value or nil end -- a plain size above 0, else nil
 -- a ground tick index (a whole number from 0), else nil
 local function Tick(value) return IsNumber(value) and value >= 0 and value % 1 == 0 and value or nil end
+local function Positive(value) return IsNumber(value) and value > 0 and value or nil end -- a plain number above 0
 
 -- The in-memory tables are the saved ones once Init ran.
 local casts, aliases = {}, {}
@@ -77,6 +81,17 @@ local function Refresh(entry)
     end
     entry.period, entry.ticks = Ground(entry)
     if entry.period and entry.period > 0 then entry.pattern = "ground" end
+    local periods, lives = {}, {}
+    for _, sample in ipairs(entry.samples) do
+        if sample.period and sample.life then
+            periods[#periods + 1], lives[#lives + 1] = sample.period, sample.life
+        end
+    end
+    if #lives > 0 then
+        entry.pattern, entry.period, entry.life = "stack", Median(periods), Median(lives)
+    else
+        entry.life = nil
+    end
 end
 
 -- Whether `entry` goes before `other` when the table is full: unlearned before learned, then
@@ -145,7 +160,8 @@ function Fingerprints.Add(spellID, sample)
     local hops = IsNumber(sample.hops) and sample.hops or 1
     local spell = IsNumber(sample.spell) and sample.spell or nil
     local kept = { school = school, delay = delay, castAt = castAt, hops = hops, spell = spell,
-        size = HitSize(sample.size), tick = Tick(sample.tick) }
+        size = HitSize(sample.size), tick = Tick(sample.tick), period = Positive(sample.period),
+        life = Positive(sample.life) }
     entry.samples[#entry.samples + 1] = kept
     if #entry.samples > SAMPLES then table.remove(entry.samples, 1) end
     entry.lastSeen = castAt
@@ -305,7 +321,8 @@ local function KeepSamples(list)
             local spell = type(sample.spell) == "number" and sample.spell or nil
             local size = type(sample.size) == "number" and sample.size > 0 and sample.size or nil
             kept[#kept + 1] = { school = sample.school, delay = sample.delay, castAt = sample.castAt, hops = hops,
-                spell = spell, size = size, tick = Tick(sample.tick) }
+                spell = spell, size = size, tick = Tick(sample.tick), period = Positive(sample.period),
+                life = Positive(sample.life) }
         end
     end
     while #kept > SAMPLES do table.remove(kept, 1) end
@@ -316,7 +333,7 @@ end
 -- Whether a saved entry can be kept: a learned one needs a school and delays, any needs a known pattern.
 local function ValidEntry(entry)
     if type(entry) ~= "table" or type(entry.learned) ~= "boolean" then return false end
-    if entry.pattern ~= "single" and entry.pattern ~= "chain" and entry.pattern ~= "ground" then return false end
+    if not PATTERNS[entry.pattern] then return false end
     if not entry.learned then return true end
     local hasDelays = type(entry.delays) == "table" and #KeepNumbers(entry.delays, DELAYS) > 0
 
