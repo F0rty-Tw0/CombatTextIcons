@@ -350,27 +350,41 @@ end
 -- Splits a debug log at its Teacher reads. A "TEACH clean seen=.. meter=.. -> area" line ends a fight; the
 -- "TEACH <id> tally=.. meter=<n> verdict=.." lines after it with n > 0 are its meter rows (file order, a
 -- spell may repeat). A row paired under another ID carries ` row=<meter ID>`; a log older than that prints the
--- cast ID, and `rowIDs[fight]["<printed id>:<meter>"]` names the real row. "TEACH proc" lines are skipped.
+-- cast ID, and `rowIDs[fight]["<printed id>:<meter>"]` names the real row. Other "TEACH <word>" lines (the passes'
+-- proc, steady, rhythm, ground, chain and stack lines between the clean line and the rows) are skipped. A read that
+-- printed its "TEACH row <id> total=<n>" lines before the clean line but no verdict rows takes those listed rows:
+-- run dk F1-F3 ended after the clean line ("script ran too long" in Stack.Learn).
 -- fights[i] = { endLine, seen, meter, area, rows = { { spellID, totalAmount, overkillAmount } } }.
 local function ParseTeach(lines, rowIDs)
-    local fights, open = {}, nil
+    local fights, open, listed = {}, nil, {}
     for index, text in ipairs(lines) do
         local seen, meter, area = text:match("^[%d%.]+ TEACH clean seen=(%d+) meter=(%d+) %-> (%a+)$")
         local id, rowMeter, rowID = text:match("^[%d%.]+ TEACH (%d+) tally=%d+ meter=(%d+) verdict=%a+ ?r?o?w?=?(%d*)$")
+        local listedID, listedTotal = text:match("^[%d%.]+ TEACH row (%d+) total=(%d+) ")
         if seen then
-            open = { endLine = index, seen = tonumber(seen), meter = tonumber(meter), area = area, rows = {} }
+            open = { endLine = index, seen = tonumber(seen), meter = tonumber(meter), area = area, rows = {},
+                listed = listed }
             fights[#fights + 1] = open
-        elseif text:match("^[%d%.]+ TEACH proc ") or text:match("^[%d%.]+ TEACH steady ")
-            or text:match("^[%d%.]+ TEACH rhythm ") then
-            -- Procs', the steady pass's and the rhythm pass's lines sit between the clean line and the rows: report only
+            listed = {}
+        elseif listedID then
+            local amount = tonumber(listedTotal)
+            if amount > 0 then
+                listed[#listed + 1] = { spellID = tonumber(listedID), totalAmount = amount, overkillAmount = 0 }
+            end
+        elseif text:match("^[%d%.]+ TEACH %a") then
+            -- the passes' lines between the clean line and the rows, the session line before them: report only
         elseif id and open then
             local amount = tonumber(rowMeter)
             local fixes = rowIDs and rowIDs[#fights] or {}
             local spellID = tonumber(fixes[id .. ":" .. rowMeter] or (rowID ~= "" and rowID) or id)
             if amount > 0 then open.rows[#open.rows + 1] = { spellID = spellID, totalAmount = amount, overkillAmount = 0 } end
         else
-            open = nil
+            open, listed = nil, {}
         end
+    end
+    for _, fight in ipairs(fights) do
+        if #fight.rows == 0 then fight.rows = fight.listed end
+        fight.listed = nil
     end
     return fights
 end
@@ -1390,6 +1404,19 @@ local function ReplayFightsChecks()
         "1.0 TEACH rhythm 7 school=32 p=1.70 band=1-2 streak=1", "1.0 TEACH 7 tally=0 meter=5 verdict=unpaired" })
     Check("ParseTeach: a rhythm line between the clean line and the rows keeps the rows",
         #rhythm == 1 and #rhythm[1].rows == 1 and rhythm[1].rows[1].spellID == 7)
+    local passes = ParseTeach({ "1.0 TEACH clean seen=5 meter=5 -> clear", "1.0 TEACH ground 7 casts=4 -> none",
+        "1.0 TEACH chain 7 casts=4 -> none", "1.0 TEACH stack 7 casts=4 -> none",
+        "1.0 TEACH 7 tally=0 meter=5 verdict=unpaired" })
+    Check("ParseTeach: ground, chain and stack lines between the clean line and the rows keep the rows (run dk)",
+        #passes == 1 and #passes[1].rows == 1 and passes[1].rows[1].totalAmount == 5)
+    local cutRead = ParseTeach({ "0.5 CAST player 1", "1.0 TEACH session 1 dur=9",
+        "1.0 TEACH row 7 total=5 overkill=0 override=7", "1.0 TEACH row 8 total=0 overkill=0 override=8",
+        "1.0 TEACH clean seen=5 meter=5 -> clear", "1.0 TEACH stack 7 casts=4 -> none", "2.0 CAST player 1",
+        "3.0 TEACH row 9 total=4 overkill=0 override=9", "3.0 TEACH clean seen=6 meter=6 -> clear",
+        "3.0 TEACH 9 tally=0 meter=6 verdict=unpaired" })
+    Check("ParseTeach: a read cut off after its clean line takes its listed meter>0 rows; verdict rows win",
+        #cutRead == 2 and #cutRead[1].rows == 1 and cutRead[1].rows[1].spellID == 7
+        and cutRead[1].rows[1].totalAmount == 5 and #cutRead[2].rows == 1 and cutRead[2].rows[1].totalAmount == 6)
 
     local lockLines = {} -- tests/score_lib.lua's ReadLines, repeated: it loads this file, so this file cannot load it
     for line in io.lines(ROOT .. "/tests/score/lock.txt") do

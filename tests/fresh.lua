@@ -1,6 +1,7 @@
--- Fresh scoreboard: replays the six in-game logs of 2026-10-27 (each class right after /cti forget, the user's run
--- shape: dummies, dungeon, dummies, open world) and scores what the addon drew against each fight's meter rows, the
--- same way as tests/score.lua. Group fights stay in the meter: they are real play and teach nothing by design.
+-- Fresh scoreboard: replays the six in-game logs of 2026-10-27 and the death knight's, mage's and warrior's of
+-- 2026-10-28 (each class right after /cti forget, the user's run shape: dummies, dungeon, dummies, open world) and
+-- scores what the addon drew against each fight's meter rows, the same way as tests/score.lua. Group fights stay in
+-- the meter: they are real play and teach nothing by design.
 --
 --   lua tests/fresh.lua                 per log: right, right from its 4th fight on, wrong; tuned and hold-out totals
 --   lua tests/fresh.lua --game          also what the game drew, from each HIT's logged route (the code of that day)
@@ -8,7 +9,7 @@
 --   lua tests/fresh.lua --save <file>   writes the numbers as a gate baseline
 --   lua tests/fresh.lua --gate <file>   KEEP or REJECT against a saved baseline (exit code 1 on REJECT)
 --
--- Druid, paladin and hunter are the hold-out classes: scored, never tuned on.
+-- Druid, paladin, hunter, death knight, mage and warrior are the hold-out classes: scored, never tuned on.
 
 local L = dofile("tests/score_lib.lua")
 local ScoreFight, NewScore, Add, Pct, Line, Out = L.ScoreFight, L.NewScore, L.Add, L.Pct, L.Line, L.Out
@@ -20,6 +21,9 @@ local FRESH = {
     { log = "druid2", class = "druid", holdout = true },
     { log = "paladin", class = "paladin", holdout = true },
     { log = "hunter", class = "hunter", holdout = true },
+    { log = "dk", class = "deathknight", holdout = true },
+    { log = "mage", class = "mage", holdout = true },
+    { log = "warrior", class = "warrior", holdout = true },
 }
 local STEP = 0.05 -- the smallest move of a percentage that counts
 local LATE = 4    -- "late" scores a log's fights from this one on: what a player sees once learning had a chance
