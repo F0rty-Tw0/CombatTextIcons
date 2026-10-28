@@ -709,10 +709,19 @@ local function SplitFights(name, opts)
     local fixture = opts.fixture or assert(FIGHT_FIXTURES[name], "no fight fixture " .. name)
     local log = opts.log or LoadLog(name .. ".sv.lua")
     local fights, all = ParseTeach(log, fixture.rowIDs), ParseLog(name, log)
+    -- a "TEACH skip" read (no meter session, or the last one again) ends a combat the game never scored: its slice
+    -- has no rows, so its draws are not judged against the next fight's rows (shaman5 line 2295: two Lava Burst crits
+    -- of that combat counted 138972 wrong against F2's 534635)
+    local cuts = {}
+    for _, fight in ipairs(fights) do cuts[#cuts + 1] = { endLine = fight.endLine, fight = fight } end
+    for index, text in ipairs(log) do
+        if text:match("^[%d%.]+ TEACH skip ") then cuts[#cuts + 1] = { endLine = index } end
+    end
+    table.sort(cuts, function(a, b) return a.endLine < b.endLine end)
     local slices, prevEnd = {}, 0
-    for i = 1, #fights + 1 do
-        local fight = fights[i]
-        local endLine = fight and fight.endLine or math.huge
+    for i = 1, #cuts + 1 do
+        local fight = cuts[i] and cuts[i].fight
+        local endLine = cuts[i] and cuts[i].endLine or math.huge
         local events = {}
         for _, event in ipairs(all) do
             if event.line > prevEnd and event.line < endLine then events[#events + 1] = event end
@@ -1370,6 +1379,13 @@ local function ReplayFightsChecks()
     local afterHeal = SplitFights("x", { log = healOnly, fixture = {} })
     Check("SplitFights: a heal-only read is no slice and the fights after it still are",
         #afterHeal == 2 and afterHeal[2].events[1].t == 3.0)
+    local skipped = SplitFights("x", { log = { "1.0 CAST player 1", "1.5 TEACH clean seen=5 meter=5 -> clear",
+        "1.5 TEACH 1 tally=5 meter=5 verdict=agree", "2.0 CAST player 1", "2.5 TEACH skip no sessions",
+        "3.0 CAST player 1", "3.5 TEACH clean seen=7 meter=7 -> clear", "3.5 TEACH 1 tally=7 meter=7 verdict=agree" },
+        fixture = {} })
+    Check("SplitFights: a TEACH skip ends a slice with no rows; the next fight keeps its own rows",
+        #skipped == 3 and skipped[2].rows == nil and skipped[2].events[1].t == 2.0 and skipped[3].events[1].t == 3.0
+        and skipped[3].rows[1].totalAmount == 7)
     local rhythm = ParseTeach({ "1.0 TEACH clean seen=5 meter=5 -> clear",
         "1.0 TEACH rhythm 7 school=32 p=1.70 band=1-2 streak=1", "1.0 TEACH 7 tally=0 meter=5 verdict=unpaired" })
     Check("ParseTeach: a rhythm line between the clean line and the rows keeps the rows",
