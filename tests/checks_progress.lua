@@ -1,6 +1,7 @@
 -- Unit checks for the fight-end learning popups: Progress (snapshot at fight start, diff when the
 -- Teacher's read is done, priority, cap, area notices, skip and group, /cti progress, re-snapshot) and
--- Display.Notice (own 4 s life, row layout, batches). Called by tests/checks.lua with the same T table.
+-- Display.Notice (own 4 s life, top-of-screen row layout, batches, pooled reuse). Called by tests/checks.lua with
+-- the same T table.
 -- Every scenario boots its own rig; a Boot replaces the global stubs.
 
 return function(T)
@@ -307,7 +308,10 @@ return function(T)
             rig.Read() == "1 learning 1/3 tex:9002")
     end)
 
-    -- Display.Notice on the real Display.lua (frame stubs recording points, alpha, shown and text).
+    -- Display.Notice on the real Display.lua (frame stubs recording points, alpha, shown and text; a text is 7
+    -- pixels wide per character).
+    -- User, 2026-10-28: each row centred on its own under the character, so the icons zigzagged. Rows now sit at the
+    -- top of the screen, every icon at one x, the text left-justified right of it, the block centred on its widest row.
     Scenario("display notice", function()
         local ns = T.Boot()
         local S = T.State()
@@ -324,31 +328,48 @@ return function(T)
                 local text = T.Generic()
                 text.SetTextColor = function(_, r, g, b) self.color = { r, g, b } end
                 text.SetText = function(_, value) self.label = value end
+                text.SetPoint = function(_, point, anchor, relativePoint, x)
+                    self.textAt = { point = point, anchor = anchor, relativePoint = relativePoint, x = x }
+                end
+                text.GetStringWidth = function() return 7 * #self.label end
                 return text
             end
             frames[#frames + 1] = frame
             return frame
         end
         local born = S.now
-        for i = 1, 4 do ns.Display.Notice("tex:" .. i, "line " .. i, i) end
+        local lines = { "learned!", "learning 1/3", "learning (checking)", "+2 more (/cti learned)" }
+        for i = 1, 4 do ns.Display.Notice("tex:" .. i, lines[i], i) end
         ns.Display.Plate(T.Plate("nameplate1"), "tex", 1000, "", 36)
         local plate = frames[5]
         local function Near(a, b) return type(a) == "number" and math.abs(a - b) <= 1e-6 end
         local layout = #frames == 5
         for i = 1, 4 do
-            local at = frames[i].at
-            layout = layout and at.anchor == UIParent and at.point == "CENTER" and at.relativePoint == "CENTER"
-                and Near(at.x, 0) and Near(at.y, -160 + (4 + 2 - i) * 26) and frames[i].label == "line " .. i
+            local at, textAt = frames[i].at, frames[i].textAt
+            layout = layout and at.anchor == UIParent and at.point == "LEFT" and at.relativePoint == "TOP"
+                and Near(at.x, -(22 + 3 + 7 * 22) / 2) and Near(at.y, -200 - (i - 1) * 26)
+                and textAt.point == "LEFT" and textAt.anchor == frames[i] and textAt.relativePoint == "LEFT"
+                and textAt.x == 25 and frames[i].label == lines[i]
                 and frames[i].color[1] == 1 and frames[i].color[2] == 1 and frames[i].color[3] == 1
         end
-        Check("notice: row i at UIParent CENTER, y = PLAYER_Y + (MAX_NOTICES + 2 - i) * ROW, white text", layout)
+        Check("notice: row i's LEFT at UIParent TOP, y = NOTICE_Y - (i - 1) * ROW, one x centring the widest row "
+            .. "(icon + gap + 154 px), text 25 right of the popup's left, white", layout)
         ns.Display.Update(born + 2)
         Check("notice: alive at 2 s, no rise, full alpha; the plate popup (1.2 s life) is gone",
-            frames[1].shown and Near(frames[1].at.y, -30) and Near(frames[1].alpha, 1) and plate.shown == false)
+            frames[1].shown and Near(frames[1].at.y, -200) and Near(frames[1].alpha, 1) and plate.shown == false)
         ns.Display.Update(born + 3.825)
         Check("notice: fades out over its own 4 s life (alpha 0.5 at 3.825 s)", frames[4].shown and Near(frames[4].alpha, 0.5))
         ns.Display.Update(born + 4)
         Check("notice: released at 4 s", not frames[1].shown and not frames[4].shown)
+
+        -- Popups are pooled: row 1's frame comes back for a plate hit and must centre on the plate as before.
+        local plate2 = T.Plate("nameplate2")
+        ns.Display.Plate(plate2, "tex", 1000, "", 36)
+        local reused = frames[1]
+        Check("notice: a notice's frame reused for a plate centres again (text CENTER 12.5 right of the popup)",
+            #frames == 5 and reused.shown and reused.at.anchor == plate2 and reused.at.point == "BOTTOM"
+            and reused.textAt.point == "CENTER" and reused.textAt.anchor == reused and reused.textAt.x == 12.5)
+        ns.Display.Update(born + 6)
 
         S.now = born + 10
         for i = 1, 4 do ns.Display.Notice("tex", "old " .. i, i) end

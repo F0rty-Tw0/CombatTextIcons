@@ -3,13 +3,14 @@
 -- order (learned ticks, learned fingerprints, learned procs, tick votes, fingerprint
 -- candidates, proc candidates; the Spells.lua table is left out). When the Teacher's outcome
 -- for that fight is final (Teacher.OnRead) the state is taken again and what moved shows as
--- fight-end popups (Display.Notice), at most Display.MAX_NOTICES, in priority order: the
--- area result of the first solo read since login (always) or a later area change, "learned!",
--- "dropped", "learning n/m". More changes than rows fold the rest into "+K more". A skipped
--- read or a group fight shows nothing. A fight that starts before the previous read is
--- done takes a new snapshot; that earlier fight's changes are lost. A fight that starts while
--- a read is still judged (Teacher's sliced reads) pauses it: that read then shows what it
--- changed after the new snapshot, and the new fight's own read shows nothing.
+-- fight-end popups (Display.Notice), at most Display.MAX_NOTICES rows at the top of the screen
+-- with their icons in one column, in priority order from the top: the area result of the first
+-- solo read since login (always) or a later area change, "learned!", "dropped", "learning n/m".
+-- More changes than rows fold the rest into "+K more". A skipped read or a group fight shows
+-- nothing. A fight that starts before the previous read is done takes a new snapshot; that
+-- earlier fight's changes are lost. A fight that starts while a read is still judged (Teacher's
+-- sliced reads) pauses it: that read then shows what it changed after the new snapshot, and the
+-- new fight's own read shows nothing.
 --
 -- /cti progress on|off sets CombatTextIconsDB.showProgress (nil = on). Off ignores fight
 -- starts and reads; turning it off also drops a snapshot taken.

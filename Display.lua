@@ -2,8 +2,9 @@
 -- Enemy hits rise from above the enemy's nameplate; heals and damage taken
 -- stack in a column under the player, newest on top, older ones pushed down. Amounts may be secret values:
 -- those go straight into SetText/SetFormattedText, never into Lua math. Fight-end notices
--- (Progress.lua) are a batch of up to MAX_NOTICES still rows above the player column, living
--- NOTICE_LIFE seconds; each popup carries its own life.
+-- (Progress.lua) are a batch of up to MAX_NOTICES still rows at the top of the screen, row 1 on
+-- top, icons in one column and text left-justified beside them, the block centred on its widest
+-- row; they live NOTICE_LIFE seconds; each popup carries its own life.
 --
 -- Motion is driven from one OnUpdate (SetPoint/SetAlpha/SetScale) rather than
 -- AnimationGroups: a Translation animation on these WorldFrame popups drew the
@@ -39,6 +40,9 @@ local MAX_VISIBLE = 40
 local MAX_PER_PLATE = 3  -- a plate's oldest popup is recycled beyond this
 local MAX_COLUMN = 6     -- player column rows; older rows are released
 local MAX_NOTICES = 4    -- fight-end notice rows
+-- Notice row 1's centre, below the screen's top: clear of UIErrorsFrame ("Not enough rage", TOP -122, 60 tall) at
+-- any UI scale. Raid warnings may share the spot, but notices only follow solo fights.
+local NOTICE_Y = -200
 -- Above the nameplates, below most of the UI. The strata of Blizzard's
 -- nameplate frames could not be confirmed offline; LOW would do if they are
 -- BACKGROUND (in game: /run print(NamePlate1:GetFrameStrata())).
@@ -48,6 +52,7 @@ Display.MAX_NOTICES = MAX_NOTICES -- Progress shows at most this many notices
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
+local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
 local SCHOOL_COLORS = {
     [1] = { 1, 1, 0.6 },        -- physical: white-yellow
@@ -113,7 +118,8 @@ local function NewPopup()
     popup:SetFrameStrata(STRATA)
     popup.text = popup:CreateFontString(nil, "OVERLAY")
     -- the icon hangs off the text's left, so icon and text centre on the popup together without measuring the text
-    -- (a secret amount's width cannot be read); Acquire centres the text alone when there is no icon
+    -- (a secret amount's width cannot be read); Acquire centres the text alone when there is no icon, and
+    -- re-anchors it on every use because a notice pins it to the popup's left
     popup.icon = popup:CreateTexture(nil, "ARTWORK")
     popup.icon:SetSize(ICON_SIZE, ICON_SIZE)
     popup.icon:SetPoint("RIGHT", popup.text, "LEFT", -ICON_GAP, 0)
@@ -229,14 +235,30 @@ function Display.Player(kind, texture, text, flagText)
 end
 
 -- Fight-end notice row `i` (1 = highest priority, at the top): `text` is a plain string. i = 1
--- starts a new batch and releases the previous notices.
+-- starts a new batch and releases the previous notices. The popup's square holds the icon and the
+-- text starts right of it, so every row's icon shares one x; the batch is re-centred on its widest
+-- text each time a row joins. The text is plain, but a pooled font string that held a secret amount
+-- may still answer with a secret width; a width that cannot be read counts as 0.
 function Display.Notice(texture, text, i)
     if i == 1 then
         while notices[1] do Release(notices[1]) end
     end
-    local popup = Acquire(texture, text, nil, WHITE, nil, UIParent, "CENTER", "CENTER", 0,
-        PLAYER_Y + (MAX_NOTICES + 2 - i) * ROW, 0, NOTICE_LIFE)
+    local popup = Acquire(texture, text, nil, WHITE, nil, UIParent, "LEFT", "TOP", 0,
+        NOTICE_Y - (i - 1) * ROW, 0, NOTICE_LIFE)
+    popup.text:ClearAllPoints()
+    popup.text:SetPoint("LEFT", popup, "LEFT", ICON_SIZE + ICON_GAP, 0)
     notices[#notices + 1] = popup
+    local widest = 0
+    for _, entry in ipairs(notices) do
+        local width = entry.text:GetStringWidth()
+        if IsNumber(width) then widest = math.max(widest, width) end
+    end
+    local now = GetTime()
+    for _, entry in ipairs(notices) do
+        entry.x = -(ICON_SIZE + ICON_GAP + widest) / 2
+        entry:ClearAllPoints()
+        Place(entry, now - entry.born)
+    end
 end
 
 -- The plate's unit is gone; its popups go with it.
