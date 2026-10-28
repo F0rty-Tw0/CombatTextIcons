@@ -315,10 +315,11 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if voted and solo and ProcWound(plate, school, amount, flagText) then return end
     local named = spellID and spellID ~= Tracker.UNKNOWN
     local kind, record, late, claimed
+    local crowded = Teacher.fight and Teacher.fight.crowded -- a crowded fight claims only CrowdFits hits (Casts.Claim)
     if named and Learn.Get(spellID) then
         -- A learned DoT's answer is votes; a learned cast fingerprint that fits the hit in its window is exact
         -- (Lightning Bolt hits drawn as a mislearned Lava Burst DoT): the cast wins. The one Claim serves both.
-        kind, record, late = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText))
+        kind, record, late = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText), crowded)
         claimed = true
         if kind == "learned" and not late and fightsYou and record.spellID ~= spellID then named = false end
     end
@@ -329,7 +330,9 @@ local function Wound(plate, unit, flagText, amount, school, now)
         Ledger.Add("damage", spellID, amount)
         return Display.Plate(plate, SpellTexture(spellID), text, flagText, school)
     end
-    if not claimed then kind, record = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText)) end
+    if not claimed then
+        kind, record = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText), crowded)
+    end
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
         Casts.Accept(record, plate, now)

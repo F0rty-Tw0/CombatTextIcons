@@ -559,6 +559,33 @@ do -- Phase 3: records and Claim
         ns.Core.UNIT_COMBAT("nameplate1", "WOUND", "CRITICAL", 60000, 32)
         return drawn == "tex:8092"
     end)
+    -- lock3 fight 3: an open-world boss in a crowd; strangers' Shadow hits filled Shadow Bolt's padded band and its
+    -- 4 casts drew 118730 against a row of 76384. A crowded fight claims only hits in the learned window and within
+    -- SIZE_GUARD of the learned sizes (18000-25000: 15300-29411 here).
+    Scenario("crowd: a crowded fight's cast draws only hits in the learned window and near the learned sizes", function()
+        local function Hits(crowded, hits)
+            local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+            local S = T.State()
+            MindBlast(ns)
+            ns.Teacher.Start(29)
+            ns.Teacher.fight.crowded = crowded
+            local drawn = {}
+            ns.Display.Plate = function(_, texture) drawn[#drawn + 1] = texture end
+            S.now, S.target = 30, "nameplate1"
+            ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 8092)
+            for _, hit in ipairs(hits) do
+                S.now = hit[1]
+                ns.Core.UNIT_COMBAT("nameplate1", "WOUND", hit[3] or "", hit[2], 32)
+            end
+            return drawn[#drawn]
+        end
+        local MB = "tex:8092"
+        return Hits(false, { { 30.2, 45000 } }) == MB and Hits(true, { { 30.2, 45000 } }) ~= MB
+            and Hits(false, { { 30.2, 90000, "CRITICAL" } }) == MB and Hits(true, { { 30.2, 90000, "CRITICAL" } }) ~= MB
+            and Hits(true, { { 30.2, 45000 }, { 30.21, 21000 } }) == MB
+            and Hits(true, { { 30.2, 50000, "CRITICAL" } }) == MB
+            and Hits(false, { { 30.4, 21000 } }) == MB and Hits(true, { { 30.4, 21000 } }) ~= MB
+    end)
 
     -- Run 134732Z: Mind Blast cast at nameplate4, the target moved on to the next mob before the cast
     -- finished, the killing hit landed on nameplate4 -> '?'. The cast's plate is the target at its start.

@@ -6,7 +6,7 @@
 -- the icon) and `base` (Casts.Base, for fingerprints and the teacher).
 
 local ADDON, ns = ...
-local Learn, Tracker, Fingerprints, Procs = ns.Learn, ns.Tracker, ns.Fingerprints, ns.Procs
+local Learn, Tracker, Fingerprints, Procs, Streams = ns.Learn, ns.Tracker, ns.Fingerprints, ns.Procs, ns.Streams
 
 local Casts = {}
 ns.Casts = Casts
@@ -306,6 +306,18 @@ local function Sure(record, now, size)
     return low ~= nil and age >= low - SLACK and age <= high + SLACK and InLearnedSizes(record, size)
 end
 
+-- Whether a hit at `now` of normal-scale `size` fits `record` in a crowd: inside the learned window (no centre) and
+-- within Streams.SIZE_GUARD of the learned sizes (two hits of a kind), not the padded band. A fight's sizes drift a
+-- little (lock3 fight 3: Shadow Bite learned at 2975-3123 hit 2774-3315).
+local function CrowdFits(record, now, size)
+    local low, high = Fingerprints.Window(record.base, record.spellID)
+    local small, big = Fingerprints.Band(record.base, record.spellID)
+    local age, guard = now - record.at, 1 - Streams.SIZE_GUARD
+
+    return low ~= nil and small ~= nil and IsNumber(size) and age >= low - SLACK and age <= high + SLACK
+        and size >= guard * small and size * guard <= big
+end
+
 -- Whose hit is this? "learned", record: the open records that fit (InBand, then Fits) are all
 -- casts of one spell (the oldest answers; Void Blast can fire twice in one frame) and no
 -- unlearned cast is on the plate. Records that fit late answer only when none fits in its window. "ambiguous": records of two spells fit, or an unlearned cast is on the plate (spec 6.1
@@ -313,13 +325,17 @@ end
 -- says that cast cannot have made it (Harmless). nil: nothing to say. `size` is the
 -- hit's normal-scale size (Streams.NormalAmount), nil when unknown. A "learned" answer's third value is true when
 -- the record fit only late. Draws nothing; Accept is the only writer of hops.
-function Casts.Claim(plate, school, now, size)
+-- When `strict` (Core: the fight turned crowded), a record fits only a hit it CrowdFits: strangers' hits of its school
+-- land in every padded window (lock3 fight 3: 4 Shadow Bolt casts drew 118730 against a row of 76384; three of the
+-- four drawn hits lay outside the learned sizes, two of them crits of twice the biggest).
+function Casts.Claim(plate, school, now, size, strict)
     if not (Plain(plate) and Plain(school) and Plain(now)) then return nil end
     local found, fits, late, lateFits = nil, 0, nil, 0
     for _, record in ipairs(records) do
         Settle(record, now)
         local fp = Live(record, now)
         local fit = fp and Casts.InBand(record.base, record.spellID, size) and Fits(record, fp, plate, school, now, size)
+        if strict and not (fit == "in" and CrowdFits(record, now, size)) then fit = false end
         if fp then Watch(record, fp, plate, school, now, size) end
         if fit == "in" then
             found, fits = Count(found, fits, record)
