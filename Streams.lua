@@ -25,6 +25,7 @@ local LOOSE_AGE = 2 * PERIOD_MAX       -- a loose hit older than this can no lon
 local STREAMS_MAX = 6                  -- live streams per key
 local DEATH = 2.5                      -- a stream dies this many periods after its last hit
 local STEP_MAX = 1.5                   -- a buff steps a running stream's size by at most this factor (see Start)
+local RAMP_STEP, RAMP_SHARE = 1.6, 0.2 -- RampStart: a ramp tick's step, and its fit within max(SLACK_MIN, 0.2 * period)
 local SIZE_GUARD = 0.15                -- two hits pair only within this share of each other's size
 local CAST_LOG = 35                    -- seconds a logged cast is kept
 local WINDOW_FROM, WINDOW_TO = 1.2, 0.5 -- birth window: [birth - 1.2 P, birth - 0.5 P]
@@ -336,6 +337,47 @@ local function Start(entry, school, birth, period, amount)
     return #lead >= 2 and at or birth, lead
 end
 
+-- Where a ramping DoT's birth at `birth` really starts, for its owners alone; `birth` when there is no ramp.
+-- A DoT that ramps steps up on every tick: run lock3 F2, Agony 980 went 1353 -> 1803 -> 2706 -> 3247 -> 3787 -> 4328
+-- (x1.14 to x1.50) with one gap 0.25 s off its 1.38 s period, and its stream was born only on the flat 4328s.
+-- So the walk compares each tick with the newer tick it walked from (the birth's first hit to start): it agrees with
+-- it, or sits a buff's step (x1 to x1.6) below it; a crit on its normal scale (over CRIT_MID). Sizes never step up
+-- walking back. A walk that ends on a hit more than a step below its last tick may stop mid-ramp: run lock2 F1, Agony
+-- 1503 -> 2705 (x1.8) left the start on 2705, whose window held Haunt and Darkglare. Then the birth keeps its own
+-- window. The walked ticks stay loose and out of the record: noted, Agony's ramp on run lock2 changed the stream
+-- groups, and the rhythm proc that teaches Agony there (F3, band 3006-4329) never formed.
+local function RampStart(entry, school, birth, period, amount)
+    local slack, hits = math.max(SLACK_MIN, RAMP_SHARE * period), entry.loose[school] or {}
+    local newer = amount
+    -- newer over the hit's normal-scale size, nil when either is missing.
+    local function Ratio(hit)
+        if not hit.amount or hit.amount <= 0 or not newer then return nil end
+
+        return newer / (hit.crit and hit.amount / CRIT_MID or hit.amount)
+    end
+    local function Step(hit)
+        local ratio = Ratio(hit)
+        if not ratio then return false end
+
+        return Agree(hit.amount, hit.crit, newer, false) or ratio > 1 and ratio <= RAMP_STEP
+    end
+    local at, walked, cut = birth, 0, false
+    while true do
+        local found
+        cut = false
+        for _, hit in ipairs(hits) do
+            local err = math.abs(at - period - hit.at)
+            if err <= slack and Step(hit) and (not found or err < math.abs(at - period - found.at)) then found = hit end
+            if err <= slack and (Ratio(hit) or 0) > RAMP_STEP then cut = true end
+        end
+        if not found then break end
+        at, walked = found.at, walked + 1
+        if not found.crit then newer = found.amount end
+    end
+
+    return walked >= 2 and not cut and at or birth
+end
+
 -- Drops the stream with the oldest last hit while the key holds too many.
 local function CapStreams(entry)
     while #entry.streams > STREAMS_MAX do
@@ -380,7 +422,10 @@ function Streams.Feed(key, school, amount, flagText, kind, now, shouldRecord)
         local period = (now - a.at) / 3
         local amount = BirthAmount({ a, b, c, hit })
         local start, lead = a.at, {}
-        if not heal then start, lead = Start(entry, school, a.at, period, amount) end
+        if not heal then
+            start, lead = Start(entry, school, a.at, period, amount)
+            start = math.min(start, RampStart(entry, school, a.at, period, BirthAmount({ a })))
+        end
         local owners, ownerKind, ownerAt
         if not heal then owners, ownerKind, ownerAt = ChannelOwners(entry, a.at, now) end
         if not owners then owners, ownerKind, ownerAt = Owners(entry, start, period, heal) end

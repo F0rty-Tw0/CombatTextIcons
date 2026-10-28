@@ -339,6 +339,17 @@ return function(T)
             .. " of their first tick (Wither 445468, not Haunt 48181)", Stepped("w1", 1451, 3) == "445468")
         Check("owners: one loose tick, or ticks more than x1.5 apart (900 -> 1753), leave the birth window's owners",
             Stepped("w2", 1451, 1) == "48181" and Stepped("w3", 900, 3) == "48181")
+        -- Run lock3 F2: Agony 980 ramped x1.14 to x1.50 a tick (1353 -> 4328) and was born only on its flat ticks.
+        local fight = Streams.NewFight()
+        Streams.LogCast("r1", 980, "dot", 100); Streams.LogCast("r1", 48181, "dot", 108.5)
+        for n, size in ipairs({ 1000, 1400, 1960, 2744 }) do
+            Streams.Feed("r1", 32, size, "", "enemy", 100 + 2 * n, true)
+        end
+        local ramped
+        for _, t in ipairs({ 110, 112, 114, 116 }) do ramped = Streams.Feed("r1", 32, 3842, "", "enemy", t, true) end
+        Check("owners: a birth on a ramp's flat ticks (x1.4 a tick, 1000 -> 3842) takes the owners of the ramp's first"
+            .. " tick (980, not 48181); of the ramp only the step-sized lead tick 2744 joins its record (n 5)",
+            ramped and table.concat(ramped.owners, ",") == "980" and fight[ramped] and fight[ramped].n == 5)
         -- Void Torrent 263165: 3 s channel, first tick in its cast frame (run shadow-steady: 0 / 0.87 / 1.77 / 2.63)
         local function Torrent(key, stop)
             Streams.LogCast(key, 9007, "dot", 9.2) -- inside [10 - 1.08, 10 - 0.45]
