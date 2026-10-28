@@ -682,6 +682,47 @@ do -- Phase 3: records and Claim
             and Last({ first, crit2 }, 1.5) ~= EQ and Last({ first, crit2 }) == EQ
             and Last({ { 31, 19500, "nameplate2", "CRITICAL" } }, 1.5) ~= EQ
     end)
+    -- shaman5 fight 5: Earthquake casts at 200336.478 and 200337.567 ticked in frames 0.12-0.18 s apart; the older
+    -- cast's tick at 200338.389 landed in the younger's first-tick window and took it, later its tick at
+    -- 200340.394 stepped the younger again, so the younger's own ticks (200338.568, 200339.519, 200340.508, 200341.528) stayed '?'.
+    -- Learned here: first tick 1.0 s, period 1.0, 6 ticks. Cast A at 30 ticks at 31, 32, ...; cast B at 32 ticks
+    -- 0.13 s after A's frames. Casts whose ticks share A's frames keep drawing past A's last tick.
+    Scenario("ground: a younger cast's ticks are not taken by an older cast's frames", function()
+        local function Last(hits, second)
+            local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+            local S = T.State()
+            for castAt = 1, 3 do
+                ns.Fingerprints.Add(462620, { school = 8, delay = 1, castAt = castAt, hops = 1, size = 6400,
+                    tick = 0 })
+                ns.Fingerprints.Add(462620, { school = 8, delay = 6, castAt = castAt, hops = 1, size = 6600,
+                    tick = 5 })
+            end
+            local drawn
+            ns.Display.Plate = function(_, texture) drawn = texture end
+            S.now, S.target = 30, nil
+            ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 462620)
+            for _, hit in ipairs(hits) do
+                if hit[1] > second and S.now <= second then
+                    S.now = second
+                    ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c32", 462620)
+                end
+                S.now, drawn = hit[1], nil
+                ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 8)
+            end
+            return drawn
+        end
+        local EQ = "tex:462620"
+        local older = { { 31, 6500, "nameplate2" }, { 32, 6500, "nameplate3" }, { 33, 6500, "nameplate2" } }
+        local first = { table.unpack(older) }
+        first[#first + 1] = { 33.13, 6500, "nameplate4" }
+        local later = { table.unpack(first) }
+        later[#later + 1] = { 34, 6500, "nameplate2" }
+        later[#later + 1] = { 34.13, 6500, "nameplate4" }
+        local shared = { table.unpack(older) }
+        for k = 4, 7 do shared[#shared + 1] = { 30 + k, 6500, "nameplate" .. (2 + k % 3) } end
+        return Last(first, 32) == EQ and Last(later, 32) == EQ and Last(shared, 32) == EQ
+            and Last(shared, 99) ~= EQ
+    end)
 
     -- Run 134732Z: Mind Blast cast at nameplate4, the target moved on to the next mob before the cast
     -- finished, the killing hit landed on nameplate4 -> '?'. The cast's plate is the target at its start.

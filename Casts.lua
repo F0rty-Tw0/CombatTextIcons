@@ -138,9 +138,14 @@ end
 -- last tick seen (within Ground.Slack), on any plate; up to GROUND_SKIP ticks may pass unseen between two, as the
 -- learner's walk allows. Unseen first ticks count from the window's middle.
 local GROUND_SKIP = 2
+-- A younger cast of the spell steps on a tick an older one continues only within this share of the slack off its own
+-- period (Claim): two casts whose lattices share frames both keep stepping; shaman5 fight 5's casts 0.12-0.18 s apart
+-- landed 0.73 of the slack off each other's.
+local GROUND_OWN = 0.5
 
 -- The tick index a hit at `now` lands on for a ground `record`, or nil: its first tick's window, the frame of the last
--- tick seen, or a period (1 to GROUND_SKIP) after it, below the learned ticks.
+-- tick seen, or a period (1 to GROUND_SKIP) after it, below the learned ticks. A tick after the last one seen comes
+-- with how far off its period it lands, as a share of the slack.
 local function GroundTick(record, fp, now)
     local low, high = Fingerprints.Window(record.base, record.spellID)
     if not low then return nil end
@@ -150,8 +155,8 @@ local function GroundTick(record, fp, now)
     if record.tickAt and now == record.tickAt then return record.tick end
     local anchorAt, anchorK = record.tickAt or record.at + (low + high) / 2, record.tick or 0
     local k = anchorK + math.floor((now - anchorAt) / fp.period + 0.5)
-    local onTime = math.abs(now - anchorAt - (k - anchorK) * fp.period) <= slack
-    if k > anchorK and k - anchorK <= GROUND_SKIP and k < fp.ticks and onTime then return k end
+    local off = math.abs(now - anchorAt - (k - anchorK) * fp.period) / slack
+    if k > anchorK and k - anchorK <= GROUND_SKIP and k < fp.ticks and off <= 1 then return k, off end
 end
 
 -- The fingerprint (its base's) a record still waits on, or nil when the record is dead: its
@@ -449,6 +454,7 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
     if not (Plain(plate) and Plain(school) and Plain(now)) then return nil end
     local found, fits, late, lateFits = nil, 0, nil, 0
     local crit = Plain(flagText) and flagText == "CRITICAL"
+    local continued = {} -- ground bases an older record of took this hit as a tick after one seen (oldest first)
     for _, record in ipairs(records) do
         Settle(record, now)
         local fp = Live(record, now)
@@ -458,9 +464,19 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
         local crowdFit = ground and NearSizes(record, GroundSize(fp, size, crit))
             or not ground and CrowdFits(record, now, size)
         if strict and not (fit == "in" and crowdFit) then fit = false end
-        if fit and ground then
+        local tick, off
+        if fit and ground then tick, off = GroundTick(record, fp, now) end
+        local stray = not record.tickAt and tick == 0 or record.tickAt and off ~= nil and off > GROUND_OWN
+        if stray and continued[record.base] then
+            -- a hit that continues an older cast's ticks starts no younger cast's first tick, nor steps a younger one
+            -- that lands off its own period: shaman5 fight 5's Earthquake cast at 200337.567 took the older casts'
+            -- tick at 200338.389 as its first, and later the one at 200340.394 (0.11 s early on its own), so its own
+            -- ticks 0.12-0.18 s later (200338.568, 200339.519, 200340.508, 200341.528) fit no record
+            fit = false
+        elseif fit and ground then
             -- every ground record a hit fits steps to its tick, whichever record draws it
-            record.tick, record.tickAt = GroundTick(record, fp, now), now
+            if record.tickAt then continued[record.base] = true end
+            record.tick, record.tickAt = tick, now
         elseif fp then
             Watch(record, fp, plate, school, now, size)
         end
