@@ -395,8 +395,28 @@ local function Bounds(sum, open, rewritten, owned, unseen)
     return positions
 end
 
--- Each walked cast leaves two samples: its first tick (tick 0, the smallest normal size its ticks took) and its last
--- (its tick index, the biggest), so the kept samples hold the delay window, the period, the ticks and the band.
+-- A walk's crit scale: each crit's size over the median normal size Near the band in its tick's frame, the median;
+-- nil when no frame held both. Shaman5 F1: Earthquake's crits were ~3x its normals (~19.5K beside 6.2-7.3K; scale
+-- 1.55), past Streams.CRIT_HI, so no halved crit was Near and only a frame's normal anchored a tick (Casts.lua).
+local function CritScale(walk, pattern)
+    local scales = {}
+    for _, tick in ipairs(walk.ticks) do
+        local normals = {}
+        for _, hit in ipairs(tick.frame.hits) do
+            if hit.crit ~= true and Near(pattern.low, pattern.high, hit.size) then normals[#normals + 1] = hit.size end
+        end
+        local normal = Median(normals)
+        for _, hit in ipairs(tick.frame.hits) do
+            if normal and hit.crit == true then scales[#scales + 1] = hit.size / normal end
+        end
+    end
+
+    return Median(scales)
+end
+
+-- Each walked cast leaves two samples: its first tick (tick 0, the smallest normal size its ticks took, its crit
+-- scale) and its last (its tick index, the biggest), so the kept samples hold the delay window, the period, the ticks,
+-- the band and the crits' scale.
 local function Teach(castID, castSpell, pattern)
     for _, walk in ipairs(pattern.walks) do
         local first, last = walk.ticks[1], walk.ticks[#walk.ticks]
@@ -411,7 +431,7 @@ local function Teach(castID, castSpell, pattern)
             end
             local castAt = walk.castAt
             Fingerprints.Add(castID, { school = pattern.school, delay = first.frame.at - castAt, castAt = castAt,
-                hops = 1, spell = castSpell, size = small, tick = 0 })
+                hops = 1, spell = castSpell, size = small, tick = 0, crit = CritScale(walk, pattern) })
             Fingerprints.Add(castID, { school = pattern.school, delay = last.frame.at - castAt, castAt = castAt,
                 hops = 1, spell = castSpell, size = big, tick = last.k })
         end

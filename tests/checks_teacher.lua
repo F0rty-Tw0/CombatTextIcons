@@ -2346,7 +2346,8 @@ return function(T)
         -- aims at the floor; a target ticked like this would learn the spell as its DoT first).
         local EARTHQUAKE, QUAKE_ROW, OTHER_ROW = 462620, 77478, 188443
         local SIZES = { nameplate1 = 6400, nameplate2 = 6500, nameplate3 = 6600 }
-        -- `crits`: the ticks k (0-5) whose every hit crits (x2, flagged); `half`: a like frame 0.5 s after tick 0.
+        -- `crits`: the ticks k (0-5) whose every hit crits (x2, flagged), or (3) whose nameplate1 hit alone crits x3;
+        -- `half`: a like frame 0.5 s after tick 0.
         local function QuakeFight(rig, casts, rows, before, crits, half)
             local S, Core = rig.S, rig.ns.Core
             SlashCmdList.COMBATTEXTICONS("debug")
@@ -2357,7 +2358,9 @@ return function(T)
                 rig.Cast(t, nil, EARTHQUAKE)
                 for k = 0, 5 do
                     for _, unit in ipairs({ "nameplate1", "nameplate2", "nameplate3" }) do
-                        if crits and crits[k] then
+                        if crits and crits[k] == 3 and unit == "nameplate1" then
+                            rig.Hit(t + 1 + k, unit, 3 * SIZES[unit], 8, "CRITICAL")
+                        elseif crits and crits[k] == true then
                             rig.Hit(t + 1 + k, unit, 2 * SIZES[unit], 8, "CRITICAL")
                         else
                             rig.Hit(t + 1 + k, unit, SIZES[unit], 8)
@@ -2430,7 +2433,15 @@ return function(T)
         entry = rig.ns.Fingerprints.Get(EARTHQUAKE)
         Check("ground (e): crit-only tick frames after a seen first tick keep the walk -> learned, 6 ticks",
             Outcome() == "learned" and entry ~= nil and entry.ticks == 6
-            and rig.ns.Fingerprints.Alias(QUAKE_ROW) == EARTHQUAKE)
+            and rig.ns.Fingerprints.Alias(QUAKE_ROW) == EARTHQUAKE and entry.crit == nil)
+
+        -- Shaman5 F1: Earthquake's crits were ~3x its normals (~19.5K beside 6.2-7.3K). Here nameplate1 crits x3 on
+        -- tick 1 of every cast (19200, halved 9600) beside 6500-6600 normals: crit scale 9600 / 6500.
+        rig = Rig({})
+        QuakeFight(rig, CASTS, { Row(QUAKE_ROW, 650000) }, nil, { [1] = 3 })
+        entry = rig.ns.Fingerprints.Get(EARTHQUAKE)
+        Check("ground (g): a crit x3 beside normal ticks in its frame -> learned with crit scale 9600 / 6500",
+            Outcome() == "learned" and entry ~= nil and entry.crit ~= nil and math.abs(entry.crit - 9600 / 6500) < 1e-6)
 
         -- A like-sized frame on the 3 plates half a period after each first tick ties the period search at 0.5 s
         -- (its ties go to the shorter gap); the walks then step two slots at a time. The frames (4 x 19500) are a

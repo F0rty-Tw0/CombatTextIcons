@@ -268,6 +268,15 @@ local function NearSizes(record, size)
     return small ~= nil and IsNumber(size) and size >= guard * small and size * guard <= big
 end
 
+-- A ground hit's size on its normal ticks' scale: a crit's normal-scale size over the learned crit scale (Ground.lua).
+-- Shaman5 fight 3: Earthquake's crits (23.5-25.9K) were ~3x its normals, so no halved crit lay near the learned sizes;
+-- a crit that came first in its tick's frame (200330.735, 200337.391, 200345.940) stayed '?'.
+local function GroundSize(fp, size, crit)
+    if crit and fp.crit and IsNumber(size) then return size / fp.crit end
+
+    return size
+end
+
 -- Whether normal-scale `size` (nil or 0: any) is no smaller than the learned sizes of the record's cast spell: a
 -- chain's hop in a later frame than its last hit. Run shaman5 fight 3: Earthquake's 8.1-8.9K ticks landed on other
 -- plates 0.02-0.04 s after a Chain Lightning hop (learned 10.6-22.2K, padded down to 7.4K), so both fit and the ticks
@@ -317,11 +326,12 @@ local function Fits(record, fp, plate, school, now, size, crit)
     if school ~= fp.school then return false end
     if fp.pattern == "ground" then
         -- a tick is anchored only by a normal hit near the learned sizes (Ground's Near: a halved crit of another
-        -- spell passes for one), or by a crit near them on a tick after one seen (Ground.lua's Walk); the padded
-        -- band draws the rest of its frame
+        -- spell passes for one), or by a crit near them on its learned scale (GroundSize) on a tick after one seen
+        -- (Ground.lua's Walk); the padded band draws the rest of its frame
         local tick = GroundTick(record, fp, now)
         local lattice = record.tickAt ~= nil and tick ~= nil and tick > record.tick
-        local anchors = tick ~= nil and (now == record.tickAt or (not crit or lattice) and NearSizes(record, size))
+        local near = NearSizes(record, GroundSize(fp, size, crit))
+        local anchors = tick ~= nil and (now == record.tickAt or (not crit or lattice) and near)
 
         return anchors and "in"
     end
@@ -449,7 +459,8 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
         local inBand = fp and Casts.InBand(record.base, record.spellID, size)
         local fit = inBand and Fits(record, fp, plate, school, now, size, crit)
         local ground = fp and fp.pattern == "ground"
-        local crowdFit = ground and NearSizes(record, size) or not ground and CrowdFits(record, now, size)
+        local crowdFit = ground and NearSizes(record, GroundSize(fp, size, crit))
+            or not ground and CrowdFits(record, now, size)
         if strict and not (fit == "in" and crowdFit) then fit = false end
         if fit and ground then
             -- every ground record a hit fits steps to its tick, whichever record draws it

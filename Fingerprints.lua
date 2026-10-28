@@ -8,7 +8,8 @@
 -- size (crits divided by CRIT_FACTOR); a claim needs a hit inside the padded band (Casts.lua).
 -- `castAliases` maps a meter row ID to the cast ID (Auto Shot 75 -> Shoot 5019). A ground spell's samples
 -- (Ground.lua) carry `tick`: 0 for its first tick, whose delays alone give the window, k for its kth tick after that;
--- they make the pattern "ground" with a `period` and `ticks` (Casts.lua walks them). A stack spell's samples
+-- they make the pattern "ground" with a `period` and `ticks` (Casts.lua walks them); a first tick's sample may carry
+-- `crit`, its walk's crits' size over its normal ticks' (the median is the entry's `crit`). A stack spell's samples
 -- (Stack.lua) carry its `period` and a stack's `life` (tick 0: a cast that started a series, whose delays give the
 -- window; tick 1: the others); they make the pattern "stack" with the medians.
 -- Saved data is checked on load and never trusted.
@@ -81,6 +82,11 @@ local function Refresh(entry)
     end
     entry.period, entry.ticks = Ground(entry)
     if entry.period and entry.period > 0 then entry.pattern = "ground" end
+    local crits = {}
+    for _, sample in ipairs(entry.samples) do
+        if sample.crit then crits[#crits + 1] = sample.crit end
+    end
+    entry.crit = #crits > 0 and Median(crits) or nil
     local periods, lives = {}, {}
     for _, sample in ipairs(entry.samples) do
         if sample.period and sample.life then
@@ -161,7 +167,7 @@ function Fingerprints.Add(spellID, sample)
     local spell = IsNumber(sample.spell) and sample.spell or nil
     local kept = { school = school, delay = delay, castAt = castAt, hops = hops, spell = spell,
         size = HitSize(sample.size), tick = Tick(sample.tick), period = Positive(sample.period),
-        life = Positive(sample.life) }
+        life = Positive(sample.life), crit = Positive(sample.crit) }
     entry.samples[#entry.samples + 1] = kept
     if #entry.samples > SAMPLES then table.remove(entry.samples, 1) end
     entry.lastSeen = castAt
@@ -322,7 +328,7 @@ local function KeepSamples(list)
             local size = type(sample.size) == "number" and sample.size > 0 and sample.size or nil
             kept[#kept + 1] = { school = sample.school, delay = sample.delay, castAt = sample.castAt, hops = hops,
                 spell = spell, size = size, tick = Tick(sample.tick), period = Positive(sample.period),
-                life = Positive(sample.life) }
+                life = Positive(sample.life), crit = Positive(sample.crit) }
         end
     end
     while #kept > SAMPLES do table.remove(kept, 1) end

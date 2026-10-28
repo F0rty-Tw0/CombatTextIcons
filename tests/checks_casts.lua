@@ -652,6 +652,36 @@ do -- Phase 3: records and Claim
                 and Last({ first, { 34, 6500, "nameplate3" } }) ~= EQ
                 and Last({ table.unpack(ticks, 1, 6) }) == EQ and Last(ticks) ~= EQ
         end)
+    -- shaman5 fight 3: Earthquake's crits (23.5-25.9K) were ~3x its normals (7.7-9.3K); one that came first in its
+    -- tick's frame (200330.735 25531, normals 8.1-8.5K after it) stayed '?', as no halved crit lay near the sizes.
+    -- Learned here with crit scale 1.5 (a 19500 crit over 6500 normals, halved): such a crit anchors a tick after one
+    -- seen; a 2x crit (13000) no longer does, and none anchors a first tick.
+    Scenario("ground: a crit on its learned scale anchors a tick after one seen, never a first tick", function()
+        local function Last(hits, scale)
+            local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+            local S = T.State()
+            for castAt = 1, 3 do
+                ns.Fingerprints.Add(462620, { school = 8, delay = 1, castAt = castAt, hops = 1, size = 6400,
+                    tick = 0, crit = scale })
+                ns.Fingerprints.Add(462620, { school = 8, delay = 6, castAt = castAt, hops = 1, size = 6600,
+                    tick = 5 })
+            end
+            local drawn
+            ns.Display.Plate = function(_, texture) drawn = texture end
+            S.now, S.target = 30, nil
+            ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 462620)
+            for _, hit in ipairs(hits) do
+                S.now, drawn = hit[1], nil
+                ns.Core.UNIT_COMBAT(hit[3], "WOUND", hit[4] or "", hit[2], 8)
+            end
+            return drawn
+        end
+        local EQ, first = "tex:462620", { 31, 6500, "nameplate2" }
+        local crit3, crit2 = { 32, 19500, "nameplate3", "CRITICAL" }, { 32, 13000, "nameplate3", "CRITICAL" }
+        return Last({ first, crit3 }, 1.5) == EQ and Last({ first, crit3 }) ~= EQ
+            and Last({ first, crit2 }, 1.5) ~= EQ and Last({ first, crit2 }) == EQ
+            and Last({ { 31, 19500, "nameplate2", "CRITICAL" } }, 1.5) ~= EQ
+    end)
 
     -- Run 134732Z: Mind Blast cast at nameplate4, the target moved on to the next mob before the cast
     -- finished, the killing hit landed on nameplate4 -> '?'. The cast's plate is the target at its start.
