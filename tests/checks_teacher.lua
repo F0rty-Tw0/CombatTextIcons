@@ -1304,8 +1304,10 @@ return function(T)
             Fight(rig, 100, true, { Row(WITHER_ROW, 5000) })
             Check("net votes: ... and its next cast and rhythm gets no vote, so nothing is learned",
                 rig.ns.Learn.Get(WITHER) == nil and #rig.ns.Learn.Votes(WITHER).sigs == 0)
-            Fight(rig, 200, false, { Row(WITHER, 5000), Row(WITHER_ROW, 5000) })
-            Fight(rig, 300, true, { Row(WITHER, 5000), Row(WITHER_ROW, 5000) })
+            -- The own row is more than the ticks pay (9000 against 5000), so the teacher's DoT pass leaves it to the
+            -- votes.
+            Fight(rig, 200, false, { Row(WITHER, 9000), Row(WITHER_ROW, 5000) })
+            Fight(rig, 300, true, { Row(WITHER, 9000), Row(WITHER_ROW, 5000) })
             Check("net votes: ... until a read lists the cast's own row, after which its rhythm votes again",
                 #rig.ns.Learn.Votes(WITHER).sigs == 1 and rig.ns.Learn.Votes(WITHER).sigs[1].votes == 1)
 
@@ -2408,6 +2410,61 @@ return function(T)
         QuakeFight(rig, { 10, 20 }, { Row(QUAKE_ROW, 600000) })
         Check("ground (d): 2 casts are under MIN_CASTS -> the pass never tries the spell",
             Outcome() == nil and rig.ns.Fingerprints.Get(EARTHQUAKE) == nil)
+    end
+
+    do -- DoT pass (Teacher.lua): a cast whose ticks run only on plates it never targeted is learned from its own row
+        -- Run lock3 F1: Wither 445468 was cast once and Seed of Corruption spread it to 5 plates; no birth window held
+        -- the cast, so it never voted, and its row (772071) held every school-36 '?' hit (740626). Here one cast on
+        -- nameplate1 and 8 ticks 1.4 s apart on 3 other plates: 3 x 8 x 5000 = 120000 '?' in school 36.
+        local WITHER = 445468
+        local function WitherFight(rig, at, rows)
+            local S, Core = rig.S, rig.ns.Core
+            SlashCmdList.COMBATTEXTICONS("debug")
+            S.now = at - 2
+            Core.PLAYER_REGEN_DISABLED()
+            rig.Cast(at, "nameplate1", WITHER)
+            for k = 0, 7 do
+                for _, unit in ipairs({ "nameplate2", "nameplate3", "nameplate4" }) do
+                    rig.Hit(at + 1.5 + 1.4 * k, unit, 5000, 36)
+                end
+            end
+            S.now = at + 20
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(nextSession, rows) }
+            nextSession = nextSession + 1
+            pcall(rig.Fire)
+            return rig.ns.Teacher.last
+        end
+        local function Outcome()
+            local found
+            for _, line in ipairs(CombatTextIconsDB.debugLog) do
+                found = line:match("TEACH dot " .. WITHER .. " school=36 .* %-> (%S+)") or found
+            end
+            return found
+        end
+
+        local rig = Rig({})
+        local last = WitherFight(rig, 10, { Row(WITHER, 125000) })
+        local entry = rig.ns.Learn.Get(WITHER)
+        Check("dot (a): ticks (120000) only on plates the cast never targeted, own row 125000 -> learned school-36 DoT",
+            Outcome() == "learned" and entry and entry.mode == "target" and entry.school == 36
+            and math.abs(entry.period - 1.4) < 0.05 and Find(last, WITHER).verdict == "under")
+        rig.S.now = 99
+        rig.ns.Core.PLAYER_REGEN_DISABLED()
+        rig.Cast(100, "nameplate1", WITHER)
+        Check("dot (a2): the next cast draws its own tick on the target",
+            rig.Hit(101.4, "nameplate1", 5000, 36) == "tex:" .. WITHER)
+
+        rig = Rig({})
+        WitherFight(rig, 10, { Row(WITHER, 200000) })
+        Check("dot (b): the row (200000) is far over the ticks (120000) -> nothing learned",
+            Outcome() == nil and rig.ns.Learn.Get(WITHER) == nil)
+
+        rig = Rig({})
+        -- Agony 980's row (never cast here, so never free) keeps the fight clear: seen 120000 under meter 150000.
+        WitherFight(rig, 10, { Row(WITHER, 100000), Row(980, 50000) })
+        Check("dot (c): the school's '?' hits (120000) are over the row (100000) -> nothing learned",
+            rig.ns.Teacher.last.area == "clear" and Outcome() == nil and rig.ns.Learn.Get(WITHER) == nil)
     end
 
     do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899

@@ -42,6 +42,9 @@ local READ_DELAY = 1 -- seconds after combat the session is read
 -- lock3 F3: the area was clear, then a world boss had strangers' wounds at 30x the best pace (clear fights peak below
 -- 2.1x), and a learned proc drew 234195 against its row's 15682 before the read could turn the area crowded.
 local CROWD_PACE, CROWD_WAIT = 4, 5
+-- The DoT pass's slack: a stream records no tick before its birth, so a row may run past its school's ticks by the
+-- fight's unseen damage, at most this share of the row. lock3 F1: Wither's streams held 91 % of its row.
+local DOT_FIT = 0.1
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -482,11 +485,108 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
     for groupIndex in pairs(rowsOf) do seen.groups[groupIndex] = true end
 end
 
+-- The DoT pass: a spell cast this fight whose own row stayed open, and one school with tick streams that row
+-- bounds both ways: the school's '?' hits no learned way took sum to at most the row, and the row to at most those
+-- hits and to at most its stream ticks (no rhythm proc's), each plus the fight's unseen damage (meter total - seen)
+-- capped at DOT_FIT of the row. Each must be the only one of the other. The spell is learned as that school's DoT at
+-- the rhythm most of the stream ticks keep (Procs.PeriodNear), its votes set aside.
+-- Run lock3 F1: Wither 445468 was cast once, Seed of Corruption spread it to 5 plates and no birth window held the
+-- cast, so it had no vote; it voted only in F5, after 1.4M of its 2.2M had gone by as '?'. Its row (772071) held
+-- every school-36 '?' hit (740626, 96 %) and its streams (704829, 91 %): 144 ticks at 1.32-1.51 s, 57 at ~1.0 s under
+-- Malevolence 442726. Either sum alone fits rows by chance. Streams: paladin F2 holy 136937 against Judgment 20271's
+-- 139520, holy '?' in the millions; shaman2 F1 fire 572431 against Flame Shock 188389 with 16473 of fire left '?'
+-- (learned at 4.96 s it cost shaman2 3.3 pt). '?' hits: hunter F10 physical 95314 against 466930, streams 23451.
+local function DotPeriod(records)
+    table.sort(records, function(a, b) return a.period < b.period end)
+    local best, most = nil, 0
+    for _, anchor in ipairs(records) do
+        local ticks, weighted = 0, 0
+        for _, rec in ipairs(records) do
+            if Procs.PeriodNear(anchor.period, rec.period) then
+                ticks, weighted = ticks + rec.n, weighted + rec.n * rec.period
+            end
+        end
+        if ticks > most then best, most = weighted / ticks, ticks end
+    end
+
+    return best
+end
+
+local function DotPass(run, rows, open, rewritten, results, learned)
+    local schools, order = {}, {}
+    local function School(id)
+        local school = schools[id]
+        if not school then
+            school = { sum = 0, unknown = 0, records = {} }
+            schools[id], order[#order + 1] = school, id
+        end
+
+        return school
+    end
+    for stream, rec in pairs(run.streams or {}) do
+        if not stream.procID and rec.n > 0 then
+            local school = School(rec.school)
+            school.sum = school.sum + rec.sum
+            school.records[#school.records + 1] = { period = stream.period, n = rec.n }
+        end
+    end
+    local spent = {}
+    for _, way in ipairs(learned) do
+        for _, hit in ipairs(way.hits) do spent[hit] = true end
+    end
+    for _, hit in ipairs(run.unknown) do
+        if not spent[hit] and schools[hit.school] then
+            schools[hit.school].unknown = schools[hit.school].unknown + hit.amount
+        end
+    end
+    table.sort(order)
+    local cast, total = {}, 0
+    for _, item in ipairs(run.casts or {}) do cast[item.spellID], cast[item.base] = true, true end
+    for _, row in ipairs(rows) do total = total + row.total end
+    local unseen = math.max(0, total - run.seen)
+    local function Fits(position, school)
+        local row, id = open[position].row, open[position].row.spellID
+        local free = not rewritten[position] and cast[id] and not ns.Learn.Get(id) and not Procs.Has(id)
+            and not Fingerprints.IsLearned(id) and not Fingerprints.IsAliasTarget(id)
+        local tol = math.max(1, row.total / 100)
+
+        return free and school.unknown <= row.total + row.overkill + tol
+            and row.total <= math.min(school.sum, school.unknown) + math.min(unseen, DOT_FIT * row.total) + tol
+    end
+    local schoolsOf, rowsOf = {}, {}
+    for position in ipairs(open) do
+        for _, id in ipairs(order) do
+            if Fits(position, schools[id]) then
+                schoolsOf[position] = (schoolsOf[position] or 0) + 1
+                rowsOf[id] = (rowsOf[id] or 0) + 1
+            end
+        end
+    end
+    for position, item in ipairs(open) do
+        for _, id in ipairs(order) do
+            local school, row = schools[id], item.row
+            if schoolsOf[position] == 1 and rowsOf[id] == 1 and Fits(position, school) then
+                local period = DotPeriod(school.records) * (1 + (ns.Learn.Haste() or 0) / 100)
+                if ns.Learn.Teach(row.spellID, id, period) then
+                    rewritten[position] = true
+                    results[item.index] = { spellID = row.spellID, meterID = row.spellID, tally = school.sum,
+                        meter = row.total, verdict = "under" }
+                end
+                if ns.Debug then
+                    ns.Debug("TEACH dot %d school=%d streams=%.0f unknown=%.0f period=%.3f -> %s", row.spellID, id,
+                        school.sum, school.unknown, period, rewritten[position] and "learned" or "refused")
+                end
+            end
+        end
+    end
+end
+
 -- Learning from '?' hits (spec 6.5): rewrites the learned rows of `results` against the
 -- session's meter `rows`. Whole sums pair first; a row and a group that no whole sum agreed
 -- with then try `top`; then each cast's largest hit by candidates (CandidateGroups) tries the cast's
--- own row; then the steady pass (Steady.lua) learns from steady hits no sum explained; last, the ground pass
--- (Ground.lua) learns a rowless cast's ticks on many plates, bounded by one open row.
+-- own row; then the steady pass (Steady.lua) learns from steady hits no sum explained; then the ground pass
+-- (Ground.lua) learns a rowless cast's ticks on many plates, bounded by one open row; last, the DoT pass learns a
+-- cast's DoT from its school's streams, bounded by its own open row.
 -- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so
 -- the DoT's draws were other spells' (a stale save's Nature DoT under Lava Burst 51505 drew Surging Totem's ticks).
 -- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
@@ -504,6 +604,7 @@ local function Learn(run, results, open, rows)
         { rows = seen.rows, groups = {} }, results, learned, rewritten)
     for _, way in ipairs(Steady.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(Ground.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    DotPass(run, rows, open, rewritten, results, learned)
     for _, way in ipairs(learned) do
         local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)
         if dot and fp and fp.learned and fp.school ~= dot.school then ns.Learn.Drop(way.castID) end

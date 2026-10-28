@@ -169,6 +169,17 @@ function Learn.Paired(spellID)
     if entry then entry.unpaired = 0 end
 end
 
+-- The teacher's DoT pass (Teacher.lua) learned `spellID` from its meter row: a DoT of `school` at base period `base`.
+-- Its votes give way. False when an argument is not a plain number or the period is no tick rhythm.
+function Learn.Teach(spellID, school, base)
+    if not (IsId(spellID) and IsId(school) and IsId(base)) then return false end
+    if base < PERIOD_MIN or base > PERIOD_MAX then return false end
+    learned[spellID] = { school = school, period = base, kind = "dot", misses = 0, unpaired = 0 }
+    votes[spellID] = nil
+
+    return true
+end
+
 function Learn.Forget()
     for spellID in pairs(learned) do learned[spellID] = nil end
     for spellID in pairs(votes) do votes[spellID] = nil end
