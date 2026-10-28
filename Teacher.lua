@@ -322,10 +322,13 @@ local function Groups(unknown)
     return list
 end
 
--- Groups each unlearned base's '?' hits by school through their candidates (Casts.Candidates), not the sole
+-- Groups each base's '?' hits by school through their candidates (Casts.Candidates), not the sole
 -- cast: a hit whose frame also holds another spell's cast has no sole cast, so its own cast's group misses it
 -- (run lock F1: both Haunt 48181 hits shared a frame with Darkglare or Unstable Affliction, and the two summed
--- to its row exactly). A hit goes to the newest candidate cast of each base; each cast keeps its largest hit.
+-- to its row exactly). A learned base takes only hits of its school in its padded band (Casts.InBand), the hits
+-- it missed: run shaman5 learned Lava Burst 51505 on an AoE pack (~42K at 0.20-0.28 s), then a lone dummy's 69K
+-- hit at 0.12 s met its row and was never learned. A hit goes to the newest candidate cast of each base; each
+-- cast keeps its largest hit.
 -- A group { castID, school, cand = { castID, sum, hits, castOf } } pairs only with the cast's own row (Pairs:
 -- `cand` is no group); `castOf[hit]` is the candidate that hit is learned under. Hits in `spent` are skipped.
 local function CandidateGroups(unknown, spent)
@@ -335,7 +338,9 @@ local function CandidateGroups(unknown, spent)
         for _, candidate in ipairs(not spent[hit] and hit.candidates or {}) do
             local castID = candidate.castID
             local older = newest[castID]
-            if not Fingerprints.IsLearned(castID) and (not older or candidate.castAt > older.castAt) then
+            local fp = Fingerprints.IsLearned(castID) and Fingerprints.Get(castID)
+            local fits = not fp or hit.school == fp.school and ns.Casts.InBand(castID, candidate.castSpell, hit.size)
+            if fits and (not older or candidate.castAt > older.castAt) then
                 newest[castID] = candidate
             end
         end

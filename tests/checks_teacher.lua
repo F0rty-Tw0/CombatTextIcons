@@ -1619,6 +1619,26 @@ return function(T)
                 { 32, 1100, "", nil, 61.2, { Candidate(Z, 60), Candidate(Z, 61) } } }, { { Z, 2100 } })
             Check("candidates: a hit naming two casts of one base counts for the newest only (1000 + 1100 meets 2100, not 1100 twice)",
                 rig.ns.Teacher.last.learned[Z] == 2 and #rig.ns.Fingerprints.Get(Z).samples == 2)
+
+            -- Run shaman5: Lava Burst learned on an AoE pack (~42K at 0.20-0.28 s) missed a lone dummy's 69K hit at 0.12 s
+            -- and its row matched it. Z learned at 0.5 s from 1000-1100: a 1500 hit at 0.1 s alone meets its row.
+            local function Learned(r)
+                for index, size in ipairs({ 1000, 1050, 1100 }) do
+                    r.ns.Fingerprints.Add(Z, { school = 32, delay = 0.5, castAt = index, hops = 1, spell = Z, size = size })
+                end
+            end
+            rig = Rig({})
+            Learned(rig)
+            ReadWith(rig, { { 32, 1500, "", nil, 60.1, { Candidate(Z, 60) } } }, { { Z, 1500 } })
+            last = rig.ns.Teacher.last
+            Check("candidates: a learned base's missed in-band hit meets its own row -> one more sample at 0.1 s",
+                last.learned[Z] == 1 and Find(last, Z).verdict == "agree" and #rig.ns.Fingerprints.Get(Z).samples == 4
+                and math.abs(rig.ns.Fingerprints.Get(Z).samples[4].delay - 0.1) < 1e-9)
+            rig = Rig({})
+            Learned(rig)
+            ReadWith(rig, { { 32, 5000, "", nil, 60.1, { Candidate(Z, 60) } } }, { { Z, 5000 } })
+            Check("candidates: a learned base's hit out of its padded band (5000 over 2 x 1100) learns nothing though its row meets it",
+                rig.ns.Teacher.last.learned[Z] == nil and #rig.ns.Fingerprints.Get(Z).samples == 3)
         end
 
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks
