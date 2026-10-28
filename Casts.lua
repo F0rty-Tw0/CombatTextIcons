@@ -301,9 +301,11 @@ local function Fits(record, fp, plate, school, now, size, crit)
     if school ~= fp.school then return false end
     if fp.pattern == "ground" then
         -- a tick is anchored only by a normal hit near the learned sizes (Ground's Near: a halved crit of another
-        -- spell passes for one); the padded band draws the rest of its frame
+        -- spell passes for one), or by a crit near them on a tick after one seen (Ground.lua's Walk); the padded
+        -- band draws the rest of its frame
         local tick = GroundTick(record, fp, now)
-        local anchors = tick ~= nil and (now == record.tickAt or not crit and NearSizes(record, size))
+        local lattice = record.tickAt ~= nil and tick ~= nil and tick > record.tick
+        local anchors = tick ~= nil and (now == record.tickAt or (not crit or lattice) and NearSizes(record, size))
 
         return anchors and "in"
     end
@@ -413,7 +415,7 @@ end
 -- hit's normal-scale size (Streams.NormalAmount), nil when unknown. A "learned" answer's third value is true when
 -- the record fit only late. Draws nothing; Accept is the only writer of hops. Each hit asked about stays a wound for
 -- QUIET + SPLASH (Splash).
--- `flagText` (the hit's, optional) tells a crit, which never anchors a ground tick (Fits).
+-- `flagText` (the hit's, optional) tells a crit, which anchors no ground tick before one was seen (Fits).
 -- When `strict` (Core: the fight turned crowded), a record fits only a hit it CrowdFits: strangers' hits of its school
 -- land in every padded window (lock3 fight 3: 4 Shadow Bolt casts drew 118730 against a row of 76384; three of the
 -- four drawn hits lay outside the learned sizes, two of them crits of twice the biggest).

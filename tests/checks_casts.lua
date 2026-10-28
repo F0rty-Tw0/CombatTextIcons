@@ -614,8 +614,9 @@ do -- Phase 3: records and Claim
     -- shaman5 fight 1: Earthquake 462620 learned as ground (Ground.lua) ticks on every plate in its patch, first
     -- ~1.02 s after the cast, then every ~0.98 s; three 16.5K crits of another spell on one plate (200335.220, 8.2K
     -- halved) landed in a cast's first-tick window ahead of its real tick. Learned here: first tick 1.0 s, period 1.0,
-    -- 6 ticks.
-    Scenario("ground: a ground cast draws its ticks on any plate, a period apart; a crit never anchors a tick",
+    -- 6 ticks. Once a tick was seen, a crit near the sizes on the next one draws (synthetic Death and Decay: all 4
+    -- plates crit in one frame).
+    Scenario("ground: a ground cast draws its ticks on any plate, a period apart; a crit anchors no first tick",
         function()
             local function Last(hits)
                 local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
@@ -643,6 +644,9 @@ do -- Phase 3: records and Claim
                 and Last({ { 31, 13000, "nameplate2", "CRITICAL" } }) ~= EQ
                 and Last({ first, { 31, 19500, "nameplate3", "CRITICAL" } }) == EQ
                 and Last({ first, { 32, 6500, "nameplate3" } }) == EQ
+                and Last({ first, { 32, 13000, "nameplate3", "CRITICAL" } }) == EQ
+                and Last({ first, { 31.5, 13000, "nameplate3", "CRITICAL" } }) ~= EQ
+                and Last({ first, { 32, 39000, "nameplate3", "CRITICAL" } }) ~= EQ
                 and Last({ first, { 31.5, 6500, "nameplate3" } }) ~= EQ
                 and Last({ first, { 33, 6500, "nameplate3" } }) == EQ
                 and Last({ first, { 34, 6500, "nameplate3" } }) ~= EQ

@@ -104,26 +104,34 @@ local function InBand(frame, low, high)
 end
 
 -- Whether `size` lies within Streams.SIZE_GUARD of the sizes `low`-`high` (Casts' NearSizes): a tick is anchored
--- only by such a normal hit. Shaman5 F3: a 14.4K stream (2 hits on each of 5 plates) in Earthquake's padded band
--- (6.3-7.3K learned) took a cast's first-tick window and then every tick of it at 0.95 s; three 16.5K crits on one
--- plate (200335.220, 8.2K halved: Earthquake's crits are ~3x) took the next cast's first tick from its real one.
+-- only by such a hit, a normal one for the first tick. Shaman5 F3: a 14.4K stream (2 hits on each of 5 plates) in
+-- Earthquake's padded band (6.3-7.3K learned) took a cast's first-tick window and then every tick of it at 0.95 s;
+-- three 16.5K crits on one plate (200335.220, 8.2K halved: Earthquake's crits are ~3x) took the next cast's first
+-- tick from its real one. A later tick is due a period after the last one seen, so a crit Near anchors it too:
+-- synthetic Death and Decay (crits x2) crits on all 4 plates in one frame every few casts, and two such frames in a
+-- row ended the walk (fight D 40K short of the row -> rows=0).
 local function Near(low, high, size)
     local guard = 1 - Streams.SIZE_GUARD
 
     return size >= guard * low and size * guard <= high
 end
 
--- The frames of `school` with a hit in the band, each { at, hits (in band), wide, anchor (a normal hit Near) }, oldest
--- first.
+-- The frames of `school` with a hit in the band, each { at, hits (in band), wide, anchor (a normal hit Near),
+-- critAnchor (a crit Near) }, oldest first.
 local function BandFrames(frames, school, low, high)
     local list = {}
     for _, frame in ipairs(frames) do
         if frame.school == school then
             local hits, plates = InBand(frame, low, high)
-            local anchor = false
-            for _, hit in ipairs(hits) do anchor = anchor or hit.crit ~= true and Near(low, high, hit.size) end
+            local anchor, critAnchor = false, false
+            for _, hit in ipairs(hits) do
+                local near = Near(low, high, hit.size)
+                anchor = anchor or hit.crit ~= true and near
+                critAnchor = critAnchor or hit.crit == true and near
+            end
             if #hits > 0 then
-                list[#list + 1] = { at = frame.at, hits = hits, wide = plates >= MIN_PLATES, anchor = anchor }
+                list[#list + 1] = { at = frame.at, hits = hits, wide = plates >= MIN_PLATES, anchor = anchor,
+                    critAnchor = critAnchor }
             end
         end
     end
@@ -142,11 +150,12 @@ local function Find(list, from, to, at, wide)
     return best
 end
 
--- The oldest frame of `list` in [from, to] that a normal hit Near anchors, or nil: the draw route takes the first one
--- it meets.
-local function Earliest(list, from, to)
+-- The oldest frame of `list` in [from, to] that a normal hit Near anchors (or a crit Near, when `crits`), or nil: the
+-- draw route takes the first one it meets.
+local function Earliest(list, from, to, crits)
     for _, frame in ipairs(list) do
-        if frame.anchor and frame.at >= from - EPS and frame.at <= to + EPS then return frame end
+        local anchored = frame.anchor or crits and frame.critAnchor
+        if anchored and frame.at >= from - EPS and frame.at <= to + EPS then return frame end
     end
 end
 
@@ -163,7 +172,7 @@ local function Walk(castAt, pattern, list, limit)
     end
     for k = 1, limit - 1 do
         local due = anchorAt + (k - anchorK) * pattern.period
-        local frame = Earliest(list, due - slack, due + slack)
+        local frame = Earliest(list, due - slack, due + slack, #walk.ticks > 0)
         walk.tried = walk.tried + 1
         if frame then
             walk.ticks[#walk.ticks + 1] = { k = k, frame = frame }

@@ -2346,7 +2346,8 @@ return function(T)
         -- aims at the floor; a target ticked like this would learn the spell as its DoT first).
         local EARTHQUAKE, QUAKE_ROW, OTHER_ROW = 462620, 77478, 188443
         local SIZES = { nameplate1 = 6400, nameplate2 = 6500, nameplate3 = 6600 }
-        local function QuakeFight(rig, casts, rows, before)
+        -- `crits`: the ticks k (0-5) whose every hit crits (x2, flagged).
+        local function QuakeFight(rig, casts, rows, before, crits)
             local S, Core = rig.S, rig.ns.Core
             SlashCmdList.COMBATTEXTICONS("debug")
             S.now = casts[1] - 2
@@ -2356,7 +2357,11 @@ return function(T)
                 rig.Cast(t, nil, EARTHQUAKE)
                 for k = 0, 5 do
                     for _, unit in ipairs({ "nameplate1", "nameplate2", "nameplate3" }) do
-                        rig.Hit(t + 1 + k, unit, SIZES[unit], 8)
+                        if crits and crits[k] then
+                            rig.Hit(t + 1 + k, unit, 2 * SIZES[unit], 8, "CRITICAL")
+                        else
+                            rig.Hit(t + 1 + k, unit, SIZES[unit], 8)
+                        end
                     end
                 end
             end
@@ -2410,6 +2415,17 @@ return function(T)
         QuakeFight(rig, { 10, 20 }, { Row(QUAKE_ROW, 600000) })
         Check("ground (d): 2 casts are under MIN_CASTS -> the pass never tries the spell",
             Outcome() == nil and rig.ns.Fingerprints.Get(EARTHQUAKE) == nil)
+
+        -- Synthetic Death and Decay (43265 -> row 52212, SimC death_and_decay_base_t: 11 ticks 1 s apart, crits x2):
+        -- 4 plates crit together in one frame, so a crit-only tick frame came every few casts; the walk ended on two
+        -- in a row, D fell far under the row and the pass found rows=0. Here ticks 1 and 2 of every cast all crit:
+        -- 4 x (4 x 19500 + 2 x 39000) = 624000 seen under row 700000.
+        rig = Rig({})
+        QuakeFight(rig, CASTS, { Row(QUAKE_ROW, 700000) }, nil, { [1] = true, [2] = true })
+        entry = rig.ns.Fingerprints.Get(EARTHQUAKE)
+        Check("ground (e): crit-only tick frames after a seen first tick keep the walk -> learned, 6 ticks",
+            Outcome() == "learned" and entry ~= nil and entry.ticks == 6
+            and rig.ns.Fingerprints.Alias(QUAKE_ROW) == EARTHQUAKE)
     end
 
     do -- DoT pass (Teacher.lua): a cast whose ticks run only on plates it never targeted is learned from its own row
