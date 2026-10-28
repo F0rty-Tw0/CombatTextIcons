@@ -2120,8 +2120,23 @@ return function(T)
             twice[#twice + 1] = { t + 0.80, nil, 20000 }
         end
         rig, last = SteadyFight(twice, { Row(MIND_BLAST, 200000) })
-        Check("steady (d2): every cast steady at both 0.30 and 0.80 -> two clusters, nothing learned",
+        Check("steady (d2): every cast steady at both 0.30 and 0.80, like sums -> two clusters, nothing learned",
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "clusters=2")
+
+        -- Run shaman5 fight 1: Lava Burst's ~85K crits at 0.20-0.28 s, its overload row's ~28K ones at 0.65-0.73 s.
+        local echo = {}
+        for _, t in ipairs({ 10, 15, 20, 25 }) do
+            echo[#echo + 1] = { t, MIND_BLAST }
+            echo[#echo + 1] = { t + 0.30, nil, 20000 }
+            echo[#echo + 1] = { t + 0.80, nil, 5000 }
+        end
+        rig, last = SteadyFight(echo, { Row(MIND_BLAST, 120000) })
+        local echoOk = true
+        for _, sample in ipairs((rig.ns.Fingerprints.Get(MIND_BLAST) or { samples = {} }).samples) do
+            echoOk = echoOk and math.abs(sample.delay - 0.30) < 1e-6 and sample.size == 20000
+        end
+        Check("steady (d3): steady at 0.30 (20000s) and 0.80 (5000s): the 0.30 cluster sums 4 x the other -> learns its 4 alone",
+            last.area == "clear" and Learned(last) == 4 and echoOk and Outcome(MIND_BLAST) == "learned")
 
         -- Priest Devouring Plague 335467 (lead L24): 5 MB casts beside a ~1/s ~1K shadow DoT stream; the first tick
         -- after 3 of them falls at ~0.94 s by coincidence. 3 of 5 across the 15 delay windows is luck, not a pattern.

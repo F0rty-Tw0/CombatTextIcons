@@ -5,7 +5,8 @@
 -- the hits' delays, in one school, counts each cast that has exactly one hit of that school in it (a
 -- co-hit of another school spoils nothing: Shadow Bolt's frame often holds a 412 s106 proc tick, run
 -- 20261025T180045Z); a window qualifies when it counts at least MIN_CASTS and SHARE of the casts, the biggest hit at most SIZE_SPREAD times
--- the smallest. Overlapping qualifying windows are one cluster; two clusters teach nothing. A hit
+-- the smallest. Overlapping qualifying windows are one cluster; two clusters teach nothing, unless one
+-- of one school sums DOMINANT times each other's (Dominant): it alone teaches. A hit
 -- counted for two cast spells or two bases teaches neither. The meter judges last: the counted hits
 -- must fit the base's row (total + overkill + tolerance, less what was drawn under it, unless a learned
 -- DoT of another school drew it). Learned
@@ -30,6 +31,7 @@ local SIZE_SPREAD = 1.5 -- the biggest counted hit at most this times the smalle
 local EPS = 1e-6        -- float slack on window edges
 local ALPHA = 0.01      -- a cluster learns when luck alone gives it this often or less (Learn.lua's value)
 local WINDOWS = 15      -- delay windows the scan tries (Casts' UNKNOWN_WAIT 1.5 / SPREAD): the multiple comparisons
+local DOMINANT = 2      -- one cluster's counted sum at least this times each other's speaks for the cast spell
 
 -- How the pass treats a base this read: "new" (unlearned), "base" (learned before this read: it
 -- learns the hits it missed), or nil (learned by this read's exact-sum passes: skipped).
@@ -211,7 +213,26 @@ local function Luck(counted, casts, hits, span)
     return math.min(1, ns.Learn.PoissonTail(casts * chance, #counted) * WINDOWS)
 end
 
--- One cast spell's result: { spell, castID, casts, counted (nil without one cluster, or when luck
+-- The cluster that speaks for all of `clusters`: the only one, or one whose counted hits sum to DOMINANT times each
+-- other's when all share its school, else nil. Run shaman5 fight 1: every Lava Burst 51505 left ~85K crits on its
+-- target at 0.20-0.28 s (424K for 5 casts) and ~28K ones at 0.65-0.73 s (150K), the size of the hits its Overload
+-- row 285452 holds (~31K on each of 6 dummies a cast); like sums (two hits of one cast) still teach nothing.
+local function Dominant(clusters)
+    local top, sums = nil, {}
+    for index, cluster in ipairs(clusters) do
+        if cluster.best.counted[1].hit.school ~= clusters[1].best.counted[1].hit.school then return nil end
+        sums[index] = 0
+        for _, pair in ipairs(cluster.best.counted) do sums[index] = sums[index] + pair.hit.amount end
+        if not top or sums[index] > sums[top] then top = index end
+    end
+    for index in ipairs(clusters) do
+        if index ~= top and sums[top] < DOMINANT * sums[index] then return nil end
+    end
+
+    return clusters[top]
+end
+
+-- One cast spell's result: { spell, castID, casts, counted (nil without a Dominant cluster, or when luck
 -- explains it: then luckCounted), outcome }.
 local function SpellResults(hits, learnedNow, span)
     local pairsOf, castsOf, baseOf, modeOf = PairsBySpell(hits, learnedNow)
@@ -223,14 +244,15 @@ local function SpellResults(hits, learnedNow, span)
         local casts = Count(castsOf[spell])
         local clusters = Clusters(pairsOf[spell], math.max(MIN_CASTS, math.ceil(SHARE * casts - EPS)))
         local result = { spell = spell, castID = baseOf[spell], mode = modeOf[spell], casts = casts, outcome = "none" }
-        if #clusters == 1 then result.counted = clusters[1].best.counted end
+        local dominant = Dominant(clusters)
+        if dominant then result.counted = dominant.best.counted end
         if result.counted then
             local p = Luck(result.counted, casts, hits, span)
             if p > ALPHA then
                 result.luckCounted, result.counted, result.outcome = result.counted, nil, string.format("luck=%.2g", p)
             end
         end
-        if #clusters >= 2 then result.outcome = "clusters=" .. #clusters end
+        if #clusters >= 2 and not dominant then result.outcome = "clusters=" .. #clusters end
         results[#results + 1] = result
     end
 
