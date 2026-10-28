@@ -1346,7 +1346,10 @@ return function(T)
             end
             rig.S.sessions = { Session(nextSession, meter) }
             rig.ns.Teacher.Start(10, group)
-            for _, hit in ipairs(hits) do rig.ns.Teacher.Unknown(P1, hit[1], hit[2], hit[5] or 60.25, hit[4], hit[3] or "", hit[6]) end
+            for _, hit in ipairs(hits) do
+                local plate = hit[7] and rig.Plate(hit[7]) or P1
+                rig.ns.Teacher.Unknown(plate, hit[1], hit[2], hit[5] or 60.25, hit[4], hit[3] or "", hit[6])
+            end
             rig.ns.Teacher.Seen(seen or total)
             rig.ns.Teacher.Finish(20)
             return pcall(rig.Fire)
@@ -1639,6 +1642,32 @@ return function(T)
             ReadWith(rig, { { 32, 5000, "", nil, 60.1, { Candidate(Z, 60) } } }, { { Z, 5000 } })
             Check("candidates: a learned base's hit out of its padded band (5000 over 2 x 1100) learns nothing though its row meets it",
                 rig.ns.Teacher.last.learned[Z] == nil and #rig.ns.Fingerprints.Get(Z).samples == 3)
+
+            -- Run shaman5 F1: rowless Voltaic Blaze 470057 hit 5 plates in its cast frame, 3 casts, and only the
+            -- target's hit named the cast; all 15 summed to row 1259101 (789844 of 789850). Z cast at 60, 70, 80 hits 3 plates
+            -- (1000 on the target, 1020 and 980 beside it); a 200 hit of another spell shares each frame on nameplate2.
+            local AREA = {}
+            for _, t in ipairs({ 60, 70, 80 }) do
+                AREA[#AREA + 1] = { 32, 1000, "", nil, t, { Candidate(Z, t) } }
+                AREA[#AREA + 1] = { 32, 1020, "", nil, t, nil, "nameplate2" }
+                AREA[#AREA + 1] = { 32, 980, "", nil, t, nil, "nameplate3" }
+                AREA[#AREA + 1] = { 32, 200, "", nil, t, nil, "nameplate2" }
+            end
+            rig = Rig({})
+            ReadWith(rig, AREA, { { Y, 9000 } })
+            F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            Check("candidates: a cast's largest and its like-sized frame mates on other plates (3 x 3000) meet row 9000 of "
+                .. "another ID -> alias, Z learned from 9 hits as a chain; the 200 hits are no mates",
+                F.Alias(Y) == Z and F.IsLearned(Z) and F.Get(Z).pattern == "chain" and last.learned[Z] == 9
+                and Find(last, Z).verdict == "agree")
+            rig = Rig({})
+            ReadWith(rig, AREA, { { Y, 9600 } })
+            Check("candidates: frame mates of another size never join the sum (9600 counts the 200 hits): nothing learned",
+                rig.ns.Fingerprints.Alias(Y) == nil and rig.ns.Fingerprints.Get(Z) == nil)
+            rig = Rig({})
+            ReadWith(rig, { AREA[1], AREA[2], AREA[3], AREA[5], AREA[9] }, { { Y, 5000 } })
+            Check("candidates: a cast whose largest has no frame mate keeps the top-only rule: no row of another ID (5000)",
+                rig.ns.Fingerprints.Alias(Y) == nil)
         end
 
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks

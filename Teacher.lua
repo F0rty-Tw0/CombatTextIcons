@@ -328,9 +328,13 @@ end
 -- to its row exactly). A learned base takes only hits of its school in its padded band (Casts.InBand), the hits
 -- it missed: run shaman5 learned Lava Burst 51505 on an AoE pack (~42K at 0.20-0.28 s), then a lone dummy's 69K
 -- hit at 0.12 s met its row and was never learned. A hit goes to the newest candidate cast of each base; each
--- cast keeps its largest hit.
--- A group { castID, school, cand = { castID, sum, hits, castOf } } pairs only with the cast's own row (Pairs:
--- `cand` is no group); `castOf[hit]` is the candidate that hit is learned under. Hits in `spent` are skipped.
+-- cast keeps its largest hit, plus its frame mates: the '?' hits of its school in its frame on other plates within
+-- Streams.SIZE_GUARD of its size. Casts are logged on the target's plate only, so an AoE cast's other plates name no
+-- cast: run shaman5 F1, rowless Voltaic Blaze 470057 hit 5 plates in its cast frame 3 times, and the 15 hits summed
+-- to row 1259101 (789844 of 789850); the 1.4K hits of another spell in one of those frames are no mates.
+-- A group { castID, school, cand = { castID, sum, hits, castOf, mates, area, covered, casts } } pairs only with the
+-- cast's own row unless `area` (every counted cast had a mate; Pairs); `castOf[hit]` is the candidate that hit is
+-- learned under, `mates[hit]` marks a mate (learned as a chain hop). Hits in `spent` are skipped.
 local function CandidateGroups(unknown, spent)
     local byKey, list = {}, {}
     for _, hit in ipairs(unknown) do
@@ -359,15 +363,47 @@ local function CandidateGroups(unknown, spent)
             end
         end
     end
+    local frames = {} -- "at:school" -> the '?' hits of that school in that frame
+    for _, hit in ipairs(unknown) do
+        local key = hit.at .. ":" .. hit.school
+        frames[key] = frames[key] or {}
+        table.insert(frames[key], hit)
+    end
     for _, group in ipairs(list) do
-        group.cand = { castID = group.castID, sum = 0, hits = {}, castOf = group.castOf }
+        local cand = { castID = group.castID, sum = 0, hits = {}, castOf = group.castOf, mates = {}, area = true,
+            covered = 0, casts = 0 }
+        group.cand = cand
+        local function Take(hit)
+            cand.sum = cand.sum + hit.amount
+            cand.hits[#cand.hits + 1] = hit
+        end
         for _, hit in ipairs(unknown) do
             local candidate = group.castOf[hit]
             if candidate and group.topOf[candidate.castAt] == hit then
-                group.cand.sum = group.cand.sum + hit.amount
-                group.cand.hits[#group.cand.hits + 1] = hit
+                Take(hit)
+                cand.covered = cand.covered + 1
+                local mated = false
+                for _, mate in ipairs(frames[hit.at .. ":" .. hit.school]) do
+                    local like = mate.size and hit.size
+                        and math.abs(mate.size - hit.size) <= Streams.SIZE_GUARD * math.max(mate.size, hit.size)
+                    if like and mate.plate ~= hit.plate and not spent[mate] and not group.castOf[mate] then
+                        group.castOf[mate], cand.mates[mate], mated = candidate, true, true
+                        Take(mate)
+                    end
+                end
+                cand.area = cand.area and mated
             end
         end
+    end
+    local castsOf = {}
+    for _, hit in ipairs(unknown) do
+        for _, candidate in ipairs(hit.candidates or {}) do
+            castsOf[candidate.castID] = castsOf[candidate.castID] or {}
+            castsOf[candidate.castID][candidate.castAt] = true
+        end
+    end
+    for _, group in ipairs(list) do
+        for _ in pairs(castsOf[group.castID] or {}) do group.cand.casts = group.cand.casts + 1 end
     end
     table.sort(list, function(a, b)
         if a.castID ~= b.castID then return a.castID < b.castID end
@@ -378,19 +414,21 @@ local function CandidateGroups(unknown, spent)
     return list
 end
 
--- Whether the cast pass may pair `way` (a group, or its `top`) with a row: the sum agrees, and a
+-- Whether the cast pass may pair `way` (a group, its `top`, or a `cand`) with a row: the sum agrees, and a
 -- row of another ID belongs to no one else. It is not a row Procs tracks (a castless proc's own;
 -- spec 3.1 Rev 4), the cast has no row of its own this session, and the row is not the own row
 -- of another cast this fight (`owners.rows`, `owners.casts`; Rev 5). A cast's own row still pairs.
--- A `top` pairs only with the cast's own row: one largest hit often equals some other spell's
--- one-hit row by chance. A row of another ID also needs the group in at least half the cast's casts:
+-- A `top` or a `cand` pairs only with the cast's own row: one largest hit often equals some other spell's
+-- one-hit row by chance. An `area` cand (each cast's largest with its frame mates) is a whole sum and may.
+-- A row of another ID also needs the way in at least half the cast's casts:
 -- a castless proc's lone hit in one of many cast frames is no hit of the cast (run 153349Z: one holy
 -- 2364 after 1 of 6 Void Volley casts equalled the proc's row 1260076).
 local function Pairs(group, way, row, owners)
     if way == group and group.mixed then return false end
+    local whole = way == group or way.area
     if row.spellID ~= group.castID
-        and (way ~= group or Procs.Has(row.spellID) or owners.rows[group.castID] or owners.casts[row.spellID]
-            or 2 * group.covered < group.casts) then
+        and (not whole or Procs.Has(row.spellID) or owners.rows[group.castID] or owners.casts[row.spellID]
+            or 2 * way.covered < way.casts) then
         return false
     end
 
@@ -427,8 +465,9 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
             if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Pairs(group, way, row, owners) then
                 for _, hit in ipairs(way.hits) do
                     local cast = way.castOf and way.castOf[hit] or { castAt = hit.castAt, castSpell = hit.castSpell }
+                    local hops = way.mates and way.mates[hit] and 2 or 1
                     Fingerprints.Add(group.castID, { school = hit.school, delay = hit.at - cast.castAt,
-                        castAt = cast.castAt, hops = 1, spell = cast.castSpell, size = hit.size })
+                        castAt = cast.castAt, hops = hops, spell = cast.castSpell, size = hit.size })
                 end
                 if row.spellID ~= group.castID then Fingerprints.SetAlias(row.spellID, group.castID) end
                 learned[#learned + 1] = way
