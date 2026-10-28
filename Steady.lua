@@ -9,7 +9,8 @@
 -- of one school sums DOMINANT times each other's (Dominant): it alone teaches. A hit
 -- counted for two cast spells or two bases teaches neither. The meter judges last: the counted hits
 -- must fit the base's row (total + overkill + tolerance, less what was drawn under it, unless a learned
--- DoT of another school drew it). Learned
+-- DoT of another school drew it); a base with no row of its own needs every cast counted and the sum to agree
+-- with exactly one row of another ID, which it then aliases (OtherRow). Learned
 -- hits become fingerprint samples. A base learned before the fight keeps learning the hits it
 -- missed (Void Blast in its cast frame, Mind Blast at a new distance): its pairs need its school and
 -- the padded size band. A cluster also needs more than luck: a steady '?' stream (two DoT series)
@@ -200,6 +201,30 @@ local function Fits(castID, hits, rows, tally)
     return sum <= room
 end
 
+-- The one row of another ID that the counted hits of a cast with no row of its own sum to (Teacher's Judge: within
+-- 1 % of the total, overkill above it), or nil. Every cast of the base must count, so the sum is all it dealt on
+-- its target. A row owned by a cast of this fight, tracked by Procs, drawn under or aliased is no match. Run dk F11:
+-- the meter files Death Coil 47541 under 47632; its 3 casts left one Shadow hit each at 0.125-0.139 s summing to
+-- 4105, the row's 4105, and the pass said "meter" for want of a 47541 row (Scourge Strike 55090: row 207311).
+local function OtherRow(castID, base, rows, tally, owned)
+    local sum = 0
+    for _, result in ipairs(base.results) do
+        if #result.counted < result.casts then return nil end
+    end
+    for _, pair in ipairs(base.hits) do sum = sum + pair.hit.amount end
+    local found
+    for _, row in ipairs(rows) do
+        local id, tol = row.spellID, math.max(1, row.total / 100)
+        if id ~= castID and not owned[id] and not Procs.Has(id) and not tally[id] and not Fingerprints.Alias(id)
+            and sum >= row.total - tol and sum <= row.total + row.overkill + tol then
+            if found then return nil end
+            found = row
+        end
+    end
+
+    return found
+end
+
 -- How often luck alone gives `counted`'s count: each of `casts` casts finds a hit of the counted
 -- school and size range in one window with chance (like hits * SPREAD / span of the fight's '?' hits),
 -- the tail of that count, times the WINDOWS tried.
@@ -264,9 +289,13 @@ local function SpellResults(hits, learnedNow, span)
 end
 
 -- Marks the outcome of every cast spell with a cluster: "shared" when one of its hits is counted
--- twice (two cast spells or two bases), "meter" when its base's hits do not fit the row, else
--- "learned". Returns the bases that learn, with their counted pairs.
-local function Gate(results, rows, tally)
+-- twice (two cast spells or two bases), "meter" when its base's hits do not fit the row (or, with no row of
+-- its own, agree with no single row of another ID: OtherRow, kept as `other`), else "learned". Returns the bases
+-- that learn, with their counted pairs.
+local function Gate(results, rows, run)
+    local tally, owned = run.tally, {}
+    for _, cast in ipairs(run.casts or {}) do owned[cast.spellID], owned[cast.base] = true, true end
+    for _, result in ipairs(results) do owned[result.spell], owned[result.castID] = true, true end
     local owners, byBase = {}, {}
     for _, result in ipairs(results) do
         for _, pair in ipairs(result.counted or {}) do owners[pair.hit] = (owners[pair.hit] or 0) + 1 end
@@ -282,7 +311,10 @@ local function Gate(results, rows, tally)
         for _, pair in ipairs(base.hits) do
             if owners[pair.hit] > 1 then outcome = "shared" end
         end
-        if outcome == "learned" and not Fits(castID, base.hits, rows, tally) then outcome = "meter" end
+        if outcome == "learned" and not Fits(castID, base.hits, rows, tally) then
+            base.other = not RowOf(castID, rows) and OtherRow(castID, base, rows, tally, owned)
+            if not base.other then outcome = "meter" end
+        end
         for _, result in ipairs(base.results) do result.outcome = outcome end
         if outcome ~= "learned" then byBase[castID] = nil end
     end
@@ -334,7 +366,7 @@ function Steady.Learn(run, rows, learned)
     end
 
     local results = SpellResults(hits, learnedNow, first and last - first or 0)
-    local bases = Gate(results, rows, run.tally)
+    local bases = Gate(results, rows, run)
     Report(results)
 
     local ways, castIDs = {}, {}
@@ -342,6 +374,7 @@ function Steady.Learn(run, rows, learned)
     table.sort(castIDs)
     for _, castID in ipairs(castIDs) do
         local way = { castID = castID, sum = 0, hits = {} }
+        if bases[castID].other then Fingerprints.SetAlias(bases[castID].other.spellID, castID) end
         for _, result in ipairs(bases[castID].results) do
             for _, pair in ipairs(result.counted) do
                 local hit = pair.hit

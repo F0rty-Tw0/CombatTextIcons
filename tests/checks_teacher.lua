@@ -2253,6 +2253,22 @@ return function(T)
         rig, last = SteadyFight(Rotation(VARIED), { Row(SWP_ROW, 92000) })
         Check("steady (e2): no 8092 row -> meter, nothing learned",
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "meter")
+        -- Run dk F11's shape: Death Coil 47541's 3 counted hits summed to its row 47632 (4105), its only meter ID
+        local OTHER_ROW = 47632
+        rig, last = SteadyFight(Rotation(VARIED), { Row(OTHER_ROW, 82500), Row(SWP_ROW, 9500) })
+        Check("steady (e3): no 8092 row, every cast counted, the sum agrees with one other-ID row -> learns, aliases",
+            last.area == "clear" and Learned(last) == 4 and Outcome(MIND_BLAST) == "learned"
+            and rig.ns.Fingerprints.Alias(OTHER_ROW) == MIND_BLAST)
+        rig, last = SteadyFight(Rotation(VARIED), { Row(OTHER_ROW, 82500), Row(SWP_ROW, 82000) })
+        Check("steady (e4): two rows of other IDs agree with the sum -> meter, nothing learned, no alias",
+            Learned(last) == nil and Outcome(MIND_BLAST) == "meter" and rig.ns.Fingerprints.Alias(OTHER_ROW) == nil)
+        local late = Rotation(VARIED) -- plus a 5th cast steady at 0.30 s and a 6th whose hit lands at 0.70 s
+        local extra = { { 30, MIND_BLAST }, { 30.3, nil, 20000 }, { 35, MIND_BLAST }, { 35.7, nil, 20000 } }
+        for _, event in ipairs(extra) do late[#late + 1] = event end
+        rig, last = SteadyFight(late, { Row(OTHER_ROW, 102500), Row(SWP_ROW, 29500) })
+        Check("steady (e5): 5 of 6 casts counted, their sum agrees with a row of another ID -> meter, nothing learned",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "meter"
+            and rig.ns.Fingerprints.Alias(OTHER_ROW) == nil)
 
         rig, last = SteadyFight(Rotation({ 0.5, 0.5, 0.5, 0.5 }), { Row(MIND_BLAST, 92000) })
         Check("steady (f): Shadow Word: Death always 0.5 s before is steady on the same hits -> shared, neither learns",
