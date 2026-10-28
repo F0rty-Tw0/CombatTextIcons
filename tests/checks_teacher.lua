@@ -8,6 +8,7 @@ return function(T)
     local SMITE, MIND_BLAST, WAND, HOLY_FIRE = 591, 8092, 5019, 14914
     local AUTO_SHOT, SWP, GRAVE, BARBED = 75, 594, 1260198, 217200
     local nextSession = 100 -- rig.Judge reads a new session ID each call
+    local BALANCE = 999999 -- a meter row nobody drew (Balanced)
 
     local function Count(tbl) local n = 0 for _ in pairs(tbl) do n = n + 1 end return n end
 
@@ -15,6 +16,21 @@ return function(T)
     local function Row(spellID, total, overkill)
         return { spellID = spellID, totalAmount = total, overkillAmount = overkill or 0, amountPerSecond = 0,
             combatSpellDetails = {}, creatureName = "", isAvoidable = false, isDeadly = false }
+    end
+    -- `rows` plus a BALANCE row for whatever the tally ({ [spellID] = { amount, ... } }) passes them by: rig.Fight
+    -- counts every drawn hit as seen, so an over read would be crowded and pause instead of judge (a solo over among
+    -- many rows reads clear: the other rows' damage covers the overshoot).
+    local function Balanced(tally, rows)
+        local excess = 0
+        for _, amounts in pairs(tally) do
+            for _, amount in ipairs(amounts) do excess = excess + amount end
+        end
+        for _, row in ipairs(rows) do excess = excess - row.totalAmount - row.overkillAmount end
+        if excess <= 0 then return rows end
+        local balanced = { Row(BALANCE, excess) }
+        for index, row in ipairs(rows) do balanced[index + 1] = row end
+
+        return balanced
     end
     -- A session as GetAvailableCombatSessions lists it, plus `rows` for the harness stub to serve.
     local function Session(id, rows)
@@ -82,7 +98,9 @@ return function(T)
         -- One spell's whole fight against a one-row session; returns that entry's verdict.
         function rig.Judge(spellID, tally, total, overkill)
             nextSession = nextSession + 1
-            local ok, last = rig.Read({ [spellID] = { tally } }, { Session(nextSession, { Row(spellID, total, overkill) }) })
+            local amounts = { [spellID] = { tally } }
+            local rows = Balanced(amounts, { Row(spellID, total, overkill) })
+            local ok, last = rig.Read(amounts, { Session(nextSession, rows) })
             local row = Find(last, spellID)
             return ok and row and row.verdict
         end
@@ -1156,7 +1174,7 @@ return function(T)
             nextSession = nextSession + 1
             local amounts = {}
             for id, total in pairs(tally) do amounts[id] = { total } end
-            local ok, last = rig.Read(amounts, { Session(nextSession, rows) })
+            local ok, last = rig.Read(amounts, { Session(nextSession, Balanced(amounts, rows)) })
             assert(ok, last)
             return last
         end
@@ -1287,23 +1305,77 @@ return function(T)
             Check("net rule 2: ... and struck again by the second, so it is dropped", not Kept(rig, TRIGGER))
         end
 
-        do -- every area applies the net
+        do -- a group or crowded read pauses where a clear one drops: strangers' hits may be the overshoot
+            local function Crowded(rig, group, rows)
+                local Teacher = rig.ns.Teacher
+                nextSession = nextSession + 1
+                rig.S.sessions = { Session(nextSession, rows or { Row(GRAVE, 56) }) }
+                Teacher.Start(10, group)
+                Teacher.Drawn(TRIGGER, 500)
+                Teacher.Seen(1e9) -- far above the meter: crowded (solo) or group
+                Teacher.Finish(20)
+                pcall(rig.Fire)
+            end
             for _, group in ipairs({ false, true }) do
                 local rig = Rig({}); Seed(rig, TRIGGER)
                 local Teacher = rig.ns.Teacher
-                for read = 1, 2 do
-                    nextSession = nextSession + 1
-                    rig.S.sessions = { Session(nextSession, { Row(GRAVE, 56) }) }
-                    Teacher.Start(10, group)
-                    Teacher.Drawn(TRIGGER, 500)
-                    Teacher.Seen(1e9) -- far above the meter: crowded (solo) or group
-                    Teacher.Finish(20)
-                    pcall(rig.Fire)
-                    if read == 1 then Check("net: first strike keeps it (" .. Teacher.last.area .. ")", Kept(rig, TRIGGER)) end
-                end
-                Check("net: the second strike drops it (" .. Teacher.last.area .. ")",
-                    not Kept(rig, TRIGGER) and Teacher.last.area == (group and "group" or "crowded"))
+                local area = group and "group" or "crowded"
+                Crowded(rig, group)
+                Check("net: first strike keeps it, not paused (" .. area .. ")",
+                    Kept(rig, TRIGGER) and not Teacher.Paused(TRIGGER) and Teacher.last.area == area)
+                Crowded(rig, group)
+                Check("net: the second strike keeps it and pauses it, strikes start over (" .. area .. ")",
+                    Kept(rig, TRIGGER) and Teacher.Paused(TRIGGER) and rig.ns.Learn.List()[1].unpaired == 0)
+                Check("net: the pause is saved in the spec's store (" .. area .. ")", T.Store().paused[TRIGGER] == true)
+                Teacher.Start(30, true)
+                Check("net: a group fight's start keeps the pause (" .. area .. ")", Teacher.Paused(TRIGGER))
+                Teacher.Start(30, false)
+                Check("net: a solo start lifts the pause only on a clear map (" .. area .. ")",
+                    Teacher.Paused(TRIGGER) == (Teacher.area ~= "clear"))
             end
+
+            local rig = Rig({}); Seed(rig, TRIGGER)
+            Crowded(rig, false, { Row(TRIGGER, 100) })
+            Check("net: a crowded over read pauses the learned spell, never drops it",
+                Kept(rig, TRIGGER) and rig.ns.Teacher.Paused(TRIGGER))
+            Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
+            Check("net: a clear read lifts every pause", rig.ns.Teacher.last.area == "clear"
+                and not rig.ns.Teacher.Paused(TRIGGER) and T.Store().paused == nil and Kept(rig, TRIGGER))
+
+            rig = Rig({ [SMITE] = 2 })
+            local F = rig.ns.Fingerprints
+            for _ = 1, 2 do
+                nextSession = nextSession + 1
+                rig.S.sessions = { Session(nextSession, { Row(SMITE, 100) }) }
+                rig.ns.Teacher.Start(10, true)
+                rig.ns.Teacher.Drawn(SMITE, 500)
+                rig.ns.Teacher.Seen(500)
+                rig.ns.Teacher.Finish(20)
+                pcall(rig.Fire)
+            end
+            Check("net: two group overs keep a fingerprint and pause it, strikes start over",
+                F.Get(SMITE) ~= nil and F.Get(SMITE).over == 2 and F.Get(SMITE).strikes == 0
+                and rig.ns.Teacher.Paused(SMITE))
+
+            rig = Rig({ [SMITE] = 2 })
+            rig.S.now = 9
+            rig.ns.Core.PLAYER_REGEN_DISABLED()
+            rig.Cast(10, "nameplate7", SMITE)
+            local before = rig.Hit(10.25, "nameplate7", 30, 2)
+            T.Store().paused = { [SMITE] = true } -- after the fight's start, which lifts pauses solo on a clear map
+            rig.Cast(20, "nameplate8", SMITE)
+            local drawn, tally = rig.Hit(20.25, "nameplate8", 23, 2), rig.ns.Teacher.fight.tally[SMITE]
+            Check("net: a paused cast's hit is hidden and untallied (Core)",
+                before == "tex:" .. SMITE and drawn == nil and tally == 30)
+
+            T.Store().paused = { [SMITE] = true, [-1] = true, [1.5] = true, [592] = "yes", x = true }
+            rig.ns.Teacher.Init(T.Store())
+            local kept = T.Store().paused
+            Check("net: saved pauses are checked on load: only spell IDs marked true stay",
+                kept and kept[SMITE] == true and Count(kept) == 1)
+            T.Store().paused = { x = true }
+            rig.ns.Teacher.Init(T.Store())
+            Check("net: a saved pause set with nothing valid is dropped", T.Store().paused == nil)
         end
 
         do -- fingerprints keep their own rules; spells Learn does not know are untouched
@@ -1858,8 +1930,10 @@ return function(T)
                 and spy.calls == 0 and Candidate(rig, X) == nil)
         end
 
-        do -- Review Focus 4: clear at hit time, crowded at read time: no learning, the net still judges the drawn tally
-            for _, case in ipairs({ { total = 100, verdict = "over", kept = false }, { total = 350, verdict = "agree", kept = true } }) do
+        do -- Review Focus 4: clear at hit time, crowded at read time: no learning; an over pauses the proc
+            local cases = { { total = 100, verdict = "over", paused = true },
+                { total = 350, verdict = "agree", paused = false } }
+            for _, case in ipairs(cases) do
                 local rig = Rig({}); SeedProc(rig, X, true)
                 local spy = Spy(rig)
                 nextSession = nextSession + 1
@@ -1870,9 +1944,9 @@ return function(T)
                 rig.ns.Teacher.Finish(20)
                 pcall(rig.Fire)
                 Check("procs wiring: crowded read, drawn 350 against " .. case.total .. " -> " .. case.verdict
-                    .. ", proc " .. (case.kept and "kept" or "dropped") .. ", Procs.Read not called",
+                    .. ", proc kept" .. (case.paused and " and paused" or "") .. ", Procs.Read not called",
                     rig.ns.Teacher.last.area == "crowded" and Find(rig.ns.Teacher.last, X).verdict == case.verdict
-                    and (rig.ns.Procs.Get(X) ~= nil) == case.kept and spy.calls == 0)
+                    and rig.ns.Procs.Get(X) ~= nil and rig.ns.Teacher.Paused(X) == case.paused and spy.calls == 0)
             end
         end
 

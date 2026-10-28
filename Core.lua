@@ -257,6 +257,15 @@ local function HiddenRoute()
     return Meter.Available() and "HIDDEN (crowded)" or "HIDDEN (meter off)"
 end
 
+-- Whether `spellID` is paused (Teacher.Paused: a group or crowded read found it drew too much): its hit is hidden,
+-- untallied. Procs need no check: they draw only solo on a clear map, where a fight's start ends every pause.
+local function Paused(spellID)
+    if not Teacher.Paused(spellID) then return false end
+    if ns.Debug then ns.Debug("  -> HIDDEN (paused %s)", ShowValue(spellID)) end
+
+    return true
+end
+
 -- A solo hit on a mob fighting you that a learned proc names, while the area is clear: draws the
 -- proc's icon and tallies it. Returns whether it drew; false leaves the hit to the question-mark route.
 local function ProcWound(plate, school, amount, flagText)
@@ -350,6 +359,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         if kind == "learned" and not late and fightsYou and record.spellID ~= spellID then named = false end
     end
     if named then
+        if Paused(spellID) then return end
         if ns.Debug then ns.Debug("  -> tracker %s", ShowValue(spellID)) end
         Teacher.Drawn(spellID, amount)
         if Learn.Get(spellID) then Teacher.Ticked(school, amount, flagText) end
@@ -363,6 +373,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
         Casts.Accept(record, plate, now)
+        if Paused(record.base) then return end
         Teacher.Drawn(record.base, amount) -- an override is tallied under the base spell's meter row
         Ledger.Add("damage", record.base, amount)
         return Display.Plate(plate, SpellTexture(record.spellID), text, flagText, school)
@@ -403,6 +414,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     local stack = fightsYou and not crowded
         and Casts.StackTick(plate, school, now, Streams.NormalAmount(amount, flagText), flagText)
     if stack then
+        if Paused(stack.base) then return end
         if ns.Debug then ns.Debug("  -> stack %s", ShowValue(stack.spellID)) end
         Teacher.Drawn(stack.base, amount)
         Ledger.Add("damage", stack.base, amount)

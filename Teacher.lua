@@ -68,7 +68,7 @@ Teacher.OnRead = nil -- function(last), called once per fight when its outcome i
 
 -- the spec's store; its `areas` = { [map ID] = "clear" | "crowded" } is each map's last read verdict, its `schools`
 -- = { [school] = true } the schools clear reads saw (Teacher.OwnSchool), its `pace` the best meter total per second
--- of a clear read (the live crowd check's yardstick)
+-- of a clear read (the live crowd check's yardstick), its `paused` = { [spell ID] = true } the spells Pause holds back
 local store = nil
 local lastSession = nil -- ID of the session processed last
 local lastRows = {}     -- that session's rows at its last read, by spell ID: { total, overkill }
@@ -89,7 +89,8 @@ end
 
 -- Saved data is checked, never trusted: keeps each charDB.areas entry of a map ID and "clear" or "crowded", drops
 -- the rest; an older save's single charDB.area = { state, map } joins them unless its map has its own; keeps each
--- charDB.schools entry of an integer school 1-127 marked true; keeps charDB.pace when it is a positive finite
+-- charDB.schools entry of an integer school 1-127 marked true, each charDB.paused entry of a spell ID marked true;
+-- keeps charDB.pace when it is a positive finite
 -- number. The state itself waits for Teacher.EnterWorld
 -- (a spec swap keeps it: the place did not change). charDB is a spec's store (Core's UseSpec): a swap drops the
 -- judgings under way or waiting and the reads not fired yet, as a /reload does, so the spec before teaches nothing
@@ -116,6 +117,13 @@ function Teacher.Init(charDB)
         end
     end
     charDB.schools = next(schools) and schools or nil
+    local paused = {}
+    if type(charDB.paused) == "table" then
+        for spellID, on in pairs(charDB.paused) do
+            if IsNumber(spellID) and spellID > 0 and spellID % 1 == 0 and on == true then paused[spellID] = true end
+        end
+    end
+    charDB.paused = next(paused) and paused or nil
     local pace = charDB.pace
     if not (IsNumber(pace) and pace > 0 and pace < math.huge) then charDB.pace = nil end
 end
@@ -133,6 +141,20 @@ local function SaveArea(area)
     if not (store and map) then return end
     store.areas = store.areas or {}
     store.areas[map] = area
+end
+
+-- A group or crowded read would have dropped `spellID`: strangers' hits may be what it drew too much of, so its
+-- learning is kept and it stops drawing (Teacher.Paused) until a solo fight starts on a clear map or a read is clear.
+local function Pause(spellID)
+    if not (store and IsNumber(spellID)) then return end
+    store.paused = store.paused or {}
+    store.paused[spellID] = true
+    if ns.Debug then ns.Debug("TEACH pause %d", spellID) end
+end
+
+-- Whether `spellID` is paused (Pause): Core hides its hits.
+function Teacher.Paused(spellID)
+    return IsNumber(spellID) and store ~= nil and store.paused ~= nil and store.paused[spellID] == true
 end
 
 -- "agree" when the drawn total fits the meter's (overkill is damage the meter holds but the
@@ -226,21 +248,22 @@ local function Growth(rows)
     return grown
 end
 
--- Judges one paired spell and tells Fingerprints: agree counts a fight, over is a strike.
-local function Apply(entry, castID, row)
+-- Judges one paired spell and tells Fingerprints: agree counts a fight, over is a strike. With `keep` (a group or
+-- crowded read) the strike that would delete the fingerprint pauses it (Pause).
+local function Apply(entry, castID, row, keep)
     entry.verdict = Judge(entry.tally, row.total, row.overkill)
     if entry.verdict == "agree" then
         Fingerprints.Agree(castID)
     elseif entry.verdict == "over" then
-        Fingerprints.Over(castID)
+        if Fingerprints.Over(castID, keep) then Pause(castID) end
     end
 end
 
 -- Pairs the tally with the meter rows and applies the verdicts. Order: same spell ID; a saved
 -- alias (meter row ID -> cast spell); a new alias when exactly one tally and exactly one
 -- agreeing row are left. Rows with no tally stay "unpaired" and are returned in `open`, with
--- their place in `results`, for the learning pass.
-local function Verdicts(tally, rows)
+-- their place in `results`, for the learning pass. `keep`: see Apply.
+local function Verdicts(tally, rows, keep)
     local results, open, paired = {}, {}, {}
     for _, row in ipairs(rows) do
         local drawn = tally[row.spellID]
@@ -248,7 +271,7 @@ local function Verdicts(tally, rows)
         results[#results + 1] = entry
         if drawn then
             paired[row.spellID] = true
-            Apply(entry, row.spellID, row)
+            Apply(entry, row.spellID, row, keep)
         else
             entry.verdict = "unpaired"
             open[#open + 1] = { row = row, index = #results }
@@ -268,7 +291,7 @@ local function Verdicts(tally, rows)
                 paired[castID] = true
                 local entry = { spellID = castID, meterID = row.spellID, tally = tally[castID], meter = row.total }
                 results[index] = entry
-                Apply(entry, castID, row)
+                Apply(entry, castID, row, keep)
                 table.remove(open, position)
             end
         end
@@ -299,7 +322,7 @@ local function Verdicts(tally, rows)
             Fingerprints.SetAlias(row.spellID, castID)
             local entry = { spellID = castID, meterID = row.spellID, tally = tally[castID], meter = row.total }
             results[index] = entry
-            Apply(entry, castID, row)
+            Apply(entry, castID, row, keep)
             table.remove(open, match)
             missing = {}
         end
@@ -809,14 +832,15 @@ end
 -- total (tally > 0) that overshoots drops the spell, two unpaired reads in a row drop it,
 -- a paired read (agree or under) resets the count. Undrawn spells change nothing here (a learned
 -- one cast this fight with no row is struck by Learn.RowsRead). An ID both stores know is judged by both.
-local function SafetyNet(results)
+-- With `keep` (a group or crowded read: strangers' hits may be the overshoot) a drop is a pause (Pause) instead.
+local function SafetyNet(results, keep)
     for _, entry in ipairs(results) do
         for _, store in ipairs({ ns.Learn, Procs }) do
             if entry.tally > 0 and store.Get(entry.spellID) then
                 if entry.verdict == "over" then
-                    store.Drop(entry.spellID)
+                    if keep then Pause(entry.spellID) else store.Drop(entry.spellID) end
                 elseif entry.verdict == "unpaired" then
-                    store.Unpaired(entry.spellID)
+                    if store.Unpaired(entry.spellID, keep) then Pause(entry.spellID) end
                 else
                     store.Paired(entry.spellID)
                 end
@@ -964,17 +988,19 @@ local function Judging(run, sessionID, rows, reason)
                 not get and "none" or not ok and "err" or issecretvalue(override) and "secret" or tostring(override))
         end
     end
-    local results, open = Verdicts(run.tally, rows)
-    SafetyNet(results)
+    local area, total = CrowdCheck(run, rows)
+    local keep = area == "group" or area == "crowded"
+    local results, open = Verdicts(run.tally, rows, keep)
+    SafetyNet(results, keep)
     -- a fight that ends while this judging waits clears Teacher.last: this one keeps its own until Done
     local last = { session = sessionID, rows = results, learned = {} }
     Teacher.last = last
 
-    local area, total = CrowdCheck(run, rows)
     if area ~= "group" and area ~= "short" then
         Teacher.area = area
         SaveArea(area)
     end
+    if area == "clear" and store then store.paused = nil end
     last.area = area
     Ledger.SetOutcome(run.at, area, total)
     if ns.Debug then
@@ -1008,8 +1034,10 @@ local function Read(run)
     Judge(function() Judging(run, sessionID, rows, reason) end)
 end
 
--- Combat began: open a fight (an unfinished one is replaced).
+-- Combat began: open a fight (an unfinished one is replaced). A solo fight on a clear map ends every pause: its
+-- read judges those spells again.
 function Teacher.Start(now, group)
+    if store and not group and Teacher.area == "clear" then store.paused = nil end
     local streams = Streams.NewFight()
     Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, casts = {}, seen = 0, live = 0, schools = {},
         group = group, streams = streams }

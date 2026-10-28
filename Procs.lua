@@ -100,12 +100,18 @@ function Procs.Drop(id)
     if IsNumber(id) then procs[id] = nil end
 end
 
--- Procs.Unpaired(id): a learned proc the meter did not pair; the second strike in a row drops it.
-function Procs.Unpaired(id)
+-- Procs.Unpaired(id, keep): a learned proc the meter did not pair; the second strike in a row drops it. With `keep` (a
+-- group or crowded read) that strike keeps it, starts the strikes over and returns true.
+function Procs.Unpaired(id, keep)
     local entry = Procs.Get(id)
     if not entry then return end
     entry.unpaired = entry.unpaired + 1
-    if entry.unpaired >= UNPAIRED_MAX then Procs.Drop(id) end
+    if entry.unpaired < UNPAIRED_MAX then return end
+    if keep then
+        entry.unpaired = 0
+        return true
+    end
+    Procs.Drop(id)
 end
 
 function Procs.Paired(id)

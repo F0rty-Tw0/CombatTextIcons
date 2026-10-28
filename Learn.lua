@@ -171,13 +171,19 @@ function Learn.Drop(spellID)
     votes[spellID] = nil
 end
 
--- A meter read found no ticks for the spell's trigger: the second strike in a row drops it.
-function Learn.Unpaired(spellID)
+-- A meter read found no ticks for the spell's trigger: the second strike in a row drops it. With `keep` (a group or
+-- crowded read) that strike keeps it, starts the strikes over and returns true.
+function Learn.Unpaired(spellID, keep)
     if not IsId(spellID) then return end
     local entry = learned[spellID]
     if not entry then return end
     entry.unpaired = (entry.unpaired or 0) + 1
-    if entry.unpaired >= UNPAIRED_MAX then Learn.Drop(spellID) end
+    if entry.unpaired < UNPAIRED_MAX then return end
+    if keep then
+        entry.unpaired = 0
+        return true
+    end
+    Learn.Drop(spellID)
 end
 
 -- A meter read matched the spell's ticks: the strikes start over.
