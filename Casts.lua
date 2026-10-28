@@ -161,7 +161,20 @@ end
 
 -- The fingerprint (its base's) a record still waits on, or nil when the record is dead: its
 -- fingerprint is gone or unlearned, or `now` is past its window (a chain record
--- that took a hop lives CHAIN_GAP past its last hop, if that is later; a ground record lives its learned ticks).
+-- that took a hop lives CHAIN_GAP past its last hop, if that is later; a ground record lives its learned ticks; any
+-- other record that saw its own hit and drew a Splash lives SPLASH past that hit, if that is later, for its rest).
+-- Run shaman5 fight 5: Lava Burst 51505 cast 200320.733 (window top 0.28 s, so dead at 0.61 s) saw its target hit at
+-- 0.21 s and drew a splash crit at 0.558 s; its other 3 (75714-77461) landed at 0.656 s and stayed '?'. One that drew
+-- no splash keeps its window: hunter fight 9's Bite 17253 (row 19221, its target hits only) would take Beast Cleave's
+-- 1547-3078 on 5 plates 0.46 s after its own hit.
+local function Splashed(record)
+    for plate in pairs(record.plates) do
+        if plate ~= record.plate then return true end
+    end
+
+    return false
+end
+
 local function Live(record, now)
     local fp = Fingerprints.Get(record.base)
     if not (fp and fp.learned) then return nil end
@@ -175,6 +188,9 @@ local function Live(record, now)
     local _, high = RecordWindow(record)
     local limit = record.at + LATE * high + SLACK
     if fp.pattern == "chain" and record.hops >= 1 then limit = math.max(limit, record.last + CHAIN_GAP) end
+    if fp.pattern ~= "chain" and record.seen and Splashed(record) then
+        limit = math.max(limit, record.at + record.seen[1] + SPLASH)
+    end
     if now <= limit then return fp end
 end
 

@@ -610,6 +610,12 @@ do -- Phase 3: records and Claim
                 and Last({ own, { 30.2, 20000, "nameplate2" } }) ~= MB
                 and Last({ own, { 30.4, 12000, "nameplate2" } }) ~= MB
                 and Last({ { 30.05, 20000, "nameplate3" }, own, { 30.4, 20000, "nameplate2" } }) ~= MB
+                -- shaman5 fight 5: Lava Burst 51505 (window top 0.28 s) drew a splash at 0.558 s, its other 3 landed at
+                -- 0.656 s, past its window; a cast that drew a splash lives SPLASH past its own hit, one that drew none
+                -- keeps its window
+                and Last({ own, { 30.4, 20000, "nameplate2" }, { 30.6, 20000, "nameplate3" } }) == MB
+                and Last({ own, { 30.6, 20000, "nameplate3" } }) ~= MB
+                and Last({ own, { 30.4, 20000, "nameplate2" }, { 30.75, 20000, "nameplate3" } }) ~= MB
         end)
     -- shaman5 fight 1: Earthquake 462620 learned as ground (Ground.lua) ticks on every plate in its patch, first
     -- ~1.02 s after the cast, then every ~0.98 s; three 16.5K crits of another spell on one plate (200335.220, 8.2K
