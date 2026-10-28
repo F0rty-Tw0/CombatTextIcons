@@ -774,7 +774,7 @@ end
 -- The crowd check: "group" (the state is kept) for a fight that started grouped or saw a wound while
 -- grouped; the group state at read time does not count (priest3: joining the dungeon group 2 s after a
 -- solo dummy fight lost that fight's whole read); "short" (the state is kept)
--- when the wounds seen are below half the meter's total, so the session holds damage this fight
+-- when the meter's total is 0, or the wounds seen are below half of it, so the session holds damage this fight
 -- never saw (run 102226Z: 20306 seen against 4211377); else "clear" when the wounds
 -- seen fit the meter's rows (their total plus overkill, within the judge's tolerance), else
 -- "crowded". Also returns the rows' total.
@@ -785,7 +785,8 @@ local function CrowdCheck(run, rows)
     end
 
     if run.group then return "group", total end
-    if run.seen < total / 2 then return "short", total end
+    -- an empty read tells nothing about the area (shamanally2: a 3 s blip after a crowded read saved "clear")
+    if total <= 0 or run.seen < total / 2 then return "short", total end
 
     local tolerance = math.max(1, total / 100)
     local fits = run.seen <= total + overkill + tolerance

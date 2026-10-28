@@ -724,6 +724,17 @@ return function(T)
         -- run 102226Z read seen 20306 against meter 4211377; clean solo reads were at most ~5 % short
         Check("crowd: seen half the meter (500 of 1000) is still clear", AreaAt(500, 1000) == "clear")
         Check("crowd: seen below half the meter (499 of 1000) is short", AreaAt(499, 1000) == "short")
+        do -- shamanally2: a 3 s blip right after a crowded read (seen 0, meter 0) read "clear" and saved it
+            local rig = Rig({ [SMITE] = 2 })
+            local Teacher = rig.ns.Teacher
+            Teacher.area = "crowded"
+            rig.S.sessions = { Session(1, { Row(SMITE, 0) }) }
+            Teacher.Start(10)
+            Teacher.Finish(13)
+            pcall(rig.Fire)
+            Check("crowd: a read with nothing seen and a zero meter is short and keeps the state",
+                Teacher.last.area == "short" and Teacher.area == "crowded")
+        end
         for _, area in ipairs({ "clear", "crowded" }) do
             local rig, ok, last, learned = Crowd(area, 86)
             Check("crowd: a short read keeps the state (" .. area .. ") and skips learning",
