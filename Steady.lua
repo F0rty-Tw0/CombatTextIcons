@@ -34,9 +34,13 @@ local WINDOWS = 15      -- delay windows the scan tries (Casts' UNKNOWN_WAIT 1.5
 local DOMINANT = 2      -- one cluster's counted sum at least this times each other's speaks for the cast spell
 
 -- How the pass treats a base this read: "new" (unlearned), "base" (learned before this read: it
--- learns the hits it missed), or nil (learned by this read's exact-sum passes: skipped).
+-- learns the hits it missed), or nil (learned by this read's exact-sum passes, or a ground spell: skipped). A ground
+-- spell's target plate leaves one '?' tick at its first tick's delay per cast, and those samples would push out the
+-- tick-tagged ones its period lives in (Ground.lua).
 local function Mode(castID, learnedNow)
     if learnedNow[castID] then return nil end
+    local fp = Fingerprints.Get(castID)
+    if fp and fp.learned and fp.pattern == "ground" then return nil end
 
     return Fingerprints.IsLearned(castID) and "base" or "new"
 end

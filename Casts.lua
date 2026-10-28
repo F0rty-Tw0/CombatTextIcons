@@ -129,12 +129,39 @@ local function Settle(record, now)
     centre.at = record.at
 end
 
+-- A learned ground spell (Ground.lua): its first tick lands in the learned window, each later one a period after the
+-- last tick seen (within Ground.Slack), on any plate; up to GROUND_SKIP ticks may pass unseen between two, as the
+-- learner's walk allows. Unseen first ticks count from the window's middle.
+local GROUND_SKIP = 2
+
+-- The tick index a hit at `now` lands on for a ground `record`, or nil: its first tick's window, the frame of the last
+-- tick seen, or a period (1 to GROUND_SKIP) after it, below the learned ticks.
+local function GroundTick(record, fp, now)
+    local low, high = Fingerprints.Window(record.base, record.spellID)
+    if not low then return nil end
+    local slack = ns.Ground.Slack(fp.period)
+    local age = now - record.at
+    if not record.tickAt and age >= low - slack and age <= high + slack then return 0 end
+    if record.tickAt and now == record.tickAt then return record.tick end
+    local anchorAt, anchorK = record.tickAt or record.at + (low + high) / 2, record.tick or 0
+    local k = anchorK + math.floor((now - anchorAt) / fp.period + 0.5)
+    local onTime = math.abs(now - anchorAt - (k - anchorK) * fp.period) <= slack
+    if k > anchorK and k - anchorK <= GROUND_SKIP and k < fp.ticks and onTime then return k end
+end
+
 -- The fingerprint (its base's) a record still waits on, or nil when the record is dead: its
 -- fingerprint is gone or unlearned, or `now` is past its window (a chain record
--- that took a hop lives CHAIN_GAP past its last hop, if that is later).
+-- that took a hop lives CHAIN_GAP past its last hop, if that is later; a ground record lives its learned ticks).
 local function Live(record, now)
     local fp = Fingerprints.Get(record.base)
     if not (fp and fp.learned) then return nil end
+    if fp.pattern == "ground" then
+        local anchorAt = record.tickAt or record.at + (Fingerprints.Window(record.base, record.spellID) or 0)
+        local left = fp.ticks - 1 - (record.tick or 0)
+        if now <= anchorAt + left * fp.period + ns.Ground.Slack(fp.period) then return fp end
+
+        return nil
+    end
     local _, high = RecordWindow(record)
     local limit = record.at + LATE * high + SLACK
     if fp.pattern == "chain" and record.hops >= 1 then limit = math.max(limit, record.last + CHAIN_GAP) end
@@ -200,7 +227,8 @@ function Casts.NoteCast(castID, now, castGUID, pet)
     log[#log + 1] = entry
     while now - log[1].at > UNKNOWN_WAIT or #log > LOG_MAX do table.remove(log, 1) end
 
-    if entry.plate and Fingerprints.IsLearned(base) then
+    local ground = Fingerprints.IsLearned(base) and Fingerprints.Get(base).pattern == "ground"
+    if (entry.plate or ground) and Fingerprints.IsLearned(base) then
         records[#records + 1] = { spellID = castID, base = base, at = now, plate = entry.plate, hops = 0, plates = {},
             last = now }
         if #records > RECORD_MAX then table.remove(records, 1) end
@@ -254,8 +282,16 @@ end
 -- window, fits the same weak way when `size` is inside the learned sizes, unpadded: Lava Burst learned
 -- at 0.50-0.60 s in a first fight landed at 0.37-0.44 s in every later one. A hit on another plate fits a
 -- non-chain record the same weak way when it is the cast's Splash. Else false.
-local function Fits(record, fp, plate, school, now, size)
+local function Fits(record, fp, plate, school, now, size, crit)
     if school ~= fp.school then return false end
+    if fp.pattern == "ground" then
+        -- a tick is anchored only by a normal hit near the learned sizes (Ground's Near: a halved crit of another
+        -- spell passes for one); the padded band draws the rest of its frame
+        local tick = GroundTick(record, fp, now)
+        local anchors = tick ~= nil and (now == record.tickAt or not crit and NearSizes(record, size))
+
+        return anchors and "in"
+    end
     if plate ~= record.plate and fp.pattern ~= "chain" then
         return Splash(record, plate, school, now, size) and "late"
     end
@@ -362,18 +398,28 @@ end
 -- hit's normal-scale size (Streams.NormalAmount), nil when unknown. A "learned" answer's third value is true when
 -- the record fit only late. Draws nothing; Accept is the only writer of hops. Each hit asked about stays a wound for
 -- QUIET + SPLASH (Splash).
+-- `flagText` (the hit's, optional) tells a crit, which never anchors a ground tick (Fits).
 -- When `strict` (Core: the fight turned crowded), a record fits only a hit it CrowdFits: strangers' hits of its school
 -- land in every padded window (lock3 fight 3: 4 Shadow Bolt casts drew 118730 against a row of 76384; three of the
 -- four drawn hits lay outside the learned sizes, two of them crits of twice the biggest).
-function Casts.Claim(plate, school, now, size, strict)
+function Casts.Claim(plate, school, now, size, strict, flagText)
     if not (Plain(plate) and Plain(school) and Plain(now)) then return nil end
     local found, fits, late, lateFits = nil, 0, nil, 0
+    local crit = Plain(flagText) and flagText == "CRITICAL"
     for _, record in ipairs(records) do
         Settle(record, now)
         local fp = Live(record, now)
-        local fit = fp and Casts.InBand(record.base, record.spellID, size) and Fits(record, fp, plate, school, now, size)
-        if strict and not (fit == "in" and CrowdFits(record, now, size)) then fit = false end
-        if fp then Watch(record, fp, plate, school, now, size) end
+        local inBand = fp and Casts.InBand(record.base, record.spellID, size)
+        local fit = inBand and Fits(record, fp, plate, school, now, size, crit)
+        local ground = fp and fp.pattern == "ground"
+        local crowdFit = ground and NearSizes(record, size) or not ground and CrowdFits(record, now, size)
+        if strict and not (fit == "in" and crowdFit) then fit = false end
+        if fit and ground then
+            -- every ground record a hit fits steps to its tick, whichever record draws it
+            record.tick, record.tickAt = GroundTick(record, fp, now), now
+        elseif fp then
+            Watch(record, fp, plate, school, now, size)
+        end
         if fit == "in" then
             found, fits = Count(found, fits, record)
         elseif fit == "late" then

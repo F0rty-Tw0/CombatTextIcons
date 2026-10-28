@@ -31,7 +31,7 @@
 
 local _, ns = ...
 local Meter, Fingerprints, Procs, Ledger, Streams = ns.Meter, ns.Fingerprints, ns.Procs, ns.Ledger, ns.Streams
-local Steady = ns.Steady
+local Steady, Ground = ns.Steady, ns.Ground
 
 local Teacher = {}
 ns.Teacher = Teacher
@@ -48,8 +48,9 @@ local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
 -- the open fight: { at, tally = { [spellID] = sum }, unknown = { entry, ... }, ticks = { tick, ... },
---   streams = { [stream] = record }, seen = sum, live = this fight's own seen (no carried fight's), crowded = the live
---   crowd check fired, carried = seconds of fights carried in, duration = seconds in combat (set at Finish), group }
+--   casts = { { spellID, base, at }, ... }, streams = { [stream] = record }, seen = sum, live = this fight's own seen
+--   (no carried fight's), crowded = the live crowd check fired, carried = seconds of fights carried in, duration =
+--   seconds in combat (set at Finish), group }
 Teacher.fight = nil
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; a read saves it with its map (SaveArea)
@@ -484,7 +485,8 @@ end
 -- Learning from '?' hits (spec 6.5): rewrites the learned rows of `results` against the
 -- session's meter `rows`. Whole sums pair first; a row and a group that no whole sum agreed
 -- with then try `top`; then each cast's largest hit by candidates (CandidateGroups) tries the cast's
--- own row; last, the steady pass (Steady.lua) learns from steady hits no sum explained.
+-- own row; then the steady pass (Steady.lua) learns from steady hits no sum explained; last, the ground pass
+-- (Ground.lua) learns a rowless cast's ticks on many plates, bounded by one open row.
 -- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so
 -- the DoT's draws were other spells' (a stale save's Nature DoT under Lava Burst 51505 drew Surging Totem's ticks).
 -- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
@@ -501,6 +503,7 @@ local function Learn(run, results, open, rows)
     Pass(CandidateGroups(run.unknown, spent), open, owners, function(group) return group.cand end,
         { rows = seen.rows, groups = {} }, results, learned, rewritten)
     for _, way in ipairs(Steady.Learn(run, rows, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(Ground.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(learned) do
         local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)
         if dot and fp and fp.learned and fp.school ~= dot.school then ns.Learn.Drop(way.castID) end
@@ -618,6 +621,7 @@ local function Carry(run, into)
     for spellID, amount in pairs(run.tally) do into.tally[spellID] = (into.tally[spellID] or 0) + amount end
     for index, hit in ipairs(run.unknown) do table.insert(into.unknown, index, hit) end
     for index, tick in ipairs(run.ticks or {}) do table.insert(into.ticks, index, tick) end
+    for index, cast in ipairs(run.casts or {}) do table.insert(into.casts, index, cast) end
     into.seen = into.seen + run.seen
     into.carried = (into.carried or 0) + (run.duration or 0)
     into.streams = Streams.JoinFight(into.streams or {}, run.streams or {})
@@ -715,7 +719,7 @@ end
 -- Combat began: open a fight (an unfinished one is replaced).
 function Teacher.Start(now, group)
     local streams = Streams.NewFight()
-    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, seen = 0, live = 0, group = group,
+    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, casts = {}, seen = 0, live = 0, group = group,
         streams = streams }
 end
 
@@ -742,6 +746,13 @@ end
 function Teacher.AreaClear()
     local fight = Teacher.fight
     return Teacher.area == "clear" and Meter.Available() and not (fight and fight.crowded)
+end
+
+-- A harmful cast of the player or the pet (`base` is Casts.Base of `spellID`), for the ground pass.
+function Teacher.Cast(spellID, base, now)
+    local fight = Teacher.fight
+    if not (fight and IsNumber(spellID) and IsNumber(base) and IsNumber(now)) then return end
+    fight.casts[#fight.casts + 1] = { spellID = spellID, base = base, at = now }
 end
 
 -- A hit was drawn with this spell's icon.

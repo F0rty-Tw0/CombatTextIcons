@@ -321,7 +321,8 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if named and Learn.Get(spellID) then
         -- A learned DoT's answer is votes; a learned cast fingerprint that fits the hit in its window is exact
         -- (Lightning Bolt hits drawn as a mislearned Lava Burst DoT): the cast wins. The one Claim serves both.
-        kind, record, late = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText), crowded)
+        kind, record, late = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText), crowded,
+            flagText)
         claimed = true
         if kind == "learned" and not late and fightsYou and record.spellID ~= spellID then named = false end
     end
@@ -333,7 +334,8 @@ local function Wound(plate, unit, flagText, amount, school, now)
         return Display.Plate(plate, SpellTexture(spellID), text, flagText, school)
     end
     if not claimed then
-        kind, record = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText), crowded)
+        kind, record = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText), crowded,
+            flagText)
     end
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
@@ -538,7 +540,10 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     local now = GetTime()
     if (unit == "player" or unit == "pet") and Plain(spellID) then
         local harmful = C_Spell.IsSpellHarmful and C_Spell.IsSpellHarmful(spellID)
-        if Plain(harmful) and harmful then Casts.NoteCast(spellID, now, castGUID, unit == "pet") end
+        if Plain(harmful) and harmful then
+            Casts.NoteCast(spellID, now, castGUID, unit == "pet")
+            Teacher.Cast(spellID, Casts.Base(spellID), now)
+        end
     end
     Tracker.OnCast(unit, spellID, now)
 end

@@ -2337,6 +2337,79 @@ return function(T)
             and not rig.ns.Fingerprints.IsLearned(LAVA_BURST) and rig.ns.Learn.Get(LAVA_BURST) ~= nil)
     end
 
+    do -- ground pass (Ground.lua): a rowless cast's ticks on many plates, bounded by one open row of another ID
+        -- Run shaman5 F1: Earthquake 462620 has no row; each cast's first tick lands ~1.02 s later on 5 plates, then
+        -- one every ~0.98 s, 6 ticks, all in row 77478. Here 4 casts 10 s apart tick 6 times on 3 plates, 1.0 s
+        -- after the cast and then every 1.0 s: 4 x 6 x 19500 = 468000 seen. The casts target no plate (a ground spell
+        -- aims at the floor; a target ticked like this would learn the spell as its DoT first).
+        local EARTHQUAKE, QUAKE_ROW, OTHER_ROW = 462620, 77478, 188443
+        local SIZES = { nameplate1 = 6400, nameplate2 = 6500, nameplate3 = 6600 }
+        local function QuakeFight(rig, casts, rows, before)
+            local S, Core = rig.S, rig.ns.Core
+            SlashCmdList.COMBATTEXTICONS("debug")
+            S.now = casts[1] - 2
+            Core.PLAYER_REGEN_DISABLED()
+            if before then before() end
+            for _, t in ipairs(casts) do
+                rig.Cast(t, nil, EARTHQUAKE)
+                for k = 0, 5 do
+                    for _, unit in ipairs({ "nameplate1", "nameplate2", "nameplate3" }) do
+                        rig.Hit(t + 1 + k, unit, SIZES[unit], 8)
+                    end
+                end
+            end
+            S.now = casts[#casts] + 10
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(nextSession, rows) }
+            nextSession = nextSession + 1
+            pcall(rig.Fire)
+            return rig.ns.Teacher.last
+        end
+        local function Outcome()
+            local found
+            for _, line in ipairs(CombatTextIconsDB.debugLog) do
+                found = line:match("TEACH ground " .. EARTHQUAKE .. " casts=%d+ %-> (%S+)") or found
+            end
+            return found
+        end
+        local CASTS = { 10, 20, 30, 40 }
+
+        local rig = Rig({})
+        local last = QuakeFight(rig, CASTS, { Row(QUAKE_ROW, 600000) })
+        local F = rig.ns.Fingerprints
+        local entry = F.Get(EARTHQUAKE)
+        Check("ground (a): 4 rowless casts, 6 ticks 1.0 s apart on 3 plates (468000) under row 600000 -> learned as "
+            .. "ground, row aliased",
+            Outcome() == "learned" and F.IsLearned(EARTHQUAKE) and entry.pattern == "ground" and entry.ticks == 6
+            and math.abs(entry.period - 1) < 1e-6 and F.Alias(QUAKE_ROW) == EARTHQUAKE
+            and Find(last, EARTHQUAKE).verdict == "under" and last.learned[EARTHQUAKE] == 72)
+        rig.S.now = 99
+        rig.ns.Core.PLAYER_REGEN_DISABLED()
+        rig.Cast(100, nil, EARTHQUAKE)
+        Check("ground (a2): the next cast, no target, draws its ticks on any plate, not a hit between two ticks",
+            rig.Hit(101, "nameplate2", 6500, 8) == "tex:" .. EARTHQUAKE
+            and rig.Hit(101.5, "nameplate3", 6500, 8) ~= "tex:" .. EARTHQUAKE
+            and rig.Hit(102, "nameplate3", 6550, 8) == "tex:" .. EARTHQUAKE)
+
+        rig = Rig({})
+        QuakeFight(rig, CASTS, { Row(QUAKE_ROW, 400000), Row(OTHER_ROW, 300000) })
+        Check("ground (b): the ticks (468000) over every open row (400000, 300000) -> nothing learned, no alias",
+            Outcome() == "rows=0" and rig.ns.Fingerprints.Get(EARTHQUAKE) == nil
+            and rig.ns.Fingerprints.Alias(QUAKE_ROW) == nil)
+
+        rig = Rig({})
+        -- Fight 1: rows of at least D were 188443 and 51505 too, both cast that fight; 77478 alone was free.
+        QuakeFight(rig, CASTS, { Row(OTHER_ROW, 600000) }, function() rig.Cast(9, nil, OTHER_ROW) end)
+        Check("ground (c): the one row that bounds the ticks is a spell cast this fight -> not free, nothing learned",
+            Outcome() == "rows=0" and rig.ns.Fingerprints.Get(EARTHQUAKE) == nil
+            and rig.ns.Fingerprints.Alias(OTHER_ROW) == nil)
+
+        rig = Rig({})
+        QuakeFight(rig, { 10, 20 }, { Row(QUAKE_ROW, 600000) })
+        Check("ground (d): 2 casts are under MIN_CASTS -> the pass never tries the spell",
+            Outcome() == nil and rig.ns.Fingerprints.Get(EARTHQUAKE) == nil)
+    end
+
     do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899
         local LAVA_BURST, LAVA_BASE = 51505, 73899
         local rig = Rig({})

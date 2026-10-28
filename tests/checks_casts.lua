@@ -611,6 +611,43 @@ do -- Phase 3: records and Claim
                 and Last({ own, { 30.4, 12000, "nameplate2" } }) ~= MB
                 and Last({ { 30.05, 20000, "nameplate3" }, own, { 30.4, 20000, "nameplate2" } }) ~= MB
         end)
+    -- shaman5 fight 1: Earthquake 462620 learned as ground (Ground.lua) ticks on every plate in its patch, first
+    -- ~1.02 s after the cast, then every ~0.98 s; three 16.5K crits of another spell on one plate (200335.220, 8.2K
+    -- halved) landed in a cast's first-tick window ahead of its real tick. Learned here: first tick 1.0 s, period 1.0,
+    -- 6 ticks.
+    Scenario("ground: a ground cast draws its ticks on any plate, a period apart; a crit never anchors a tick",
+        function()
+            local function Last(hits)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                for castAt = 1, 3 do
+                    ns.Fingerprints.Add(462620, { school = 8, delay = 1, castAt = castAt, hops = 1, size = 6400,
+                        tick = 0 })
+                    ns.Fingerprints.Add(462620, { school = 8, delay = 6, castAt = castAt, hops = 1, size = 6600,
+                        tick = 5 })
+                end
+                local drawn
+                ns.Display.Plate = function(_, texture) drawn = texture end
+                S.now, S.target = 30, nil
+                ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 462620)
+                for _, hit in ipairs(hits) do
+                    S.now, drawn = hit[1], nil
+                    ns.Core.UNIT_COMBAT(hit[3], "WOUND", hit[4] or "", hit[2], 8)
+                end
+                return drawn
+            end
+            local EQ, first = "tex:462620", { 31, 6500, "nameplate2" }
+            local ticks = { first }
+            for k = 1, 6 do ticks[#ticks + 1] = { 31 + k, 6500, "nameplate" .. (2 + k % 3) } end
+            return Last({ first }) == EQ
+                and Last({ { 31, 13000, "nameplate2", "CRITICAL" } }) ~= EQ
+                and Last({ first, { 31, 19500, "nameplate3", "CRITICAL" } }) == EQ
+                and Last({ first, { 32, 6500, "nameplate3" } }) == EQ
+                and Last({ first, { 31.5, 6500, "nameplate3" } }) ~= EQ
+                and Last({ first, { 33, 6500, "nameplate3" } }) == EQ
+                and Last({ first, { 34, 6500, "nameplate3" } }) ~= EQ
+                and Last({ table.unpack(ticks, 1, 6) }) == EQ and Last(ticks) ~= EQ
+        end)
 
     -- Run 134732Z: Mind Blast cast at nameplate4, the target moved on to the next mob before the cast
     -- finished, the killing hit landed on nameplate4 -> '?'. The cast's plate is the target at its start.

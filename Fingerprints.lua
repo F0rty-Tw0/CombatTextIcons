@@ -6,7 +6,9 @@
 -- post-fight teacher (Teacher.lua) only counts fights it agreed with or
 -- overshot. Two overshoots in a row delete the entry. Samples keep the hit's normal-scale
 -- size (crits divided by CRIT_FACTOR); a claim needs a hit inside the padded band (Casts.lua).
--- `castAliases` maps a meter row ID to the cast ID (Auto Shot 75 -> Shoot 5019).
+-- `castAliases` maps a meter row ID to the cast ID (Auto Shot 75 -> Shoot 5019). A ground spell's samples
+-- (Ground.lua) carry `tick`: 0 for its first tick, whose delays alone give the window, k for its kth tick after that;
+-- they make the pattern "ground" with a `period` and `ticks` (Casts.lua walks them).
 -- Saved data is checked on load and never trusted.
 
 local _, ns = ...
@@ -26,11 +28,42 @@ local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 local function HitSize(value) return IsNumber(value) and value > 0 and value or nil end -- a plain size above 0, else nil
+-- a ground tick index (a whole number from 0), else nil
+local function Tick(value) return IsNumber(value) and value >= 0 and value % 1 == 0 and value or nil end
 
 -- The in-memory tables are the saved ones once Init ran.
 local casts, aliases = {}, {}
 
--- Recomputes delayLo / delayHi from `delays` and `pattern` from the kept samples.
+-- Whether `sample` is a ground spell's later tick, whose delay is no window delay.
+local function LaterTick(sample) return sample.tick ~= nil and sample.tick > 0 end
+
+local function Median(list)
+    table.sort(list)
+
+    return list[math.ceil(#list / 2)]
+end
+
+-- A ground entry's period and ticks from its samples: per cast, (a later tick's delay - its first tick's) / tick, and
+-- that tick + 1; the medians. nil when no cast kept both.
+local function Ground(entry)
+    local firsts, periods, counts = {}, {}, {}
+    for _, sample in ipairs(entry.samples) do
+        if sample.tick == 0 then firsts[sample.castAt] = sample.delay end
+    end
+    for _, sample in ipairs(entry.samples) do
+        local first = firsts[sample.castAt]
+        if LaterTick(sample) and first then
+            periods[#periods + 1] = (sample.delay - first) / sample.tick
+            counts[#counts + 1] = sample.tick + 1
+        end
+    end
+    if #periods == 0 then return nil end
+
+    return Median(periods), Median(counts)
+end
+
+-- Recomputes delayLo / delayHi from `delays`, and `pattern` (with a ground entry's `period` and `ticks`) from the
+-- kept samples.
 local function Refresh(entry)
     local low, high
     for _, delay in ipairs(entry.delays) do
@@ -42,6 +75,8 @@ local function Refresh(entry)
     for _, sample in ipairs(entry.samples) do
         if sample.hops >= 2 then entry.pattern = "chain" end
     end
+    entry.period, entry.ticks = Ground(entry)
+    if entry.period and entry.period > 0 then entry.pattern = "ground" end
 end
 
 -- Whether `entry` goes before `other` when the table is full: unlearned before learned, then
@@ -90,7 +125,7 @@ local function MarkLearned(entry, school)
     entry.learned, entry.school = true, school
     entry.delays = {}
     for _, sample in ipairs(entry.samples) do
-        if sample.school == school then entry.delays[#entry.delays + 1] = sample.delay end
+        if sample.school == school and not LaterTick(sample) then entry.delays[#entry.delays + 1] = sample.delay end
     end
 end
 
@@ -109,10 +144,15 @@ function Fingerprints.Add(spellID, sample)
     if entry.learned and school ~= entry.school then return end
     local hops = IsNumber(sample.hops) and sample.hops or 1
     local spell = IsNumber(sample.spell) and sample.spell or nil
-    entry.samples[#entry.samples + 1] = { school = school, delay = delay, castAt = castAt, hops = hops, spell = spell,
-        size = HitSize(sample.size) }
+    local kept = { school = school, delay = delay, castAt = castAt, hops = hops, spell = spell,
+        size = HitSize(sample.size), tick = Tick(sample.tick) }
+    entry.samples[#entry.samples + 1] = kept
     if #entry.samples > SAMPLES then table.remove(entry.samples, 1) end
     entry.lastSeen = castAt
+    if entry.learned and LaterTick(kept) then
+        Refresh(entry)
+        return
+    end
     if entry.learned then
         entry.delays[#entry.delays + 1] = delay
         if #entry.delays > DELAYS then table.remove(entry.delays, 1) end
@@ -143,7 +183,7 @@ function Fingerprints.Window(spellID, castSpell)
     if not (entry and entry.learned) then return nil end
     local low, high
     for _, sample in ipairs(entry.samples) do
-        if sample.spell == castSpell and sample.school == entry.school then
+        if sample.spell == castSpell and sample.school == entry.school and not LaterTick(sample) then
             if not low or sample.delay < low then low = sample.delay end
             if not high or sample.delay > high then high = sample.delay end
         end
@@ -265,7 +305,7 @@ local function KeepSamples(list)
             local spell = type(sample.spell) == "number" and sample.spell or nil
             local size = type(sample.size) == "number" and sample.size > 0 and sample.size or nil
             kept[#kept + 1] = { school = sample.school, delay = sample.delay, castAt = sample.castAt, hops = hops,
-                spell = spell, size = size }
+                spell = spell, size = size, tick = Tick(sample.tick) }
         end
     end
     while #kept > SAMPLES do table.remove(kept, 1) end
@@ -276,7 +316,7 @@ end
 -- Whether a saved entry can be kept: a learned one needs a school and delays, any needs a known pattern.
 local function ValidEntry(entry)
     if type(entry) ~= "table" or type(entry.learned) ~= "boolean" then return false end
-    if entry.pattern ~= "single" and entry.pattern ~= "chain" then return false end
+    if entry.pattern ~= "single" and entry.pattern ~= "chain" and entry.pattern ~= "ground" then return false end
     if not entry.learned then return true end
     local hasDelays = type(entry.delays) == "table" and #KeepNumbers(entry.delays, DELAYS) > 0
 

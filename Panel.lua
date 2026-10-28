@@ -24,7 +24,7 @@ ns.Panel = Panel
 local SECTIONS = { damage = 1, heal = 2 }
 local GROUPS = { learned = 1, learning = 2, table = 3, unattributed = 4 }
 local KINDS = { target = "dot", channel = "channel", area = "area", spread = "spread" } -- table mode -> row kind
-local PATTERNS = { single = "direct", chain = "chain" }                                -- fingerprint pattern -> row kind
+local PATTERNS = { single = "direct", chain = "chain", ground = "ground" } -- fingerprint pattern -> row kind
 local UNATTRIBUTED = { group = "unattributed", kind = "", state = "" }
 
 local issecretvalue = issecretvalue or function() return false end
