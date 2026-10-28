@@ -1856,6 +1856,32 @@ return function(T)
             ReadWith(rig, LATE, { { Y, 9000 } })
             Check("candidates: frame mates whose delays span 1.2 s (past 0.3) meet row 9000 of another ID -> no alias",
                 rig.ns.Fingerprints.Alias(Y) == nil and rig.ns.Fingerprints.Get(Z) == nil)
+
+            -- Ele log F3: Lightning Bolt 188196's row held each bolt and its ~0.45x Elemental Overloads, and Lava Burst
+            -- shared its cast stamp. Z cast with W on each stamp (Z alone if `alone`): a 1000 bolt at 0.2 s and a 450
+            -- overload at 0.6 s.
+            local function Bolts(times, alone)
+                local hits = {}
+                for _, t in ipairs(times) do
+                    local candidates = alone and { Candidate(Z, t) } or { Candidate(Z, t), Candidate(W, t) }
+                    hits[#hits + 1] = { 32, 1000, "", nil, t + 0.2, candidates }
+                    hits[#hits + 1] = { 32, 450, "", nil, t + 0.6, candidates }
+                end
+                return hits
+            end
+            rig = Rig({})
+            ReadWith(rig, Bolts({ 60, 65, 70 }), { { Z, 4350 } })
+            F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            Check("candidates: a 3-cast kill's bolts and overloads (3 x 1450) meet row 4350, each cast's largest "
+                .. "(3000) falls under -> Z learned from all 6 hits, W nothing",
+                F.IsLearned(Z) and last.learned[Z] == 6 and Find(last, Z).verdict == "agree" and #F.Get(Z).samples == 6
+                and F.Get(W) == nil)
+            rig = Rig({})
+            ReadWith(rig, Bolts({ 60, 65, 70, 75 }, true), { { Z, 5800 } })
+            F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            Check("candidates: with 4 casts every hit's sum (5800) stays out for the steady pass -> "
+                .. "Z learns its 4 bolts",
+                last.learned[Z] == 4 and #F.Get(Z).samples == 4 and F.Get(Z).samples[4].size == 1000)
         end
 
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks

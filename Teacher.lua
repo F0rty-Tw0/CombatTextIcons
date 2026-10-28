@@ -52,6 +52,13 @@ local DOT_FIT = 0.1
 -- aliases of the fresh logs span at most 0.11 s, but hunter's 1264359 (hits 0.00 or 1.00 s after a cast) spans
 -- 1.005 s in F1 and so learns each delay alone (F9, F11).
 local ALIAS_SPREAD = 0.3
+-- A cast's `all` way (CandidateGroups) pairs only in a short kill, at most this many of its casts this fight: there
+-- the steady pass reads no rhythm (with 3 casts it needs all 3 in one 0.1 s delay window; shamanresto F1's Lava
+-- Bursts 51505 landed 0.20-0.35 s after theirs and summed to the row exactly), so every hit the casts explain is the
+-- only evidence. From 4 casts on the steady pass reads the rhythm and refuses like-sized co-hits and second clusters;
+-- a sum over many cast windows takes in other spells' hits (Surging Totem's ticks among Lightning Bolts, run
+-- 20261025T192458Z).
+local SHORT_CASTS = 3
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -404,6 +411,9 @@ end
 -- A group { castID, school, cand = { castID, sum, hits, castOf, mates, area, covered, casts } } pairs only with the
 -- cast's own row unless `area` (every counted cast had a mate; Pairs); `castOf[hit]` is the candidate that hit is
 -- learned under, `mates[hit]` marks a mate (learned as a chain hop). Hits in `spent` are skipped.
+-- `all` = { castID, sum, hits, castOf } is every hit of the group, not only each cast's largest: Elemental Overload
+-- lands on the bolt's plate ~0.45x its size, and Lightning Bolt 188196's row holds both (ele log F3: 63230 + 28817 +
+-- 64483 + 26106 + 25821 = row 208457), so its cand stays under the row. It pairs only in short fights (SHORT_CASTS).
 local function CandidateGroups(unknown, spent)
     local byKey, list = {}, {}
     for _, hit in ipairs(unknown) do
@@ -421,10 +431,14 @@ local function CandidateGroups(unknown, spent)
             local key = castID .. ":" .. hit.school
             local group = byKey[key]
             if not group then
-                group = { castID = castID, school = hit.school, topOf = {}, castOf = {} }
+                group = { castID = castID, school = hit.school, topOf = {}, castOf = {},
+                    all = { castID = castID, sum = 0, hits = {}, castOf = {} } }
                 byKey[key] = group
                 list[#list + 1] = group
             end
+            group.all.sum = group.all.sum + hit.amount
+            group.all.hits[#group.all.hits + 1] = hit
+            group.all.castOf[hit] = candidate
             local top = group.topOf[candidate.castAt]
             if not top or hit.amount > top.amount then
                 group.topOf[candidate.castAt] = hit
@@ -487,8 +501,9 @@ end
 -- row of another ID belongs to no one else. It is not a row Procs tracks (a castless proc's own;
 -- spec 3.1 Rev 4), the cast has no row of its own this session, and the row is not the own row
 -- of another cast this fight (`owners.rows`, `owners.casts`; Rev 5). A cast's own row still pairs.
--- A `top` or a `cand` pairs only with the cast's own row: one largest hit often equals some other spell's
+-- A `top`, a `cand` or an `all` pairs only with the cast's own row: one largest hit often equals some other spell's
 -- one-hit row by chance. An `area` cand (each cast's largest with its frame mates) is a whole sum and may.
+-- An `all` pairs only with at most SHORT_CASTS casts, and may mix sizes: overloads are the cast's own.
 -- A row of another ID also needs the way in at least half the cast's casts:
 -- a castless proc's lone hit in one of many cast frames is no hit of the cast (run 153349Z: one holy
 -- 2364 after 1 of 6 Void Volley casts equalled the proc's row 1260076). Its delays span at most ALIAS_SPREAD.
@@ -504,7 +519,7 @@ local function DelaySpan(way)
 end
 
 local function Pairs(group, way, row, owners)
-    if way == group and group.mixed then return false end
+    if way == group and group.mixed or way == group.all and group.cand.casts > SHORT_CASTS then return false end
     local whole = way == group or way.area
     if row.spellID ~= group.castID
         and (not whole or Procs.Has(row.spellID) or owners.rows[group.castID] or owners.casts[row.spellID]
@@ -700,12 +715,12 @@ end
 -- Learning from '?' hits (spec 6.5): rewrites the learned rows of `results` against the
 -- session's meter `rows`. Whole sums pair first; a row and a group that no whole sum agreed
 -- with then try `top`; then each cast's largest hit by candidates (CandidateGroups) tries the cast's
--- own row; then the steady pass (Steady.lua) learns from steady hits no sum explained; then the ground pass
--- (Ground.lua) learns a rowless cast's ticks on many plates, bounded by one open row; then the chain pass (Chain.lua)
--- learns a cast's hops from plate to plate under its own open row, before the DoT pass: a proven chain is direct hits,
--- so they leave the school's '?' sum the DoT pass bounds; then the DoT pass learns a cast's DoT from its school's
--- streams, bounded by its own open row; last, the stack pass (Stack.lua) learns a stacking DoT's ticks on its cast's
--- plate under its own open row.
+-- own row, then in a short kill every hit by candidates (`all`); then the steady pass (Steady.lua) learns from
+-- steady hits no sum explained; then the ground pass (Ground.lua) learns a rowless cast's ticks on many plates,
+-- bounded by one open row; then the chain pass (Chain.lua) learns a cast's hops from plate to plate under its own
+-- open row, before the DoT pass: a proven chain is direct hits, so they leave the school's '?' sum the DoT pass
+-- bounds; then the DoT pass learns a cast's DoT from its school's streams, bounded by its own open row; last, the
+-- stack pass (Stack.lua) learns a stacking DoT's ticks on its cast's plate under its own open row.
 -- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so
 -- the DoT's draws were other spells' (a stale save's Nature DoT under Lava Burst 51505 drew Surging Totem's ticks).
 -- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
@@ -720,8 +735,9 @@ local function Learn(run, results, open, rows)
     for _, way in ipairs(learned) do
         for _, hit in ipairs(way.hits) do spent[hit] = true end
     end
-    Pass(CandidateGroups(run.unknown, spent), open, owners, function(group) return group.cand end,
-        { rows = seen.rows, groups = {} }, results, learned, rewritten)
+    local candGroups, candSeen = CandidateGroups(run.unknown, spent), { rows = seen.rows, groups = {} }
+    Pass(candGroups, open, owners, function(group) return group.cand end, candSeen, results, learned, rewritten)
+    Pass(candGroups, open, owners, function(group) return group.all end, candSeen, results, learned, rewritten)
     Teacher.Yield()
     for _, way in ipairs(Steady.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     Teacher.Yield()
