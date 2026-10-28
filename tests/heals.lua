@@ -9,14 +9,14 @@
 --   named   drawn with a spell's icon        ?    drawn with the question mark (or as '?' with '?' icons off)
 --   hidden  replayed, drawn nothing          out  in a heal-only read: SplitFights makes no slice of it, never replayed
 -- named + ? + hidden + out = 100 %.
---   wrong    named under an ID with no player cast of it in the WINDOW s before the heal (or 0.01 s after: a cast on
---            the same stamp later in the line order), or under an ID that is no "TEACH heal" row anywhere in that log
---            (strict orphan); a share of the raw amount, inside named
+--   wrong    named under an ID no player cast ties to (Ties) in that ID's life before the heal (or 0.01 s after: a
+--            cast on the same stamp later in the line order), or under an ID that is no "TEACH heal" row anywhere in
+--            that log (strict orphan); a share of the raw amount, inside named
 --   control  named on a party unit in a log whose player heals nobody but itself (not `healer`): an ally's heal, so
 --            anything here is wrong; a share of the raw amount, must stay 0
 -- The meter's heal rows are EFFECTIVE healing on every target, the HEAL lines RAW healing on player and party: the two
--- sums never compare, so the rows serve only as the list of the player's own heal IDs. Blind spot: a heal whose spell
--- ID differs from its cast's (Healing Rain 73920 heals as 73921) scores wrong on the cast test, right or not.
+-- sums never compare, so the rows serve only as the list of the player's own heal IDs. Blind spot: the log never says
+-- which heal of a frame a cast made, so a named heal on its cast's stamp scores right even when it was a proc's.
 --
 -- shamanheal is the 2026-10-28 resto capture (tests/score/shaman4.txt is an older, different run). shamanresto and
 -- priest3 are the hold-out logs: scored, never tuned on.
@@ -25,6 +25,19 @@ local L = dofile("tests/score_lib.lua")
 local Pct, Out, ReadLines = L.Pct, L.Out, L.ReadLines
 
 local WINDOW = 30 -- s a cast can still heal: Riptide's HoT 18 s, the totems 10-15 s; Earth Shield (974) lasts longer
+
+-- What ties a drawn heal ID to the player's casts, past its own CAST lines (Ties), and for how long. Test-only, as
+-- tests/score_truth.lua; editing it changes the measure. life: seconds a cast can still heal under the ID (WINDOW
+-- when not listed); casts: cast IDs that heal under it although no CAST line names it.
+local TRUTH = {
+    -- Chain Heal, Healing Wave: direct, no HoT, so the heal lands on its cast's stamp: in shamanheal each of the 17
+    -- Chain Heal and 4 Healing Wave stamps holds a HEAL of 40872 or more. A cast 0.01 s away at most, no WINDOW: a
+    -- Chain Heal icon on a heal 5 s after the cast is wrong.
+    [1064] = { life = 0.01 },
+    [77472] = { life = 0.01 },
+    -- Healing Rain: the meter's row is 73921 while its CAST lines read `444995 base=73920,73920` (shamanheal line 12)
+    [73921] = { casts = { 444995, 73920 } },
+}
 
 local LOGS = { -- log: tests/score/<log>.txt; fixture: tests/fixtures/<fixture>.sv.lua, replayed as tests/score.lua does
     { log = "shamanheal", class = "shaman", healer = true },
@@ -58,18 +71,37 @@ local function NewHeals(label)
         byID = {} }
 end
 
--- What the log itself says: casts[id] = the times of its "CAST player <id>" lines, meter[id] = its "TEACH heal <id>"
--- rows summed over the reads, raw = the summed amount of its HEAL lines on the player or a party unit.
+-- The heal IDs one "CAST player <castID> base=<a>,<b>" line ties: its own ID, its base IDs (Healing Wave's lines read
+-- `77472 base=8004,8004`: an icon of either is that cast's), and each TRUTH row that lists castID.
+local function Ties(castID, bases)
+    local ids = { castID }
+    for base in (bases or ""):gmatch("%d+") do ids[#ids + 1] = tonumber(base) end
+    for id, truth in pairs(TRUTH) do
+        for _, listed in ipairs(truth.casts or {}) do
+            if listed == castID then ids[#ids + 1] = id end
+        end
+    end
+    return ids
+end
+
+local function AddTime(times, id, t)
+    times[id] = times[id] or {}
+    table.insert(times[id], t)
+end
+
+-- What the log itself says: casts[id] = the times of its "CAST player <id>" lines, ties[id] = the times of the casts
+-- that tie a heal drawn under id (Ties), meter[id] = its "TEACH heal <id>" rows summed over the reads, raw = the
+-- summed amount of its HEAL lines on the player or a party unit.
 local function LogFacts(lines)
-    local facts = { casts = {}, meter = {}, raw = 0, heals = 0 }
+    local facts = { casts = {}, ties = {}, meter = {}, raw = 0, heals = 0 }
     for _, line in ipairs(lines) do
         local t, castID = line:match("^([%d%.]+) CAST player (%d+)")
         local healID, meter = line:match("^[%d%.]+ TEACH heal (%d+) meter=(%d+) ")
         local unit, amount = line:match("^[%d%.]+ HEAL (%S+) school=%d+ amount=(%d+) ")
         if castID then
-            castID = tonumber(castID)
-            facts.casts[castID] = facts.casts[castID] or {}
-            table.insert(facts.casts[castID], tonumber(t))
+            castID, t = tonumber(castID), tonumber(t)
+            AddTime(facts.casts, castID, t)
+            for _, id in ipairs(Ties(castID, line:match(" base=(%S+)"))) do AddTime(facts.ties, id, t) end
         elseif healID then
             healID = tonumber(healID)
             facts.meter[healID] = (facts.meter[healID] or 0) + tonumber(meter)
@@ -85,9 +117,11 @@ local function NamedID(shown)
     return shown and type(shown.texture) == "string" and tonumber(shown.texture:match("^tex:(%d+)$")) or nil
 end
 
-local function CastWithin(times, t)
+-- Whether a cast tied to `id` happened in id's life before `t`, or up to 0.01 s after it.
+local function CastWithin(times, id, t)
+    local life = TRUTH[id] and TRUTH[id].life or WINDOW
     for _, castAt in ipairs(times or {}) do
-        if castAt >= t - WINDOW and castAt <= t + 0.01 then return true end
+        if castAt >= t - life and castAt <= t + 0.01 then return true end
     end
     return false
 end
@@ -105,7 +139,7 @@ local function ScoreHeals(heals, facts, healer, into)
                 local stat = into.byID[id] or { named = 0, wrong = 0, control = 0 }
                 into.byID[id] = stat
                 into.named, stat.named = into.named + amount, stat.named + amount
-                if not facts.meter[id] or not CastWithin(facts.casts[id], heal.event.t) then
+                if not facts.meter[id] or not CastWithin(facts.ties[id], id, heal.event.t) then
                     into.wrong, stat.wrong = into.wrong + amount, stat.wrong + amount
                 end
                 if not healer and unit ~= "player" then
@@ -129,7 +163,7 @@ local function AddHeals(into, score)
 end
 
 do -- self-check: casts of 10 at 100; rows 10; heals of 100 each on the player unless said
-    local facts = { casts = { [10] = { 100 } }, meter = { [10] = 1 }, raw = 800, heals = 8 }
+    local facts = { ties = { [10] = { 100 } }, meter = { [10] = 1 }, raw = 800, heals = 8 }
     local function Heal(t, texture, unit) return { event = { t = t, unit = unit or "player", amount = 100 },
         shown = texture ~= false and { texture = texture } or nil } end
     local heals = { Heal(101, "tex:10"), Heal(100 + WINDOW + 0.02, "tex:10"), Heal(101, "tex:20"), Heal(101, 134400),
@@ -142,10 +176,18 @@ do -- self-check: casts of 10 at 100; rows 10; heals of 100 each on the player u
         "heals self-check: a cast WINDOW + 0.02 s before is wrong (0.005 s after is not), an ID with no row is wrong")
     assert(check.control == 100 and check.byID[10].control == 100, "heals self-check: a named party heal is control")
     local healer = NewHeals("healer")
-    ScoreHeals({ Heal(101, "tex:10", "party1") }, { casts = facts.casts, meter = facts.meter, raw = 300, heals = 3 },
+    ScoreHeals({ Heal(101, "tex:10", "party1") }, { ties = facts.ties, meter = facts.meter, raw = 300, heals = 3 },
         true, healer)
     assert(healer.control == 0 and healer.wrong == 0 and healer.out == 200,
         "heals self-check: a healer's party heal is no control; heals the replay never saw are out")
+    local tied = LogFacts({ "100.000 CAST player 77472 base=8004,8004", "200.000 CAST player 444995 base=73920,73920",
+        "300.000 CAST player 1064 base=1064,1064", "1.0 TEACH heal 8004 meter=1 over=0",
+        "1.0 TEACH heal 73921 meter=1 over=0", "1.0 TEACH heal 1064 meter=1 over=0" })
+    local truth = NewHeals("truth")
+    ScoreHeals({ Heal(100, "tex:8004"), Heal(201, "tex:73921"), Heal(300.005, "tex:1064"), Heal(301, "tex:1064") },
+        tied, false, truth)
+    assert(truth.named == 400 and truth.wrong == 100 and truth.byID[1064].wrong == 100,
+        "heals self-check: a cast ties its base= IDs and TRUTH's rows; a direct heal's cast 1 s before is wrong")
 end
 
 -- The fixture logs' debug lines, as tests/score_lib.lua's ReadLines keeps them.
