@@ -40,6 +40,7 @@ local CRIT_MID = ns.IsForever and 1.5 or 2.25
 local CRIT_FACTOR = ns.IsForever and 1.5 or 2
 -- Read-only exports: Procs.lua groups and matches with the same numbers.
 Streams.SIZE_GUARD, Streams.CRIT_LO, Streams.CRIT_HI = SIZE_GUARD, CRIT_LO, CRIT_HI
+Streams.RAMP_STEP = RAMP_STEP -- Tracker.lua: a learned instance's ramp step
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end

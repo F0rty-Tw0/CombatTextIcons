@@ -87,6 +87,13 @@ end
 
 local function Tolerance(period) return math.max(0.25, 0.2 * period) end
 
+-- A matched tick's tolerance: halved when `strict` (the fight turned crowded; see Phase).
+local function PhaseTolerance(period, strict)
+    if strict then return Tolerance(period) / 2 end
+
+    return Tolerance(period)
+end
+
 -- The period a remembered hit and `now` agree on: the remembered hit's gap to
 -- the cast and `now`'s gap to the remembered hit are the same within tolerance.
 local function RhythmPeriod(instance, now)
@@ -250,8 +257,7 @@ end
 -- on 1.33).
 local function Phase(instance, school, amount, flagText, now, strict)
     if instance.school ~= school then return nil end
-    local tolerance = Tolerance(instance.period)
-    if strict then tolerance = tolerance / 2 end
+    local tolerance = PhaseTolerance(instance.period, strict)
     local restarted = instance.restartAt and math.abs(now - (instance.restartAt + instance.period)) <= tolerance
     if not instance.lastTick then
         if instance.channel then return 1 end
@@ -280,18 +286,27 @@ local function LikeSized(normal, last)
     return normal >= (1 - Streams.SIZE_GUARD) * last and normal * (1 - Streams.SIZE_GUARD) <= last
 end
 
--- An unlike-sized match keeps the tick before it (instance.back). A later hit within Streams.SIZE_GUARD of that tick's
--- size and nearer its due time than the match shows the match was another series': the instance goes back on its own
--- (run lock3 F2: Agony 980 ticked 3607 every 1.33 s; a 1655 hit of a 1.0 s series came 0.24 s before its tick, the
--- instance drew 13 hits of that series, and the learned period sank from 1.30 to 0.85 s over F2-F4). Returns the
--- multiple, as Phase.
-local function BackPhase(instance, school, amount, flagText, now)
+-- A step up a DoT's opening ramp (run lock3: Agony 980 ramps 1127 -> 3607 over ~6 ticks, x1.2-1.5 a step).
+local RAMP_TICKS = 6
+local function RampStep(normal, last) return normal > last and normal <= Streams.RAMP_STEP * last end
+
+-- An unlike-sized match keeps the tick before it (instance.back). A later hit on that tick's lattice, within Phase's
+-- tolerance, that continues its series (within Streams.SIZE_GUARD of its size, or a ramp step above a rising one) shows
+-- the match was another series': the instance goes back on its own (run lock3 F2: Agony 980 ticked 3607 every 1.33 s;
+-- a 1655 hit of a 1.0 s series came 0.24 s before its tick, the instance drew 13 hits of that series, and the learned
+-- period sank from 1.30 to 0.85 s over F2-F4). The match may sit nearer the due time than the own tick: Agony's gaps
+-- went 1.33 -> 1.48 s at 557.5 in run lock3 F2, so a 1655 hit 0.04 s early beat its 3607 tick 0.11 s late, and the
+-- instance drew 973 and 1655 hits as Agony. Returns the multiple, as Phase.
+local function BackPhase(instance, school, amount, flagText, now, strict)
     local back = instance.back
     if not back or instance.school ~= school then return nil end
     local normal = Streams.NormalAmount(amount, flagText)
-    if not (normal and LikeSized(normal, back.amount)) then return nil end
+    if not (normal and (LikeSized(normal, back.amount) or back.rising and RampStep(normal, back.amount))) then
+        return nil
+    end
+    local tolerance = PhaseTolerance(back.period, strict)
     for multiple = 1, 2 do
-        if math.abs(now - (back.tick + multiple * back.period)) < back.error then return multiple end
+        if math.abs(now - (back.tick + multiple * back.period)) <= tolerance then return multiple end
     end
 end
 
@@ -300,7 +315,7 @@ local function InstanceCandidates(key, school, amount, flagText, now, strict)
     local found = {}
     for _, instance in ipairs(instances[key] or NONE) do
         local multiple = Phase(instance, school, amount, flagText, now, strict)
-        local back = not multiple and BackPhase(instance, school, amount, flagText, now)
+        local back = not multiple and BackPhase(instance, school, amount, flagText, now, strict)
         if multiple or back then
             found[#found + 1] = { instance = instance, multiple = multiple or back, back = back }
         end
@@ -431,13 +446,20 @@ local function Ticked(instance, multiple, amount, flagText, now, back)
     if normal and normal > 0 then
         -- Only a steady series (its last two ticks like-sized) is kept: an instance drawing mixed sizes would draw
         -- twice per window (old run druid F10: a learned Primal Wrath 285381 went back 6 times between bleed series).
+        -- So is a rising one (its last tick a ramp step up, within its first RAMP_TICKS) that drops, as a ramp never
+        -- does (run lock3 F4: Agony 980 went 1953 -> 2930, then took a 2182 hit of a 1.0 s series 0.19 s early and drew
+        -- that series while its own 4218-5624 ticks went undrawn). Later rises are mixed sizes, not a ramp: on run
+        -- shadow-steady F2 a Devouring Plague 335467 instance drew hits 0.44-2.3x the one before, and going back
+        -- from those cost priest 0.9 % right on the old board.
         local like = lastAmount and LikeSized(normal, lastAmount)
-        local kept = instance.steady and not instance.hot and not instance.channel
+        local kept = (instance.steady or instance.rising and normal < lastAmount) and not instance.hot
+            and not instance.channel
         if lastTick and multiple >= 1 and not like and kept then
-            instance.back = { tick = lastTick, amount = lastAmount, period = period,
-                error = math.abs(now - (lastTick + multiple * period)) }
+            instance.back = { tick = lastTick, amount = lastAmount, period = period, rising = instance.rising }
         end
         instance.steady = like
+        instance.ticks = (instance.ticks or 0) + 1
+        instance.rising = lastAmount and instance.ticks <= RAMP_TICKS and RampStep(normal, lastAmount)
         instance.lastAmount = normal
     end
     instance.deadline = now + 3 * instance.period

@@ -857,22 +857,41 @@ return function(T)
             and Draw(false, 101.8) == "tex:9001")
     end
     do -- run lock3 F2: a 1.0 s series' hit 0.24 s before Agony's tick took its window, and the instance followed it
-        local function Ticks(second, ownAt)
+        local function Ticks(second, ownAt, first)
             local rig = Rig()
             rig.Seed(9001, 32, 1.0, "dot")
             rig.Cast(100, 9001)
-            rig.Hit(101, 1000, 32)
+            rig.Hit(101, first or 1000, 32)
             rig.Hit(102, second, 32)
             rig.Hit(102.8, 600, 32)                         -- a stranger 0.2 s early at 0.6x: drawn (clear fight)
             return rig.Hit(ownAt or 103.02, second, 32), rig.Hit(103.65, 600, 32), rig.Hit(104.02, second, 32)
         end
         local own, stranger, after = Ticks(1000)
-        local mixed = Ticks(1300)                           -- 1.3x the tick before: not a steady series
-        local farther = Ticks(1000, 103.22)                 -- 0.22 s late: no nearer its due time than the stranger
-        Check("ticks: a steady learned instance goes back to its own like-sized tick nearer the due time (103.02 after"
-            .. " 600 at 102.8), not on to the stranger's next (103.65); not to one 0.22 s late, nor in a mixed one",
+        local mixed = Ticks(1000, nil, 1300)                -- 0.77x the tick before: neither steady nor rising
+        -- run lock3 F2 558.837: the gaps grew 1.33 -> 1.48 s, so the own tick came 0.11 s late, behind a stranger
+        -- 0.04 s early; still within the 0.25 s tolerance it goes back, 0.3 s late it does not
+        local later = Ticks(1000, 103.22)
+        local outside = Ticks(1000, 103.3)
+        Check("ticks: a steady learned instance goes back to its own like-sized tick on its lattice (103.02 after 600 at"
+            .. " 102.8, or 0.22 s late), not on to the stranger's next (103.65); not 0.3 s late, nor in a mixed one",
             own == "tex:9001" and stranger ~= "tex:9001" and after == "tex:9001" and mixed ~= "tex:9001"
-            and farther ~= "tex:9001")
+            and later == "tex:9001" and outside ~= "tex:9001")
+    end
+    do -- run lock3 F4: Agony's ramp 1953 -> 2930, then a 1.0 s series' 2182 hit 0.19 s early took its window
+        local function Own(rig, opening, at)
+            rig.Seed(9001, 32, 1.0, "dot")
+            rig.Cast(100, 9001)
+            for k, amount in ipairs(opening) do rig.Hit(100 + k, amount, 32) end
+            local n = #opening
+            rig.Hit(100 + n + 0.81, 0.75 * opening[n], 32)  -- the stranger: drawn (clear fight), a drop
+            return rig.Hit(at or 100 + n + 1.05, 1.44 * opening[n], 32)
+        end
+        local rising = Own(Rig(), { 1000, 1500 })
+        local flat = Own(Rig(), { 1000, 1000 })              -- 1.44x a flat tick: not its series
+        local late = Own(Rig(), { 1000, 1200, 1440, 1728, 2074, 2488, 2986 }) -- the 7th tick: past the ramp
+        Check("ticks: a learned instance rising a ramp step goes back to its own next ramp tick (1.44x) after a drop;"
+            .. " not after a flat series, nor past its first 6 ticks", rising == "tex:9001" and flat ~= "tex:9001"
+            and late ~= "tex:9001")
     end
     do -- learned instances never touch `speeds`: a rhythm-learned period must not shorten the next cast
         local rig = Rig()
