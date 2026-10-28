@@ -2483,6 +2483,65 @@ return function(T)
             rig.ns.Teacher.last.area == "clear" and Outcome() == nil and rig.ns.Learn.Get(WITHER) == nil)
     end
 
+    do -- castless pass (Ground.Castless): a never-cast row's ticks on many plates at once, every period
+        -- Run lock3 F1: Shadow of Nathreza 1262710 hit 4 plates every ~1.0 s for 40 ticks (1379 on three, 1655 on
+        -- the fourth), never cast, 289020 seen under its row 291805. Here 15 ticks 1.0 s apart on 4 plates, no cast:
+        -- 15 x (3 x 2000 + 2400) = 126000 '?' in school 32, in a fight a lone fire hit at 60 s stretches to 50 s.
+        local NATHREZA, FILLER = 1262710, 5740
+        local SIZES = { nameplate1 = 2000, nameplate2 = 2000, nameplate3 = 2000, nameplate4 = 2400 }
+        local function AuraFight(rig, total, filler, before)
+            local S, Core = rig.S, rig.ns.Core
+            SlashCmdList.COMBATTEXTICONS("debug")
+            S.now = 8
+            Core.PLAYER_REGEN_DISABLED()
+            if before then before() end
+            for k = 0, 14 do
+                for _, unit in ipairs({ "nameplate1", "nameplate2", "nameplate3", "nameplate4" }) do
+                    rig.Hit(10 + k, unit, SIZES[unit], 32)
+                end
+            end
+            rig.Hit(60, "nameplate1", 1000, 4)
+            S.now = 70
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(nextSession, { Row(NATHREZA, total), Row(FILLER, filler) }) }
+            nextSession = nextSession + 1
+            pcall(rig.Fire)
+            return rig.ns.Teacher.last
+        end
+        local function Outcome()
+            local found
+            for _, line in ipairs(CombatTextIconsDB.debugLog) do
+                found = line:match("TEACH castless school=32 .* %-> (%S+)") or found
+            end
+            return found
+        end
+
+        local rig = Rig({})
+        local last = AuraFight(rig, 130000, 1000)
+        local entry = rig.ns.Procs.Get(NATHREZA)
+        Check("castless (a): 15 ticks 1.0 s apart on 4 plates (126000), no cast, row 130000 -> learned rhythm proc",
+            Outcome() == tostring(NATHREZA) and entry and entry.school == 32 and math.abs(entry.period - 1) < 0.05
+            and entry.lo == 2000 and entry.hi == 2400 and Find(last, NATHREZA).verdict == "under")
+        rig.S.now = 99
+        rig.ns.Core.PLAYER_REGEN_DISABLED()
+        for k = 0, 2 do rig.Hit(100 + k, "nameplate2", 2000, 32) end
+        Check("castless (a2): the next fight's steady 2000 ticks on a plate draw the row's icon once their stream runs",
+            rig.Hit(103, "nameplate2", 2000, 32) == "tex:" .. NATHREZA)
+
+        rig = Rig({})
+        AuraFight(rig, 122000, 5000)
+        Check("castless (b): the ticks (126000) are over the row (122000) -> no row bounds them, nothing learned",
+            Outcome() == "rows=0" and rig.ns.Procs.Get(NATHREZA) == nil)
+
+        rig = Rig({})
+        AuraFight(rig, 130000, 1000, function()
+            CombatTextIconsCharDB.learned[445468] = { school = 32, period = 1.4, kind = "dot", misses = 0 }
+            rig.ns.Learn.Init()
+        end)
+        Check("castless (c): a learned DoT ticks in the school -> the pass never walks it, nothing learned",
+            Outcome() == nil and rig.ns.Procs.Get(NATHREZA) == nil)
+    end
+
     do -- chain pass (Chain.lua): a cast's hops from plate to plate, under its own row that no sum agrees with
         -- Run shaman5 F1: Chain Lightning 188443's hard casts hit the target 0.20-0.22 s after the cast, then one new
         -- plate every ~0.1 s; its row also holds overload chains and instant casts, so no sum agrees. Here 5 casts

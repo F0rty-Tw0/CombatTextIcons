@@ -18,7 +18,8 @@
 -- procs whose drawn total overshoots the meter or never pairs with a row, and go to the
 -- Ledger, which attaches them to the saved fight. A solo fight is also a crowd check: when
 -- the wounds seen that may be yours (Teacher.Seen) fit the meter's rows the area is "clear" and
--- learning runs (the leftover '?' hits and still-open rows then go to Procs.Read), else it
+-- learning runs (the leftover '?' hits and still-open rows then go to Procs.Read, then to
+-- Ground.Castless), else it
 -- is "crowded" and that fight teaches nothing; seen below half the rows' total is "short" and
 -- teaches nothing either. The area is saved with the map it was decided on and comes back on entering the
 -- world there (EnterWorld); anywhere else the world starts "crowded". Mid-fight, seen wounds far past the best pace
@@ -814,6 +815,7 @@ local function Read(run)
         for _, group in ipairs(learnedGroups) do Teacher.last.learned[group.castID] = #group.hits end
         local hits, openRows = Leftover(run.unknown, learnedGroups), StillOpen(open, rewritten)
         Procs.Read(hits, openRows, results, rows, run.at, run.ticks, run.streams)
+        Ground.Castless(run, hits, openRows, rows, results)
     end
     Ledger.SetVerdicts(Teacher.last.rows, run.at)
     Done()

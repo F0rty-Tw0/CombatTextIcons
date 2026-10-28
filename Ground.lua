@@ -475,3 +475,162 @@ function Ground.Learn(run, rows, open, rewritten, results, learned)
 
     return ways
 end
+
+-- Castless pass ------------------------------------------------------------------------------------------------------
+-- An aura or a summon's field hits every plate near it once a period with no cast to anchor to; its row is cast by no
+-- one. Run lock3 F1: Shadow of Nathreza 1262710 ticked every ~1.0 s for 40 ticks on 4 plates (1379 on three, 1655 on
+-- the fourth), 289020 seen under its row 291805, never cast; the rhythm pass missed it: its 4 streams (287641) also
+-- fit row 1259790 within RHYTHM_FIT, so the pair was not unique.
+-- The series is the evidence: a seed frame of MIN_PLATES like-sized normal plates (InBand's pads keep the 1655 plate
+-- in a 1379 band), the period the most wide band frames repeat, and walks from each wide frame as the ground pass
+-- walks a cast; walks of RUN_MIN ticks or more must beat luck (a Poisson count of wide ticks from the fight's rate of
+-- wide band frames, times TRIES). A school a learned DoT ticks in is no castless one: lock3 F1's
+-- Wither 445468 (school 36, learned by the DoT pass that read) ticked on 5 plates at ~1.4 s and its walks bounded
+-- 1262710 too. The meter judges as in Ground.Learn (Bounds), after the proc passes: one open row no proc tracks and no
+-- cast of this fight owns, D <= row <= D + unseen. A walk that shares a hit with a walk bounding no row or another one
+-- learns nothing. Learned, the row is a rhythm proc (Procs.Teach); with /cti debug each seed logs a TEACH castless
+-- line.
+local RUN_MIN = 10 -- ticks a castless walk holds at least: past Felstorm's 8 (lock3 F1) and Earthquake's 6
+
+-- A seed frame's band: the sizes of its MIN_PLATES or more like-sized normal plates, or nil.
+local function SeedBand(frame)
+    local plates, low, high = Like(frame)
+    if plates < MIN_PLATES then return nil end
+
+    return low, high
+end
+
+-- The gap (PERIOD_LO-PERIOD_HI) that the most wide frames of `list` repeat (ties: the shortest), or nil.
+local function Repeat(list)
+    local wide = {}
+    for _, frame in ipairs(list) do
+        if frame.wide then wide[#wide + 1] = frame.at end
+    end
+    local best, bestCount = nil, 0
+    for i, at in ipairs(wide) do
+        for j = i + 1, #wide do
+            local gap = wide[j] - at
+            if gap > PERIOD_HI + EPS then break end
+            if gap >= PERIOD_LO - EPS then
+                local slack, count, next = Ground.Slack(gap), 0, 1
+                for _, from in ipairs(wide) do
+                    while next <= #wide and wide[next] < from + gap - slack - EPS do next = next + 1 end
+                    if next <= #wide and wide[next] <= from + gap + slack + EPS then count = count + 1 end
+                end
+                if count > bestCount or count == bestCount and gap < best then best, bestCount = gap, count end
+            end
+        end
+    end
+
+    return best
+end
+
+-- One walk from the wide frame `start`: each tick the oldest anchored band frame within the slack of a period after
+-- the last one seen, MISSES missed in a row end it. Returns its frames and the ticks tried.
+local function CastlessWalk(start, list, period)
+    local slack = Ground.Slack(period)
+    local frames, anchorAt, anchorK, k = { start }, start.at, 0, 0
+    while k - anchorK < MISSES do
+        k = k + 1
+        local due = anchorAt + (k - anchorK) * period
+        local frame = Earliest(list, due - slack, due + slack, true)
+        if frame then frames[#frames + 1], anchorAt, anchorK = frame, frame.at, k end
+    end
+
+    return frames, k + 1
+end
+
+-- The walks of one seed band of RUN_MIN ticks or more, from each wide frame no earlier walk took, as one pattern
+-- { school, low, high, period, ticks, p, hits, sum }, or nil.
+local function Series(school, low, high, frames, span)
+    local list = BandFrames(frames, school, low, high)
+    local period = Repeat(list)
+    if not period then return nil end
+    local taken, ticks, tried, wideTicks, wideFrames = {}, 0, 0, 0, 0
+    local pattern = { school = school, period = period, ticks = 0, hits = {}, sum = 0 }
+    for _, frame in ipairs(list) do
+        if frame.wide then wideFrames = wideFrames + 1 end
+        if frame.wide and frame.anchor and not taken[frame] then
+            local walk, count = CastlessWalk(frame, list, period)
+            for _, tick in ipairs(walk) do taken[tick] = true end
+            if #walk >= RUN_MIN then
+                tried = tried + count - 1
+                for index, tick in ipairs(walk) do
+                    if index > 1 and tick.wide then wideTicks = wideTicks + 1 end
+                    for _, hit in ipairs(tick.hits) do
+                        pattern.hits[#pattern.hits + 1], pattern.sum = hit, pattern.sum + hit.amount
+                        if hit.crit ~= true then
+                            pattern.low, pattern.high = math.min(pattern.low or hit.size, hit.size),
+                                math.max(pattern.high or hit.size, hit.size)
+                        end
+                    end
+                end
+                ticks = ticks + #walk
+            end
+        end
+    end
+    if ticks == 0 or not pattern.low then return nil end
+    local rate = span > 0 and wideFrames / span or math.huge
+    local expected = tried * math.min(1, rate * 2 * Ground.Slack(period))
+    pattern.ticks, pattern.p = ticks, math.min(1, ns.Learn.PoissonTail(expected, wideTicks) * TRIES)
+
+    return pattern
+end
+
+-- The castless pass of one clear read, after the proc passes. `run` is the fight, `hits` its '?' hits no learned way
+-- took, `open` the rows still open and `rows` the session's rows; a learned row's verdict goes to `results`.
+function Ground.Castless(run, hits, open, rows, results)
+    local dotSchools = {}
+    for _, entry in ipairs(ns.Learn.List()) do dotSchools[entry.school] = true end
+    local kept, first, last = {}, nil, nil
+    for _, hit in ipairs(hits) do
+        first, last = math.min(first or hit.at, hit.at), math.max(last or hit.at, hit.at)
+        if hit.size and hit.size > 0 and not dotSchools[hit.school] then kept[#kept + 1] = hit end
+    end
+    local frames = Frames(kept)
+    local owned, total = {}, 0
+    for _, cast in ipairs(run.casts or {}) do owned[cast.spellID], owned[cast.base] = true, true end
+    for _, row in ipairs(rows) do total = total + row.total end
+    local unseen = math.max(0, total - run.seen)
+
+    local found, tried, holders = {}, {}, {}
+    for _, frame in ipairs(frames) do
+        local low, high = SeedBand(frame)
+        local key = low and frame.school .. ":" .. low .. ":" .. high
+        if key and not tried[key] then
+            tried[key] = true
+            local pattern = Series(frame.school, low, high, frames, first and last - first or 0)
+            if pattern and pattern.p <= ALPHA then
+                pattern.rows = Bounds(pattern.sum, open, {}, owned, unseen)
+                found[#found + 1] = pattern
+                for _, hit in ipairs(pattern.hits) do
+                    holders[hit] = holders[hit] or {}
+                    table.insert(holders[hit], pattern)
+                end
+            end
+            if pattern and ns.Debug then
+                ns.Debug("TEACH castless school=%d size=%.0f-%.0f period=%.3f ticks=%d p=%.2g sum=%.0f -> %s",
+                    pattern.school, pattern.low, pattern.high, pattern.period, pattern.ticks, pattern.p, pattern.sum,
+                    pattern.p > ALPHA and "luck" or #pattern.rows == 1 and open[pattern.rows[1]].row.spellID
+                    or "rows=" .. #pattern.rows)
+            end
+        end
+    end
+
+    local learned = {}
+    for _, pattern in ipairs(found) do
+        local position = #pattern.rows == 1 and pattern.rows[1]
+        for _, hit in ipairs(pattern.hits) do
+            for _, other in ipairs(holders[hit]) do
+                if #other.rows ~= 1 or other.rows[1] ~= position then position = false end
+            end
+        end
+        local item = position and open[position]
+        if item and not learned[position] then
+            learned[position] = true
+            Procs.Teach(item.row.spellID, pattern.school, pattern.low, pattern.high, pattern.period, run.at)
+            results[item.index] = { spellID = item.row.spellID, meterID = item.row.spellID, tally = pattern.sum,
+                meter = item.row.total, verdict = "under" }
+        end
+    end
+end

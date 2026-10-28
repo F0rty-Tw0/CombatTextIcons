@@ -665,6 +665,15 @@ function Procs.Read(hits, open, results, rows, at, ticks, streams)
     if streams then RhythmPass(open, results, rows, at, streams, taken) end
 end
 
+-- Procs.Teach(id, school, lo, hi, period, at): the castless pass (Ground.Castless) proved a rhythm on many plates under
+-- the open row id: learned at once, as an exact rhythm pair is, and drawn by Procs.NameStream.
+function Procs.Teach(id, school, lo, hi, period, at)
+    local plain = IsNumber(id) and IsNumber(school) and IsNumber(lo) and IsNumber(hi) and IsNumber(period)
+    if not (plain and lo > 0 and lo <= hi and period > 0) then return end
+    procs[id] = { school = school, lo = lo, hi = hi, period = period, streak = RHYTHM_STREAK, learned = true,
+        unpaired = 0, seen = IsNumber(at) and at or 0 }
+end
+
 -- Name ---------------------------------------------------------------------------------------------------
 -- Procs.Name(school, amount, flagText): the one learned proc whose padded range holds the hit, or nil for none
 -- or several. A plain flag picks the normal or the crit range; a nil or secret flag fits either (as Streams.Size).
