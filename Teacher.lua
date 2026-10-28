@@ -32,7 +32,7 @@
 
 local _, ns = ...
 local Meter, Fingerprints, Procs, Ledger, Streams = ns.Meter, ns.Fingerprints, ns.Procs, ns.Ledger, ns.Streams
-local Steady, Ground, Chain, Stack = ns.Steady, ns.Ground, ns.Chain, ns.Stack
+local Steady, Ground, Chain, Stack, Heals = ns.Steady, ns.Ground, ns.Chain, ns.Stack, ns.Heals
 
 local Teacher = {}
 ns.Teacher = Teacher
@@ -60,7 +60,8 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 -- the open fight: { at, tally = { [spellID] = sum }, unknown = { entry, ... }, ticks = { tick, ... },
 --   casts = { { spellID, base, at, plate }, ... }, streams = { [stream] = record }, seen = sum, live = this fight's
 --   own seen (no carried fight's), crowded = the live crowd check fired, carried = seconds of fights carried in,
---   duration = seconds in combat (set at Finish), group }
+--   duration = seconds in combat (set at Finish), group, heals = { { size, at }, ... } on you, helps = { { spellID,
+--   at }, ... } your helpful casts (for Heals.Learn) }
 Teacher.fight = nil
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; a read saves it with its map (SaveArea)
@@ -779,12 +780,11 @@ local function Report(last)
     end
 end
 
--- grug: temporary probe for '?' heals (gap 3): /cti debug logs the session's healing-done rows
--- after the damage rows, to set against the fight's HEAL lines (does a heal's amount include
--- overheal?). Remove once heals are learned.
-local function ReportHeals(sessionID)
+-- grug: temporary probe for '?' heals (gap 3): /cti debug logs the session's healing-done rows (`rows`, else the
+-- skip `reason`) after the damage rows, to set against the fight's HEAL lines (does a heal's amount include
+-- overheal?). tests/heals.lua reads these lines as its logs' heal rows.
+local function ReportHeals(rows, reason)
     if not ns.Debug then return end
-    local rows, reason = ReadRows(sessionID, Meter.HEALING_DONE)
     if not rows then
         ns.Debug("TEACH heal skip %s", reason)
         return
@@ -858,6 +858,8 @@ local function Carry(run, into)
     for index, hit in ipairs(run.unknown) do table.insert(into.unknown, index, hit) end
     for index, tick in ipairs(run.ticks or {}) do table.insert(into.ticks, index, tick) end
     for index, cast in ipairs(run.casts or {}) do table.insert(into.casts, index, cast) end
+    for index, heal in ipairs(run.heals or {}) do table.insert(into.heals, index, heal) end
+    for index, help in ipairs(run.helps or {}) do table.insert(into.helps, index, help) end
     into.seen = into.seen + run.seen
     for school, sum in pairs(run.schools or {}) do into.schools[school] = (into.schools[school] or 0) + sum end
     into.carried = (into.carried or 0) + (run.duration or 0)
@@ -990,6 +992,9 @@ local function Judging(run, sessionID, rows, reason)
     end
     local area, total = CrowdCheck(run, rows)
     local keep = area == "group" or area == "crowded"
+    -- the healing-done rows, only a list of your heals' IDs (Heals.lua): for a clear read's Heals.Learn and the probe
+    local healRows, healReason
+    if area == "clear" or ns.Debug then healRows, healReason = ReadRows(sessionID, Meter.HEALING_DONE) end
     local results, open = Verdicts(run.tally, rows, keep)
     SafetyNet(results, keep)
     -- a fight that ends while this judging waits clears Teacher.last: this one keeps its own until Done
@@ -1016,10 +1021,11 @@ local function Judging(run, sessionID, rows, reason)
         Procs.Read(hits, openRows, results, rows, run.at, run.ticks, run.streams)
         Teacher.Yield()
         Ground.Castless(run, hits, openRows, rows, results)
+        if healRows then Heals.Learn(run.heals, run.helps, healRows, run.duration) end
     end
     Ledger.SetVerdicts(last.rows, run.at)
     Done(last)
-    ReportHeals(sessionID)
+    ReportHeals(healRows, healReason)
 end
 
 -- The timer callback of one fight: read the newest session now, then judge it (Judge).
@@ -1040,7 +1046,7 @@ function Teacher.Start(now, group)
     if store and not group and Teacher.area == "clear" then store.paused = nil end
     local streams = Streams.NewFight()
     Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, casts = {}, seen = 0, live = 0, schools = {},
-        group = group, streams = streams }
+        group = group, streams = streams, heals = {}, helps = {} }
 end
 
 -- A wound landed while the player was grouped: the fight's read will not learn.
@@ -1083,6 +1089,21 @@ function Teacher.Cast(spellID, base, now, plate)
     local fight = Teacher.fight
     if not (fight and IsNumber(spellID) and IsNumber(base) and IsNumber(now)) then return end
     fight.casts[#fight.casts + 1] = { spellID = spellID, base = base, at = now, plate = plate }
+end
+
+-- A heal of `amount` (`flagText` its crit flag) landed on you, drawn or not: Heals.Learn takes the largest per stamp.
+function Teacher.Healed(amount, flagText, now)
+    local fight = Teacher.fight
+    local size = Streams.NormalAmount(amount, flagText)
+    if not (fight and size and IsNumber(now)) then return end
+    fight.heals[#fight.heals + 1] = { size = size, at = now }
+end
+
+-- A helpful cast of yours, for Heals.Learn.
+function Teacher.Helped(spellID, now)
+    local fight = Teacher.fight
+    if not (fight and IsNumber(spellID) and IsNumber(now)) then return end
+    fight.helps[#fight.helps + 1] = { spellID = spellID, at = now }
 end
 
 -- A hit was drawn with this spell's icon.

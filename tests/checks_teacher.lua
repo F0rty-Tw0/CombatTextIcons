@@ -2300,7 +2300,8 @@ return function(T)
 
         rig = HealRig(false)
         rig.Read({ [SMITE] = { 53 } }, { HealSession() })
-        Check("heal probe: debug off reads no heal rows", #rig.S.sourceCalls == 1)
+        Check("heal probe: debug off, a clear read still reads the heal rows once (Heals.Learn)",
+            rig.ns.Teacher.last.area == "clear" and #rig.S.sourceCalls == 2 and rig.S.sourceCalls[2].meterType == 2)
 
         rig = HealRig(true)
         rig.S.sourceFail = "heal error"

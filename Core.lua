@@ -11,13 +11,15 @@
 -- draws the question mark at once while the area is clear (Teacher.AreaClear:
 -- the last fight's meter read showed only your hits), else it stays hidden. An
 -- unnamed heal on you decides the same way. A learned proc (Procs.lua) draws its own icon where
--- the question mark would, while the area is clear.
+-- the question mark would, while the area is clear. A learned direct heal (Heals.lua) names a heal on you in its
+-- cast's frame, in a group too.
 -- Damage you take is always shown, without an icon.
 
 local ADDON, ns = ...
 local Meter, Tracker, Display, Learn, Streams, Casts, Fingerprints, Procs, Ledger, Teacher, Progress, Panel, MinimapButton =
     ns.Meter, ns.Tracker, ns.Display, ns.Learn, ns.Streams, ns.Casts, ns.Fingerprints, ns.Procs, ns.Ledger, ns.Teacher,
     ns.Progress, ns.Panel, ns.MinimapButton
+local Heals = ns.Heals
 
 local Core = {}
 ns.Core = Core
@@ -470,14 +472,65 @@ end
 
 -- Heals and damage taken (drawn over the player) -------------------------------------
 
+-- Once a direct heal is learned (Heals.AnyLearned), a heal on you that no channel or HoT named waits for the end of
+-- its frame (Core.FlushHeals): it lands before its own cast's UNIT_SPELLCAST_SUCCEEDED in that frame (shamanheal:
+-- the heal of each of 17 Chain Heal 1064 casts is logged on the cast's stamp, the line before the CAST line), so only
+-- then does the frame know its casts.
+-- waiting = { at = the frame's stamp, heals = { { flagText, amount, school, size }, ... } }; frameCasts = { at, ids =
+-- your helpful casts on that stamp, in cast order, each once (seen) }.
+local waiting, frameCasts = { heals = {} }, { ids = {} }
+local flushQueued = false -- a flush waits on C_Timer.After(0)
+
+-- A heal on you no channel or HoT named is drawn: with the icon of its frame's helpful cast that claimed it
+-- (Heals.Claim), else as any unexplained heal on you: the question mark solo while the area is clear, else hidden.
+local function DrawOwnHeal(heal, castID)
+    local route = "HIDDEN"
+    if castID then
+        route = "heal " .. castID
+        Ledger.Add("heal", castID, heal.amount)
+        Display.Player("heal", SpellTexture(castID), heal.amount, heal.flagText)
+    elseif not InGroup() and Teacher.AreaClear() then
+        route = "unknown-solo"
+        Ledger.Add("heal", UnknownKey(heal.school), heal.amount)
+        Display.Player("heal", UnknownTexture(), heal.amount, heal.flagText)
+    elseif not InGroup() then
+        route = HiddenRoute()
+    end
+    if ns.Debug then ns.Debug("  -> %s", route) end
+end
+
+-- Draws the waiting heals once their frame is over: `now` past its stamp, or nil (the fight ended; the replays end
+-- each frame with it too). Each waits for at most one frame: an event of a later one flushes them first.
+function Core.FlushHeals(now)
+    local heals = waiting.heals
+    if #heals == 0 or (now and now <= waiting.at) then return end
+    local casts = frameCasts.at == waiting.at and frameCasts.ids or {}
+    waiting = { heals = {} }
+    local claims = Heals.Claim(casts, heals)
+    for index, heal in ipairs(heals) do DrawOwnHeal(heal, claims[index]) end
+end
+
+-- The game's next frame flushes the waiting heals; a callback still on their own stamp waits again.
+local function QueueFlush()
+    if flushQueued then return end
+    flushQueued = pcall(C_Timer.After, 0, function()
+        flushQueued = false
+        Core.FlushHeals(GetTime())
+        if #waiting.heals > 0 then QueueFlush() end
+    end)
+end
+
 -- Your heal on yourself or a party member: the heal of a channel (Drain Life) whose
 -- damage tick landed in this same frame, or a learned HoT's tick. A heal on you that
--- nothing explains draws the question mark when solo and the area is clear; every other
+-- nothing explains draws the question mark when solo and the area is clear (once a direct heal is learned it first
+-- waits for its frame's casts, which may name it: waiting); every other
 -- unexplained heal stays hidden. Heals do not count toward the crowd check (overheal).
 function Core.Heal(unit, flagText, amount, school, now)
+    Core.FlushHeals(now)
     if ns.Debug then
         ns.Debug("HEAL %s school=%s amount=%s flag=%s", unit, ShowValue(school), ShowValue(amount), ShowValue(flagText))
     end
+    if unit == "player" then Teacher.Healed(amount, flagText, now) end
     local route, key = "HIDDEN", nil -- key: the Ledger key of the drawn heal
     local texture -- nil on the '?' route when '?' icons are off: the route decides whether it draws
     if unit == "player" then
@@ -497,15 +550,16 @@ function Core.Heal(unit, flagText, amount, school, now)
         Display.Player("heal", texture, amount, flagText)
     else
         Streams.Feed(unit, school, amount, flagText, "heal", now)
-        route = "HIDDEN"
-        local solo = unit == "player" and not InGroup()
-        if solo and Teacher.AreaClear() then
-            route = "unknown-solo"
-            Ledger.Add("heal", UnknownKey(school), amount)
-            Display.Player("heal", UnknownTexture(), amount, flagText)
-        elseif solo then
-            route = HiddenRoute()
+        if unit == "player" then
+            local heal = { flagText = flagText, amount = amount, school = school,
+                size = Streams.NormalAmount(amount, flagText) }
+            if not Heals.AnyLearned() then return DrawOwnHeal(heal) end
+            waiting.at = now
+            waiting.heals[#waiting.heals + 1] = heal
+            QueueFlush()
+            return
         end
+        route = "HIDDEN"
     end
     if ns.Debug then ns.Debug("  -> %s", route) end
 end
@@ -563,6 +617,7 @@ local function UseSpec()
     local store = specs[id]
     Learn.Init(store)
     Fingerprints.Init(store)
+    Heals.Init(store)
     Casts.InitOwnRows(store)
     Procs.Init(store)
     Ledger.Init(store)
@@ -605,6 +660,7 @@ end
 -- The fight ends: casts, ledger and the teacher's read close out.
 function Core.PLAYER_REGEN_ENABLED()
     if not db.enabled then return end
+    Core.FlushHeals()
     Casts.Flush(GetTime())
     Ledger.Finish(GetTime())
     Teacher.Finish(GetTime())
@@ -624,6 +680,7 @@ function Core.UNIT_COMBAT(unit, event, flagText, amount, school)
     if not db.enabled then return end
     local now = GetTime()
     if not (Plain(unit) and Plain(event)) then return end
+    Core.FlushHeals(now)
     if unit:find("^nameplate%d+$") then
         EnemyHit(unit, event, flagText, amount, school, now)
     elseif event == "HEAL" and (unit == "player" or unit:find("^party[1-4]$")) then
@@ -634,9 +691,11 @@ function Core.UNIT_COMBAT(unit, event, flagText, amount, school)
 end
 
 -- The pet's harmful casts join the cast log too: the meter lists pet damage among the player's own rows
--- (Shadow Bite 54049, Bite 17253), so the teacher learns them like the player's.
+-- (Shadow Bite 54049, Bite 17253), so the teacher learns them like the player's. The player's other casts may be
+-- heals: the frame's waiting heals get them (Core.FlushHeals), and the teacher too (Heals.lua).
 function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     if not db.enabled then return end
+    Core.FlushHeals(GetTime())
     if ns.Debug then
         ns.Debug("CAST %s %s base=%s", unit, ShowValue(spellID), Plain(spellID) and ShowBase(spellID) or "?")
     end
@@ -646,6 +705,13 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
         if Plain(harmful) and harmful then
             local plate = Casts.NoteCast(spellID, now, castGUID, unit == "pet")
             Teacher.Cast(spellID, Casts.Base(spellID), now, plate)
+        elseif Plain(harmful) and unit == "player" then
+            if frameCasts.at ~= now then frameCasts = { at = now, ids = {}, seen = {} } end
+            if not frameCasts.seen[spellID] then
+                frameCasts.seen[spellID] = true
+                frameCasts.ids[#frameCasts.ids + 1] = spellID
+            end
+            Teacher.Helped(spellID, now)
         end
     end
     Tracker.OnCast(unit, spellID, now)
@@ -750,6 +816,7 @@ SlashCmdList.COMBATTEXTICONS = function(message)
     if message == "forget" then
         Learn.Forget()
         Casts.Forget()
+        Heals.Forget()
         Procs.Forget()
         Ledger.Forget()
         print(PREFIX .. "forgot this spec's learned spells")

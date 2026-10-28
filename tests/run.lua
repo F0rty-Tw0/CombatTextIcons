@@ -610,9 +610,13 @@ local function Replay(name, opts)
     end
     local route -- the last "  -> " debug line of the UNIT_COMBAT being replayed
     local steady = {} -- the steady pass's TEACH lines, for the criteria's detail text
+    local onRoute -- while the replay flushes waiting heals: takes each one's route line
     ns.Debug = function(format, ...)
         local line = string.format(format, ...)
-        if line:find("^  %->") then route = line end
+        if line:find("^  %->") then
+            route = line
+            if onRoute then onRoute(line) end
+        end
         if line:find("^TEACH steady ") then steady[#steady + 1] = line end
     end
     S.haste = opts.haste or fixtureLabels.haste
@@ -657,6 +661,22 @@ local function Replay(name, opts)
         return onBirth(key, stream, now)
     end
 
+    -- A heal on the player that Core.Heal left waiting for its frame's end logs no route in its own call: its
+    -- info.heals entry waits here, and the replay ends each frame (Core.FlushHeals) before the next one's first event,
+    -- so the heal's draw and route land on that entry, not on the next hit. Core draws them in arrival order, each
+    -- draw before its route line.
+    local healsWaiting = {}
+    local function FlushHeals(now)
+        if #healsWaiting == 0 then return end
+        draws = {}
+        onRoute = function(line)
+            local entry = table.remove(healsWaiting, 1)
+            if entry then entry.route, entry.shown = line, draws[#draws] end
+            draws = {}
+        end
+        Core.FlushHeals(now)
+        onRoute, draws = nil, {}
+    end
     local excluded = fixtureLabels.excludePhases or {}
     local hits = {}
     S.now = events[1].t
@@ -666,6 +686,7 @@ local function Replay(name, opts)
     end
     Core.PLAYER_REGEN_DISABLED()
     for _, event in ipairs(events) do
+        if event.t > S.now then FlushHeals(event.t) end
         S.now, phase = event.t, event.phase
         if targets then S.target = TargetAt(targets, event.t) end
         S.pending, S.pendingTag = {}, ""
@@ -689,7 +710,9 @@ local function Replay(name, opts)
             -- a logged heal reaches Core.Heal as in game; it is no hit: info.heals keeps what it drew
             draws, route = {}, nil
             Core.UNIT_COMBAT(event.unit, "HEAL", event.flag, event.amount, event.school)
-            info.heals[#info.heals + 1] = { event = event, shown = draws[#draws], route = route }
+            local entry = { event = event, shown = draws[#draws], route = route }
+            info.heals[#info.heals + 1] = entry
+            if not route then healsWaiting[#healsWaiting + 1] = entry end
             draws = {}
         elseif event.kind == "M" or event.kind == "R" or event.kind == "O" then
             -- meter reads and other lines draw nothing
@@ -710,6 +733,7 @@ local function Replay(name, opts)
             if Core.UNIT_SPELLCAST_CHANNEL_STOP then Core.UNIT_SPELLCAST_CHANNEL_STOP("player", event.castGUID, event.id) end
         end
     end
+    FlushHeals(nil)
     if opts.seen and ns.Teacher.fight then ns.Teacher.fight.seen = opts.seen end
     info.seen = ns.Teacher.fight and ns.Teacher.fight.seen
     Core.PLAYER_REGEN_ENABLED() -- the fight ends: buffered samples commit, the read is queued
@@ -1466,6 +1490,23 @@ local function ReplayFightsChecks()
         and fed.shown and fed.shown.texture == UNKNOWN_ICON and fed.event.amount == 50)
     Check("Replay: the meter stub serves the slice's heal rows for healing done",
         servedHeals ~= nil and #servedHeals == 1 and servedHeals[1].spellID == 77472)
+    -- a learned Chain Heal makes Core.Heal wait for the frame's end: the replay ends the frame before the next stamp's
+    -- hit, so the heals' draws and routes land on their own entries and the hit keeps its own
+    local waitLog = { "1.000 CAST player 1", "1.000 HIT nameplate1 school=1 amount=100 flag= fps=60 target=true",
+        "1.500 HEAL player school=1 amount=45000 flag=", "1.500 HEAL player school=1 amount=500 flag=",
+        "1.500 CAST player 1064 base=1064,1064", "1.700 HIT nameplate1 school=1 amount=100 flag= fps=60 target=true",
+        "1.900 HEAL player school=1 amount=45000 flag=", "2.000 TEACH clean seen=200 meter=200 -> clear",
+        "2.000 TEACH 1 tally=0 meter=200 verdict=unpaired" }
+    local waitRun = ReplaySlices(SplitFights("x", { log = waitLog, fixture = { startArea = "clear" } }), {
+        charDB = { heals = { [1064] = { casts = 3, hits = 3, expected = 0, sizes = { 40000, 41000, 42000 } } } },
+        setup = function(_, state) state.harmful[1064] = false end })[1]
+    local waited = waitRun.info.heals
+    Check("Replay: a heal that waits for its frame gets its own draw and route; the next hit keeps its own",
+        #waited == 3 and waited[1].route == "  -> heal 1064" and waited[1].shown ~= nil
+        and waited[1].shown.texture == "tex:1064" and waited[2].route == "  -> unknown-solo" and waited[2].shown ~= nil
+        and waited[2].shown.texture == UNKNOWN_ICON and waited[3].route == "  -> unknown-solo"
+        and #waitRun.hits == 2 and waitRun.hits[2].route ~= nil and waitRun.hits[2].route ~= "  -> heal 1064"
+        and (waitRun.hits[2].shown == nil or waitRun.hits[2].shown.kind == nil))
     local skipped = SplitFights("x", { log = { "1.0 CAST player 1", "1.5 TEACH clean seen=5 meter=5 -> clear",
         "1.5 TEACH 1 tally=5 meter=5 verdict=agree", "2.0 CAST player 1", "2.5 TEACH skip no sessions",
         "3.0 CAST player 1", "3.5 TEACH clean seen=7 meter=7 -> clear", "3.5 TEACH 1 tally=7 meter=7 verdict=agree" },

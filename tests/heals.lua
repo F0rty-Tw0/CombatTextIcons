@@ -63,6 +63,15 @@ local LOGS = { -- log: tests/score/<log>.txt; fixture: tests/fixtures/<fixture>.
     { log = "priest3", class = "priest", holdout = true },
 }
 
+-- The logs' heal casts, which the game answers as not harmful (C_Spell.IsSpellHarmful), so Core takes them as your
+-- helpful casts. tests/score_lib.lua's HELPFUL leaves them harmful: the damage boards keep their measure.
+local HEAL_CASTS = {
+    shaman = { 1064, 77472, 5394, 108280, 974 }, -- Chain Heal, Healing Wave, the two healing totems, Earth Shield
+    priest = { 2061, 19236, 17 },                -- Flash Heal, Desperate Prayer, Power Word: Shield
+    paladin = { 85673 },                         -- Word of Glory
+    hunter = { 109304 },                         -- Exhilaration
+}
+
 local OPTIONS = {}
 for _, value in ipairs(arg) do OPTIONS[value] = true end
 
@@ -203,7 +212,11 @@ end
 
 local function Replayed(spec)
     local lines = spec.fixture and FixtureLines(spec.fixture) or ReadLines(L.DIR .. spec.log .. ".txt")
-    local setup = L.Setup(spec.class, {}, {}, {})
+    local classSetup = L.Setup(spec.class, {}, {}, {})
+    local function setup(ns, S)
+        classSetup(ns, S)
+        for _, id in ipairs(HEAL_CASTS[spec.class] or {}) do S.harmful[id], S.helpful[id] = false, true end
+    end
     local opts = spec.fixture and { setup = setup }
         or { log = lines, fixture = { startArea = "crowded", replayThreat = true }, setup = setup }
     local heals = {}
