@@ -9,7 +9,8 @@
 -- Table rows show only for spells the character knows (or that drew in the fight);
 -- candidates only once they have a vote. Totals and meter verdicts join on the key the addon drew with. Rows are plain
 -- tables, sorted; building them reads state and changes nothing. Each row also says in plain words where it stands
--- (`status`, a dim `why`, a `tone`): "Knows it" and how, with a warning per strike towards a drop; "Learning: N more"
+-- (`status`, a dim `why`, a `tone`): "Knows it" and how, with a warning per strike towards a drop; "Paused" for a
+-- learned spell a group or crowded read held back (Teacher.Paused); "Learning: N more"
 -- casts, tick starts or fights, each counter in its own unit, or "double-checking"; "Not learning: no meter row" for
 -- a spell drawn this fight with no meter row and nothing learned; "Not named yet" for a '?' key. `check` is the meter
 -- verdict in words; heals are never judged.
@@ -120,6 +121,9 @@ end
 local function KnownSpells(drew)
     local known = {}
     local function Claim(key, group, kind, state, status, why, tone)
+        if group == "learned" and Teacher.Paused(key) then
+            status, why, tone = "Paused", "drew too much in a group or crowd; back after a clear solo fight", "warn"
+        end
         if known[key] == nil then
             known[key] = { group = group, kind = kind, state = state, status = status, why = why, tone = tone }
         end
