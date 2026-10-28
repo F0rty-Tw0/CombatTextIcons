@@ -2467,6 +2467,69 @@ return function(T)
             rig.ns.Teacher.last.area == "clear" and Outcome() == nil and rig.ns.Learn.Get(WITHER) == nil)
     end
 
+    do -- chain pass (Chain.lua): a cast's hops from plate to plate, under its own row that no sum agrees with
+        -- Run shaman5 F1: Chain Lightning 188443's hard casts hit the target 0.20-0.22 s after the cast, then one new
+        -- plate every ~0.1 s; its row also holds overload chains and instant casts, so no sum agrees. Here 5 casts
+        -- 10 s apart hit 4 plates 0.2-0.5 s after the cast (20 hits, 271000) under row 400000, among 35 lone hits of
+        -- the same size 1 s apart (another row's), so a hop finds a like hit on another plate by luck 15 / 55 of the
+        -- time.
+        local CHAIN_LIGHTNING, OTHER_ROW = 188443, 77478
+        local CHAIN = { { "nameplate1", 11000 }, { "nameplate2", 11200 }, { "nameplate3", 10900 },
+            { "nameplate4", 11100 } }
+        local function ChainFight(rig, casts, rows)
+            local S, Core = rig.S, rig.ns.Core
+            SlashCmdList.COMBATTEXTICONS("debug")
+            S.now = casts[1] - 2
+            Core.PLAYER_REGEN_DISABLED()
+            for index, t in ipairs(casts) do
+                rig.Cast(t, "nameplate1", CHAIN_LIGHTNING)
+                -- every other first hit crits (36K, 3.3x): no steady size, so the steady pass learns nothing
+                local crit = index % 2 == 0
+                rig.Hit(t + 0.2, "nameplate1", crit and 36000 or CHAIN[1][2], 8, crit and "CRITICAL" or nil)
+                for hop = 2, #CHAIN do rig.Hit(t + 0.1 + 0.1 * hop, CHAIN[hop][1], CHAIN[hop][2], 8) end
+                for k = 2, 8 do rig.Hit(t + k, "nameplate" .. (k % 4 + 1), 11000, 8) end
+            end
+            S.now = casts[#casts] + 10
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(nextSession, rows) }
+            nextSession = nextSession + 1
+            pcall(rig.Fire)
+            return rig.ns.Teacher.last
+        end
+        local function Outcome()
+            local found
+            for _, line in ipairs(CombatTextIconsDB.debugLog) do
+                found = line:match("TEACH chain " .. CHAIN_LIGHTNING .. " casts=%d+ %-> (%S+)") or found
+            end
+            return found
+        end
+
+        local rig = Rig({})
+        local last = ChainFight(rig, { 10, 20, 30, 40, 50 }, { Row(CHAIN_LIGHTNING, 400000), Row(OTHER_ROW, 400000) })
+        local F = rig.ns.Fingerprints
+        local entry = F.Get(CHAIN_LIGHTNING)
+        Check("chain (a): 5 casts hop over 4 plates 0.1 s apart (271000) under their own row 400000 -> learned as a "
+            .. "chain at the first hit's delay",
+            Outcome() == "learned" and F.IsLearned(CHAIN_LIGHTNING) and entry.pattern == "chain"
+            and math.abs(entry.delayHi - 0.2) < 1e-3 and Find(last, CHAIN_LIGHTNING).verdict == "under"
+            and last.learned[CHAIN_LIGHTNING] == 20)
+        rig.S.now = 99
+        rig.ns.Core.PLAYER_REGEN_DISABLED()
+        rig.Cast(100, "nameplate1", CHAIN_LIGHTNING)
+        local tex = "tex:" .. CHAIN_LIGHTNING
+        -- shaman5 F3: Earthquake's 8.1-8.9K ticks landed 0.02-0.04 s after a hop, inside the padded band (7.6K up)
+        Check("chain (a2): the next cast draws its hops; a smaller hit in a later frame is no hop, one in the hop's "
+            .. "own frame is",
+            rig.Hit(100.2, "nameplate1", 11000, 8) == tex and rig.Hit(100.3, "nameplate2", 11000, 8) == tex
+            and rig.Hit(100.33, "nameplate3", 8500, 8) ~= tex and rig.Hit(100.4, "nameplate3", 11000, 8) == tex
+            and rig.Hit(100.4, "nameplate4", 8500, 8) == tex)
+
+        rig = Rig({})
+        ChainFight(rig, { 10, 20, 30, 40, 50 }, { Row(CHAIN_LIGHTNING, 150000), Row(OTHER_ROW, 600000) })
+        Check("chain (b): the chains (271000) over the own row (150000) -> nothing learned",
+            Outcome() == "over" and not rig.ns.Fingerprints.IsLearned(CHAIN_LIGHTNING))
+    end
+
     do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899
         local LAVA_BURST, LAVA_BASE = 51505, 73899
         local rig = Rig({})

@@ -72,6 +72,7 @@ end
 -- A learned chain fingerprint (Chain Lightning): its later hits land on new plates.
 local CHAIN_GAP = 0.15   -- each later hit lands this long after the previous one at most
 local CHAIN_MAX = 5      -- hits one chain shows at most
+Casts.CHAIN_GAP, Casts.CHAIN_MAX = CHAIN_GAP, CHAIN_MAX -- the chain pass (Chain.lua) walks chains the same way
 
 local UNKNOWN_WAIT = 1.5 -- a hit is explained by a cast at most this long before it
 local LOG_MAX = 20       -- cast log entries kept at most
@@ -251,6 +252,18 @@ local function NearSizes(record, size)
     return small ~= nil and IsNumber(size) and size >= guard * small and size * guard <= big
 end
 
+-- Whether normal-scale `size` (nil or 0: any) is no smaller than the learned sizes of the record's cast spell: a
+-- chain's hop in a later frame than its last hit. Run shaman5 fight 3: Earthquake's 8.1-8.9K ticks landed on other
+-- plates 0.02-0.04 s after a Chain Lightning hop (learned 10.6-22.2K, padded down to 7.4K), so both fit and the ticks
+-- drew nothing. A hop in the last hit's own frame keeps the padded band: hunter fight 7's Bestial Wrath 19574 drew its
+-- 6195 hit on a second plate in its cast's frame.
+local function HopSize(record, size, now)
+    if now == record.last or not (IsNumber(size) and size > 0) then return true end
+    local small = Fingerprints.Band(record.base, record.spellID)
+
+    return small == nil or size >= small
+end
+
 -- Whether a hit of `school` on `plate`, another plate than the cast's, is the cast's splash: a plate it has not hit
 -- yet, NearSizes, in a later frame than the first hit the record saw on its own plate (Watch) and at most SPLASH after
 -- it, while no unclaimed hit of its school NearSizes landed on another plate in the QUIET before that own hit (wounds).
@@ -275,7 +288,9 @@ end
 
 -- Does `record` still wait for a hit of `school` on `plate` at `now`? "in": its first hit
 -- lands on the cast's plate inside its delay window (RecordWindow), or a chain's later hit lands on a
--- new plate within CHAIN_GAP of the one before (CHAIN_MAX in all). "late": a first hit past the
+-- new plate within CHAIN_GAP of the one before (CHAIN_MAX in all), in a later frame no smaller than its learned sizes
+-- (HopSize).
+-- "late": a first hit past the
 -- window, up to LATE times its top (Mind Blast's travel varies with distance), while the record has
 -- seen no hit in its watch range: one it saw was its own, spoiled (Darkglare's beam took Shadow Bolt's
 -- late slot after an ambiguous hit, run 20261025T180045Z). An early first hit, up to WATCH under the
@@ -307,7 +322,7 @@ local function Fits(record, fp, plate, school, now, size, crit)
         return not record.seen and age <= LATE * high + SLACK and "late"
     end
     return fp.pattern == "chain" and not record.plates[plate] and now - record.last <= CHAIN_GAP
-        and record.hops < CHAIN_MAX and "in"
+        and record.hops < CHAIN_MAX and HopSize(record, size, now) and "in"
 end
 
 -- A first hit of the record's school on its plate, in band, within WATCH of its window: one more seen.

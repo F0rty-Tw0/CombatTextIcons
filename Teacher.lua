@@ -31,7 +31,7 @@
 
 local _, ns = ...
 local Meter, Fingerprints, Procs, Ledger, Streams = ns.Meter, ns.Fingerprints, ns.Procs, ns.Ledger, ns.Streams
-local Steady, Ground = ns.Steady, ns.Ground
+local Steady, Ground, Chain = ns.Steady, ns.Ground, ns.Chain
 
 local Teacher = {}
 ns.Teacher = Teacher
@@ -585,8 +585,10 @@ end
 -- session's meter `rows`. Whole sums pair first; a row and a group that no whole sum agreed
 -- with then try `top`; then each cast's largest hit by candidates (CandidateGroups) tries the cast's
 -- own row; then the steady pass (Steady.lua) learns from steady hits no sum explained; then the ground pass
--- (Ground.lua) learns a rowless cast's ticks on many plates, bounded by one open row; last, the DoT pass learns a
--- cast's DoT from its school's streams, bounded by its own open row.
+-- (Ground.lua) learns a rowless cast's ticks on many plates, bounded by one open row; then the chain pass (Chain.lua)
+-- learns a cast's hops from plate to plate under its own open row, before the DoT pass: a proven chain is direct hits,
+-- so they leave the school's '?' sum the DoT pass bounds; last, the DoT pass learns a cast's DoT from its school's
+-- streams, bounded by its own open row.
 -- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so
 -- the DoT's draws were other spells' (a stale save's Nature DoT under Lava Burst 51505 drew Surging Totem's ticks).
 -- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
@@ -604,6 +606,7 @@ local function Learn(run, results, open, rows)
         { rows = seen.rows, groups = {} }, results, learned, rewritten)
     for _, way in ipairs(Steady.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(Ground.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(Chain.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     DotPass(run, rows, open, rewritten, results, learned)
     for _, way in ipairs(learned) do
         local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)

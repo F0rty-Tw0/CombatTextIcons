@@ -16,6 +16,7 @@ Ledger.lua
 Casts.lua
 Steady.lua
 Ground.lua
+Chain.lua
 Teacher.lua
 Display.lua
 Progress.lua
