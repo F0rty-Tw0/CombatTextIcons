@@ -1,7 +1,7 @@
 -- Learn: the per-character store of tick rhythms the addon learned itself.
 --
 -- A DoT, channel or HoT that Spells.lua does not know (it ships empty: every spell) is learned from Streams:
--- each stream birth gives every spell cast just before it a vote (`votes`),
+-- each stream birth (a ground patch's wide one aside) gives every spell cast just before it a vote (`votes`),
 -- plus an expected count of the votes luck alone would give it. A spell is
 -- learned when its votes beat that luck (PoissonTail). Sig and learned periods
 -- are haste-free bases. Learned spells are served to the Tracker like table
@@ -377,7 +377,11 @@ local function WindowCasts(key, stream)
     return rows, order
 end
 
+-- A wide stream (Streams.Feed: its frames hit many plates at once) is a ground patch's, never a target DoT's: the
+-- Tracker would draw it under the cast, whose row is another ID's, until two unpaired reads drop it (synthetic Blood
+-- DK: Death and Decay ticks on all 4 plates each second, learned as a DoT in fight 1). Ground.lua learns those.
 function Learn.OnBirth(key, stream, now)
+    if stream.wide then return end
     if ns.Tracker.ExplainsHits(key, stream.school, stream.hits, stream.period) then return end
     local base = stream.period * (1 + (Learn.Haste() or 0) / 100)
     if base < PERIOD_MIN or base > PERIOD_MAX then return end -- not a tick rhythm; Init would drop the sig

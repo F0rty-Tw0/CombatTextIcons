@@ -31,6 +31,7 @@ local CAST_LOG = 35                    -- seconds a logged cast is kept
 local WINDOW_FROM, WINDOW_TO = 1.2, 0.5 -- birth window: [birth - 1.2 P, birth - 0.5 P]
 local SLACK_MIN, SLACK_SHARE = 0.1, 0.15 -- a hit fits a predicted time within max(0.1, 0.15 * period)
 local BLEND = 0.8                      -- weight of the old period when a hit extends a stream
+local WIDE_PLATES = 3                  -- plates a ground patch's frame hits at least (Ground.lua's MIN_PLATES)
 -- A crit's size over a normal hit: x1.5 on Forever (SW:P 31 -> 46/47, measured 2026-10-23), x2.4 on retail
 -- with spread. A crit and a normal hit agree when crit / normal is in [CRIT_LO, CRIT_HI]; CRIT_MID turns a
 -- crit into a normal-scale size when no normal hit is known. CRIT_FACTOR serves NormalAmount only.
@@ -82,6 +83,9 @@ function Streams.JoinFight(into, from)
 end
 
 local state = {}   -- [key] = { casts = { { at, castID, kind } }, loose = { [school] = { { at, amount, crit } } }, streams = {} }
+-- [at] = { [school] = { [plate key] = true } }: the plates each school's fed plate hits landed on, per frame of the
+-- last LOOSE_AGE seconds; `frameTimes` lists those frames oldest first, for pruning.
+local frames, frameTimes = {}, {}
 
 local function State(key)
     local entry = state[key]
@@ -189,6 +193,30 @@ end
 
 local function PruneDead(entry, now)
     entry.streams = Prune(entry.streams, StreamAlive, now)
+end
+
+-- Notes a plate hit's frame after dropping the frames older than LOOSE_AGE.
+local function NoteFrame(key, school, now)
+    while frameTimes[1] and now - frameTimes[1] > LOOSE_AGE do frames[table.remove(frameTimes, 1)] = nil end
+    local frame = frames[now]
+    if not frame then
+        frame = {}
+        frames[now] = frame
+        frameTimes[#frameTimes + 1] = now
+    end
+    frame[school] = frame[school] or {}
+    frame[school][key] = true
+end
+
+-- Whether every frame in `times` holds hits of `school` on WIDE_PLATES plates or more.
+local function Wide(school, times)
+    for _, at in ipairs(times) do
+        local count = 0
+        for _ in pairs(frames[at] and frames[at][school] or {}) do count = count + 1 end
+        if count < WIDE_PLATES then return false end
+    end
+
+    return true
 end
 
 -- Stream rules -----------------------------------------------------------------------
@@ -401,6 +429,7 @@ function Streams.Feed(key, school, amount, flagText, kind, now, shouldRecord)
     PruneDead(entry, now)
     local size, crit = Size(amount, flagText)
     local heal = kind == "heal"   -- overheal makes heal sizes meaningless
+    if not heal then NoteFrame(key, school, now) end
 
     local stream, multiple = FindExtension(entry, school, size, crit, heal, now)
     if stream then
@@ -433,6 +462,9 @@ function Streams.Feed(key, school, amount, flagText, kind, now, shouldRecord)
             school = school, period = period, birth = a.at, lastAt = now, count = 4,
             lastAmount = BirthAmount({ a, b, c, hit }),
             hits = { a.at, b.at, c.at, now }, owners = owners, ownerKind = ownerKind, ownerAt = ownerAt, key = key,
+            -- the birth's first three frames (the newest one's other plates may land after this hit) each hit
+            -- WIDE_PLATES plates: a ground patch's ticks, which Learn gives no votes (Learn.OnBirth)
+            wide = not heal and Wide(school, { a.at, b.at, c.at }),
             -- instance: set by Tracker when a live instance adopts the stream
         }
         table.remove(hits, third)
@@ -559,4 +591,4 @@ function Streams.Put(key, entry)
     state[key] = entry
 end
 
-function Streams.Reset() state = {} end
+function Streams.Reset() state, frames, frameTimes = {}, {}, {} end

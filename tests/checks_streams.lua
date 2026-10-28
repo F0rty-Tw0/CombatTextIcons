@@ -557,6 +557,23 @@ return function(T)
             ok and KL.Votes(445474) == nil and KL.Votes(980) == nil and KL.Votes(9801) == nil and KL.Votes(9802).casts == 1)
     end
 
+    -- Wide streams: a ground patch's ticks vote for no cast ------------------------------------
+    -- Synthetic Blood DK (dk_blood): Death and Decay 43265's ticks land on all 4 plates in one frame each second and
+    -- were learned as the target's DoT in fight 1. `plates` hit each frame, the target first; `lag` delays the others.
+    do
+        local function Votes(id, plates, lag)
+            local rig = Fresh()
+            rig.Cast("p1", 10, id)
+            for step = 1, 4 do
+                for index = 1, plates do rig.Hit("p" .. index, 10 + step + (index > 1 and lag or 0), 5000, 32) end
+            end
+            local sig = rig.Sig(id)
+            return sig and sig.votes or 0
+        end
+        Check("wide: ticks on 3 plates in each frame give the cast no vote; 2 plates, or 3 a frame apart, still vote",
+            Votes(9601, 3, 0) == 0 and Votes(9602, 2, 0) == 1 and Votes(9603, 3, 0.02) == 1)
+    end
+
     -- Thresholds: VOTES_MIN, VOTES_MIN_PHYSICAL, kinds, haste at birth ------------------------
     do
         local rig = Fresh()
