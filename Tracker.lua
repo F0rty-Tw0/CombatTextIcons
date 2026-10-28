@@ -241,8 +241,11 @@ end
 -- Which multiple of the period a tick at `now` lands on (1 or 2; 0 for the tick
 -- after a recast, at restartAt + period), or nil. Callers test `if multiple`;
 -- 0 still counts as a match. HoT ticks skip the amount test: partial overheal
--- makes their sizes unreliable.
-local function Phase(instance, school, amount, flagText, now)
+-- makes their sizes unreliable. When `strict` (the fight turned crowded) a tick must lie within Streams.SIZE_GUARD of
+-- the last one: strangers' same-school hits fill every window there (run lock3 F3: Agony 980 matched hits 0.47-2.5x
+-- the tick before, 0.7-0.9 s apart; old run druid F7: a learned Primal Wrath 285381 drew bleed ticks alternating 0.45x
+-- and 2.1x, every one an orphan of the strict truth).
+local function Phase(instance, school, amount, flagText, now, strict)
     if instance.school ~= school then return nil end
     local tolerance = Tolerance(instance.period)
     local restarted = instance.restartAt and math.abs(now - (instance.restartAt + instance.period)) <= tolerance
@@ -258,7 +261,9 @@ local function Phase(instance, school, amount, flagText, now)
             local normal = Streams.NormalAmount(amount, flagText)
             local last = instance.lastAmount
             local tested = not instance.hot and normal and last and last > 0
-            if tested and (normal < AMOUNT_LOW * last or normal > AMOUNT_HIGH * last) then
+            local low, high = AMOUNT_LOW, AMOUNT_HIGH
+            if strict then low, high = 1 - Streams.SIZE_GUARD, 1 / (1 - Streams.SIZE_GUARD) end
+            if tested and (normal < low * last or normal > high * last) then
                 return nil
             end
             return multiple
@@ -268,10 +273,10 @@ local function Phase(instance, school, amount, flagText, now)
 end
 
 -- The instances under `key` (plate or unit token) a hit fits, each with its multiple.
-local function InstanceCandidates(key, school, amount, flagText, now)
+local function InstanceCandidates(key, school, amount, flagText, now, strict)
     local found = {}
     for _, instance in ipairs(instances[key] or NONE) do
-        local multiple = Phase(instance, school, amount, flagText, now)
+        local multiple = Phase(instance, school, amount, flagText, now, strict)
         if multiple then found[#found + 1] = { instance = instance, multiple = multiple } end
     end
 
@@ -299,8 +304,8 @@ function Tracker.ExplainsHits(key, school, hits, P)
 end
 
 -- Every expectation a hit on `plate` fits: its instances, then areas and armed spreads.
-local function Candidates(plate, school, amount, flagText, now)
-    local found = InstanceCandidates(plate, school, amount, flagText, now)
+local function Candidates(plate, school, amount, flagText, now, strict)
+    local found = InstanceCandidates(plate, school, amount, flagText, now, strict)
     for _, area in ipairs(areas) do
         if area.school == school then found[#found + 1] = { area = area } end
     end
@@ -621,8 +626,9 @@ end
 
 -- The tick spell ID behind a hit, when exactly one expectation fits (the first of a
 -- burst whose spells look alike); Tracker.UNKNOWN when it is yours but the spell
--- cannot be told (several fit, or a burst's textures differ); nil when none fits.
-function Tracker.Identify(plate, school, amount, flagText, now)
+-- cannot be told (several fit, or a burst's textures differ); nil when none fits. `strict`: the fight is
+-- crowded (Phase).
+function Tracker.Identify(plate, school, amount, flagText, now, strict)
     Housekeeping(now)
     if not Plain(school) then return nil end
     local direct = directs[plate]
@@ -630,7 +636,7 @@ function Tracker.Identify(plate, school, amount, flagText, now)
         directs[plate] = nil
         return direct.icon
     end
-    local found = Candidates(plate, school, amount, flagText, now)
+    local found = Candidates(plate, school, amount, flagText, now, strict)
     local match = found[1]
     if #found ~= 1 then
         -- A first tick that fits several spells is no evidence against any of them;

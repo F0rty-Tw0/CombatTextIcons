@@ -308,14 +308,16 @@ local function Wound(plate, unit, flagText, amount, school, now)
             ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowThreat(unit), ShowGroup(), ShowNPC(unit),
             ShowIsTarget(unit))
     end
-    local spellID = Tracker.Identify(plate, school, amount, flagText, now)
+    -- A crowded fight draws only like-sized ticks (Tracker.Identify) and CrowdFits casts (Casts.Claim).
+    local crowded = Teacher.fight and Teacher.fight.crowded
+    local spellID = Tracker.Identify(plate, school, amount, flagText, now, crowded)
     if fightsYou or (spellID and spellID ~= Tracker.UNKNOWN) then Teacher.Seen(amount, now) end
     -- A learned proc (exact meter sums) outranks a learned DoT's answer (votes) or an ambiguous one.
     local voted = spellID == Tracker.UNKNOWN or (spellID and Learn.Get(spellID))
     if voted and solo and ProcWound(plate, school, amount, flagText) then return end
     local named = spellID and spellID ~= Tracker.UNKNOWN
     local kind, record, late, claimed
-    local crowded = Teacher.fight and Teacher.fight.crowded -- a crowded fight claims only CrowdFits hits (Casts.Claim)
+    crowded = Teacher.fight and Teacher.fight.crowded -- Teacher.Seen may have turned it crowded
     if named and Learn.Get(spellID) then
         -- A learned DoT's answer is votes; a learned cast fingerprint that fits the hit in its window is exact
         -- (Lightning Bolt hits drawn as a mislearned Lava Burst DoT): the cast wins. The one Claim serves both.

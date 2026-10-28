@@ -825,6 +825,23 @@ return function(T)
         Check("ticks: a learned instance smooths in no gap 30 % under its base (0.56 on 0.8): the tick 1.04 s on still"
             .. " matches", stranger == "tex:9001" and rig.Hit(103.2, 1000, 32) == "tex:9001")
     end
+    do -- run lock3 F3, crowded: Agony's windows took strangers' Shadow hits 0.47-2.5x the tick before
+        local function Draws(crowded, amount)
+            local rig = Rig()
+            rig.ns.Teacher.Start(99)
+            rig.ns.Teacher.fight.crowded = crowded
+            rig.Seed(9001, 32, 0.8, "dot")
+            rig.Cast(100, 9001)
+            rig.Hit(100.8, 1000, 32)
+            local stranger = rig.Hit(101.6, amount, 32)
+            return stranger, rig.Hit(102.4, 1000, 32)
+        end
+        local clear = Draws(false, 2000)
+        local crowd, own = Draws(true, 2000)
+        Check("ticks: a crowded fight's learned instance draws only a tick within SIZE_GUARD of the last (1150 on 1000,"
+            .. " not 2000; clear: 2000 too); its own tick two periods on still matches",
+            clear == "tex:9001" and crowd ~= "tex:9001" and own == "tex:9001" and Draws(true, 1150) == "tex:9001")
+    end
     do -- learned instances never touch `speeds`: a rhythm-learned period must not shorten the next cast
         local rig = Rig()
         rig.Seed(9001, 32, 2.2, "dot")
