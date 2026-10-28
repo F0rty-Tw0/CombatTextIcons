@@ -490,7 +490,8 @@ end
 -- bounds both ways: the school's '?' hits no learned way took sum to at most the row, and the row to at most those
 -- hits and to at most its stream ticks (no rhythm proc's), each plus the fight's unseen damage (meter total - seen)
 -- capped at DOT_FIT of the row. Each must be the only one of the other. The spell is learned as that school's DoT at
--- the rhythm most of the stream ticks keep (Procs.PeriodNear), its votes set aside.
+-- the rhythm most of the stream ticks keep (Procs.PeriodNear), its votes set aside, and a second series in those
+-- streams as the row's rhythm proc (SecondSeries).
 -- Run lock3 F1: Wither 445468 was cast once, Seed of Corruption spread it to 5 plates and no birth window held the
 -- cast, so it had no vote; it voted only in F5, after 1.4M of its 2.2M had gone by as '?'. Its row (772071) held
 -- every school-36 '?' hit (740626, 96 %) and its streams (704829, 91 %): 144 ticks at 1.32-1.51 s, 57 at ~1.0 s under
@@ -513,6 +514,38 @@ local function DotPeriod(records)
     return best
 end
 
+-- The DoT pass's second series: the same bounds that make a school's streams one row's make every series in them
+-- that row's. Run lock3 F1: Wither 445468's 57 ticks at ~1.0 s (4060-5637, its stacks collapsing after Malevolence
+-- 442726) beside its own 1445-2171 ticks at 1.32-1.51 s; in F2 such ticks went by as '?' (319424 of its 666459 row).
+-- Returns the period, lo and hi of the records the DoT's `period` does not keep (Procs.PeriodNear), clustered as
+-- DotPeriod clusters them, with the most ticks, when that cluster spans two streams or more and its normal sizes
+-- miss the DoT's band (else it is the DoT's own ticks, a stream that skipped some); else nil.
+local function SecondSeries(records, period)
+    local ownLo, ownHi, others = math.huge, 0, {}
+    for _, rec in ipairs(records) do
+        if Procs.PeriodNear(period, rec.period) then
+            ownLo, ownHi = math.min(ownLo, rec.lo or ownLo), math.max(ownHi, rec.hi or ownHi)
+        elseif rec.lo then
+            others[#others + 1] = rec
+        end
+    end
+    local best, most = nil, 0
+    for _, anchor in ipairs(others) do
+        local series = { ticks = 0, weighted = 0, streams = 0, lo = anchor.lo, hi = anchor.hi }
+        for _, rec in ipairs(others) do
+            if Procs.PeriodNear(anchor.period, rec.period) then
+                series.ticks, series.weighted = series.ticks + rec.n, series.weighted + rec.n * rec.period
+                series.streams = series.streams + 1
+                series.lo, series.hi = math.min(series.lo, rec.lo), math.max(series.hi, rec.hi)
+            end
+        end
+        if series.ticks > most then best, most = series, series.ticks end
+    end
+    if not best or best.streams < 2 or (best.lo <= ownHi and best.hi >= ownLo) then return nil end
+
+    return best.weighted / best.ticks, best.lo, best.hi
+end
+
 local function DotPass(run, rows, open, rewritten, results, learned)
     local schools, order = {}, {}
     local function School(id)
@@ -528,7 +561,7 @@ local function DotPass(run, rows, open, rewritten, results, learned)
         if not stream.procID and rec.n > 0 then
             local school = School(rec.school)
             school.sum = school.sum + rec.sum
-            school.records[#school.records + 1] = { period = stream.period, n = rec.n }
+            school.records[#school.records + 1] = { period = stream.period, n = rec.n, lo = rec.lo, hi = rec.hi }
         end
     end
     local spent = {}
@@ -567,11 +600,18 @@ local function DotPass(run, rows, open, rewritten, results, learned)
         for _, id in ipairs(order) do
             local school, row = schools[id], item.row
             if schoolsOf[position] == 1 and rowsOf[id] == 1 and Fits(position, school) then
-                local period = DotPeriod(school.records) * (1 + (ns.Learn.Haste() or 0) / 100)
+                local raw = DotPeriod(school.records)
+                local period = raw * (1 + (ns.Learn.Haste() or 0) / 100)
                 if ns.Learn.Teach(row.spellID, id, period) then
                     rewritten[position] = true
                     results[item.index] = { spellID = row.spellID, meterID = row.spellID, tally = school.sum,
                         meter = row.total, verdict = "under" }
+                    -- its second series draws as a rhythm proc of the row (Procs.NameStream)
+                    local rate, lo, hi = SecondSeries(school.records, raw)
+                    if rate then Procs.Teach(row.spellID, id, lo, hi, rate, run.at) end
+                    if rate and ns.Debug then
+                        ns.Debug("TEACH dot series %d school=%d p=%.2f band=%d-%d", row.spellID, id, rate, lo, hi)
+                    end
                 end
                 if ns.Debug then
                     ns.Debug("TEACH dot %d school=%d streams=%.0f unknown=%.0f period=%.3f -> %s", row.spellID, id,

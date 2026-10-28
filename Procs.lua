@@ -666,7 +666,8 @@ function Procs.Read(hits, open, results, rows, at, ticks, streams)
 end
 
 -- Procs.Teach(id, school, lo, hi, period, at): the castless pass (Ground.Castless) proved a rhythm on many plates under
--- the open row id: learned at once, as an exact rhythm pair is, and drawn by Procs.NameStream.
+-- the open row id, or the DoT pass a learned DoT's second series under its row (Teacher's SecondSeries): learned at
+-- once, as an exact rhythm pair is, and drawn by Procs.NameStream.
 function Procs.Teach(id, school, lo, hi, period, at)
     local plain = IsNumber(id) and IsNumber(school) and IsNumber(lo) and IsNumber(hi) and IsNumber(period)
     if not (plain and lo > 0 and lo <= hi and period > 0) then return end

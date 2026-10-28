@@ -2447,7 +2447,7 @@ return function(T)
         -- the cast, so it never voted, and its row (772071) held every school-36 '?' hit (740626). Here one cast on
         -- nameplate1 and 8 ticks 1.4 s apart on 3 other plates: 3 x 8 x 5000 = 120000 '?' in school 36.
         local WITHER = 445468
-        local function WitherFight(rig, at, rows)
+        local function WitherFight(rig, at, rows, series)
             local S, Core = rig.S, rig.ns.Core
             SlashCmdList.COMBATTEXTICONS("debug")
             S.now = at - 2
@@ -2457,6 +2457,8 @@ return function(T)
                 for _, unit in ipairs({ "nameplate2", "nameplate3", "nameplate4" }) do
                     rig.Hit(at + 1.5 + 1.4 * k, unit, 5000, 36)
                 end
+                -- a second series of the row: 12000 every 1.0 s on the given plates
+                for _, unit in ipairs(k < 6 and series or {}) do rig.Hit(at + 2.2 + k, unit, 12000, 36) end
             end
             S.now = at + 20
             Core.PLAYER_REGEN_ENABLED()
@@ -2495,6 +2497,26 @@ return function(T)
         WitherFight(rig, 10, { Row(WITHER, 100000), Row(980, 50000) })
         Check("dot (c): the school's '?' hits (120000) are over the row (100000) -> nothing learned",
             rig.ns.Teacher.last.area == "clear" and Outcome() == nil and rig.ns.Learn.Get(WITHER) == nil)
+
+        -- Run lock3 F1: Wither's stacks also collapsed at ~1.0 s (4060-5637) beside its 1.4 s ticks, all in its row;
+        -- in F2 those went by as '?'. Here 6 ticks of 12000 1.0 s apart on 2 plates join the row: 264000 under 270000.
+        rig = Rig({})
+        WitherFight(rig, 10, { Row(WITHER, 270000) }, { "nameplate2", "nameplate3" })
+        local series = rig.ns.Procs.Get(WITHER)
+        Check("dot (d): a 1.0 s series of another size on 2 plates in the row -> learned as the row's rhythm (" ..
+            tostring(series and series.period) .. ")", Outcome() == "learned" and series ~= nil and series.school == 36
+            and math.abs(series.period - 1) < 0.05 and series.lo == 12000 and series.hi == 12000)
+        rig.S.now = 99
+        rig.ns.Core.PLAYER_REGEN_DISABLED()
+        local drawn
+        for k = 0, 3 do drawn = rig.Hit(100 + k, "nameplate5", 12000, 36) end
+        Check("dot (d2): the series' stream on a plate never cast on draws the row (" .. tostring(drawn) .. ")",
+            drawn == "tex:" .. WITHER)
+
+        rig = Rig({})
+        WitherFight(rig, 10, { Row(WITHER, 197000) }, { "nameplate2" })
+        Check("dot (e): the series on one plate only -> the DoT is learned, no rhythm",
+            Outcome() == "learned" and rig.ns.Procs.Get(WITHER) == nil)
     end
 
     do -- castless pass (Ground.Castless): a never-cast row's ticks on many plates at once, every period
