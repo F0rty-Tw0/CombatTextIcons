@@ -244,10 +244,14 @@ end
 -- makes their sizes unreliable. When `strict` (the fight turned crowded) a tick must lie within Streams.SIZE_GUARD of
 -- the last one: strangers' same-school hits fill every window there (run lock3 F3: Agony 980 matched hits 0.47-2.5x
 -- the tick before, 0.7-0.9 s apart; old run druid F7: a learned Primal Wrath 285381 drew bleed ticks alternating 0.45x
--- and 2.1x, every one an orphan of the strict truth).
+-- and 2.1x, every one an orphan of the strict truth), and within half the usual tolerance of its time: a crowd's
+-- like-sized hits came 0.17-0.25 s early in each window (run lock3 F3: Agony 980 on its 1.37 s drew 10K hits
+-- 1.13-1.16 s apart, 120K against its 81K row), while its own ticks land within 0.07 s (run lock3 F2: gaps 1.27-1.40
+-- on 1.33).
 local function Phase(instance, school, amount, flagText, now, strict)
     if instance.school ~= school then return nil end
     local tolerance = Tolerance(instance.period)
+    if strict then tolerance = tolerance / 2 end
     local restarted = instance.restartAt and math.abs(now - (instance.restartAt + instance.period)) <= tolerance
     if not instance.lastTick then
         if instance.channel then return 1 end
@@ -272,12 +276,34 @@ local function Phase(instance, school, amount, flagText, now, strict)
     if restarted then return 0 end
 end
 
+local function LikeSized(normal, last)
+    return normal >= (1 - Streams.SIZE_GUARD) * last and normal * (1 - Streams.SIZE_GUARD) <= last
+end
+
+-- An unlike-sized match keeps the tick before it (instance.back). A later hit within Streams.SIZE_GUARD of that tick's
+-- size and nearer its due time than the match shows the match was another series': the instance goes back on its own
+-- (run lock3 F2: Agony 980 ticked 3607 every 1.33 s; a 1655 hit of a 1.0 s series came 0.24 s before its tick, the
+-- instance drew 13 hits of that series, and the learned period sank from 1.30 to 0.85 s over F2-F4). Returns the
+-- multiple, as Phase.
+local function BackPhase(instance, school, amount, flagText, now)
+    local back = instance.back
+    if not back or instance.school ~= school then return nil end
+    local normal = Streams.NormalAmount(amount, flagText)
+    if not (normal and LikeSized(normal, back.amount)) then return nil end
+    for multiple = 1, 2 do
+        if math.abs(now - (back.tick + multiple * back.period)) < back.error then return multiple end
+    end
+end
+
 -- The instances under `key` (plate or unit token) a hit fits, each with its multiple.
 local function InstanceCandidates(key, school, amount, flagText, now, strict)
     local found = {}
     for _, instance in ipairs(instances[key] or NONE) do
         local multiple = Phase(instance, school, amount, flagText, now, strict)
-        if multiple then found[#found + 1] = { instance = instance, multiple = multiple } end
+        local back = not multiple and BackPhase(instance, school, amount, flagText, now)
+        if multiple or back then
+            found[#found + 1] = { instance = instance, multiple = multiple or back, back = back }
+        end
     end
 
     return found
@@ -357,8 +383,14 @@ local function Pick(found)
 end
 
 -- A learned instance's first matched tick resets its spells' miss counts. An adopted
--- instance starts with a lastTick, so `hitDue` stands in for its first tick.
-local function Ticked(instance, multiple, amount, flagText, now)
+-- instance starts with a lastTick, so `hitDue` stands in for its first tick. `back`: the hit fits BackPhase, so the
+-- unlike-sized match is undone first.
+local function Ticked(instance, multiple, amount, flagText, now, back)
+    if back then
+        local before = instance.back
+        instance.lastTick, instance.lastAmount, instance.period = before.tick, before.amount, before.period
+    end
+    local lastTick, lastAmount, period = instance.lastTick, instance.lastAmount, instance.period
     if instance.learned and (not instance.lastTick or instance.hitDue) then
         for _, spellID in ipairs(SpellsOf(instance)) do Learn.Hit(spellID) end
     end
@@ -395,7 +427,19 @@ local function Ticked(instance, multiple, amount, flagText, now)
     instance.lastTick = now
     -- A 0 tick (absorbed, full overheal) says nothing about the tick size.
     local normal = Streams.NormalAmount(amount, flagText)
-    if normal and normal > 0 then instance.lastAmount = normal end
+    instance.back = nil
+    if normal and normal > 0 then
+        -- Only a steady series (its last two ticks like-sized) is kept: an instance drawing mixed sizes would draw
+        -- twice per window (old run druid F10: a learned Primal Wrath 285381 went back 6 times between bleed series).
+        local like = lastAmount and LikeSized(normal, lastAmount)
+        local kept = instance.steady and not instance.hot and not instance.channel
+        if lastTick and multiple >= 1 and not like and kept then
+            instance.back = { tick = lastTick, amount = lastAmount, period = period,
+                error = math.abs(now - (lastTick + multiple * period)) }
+        end
+        instance.steady = like
+        instance.lastAmount = normal
+    end
     instance.deadline = now + 3 * instance.period
     if instance == channel then channelTickAt = now end
 end
@@ -652,7 +696,7 @@ function Tracker.Identify(plate, school, amount, flagText, now, strict)
         return nil
     end
     if match.instance then
-        Ticked(match.instance, match.multiple, amount, flagText, now)
+        Ticked(match.instance, match.multiple, amount, flagText, now, match.back)
         return Pick(found)
     elseif match.spread then
         local entry = match.entry

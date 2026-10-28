@@ -842,6 +842,38 @@ return function(T)
             .. " not 2000; clear: 2000 too); its own tick two periods on still matches",
             clear == "tex:9001" and crowd ~= "tex:9001" and own == "tex:9001" and Draws(true, 1150) == "tex:9001")
     end
+    do -- run lock3 F3, crowded: like-sized strangers 0.17-0.25 s early took each of Agony's windows
+        local function Draw(crowded, at)
+            local rig = Rig()
+            rig.ns.Teacher.Start(99)
+            rig.ns.Teacher.fight.crowded = crowded
+            rig.Seed(9001, 32, 1.0, "dot")
+            rig.Cast(100, 9001)
+            rig.Hit(101, 1000, 32)
+            return rig.Hit(at, 1000, 32)
+        end
+        Check("ticks: a crowded fight's learned instance draws a tick only within half its tolerance (0.12 s early, not"
+            .. " 0.2 s; clear: 0.2 s too)", Draw(true, 101.88) == "tex:9001" and Draw(true, 101.8) ~= "tex:9001"
+            and Draw(false, 101.8) == "tex:9001")
+    end
+    do -- run lock3 F2: a 1.0 s series' hit 0.24 s before Agony's tick took its window, and the instance followed it
+        local function Ticks(second, ownAt)
+            local rig = Rig()
+            rig.Seed(9001, 32, 1.0, "dot")
+            rig.Cast(100, 9001)
+            rig.Hit(101, 1000, 32)
+            rig.Hit(102, second, 32)
+            rig.Hit(102.8, 600, 32)                         -- a stranger 0.2 s early at 0.6x: drawn (clear fight)
+            return rig.Hit(ownAt or 103.02, second, 32), rig.Hit(103.65, 600, 32), rig.Hit(104.02, second, 32)
+        end
+        local own, stranger, after = Ticks(1000)
+        local mixed = Ticks(1300)                           -- 1.3x the tick before: not a steady series
+        local farther = Ticks(1000, 103.22)                 -- 0.22 s late: no nearer its due time than the stranger
+        Check("ticks: a steady learned instance goes back to its own like-sized tick nearer the due time (103.02 after"
+            .. " 600 at 102.8), not on to the stranger's next (103.65); not to one 0.22 s late, nor in a mixed one",
+            own == "tex:9001" and stranger ~= "tex:9001" and after == "tex:9001" and mixed ~= "tex:9001"
+            and farther ~= "tex:9001")
+    end
     do -- learned instances never touch `speeds`: a rhythm-learned period must not shorten the next cast
         local rig = Rig()
         rig.Seed(9001, 32, 2.2, "dot")
