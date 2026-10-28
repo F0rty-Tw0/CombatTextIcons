@@ -2346,8 +2346,8 @@ return function(T)
         -- aims at the floor; a target ticked like this would learn the spell as its DoT first).
         local EARTHQUAKE, QUAKE_ROW, OTHER_ROW = 462620, 77478, 188443
         local SIZES = { nameplate1 = 6400, nameplate2 = 6500, nameplate3 = 6600 }
-        -- `crits`: the ticks k (0-5) whose every hit crits (x2, flagged).
-        local function QuakeFight(rig, casts, rows, before, crits)
+        -- `crits`: the ticks k (0-5) whose every hit crits (x2, flagged); `half`: a like frame 0.5 s after tick 0.
+        local function QuakeFight(rig, casts, rows, before, crits, half)
             local S, Core = rig.S, rig.ns.Core
             SlashCmdList.COMBATTEXTICONS("debug")
             S.now = casts[1] - 2
@@ -2361,6 +2361,11 @@ return function(T)
                             rig.Hit(t + 1 + k, unit, 2 * SIZES[unit], 8, "CRITICAL")
                         else
                             rig.Hit(t + 1 + k, unit, SIZES[unit], 8)
+                        end
+                    end
+                    if half and k == 0 then
+                        for _, unit in ipairs({ "nameplate1", "nameplate2", "nameplate3" }) do
+                            rig.Hit(t + 1.5, unit, SIZES[unit], 8)
                         end
                     end
                 end
@@ -2426,6 +2431,15 @@ return function(T)
         Check("ground (e): crit-only tick frames after a seen first tick keep the walk -> learned, 6 ticks",
             Outcome() == "learned" and entry ~= nil and entry.ticks == 6
             and rig.ns.Fingerprints.Alias(QUAKE_ROW) == EARTHQUAKE)
+
+        -- A like-sized frame on the 3 plates half a period after each first tick ties the period search at 0.5 s
+        -- (its ties go to the shorter gap); the walks then step two slots at a time. The frames (4 x 19500) are a
+        -- never-cast row's (5740), so the quake's row is bounded as in (a).
+        rig = Rig({})
+        QuakeFight(rig, CASTS, { Row(QUAKE_ROW, 600000), Row(5740, 78000) }, nil, nil, true)
+        entry = rig.ns.Fingerprints.Get(EARTHQUAKE)
+        Check("ground (f): a frame half a period after each first tick -> learned at 1.0 s, not 0.5",
+            Outcome() == "learned" and entry ~= nil and math.abs(entry.period - 1) < 0.05)
     end
 
     do -- DoT pass (Teacher.lua): a cast whose ticks run only on plates it never targeted is learned from its own row
@@ -2603,6 +2617,48 @@ return function(T)
         ChainFight(rig, { 10, 20, 30, 40, 50 }, { Row(CHAIN_LIGHTNING, 150000), Row(OTHER_ROW, 600000) })
         Check("chain (b): the chains (271000) over the own row (150000) -> nothing learned",
             Outcome() == "over" and not rig.ns.Fingerprints.IsLearned(CHAIN_LIGHTNING))
+    end
+
+    do -- stack pass (Stack.lua): a DoT whose casts add stacks ticks live stacks x one stack's size
+        -- Run lock F3: the seed's size-blind chain liked 0.734 s, the walk took Unstable Affliction 1259790's ticks
+        -- ~1.47 s apart, two periods each, and learned 0.739. Here casts add 8 s stacks of 3000 that tick every 1.4 s
+        -- from 1.3 s after the first cast, and a stranger's 900-1500 hits land 0.7 s after each tick.
+        local UA, STRANGER = 1259790, 5740
+        local CASTS = { 10, 11.5, 15, 16.2, 22, 23.4, 24.6, 31, 32.5, 38 }
+        local rig = Rig({})
+        local S, Core = rig.S, rig.ns.Core
+        SlashCmdList.COMBATTEXTICONS("debug")
+        S.now = 8
+        Core.PLAYER_REGEN_DISABLED()
+        local sum, noise, next = 0, 0, 1
+        for k = 0, 26 do
+            local at = 11.3 + 1.4 * k
+            while CASTS[next] and CASTS[next] <= at - 0.05 do
+                rig.Cast(CASTS[next], "nameplate1", UA)
+                next = next + 1
+            end
+            local stacks = 0
+            for _, castAt in ipairs(CASTS) do
+                if at - castAt >= 0 and at - castAt <= 8 then stacks = stacks + 1 end
+            end
+            if stacks > 0 then
+                rig.Hit(at, "nameplate1", 3000 * stacks, 32)
+                sum = sum + 3000 * stacks
+            end
+            rig.Hit(at + 0.7, "nameplate1", 900 + 23 * ((7 * k) % 27), 32)
+            noise = noise + 900 + 23 * ((7 * k) % 27)
+        end
+        S.now = 60
+        Core.PLAYER_REGEN_ENABLED()
+        S.sessions = { Session(nextSession, { Row(UA, sum + 5000), Row(STRANGER, noise) }) }
+        nextSession = nextSession + 1
+        pcall(rig.Fire)
+        local period
+        for _, line in ipairs(CombatTextIconsDB.debugLog) do
+            period = line:match("TEACH stack " .. UA .. " casts=%d+ %-> learned .* period=([%d%.]+)") or period
+        end
+        Check("stack (a): ticks every 1.4 s with a stranger's hits 0.7 s after each -> learned at 1.4 s, not 0.7",
+            period ~= nil and math.abs(tonumber(period) - 1.4) < 0.05)
     end
 
     do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899

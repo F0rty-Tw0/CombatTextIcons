@@ -11,7 +11,9 @@
 -- with no series running, a series starts on a hit in the seed's delay window (SPREAD) after a cast; a running one
 -- takes each hit one or two periods after its last tick (Streams.Slack) whose size over the live stacks (the casts
 -- within the life) agrees with the last tick's within SIZE_GUARD. The draw route (Casts.StackTick) continues a series
--- the same way but starts one only on a step: one hit at a time has no luck test to guard its start.
+-- the same way but starts one only on a step: one hit at a time has no luck test to guard its start. A walk that took
+-- most of its ticks two periods apart walks again at twice the period, else learns nothing (half a period draws hits
+-- between the ticks).
 -- MIN_STEPS ticks or more must change the stack count (a steady DoT is no stack), and the ticks must beat luck: each
 -- tick's next slots find a hit by luck with the plate's rate of the school's hits * the slots' width * the share of
 -- them that agree with the predicted size, Poisson tail times the patterns tried. The meter bounds from below only, as
@@ -132,8 +134,9 @@ local function Period(list, index)
     return best, most, tried
 end
 
--- One plate's walk as the draw route takes it, added into `walk`: { hits, sum, extended, steps, expected, gaps,
--- casts = { [castAt] = delay of the first taken tick it had a stack in }, starts = { [castAt] = true } }.
+-- One plate's walk as the draw route takes it, added into `walk`: { hits, sum, extended, ones (the extensions one
+-- period on), steps, expected, gaps, casts = { [castAt] = delay of the first taken tick it had a stack in },
+-- starts = { [castAt] = true } }.
 local function Walk(plate, pattern, walk)
     local series
     for _, hit in ipairs(plate.list) do
@@ -145,6 +148,7 @@ local function Walk(plate, pattern, walk)
             if multiple and Stack.Agree(hit.size / n, series.unit) then
                 tick = Stack.Tick(series, hit.at, hit.size, n, multiple)
                 walk.extended = walk.extended + 1
+                if multiple == 1 then walk.ones = walk.ones + 1 end
                 walk.gaps[#walk.gaps + 1] = (hit.at - series.at) / multiple
                 if n ~= series.n then walk.steps = walk.steps + 1 end
             end
@@ -172,6 +176,16 @@ local function Walk(plate, pattern, walk)
     end
 end
 
+-- The pattern { low, period, life, walk } walked over every plate of `plates`.
+local function Walked(plates, low, period, life)
+    local pattern = { low = low, period = period, life = life }
+    pattern.walk = { hits = {}, sum = 0, extended = 0, ones = 0, steps = 0, expected = 0, gaps = {}, casts = {},
+        starts = {} }
+    for _, plate in ipairs(plates) do Walk(plate, pattern, pattern.walk) end
+
+    return pattern
+end
+
 -- The best pattern of one cast spell's `plates` (smallest luck past every test), or nil, with the outcome.
 local function Best(plates)
     local candidates, tries = {}, 0
@@ -195,18 +209,24 @@ local function Best(plates)
     local best, luck = nil, nil
     for _, candidate in ipairs(candidates) do
         for life = math.max(LIFE_LO, math.ceil(LIFE_TICKS * candidate.period - EPS)), LIFE_HI do
-            local pattern = { low = candidate.low, period = candidate.period, life = life }
-            local walk = { hits = {}, sum = 0, extended = 0, steps = 0, expected = 0, gaps = {}, casts = {},
-                starts = {} }
-            for _, plate in ipairs(plates) do Walk(plate, pattern, walk) end
-            local casts = 0
+            local pattern = Walked(plates, candidate.low, candidate.period, life)
+            -- A walk that took most of its ticks two periods apart runs on half its series' period: it walks at twice
+            -- that, else it learns nothing. Run lock F3: the seed's chain (size-blind) liked 0.734 s, the walk took
+            -- all 12 of Unstable Affliction's ticks ~1.47 s apart and learned 0.739: the draw would take hits between.
+            local twice = 2 * candidate.period
+            if 2 * pattern.walk.ones < pattern.walk.extended and twice <= PERIOD_HI + EPS
+                and life >= LIFE_TICKS * twice - EPS then
+                pattern = Walked(plates, candidate.low, twice, life)
+            end
+            local walk, casts = pattern.walk, 0
             for _ in pairs(walk.casts) do casts = casts + 1 end
-            if walk.steps >= MIN_STEPS and casts >= MIN_CASTS and next(walk.starts) then
+            local whole = 2 * walk.ones >= walk.extended
+            if whole and walk.steps >= MIN_STEPS and casts >= MIN_CASTS and next(walk.starts) then
                 local p = math.min(1, ns.Learn.PoissonTail(walk.expected, walk.extended) * tries)
                 if p > ALPHA then
                     luck = math.min(luck or p, p)
                 elseif not best or p < best.p then
-                    pattern.walk, pattern.p, pattern.period = walk, p, Median(walk.gaps) or pattern.period
+                    pattern.p, pattern.period = p, Median(walk.gaps) or pattern.period
                     best = pattern
                 end
             end

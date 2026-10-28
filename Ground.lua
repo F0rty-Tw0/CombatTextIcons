@@ -7,11 +7,12 @@
 -- The proof: per rowless cast spell and school, a seed frame (MIN_PLATES plates of like-sized normal hits within WAIT
 -- of a cast) gives a first-tick delay window of SPREAD and a size band; the casts with such a frame there (SHARE of
 -- them, MIN_CASTS at least) give the period, the gap that puts a wide frame (MIN_PLATES plates in the band) one and
--- two periods after the most first ticks. Each cast is then walked as the draw route walks it (Casts.lua): its first
--- tick in the window, each later one a period after the last tick seen within the slack, MISSES missed in a row end
--- it; the median walk gives the ticks. The walk must beat luck: its wide frames against a Poisson count from the
--- fight's rate of wide frames in the band, times the TRIES tried. A stream already running one period before the
--- first tick of half the casts is no ground spell: a pet or totem stream steps with any cast that starts on it.
+-- two periods after the most first ticks (twice that when most walks' steps skip a slot). Each cast is then walked as
+-- the draw route walks it (Casts.lua): its first tick in the window, each later one a period after the last tick
+-- seen within the slack, MISSES missed in a row end it; the median walk gives the ticks. The walk must beat luck: its
+-- wide frames against a Poisson count from the fight's rate of wide frames in the band, times the TRIES tried. A
+-- stream already running one period before the first tick of half the casts is no ground spell: a pet or totem
+-- stream steps with any cast that starts on it.
 -- The meter judges last, as a bound: the band hits the walks take (D) fit exactly one open row that no cast of this
 -- fight owns, no proc tracks and no other cast is aliased to, with D <= row and row - D <= the fight's unseen damage
 -- (meter total - seen): every hit on a plate was seen, so what the row holds past D is unseen damage or D's misses.
@@ -222,6 +223,19 @@ local function Steps(walks)
     return Median(steps)
 end
 
+-- Whether most steps between two ticks of the walks skipped a slot: the walks run on half their series' period.
+local function Halved(walks)
+    local steps, ones = 0, 0
+    for _, walk in ipairs(walks) do
+        for index = 2, #walk.ticks do
+            steps = steps + 1
+            if walk.ticks[index].k - walk.ticks[index - 1].k == 1 then ones = ones + 1 end
+        end
+    end
+
+    return 2 * ones < steps
+end
+
 -- How often luck alone gives the walks' wide ticks: each tried tick finds a wide band frame with chance (the fight's
 -- rate of them * the tick's window), the Poisson tail of that count, times TRIES.
 local function Luck(walks, pattern, list, span)
@@ -314,7 +328,13 @@ local function Best(castTimes, frames, span)
                     first = first, last = last }
                 local walks, lengths = {}, {}
                 for index, castAt in ipairs(castTimes) do walks[index] = Walk(castAt, pattern, list, TICKS_MAX) end
-                pattern.period = Steps(walks) or period
+                -- Period's ties go to the shorter gap: a wide frame half a period after each first tick ties it,
+                -- and the walks then step two slots at a time. They walk at twice that, as the stack pass does.
+                if Halved(walks) and 2 * period <= PERIOD_HI + EPS then
+                    pattern.period = 2 * period
+                    for index, castAt in ipairs(castTimes) do walks[index] = Walk(castAt, pattern, list, TICKS_MAX) end
+                end
+                pattern.period = Steps(walks) or pattern.period
                 for _, castAt in ipairs(castTimes) do
                     local walk = Walk(castAt, pattern, list, TICKS_MAX)
                     if walk.ticks[1] and walk.ticks[1].k == 0 then
