@@ -58,13 +58,15 @@ function Stack.Running(series, at)
     return series ~= nil and at - series.at <= 2 * series.period + Streams.Slack(series.period)
 end
 
--- The multiple (1 or 2) of the series' period that puts a hit at `at` on its next tick, within Streams.Slack; else nil.
-function Stack.Multiple(series, at)
-    local slack = Streams.Slack(series.period)
+-- The multiple (1 or 2) of `period` within `slack` of `gap`; else nil.
+local function MultipleOf(gap, period, slack)
     for multiple = 1, 2 do
-        if math.abs(at - series.at - multiple * series.period) <= slack then return multiple end
+        if math.abs(gap - multiple * period) <= slack then return multiple end
     end
 end
+
+-- The multiple (1 or 2) of the series' period that puts a hit at `at` on its next tick, within Streams.Slack; else nil.
+function Stack.Multiple(series, at) return MultipleOf(at - series.at, series.period, Streams.Slack(series.period)) end
 
 -- The series after a tick at `at` of normal-scale `size` over `n` live stacks: a start at `period` when `multiple` is
 -- nil, else an extension of `series` whose gap blends into its period.
@@ -76,14 +78,18 @@ end
 
 -- The series a step starts at `at`: a hit one or two `period`s after a seed of `seeds` (oldest first: { at, unit, n,
 -- crit }) of the same crit state, its normal-scale `size` over its `n` live stacks within STEP_GUARD of the seed's,
--- at another stack count; else nil. Drops the seeds whose next two ticks are past.
+-- at another stack count; else nil. Drops the seeds whose next two ticks are past. Runs per hit no series takes, over
+-- every live seed: Stack.Running's and Multiple's math on the seed's fields, so a seed costs no table (half of Learn's
+-- CPU on the fresh logs when it built two).
 function Stack.Step(seeds, at, size, n, crit, period)
-    while seeds[1] and not Stack.Running({ at = seeds[1].at, period = period }, at) do table.remove(seeds, 1) end
+    local slack, unit = Streams.Slack(period), size / n
+    while seeds[1] and not (at - seeds[1].at <= 2 * period + slack) do table.remove(seeds, 1) end
     for _, seed in ipairs(seeds) do
-        local from = { at = seed.at, period = period }
-        local multiple = Stack.Multiple(from, at)
-        if multiple and seed.n ~= n and seed.crit == crit and Stack.Agree(size / n, seed.unit, STEP_GUARD) then
-            return Stack.Tick(from, at, size, n, multiple)
+        if seed.n ~= n and seed.crit == crit then
+            local multiple = MultipleOf(at - seed.at, period, slack)
+            if multiple and Stack.Agree(unit, seed.unit, STEP_GUARD) then
+                return Stack.Tick({ at = seed.at, period = period }, at, size, n, multiple)
+            end
         end
     end
 end
