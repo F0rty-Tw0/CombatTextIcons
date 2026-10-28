@@ -19,7 +19,7 @@ local PARTIAL_CORE = 3 -- normals a group needs before lone hits below it may be
 local PAD_LO, PAD_HI = 0.85, 1.15 -- draw pads; two bands are also the same proc's when each, shrunk by PAD_LO, reaches the other
 local RHYTHM_PERIOD = 0.1 -- two tick periods are one rhythm when they differ by at most this share of the longer
 local RHYTHM_FIT = 0.05 -- a rhythm group's sum may fall short of a row's total, or pass its overkill, by this share of the total
-local RHYTHM_STREAK = 2 -- fights a row's rhythm must pair in (gaps allowed) before it is learned
+local RHYTHM_STREAK = 2 -- fights a row's rhythm must pair in (gaps allowed) before it is learned; an exact pair: one
 
 -- Whether two tick periods are one rhythm.
 local function PeriodNear(a, b)
@@ -475,19 +475,35 @@ local function RhythmGroups(streams)
     return groups
 end
 
--- target index -> group, for the pairs that are unique both ways: a rhythm group's sum fits a row's window
--- widened by RHYTHM_FIT of its total (a DoT's last tick may be cut short, a meter row counts overkill apart).
+-- target index -> group, for the pairs that are unique both ways, and target index -> true for the exact ones. Exact
+-- pairs come first: a group's sum inside a row's own window (total .. total + overkill). The groups and rows they leave
+-- then pair in each row's window widened by RHYTHM_FIT of its total (a DoT's last tick may be cut short, a meter row
+-- counts overkill apart). Darkglare 205231's five beams summed to its row exactly in lock3 F1, yet also fit Wither
+-- 445468's widened window (4.9 % off), so neither row paired.
 local function RhythmMatches(groups, targets)
-    local windows = {}
-    for index, target in ipairs(targets) do
-        windows[index] = { lo = target.lo * (1 - RHYTHM_FIT), hi = target.hi + target.lo * RHYTHM_FIT }
+    local matches, exact, used = {}, {}, {}
+    for index, group in pairs(Matches(groups, targets)) do
+        matches[index], exact[index], used[group] = group, true, true
     end
+    local restGroups, windows, at = {}, {}, {}
+    for _, group in ipairs(groups) do
+        if not used[group] then restGroups[#restGroups + 1] = group end
+    end
+    for index, target in ipairs(targets) do
+        if not exact[index] then
+            windows[#windows + 1] = { lo = target.lo * (1 - RHYTHM_FIT), hi = target.hi + target.lo * RHYTHM_FIT }
+            at[#windows] = index
+        end
+    end
+    for i, group in pairs(Matches(restGroups, windows)) do matches[at[i]] = group end
 
-    return Matches(groups, windows)
+    return matches, exact
 end
 
 -- The state x event table for one open row and its rhythm group; returns the entry, nil when nothing changed.
-local function RhythmStep(target, group, at, results)
+-- An exact pair on a row with no overkill learns at once, as the remainder pass does (Darkglare 205231 summed to
+-- its row to the unit in lock3 F1, and its next clear fights were the big ones).
+local function RhythmStep(target, group, at, results, exact)
     local entry = procs[target.id]
     local isRhythm = entry and entry.period
     local same = isRhythm and entry.school == group.school and PeriodNear(entry.period, group.period)
@@ -501,7 +517,7 @@ local function RhythmStep(target, group, at, results)
             unpaired = 0, seen = at }
         procs[target.id] = entry
     end
-    if not entry.learned and entry.streak >= RHYTHM_STREAK then
+    if not entry.learned and (entry.streak >= RHYTHM_STREAK or exact and target.overkill == 0) then
         entry.learned, entry.unpaired = true, 0
         results[target.index] = Agree(target, group.sum)
     end
@@ -521,11 +537,11 @@ local function RhythmPass(open, results, rows, at, streams, taken)
             targets[#targets + 1] = target
         end
     end
-    local matches = RhythmMatches(RhythmGroups(streams), targets)
+    local matches, exact = RhythmMatches(RhythmGroups(streams), targets)
     for index, target in ipairs(targets) do
         local group = matches[index]
         local isNew = procs[target.id] == nil
-        local entry = group and RhythmStep(target, group, at, results)
+        local entry = group and RhythmStep(target, group, at, results, exact[index])
         if entry then
             if ns.Debug then
                 ns.Debug("TEACH rhythm %s school=%s p=%.2f band=%s-%s streak=%s%s", target.id, entry.school, entry.period, entry.lo,

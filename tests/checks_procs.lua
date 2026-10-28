@@ -739,8 +739,8 @@ return function(T)
         Check("procs rhythm streak: the third fight matching again learns it (1, gap, 2)", Cand(procs[5], 32, 1600, 1700, 1.0, 2, true))
 
         ns, procs = Rig()
-        Pass(ns, {}, X, Str({ 32, 1.05, 6000, 1900, 2000 }, { 32, 1.0, 4000, 1600, 1700 }))
-        Check("procs rhythm group: records at periods 1.0 and 1.05 (sums 4000 + 6000) pair as one group of 10000; period stays 1.0",
+        Pass(ns, {}, X, Str({ 32, 1.05, 6000, 1900, 2000 }, { 32, 1.0, 3900, 1600, 1700 }))
+        Check("procs rhythm group: records at periods 1.0 and 1.05 (sums 3900 + 6000) pair as one group of 9900; period stays 1.0",
             Cand(procs[5], 32, 1600, 2000, 1.0, 1, false))
         ns, procs = Rig()
         Pass(ns, {}, X, Str({ 32, 1.0, 4000, 1600, 1700 }, { 4, 1.0, 6000, 1900, 2000 }))
@@ -759,6 +759,29 @@ return function(T)
         ns, procs = Rig()
         Pass(ns, {}, X, Str({ 32, 1.0, 9800, 1600, 1700 }, { 4, 1.0, 9900, 1600, 1700 }))
         Check("procs rhythm unique: two groups that fit one row (9800 school 32 and 9900 school 4) teach nothing", next(procs) == nil)
+
+        -- exact pairs: a group's sum inside the row's own window (total .. total + overkill)
+        ns, procs = Rig()
+        world = Pass(ns, {}, X, Str({ 32, 1.0, 10000, 1600, 1700 }))
+        Check("procs rhythm exact: a group summing to a row of no overkill exactly (10000) learns at once, with its 'agree' result",
+            Cand(procs[5], 32, 1600, 1700, 1.0, 1, true) and world.results[1].verdict == "agree"
+            and world.results[1].tally == 10000)
+        ns, procs = Rig()
+        Pass(ns, {}, { { id = 5, total = 10000, overkill = 200 } }, Str({ 32, 1.0, 10100, 1600, 1700 }))
+        Check("procs rhythm exact: an exact sum inside a row's overkill (10100 in 10000-10200) stays a streak-1 candidate",
+            Cand(procs[5], 32, 1600, 1700, 1.0, 1, false))
+        ns, procs = Rig()
+        Pass(ns, {}, { { id = 5, total = 10000 }, { id = 6, total = 10400 } }, Str({ 32, 1.0, 10000, 1600, 1700 }))
+        Check("procs rhythm exact: a group exact for row 10000 that also fits row 10400's widened window pairs the exact row only",
+            Cand(procs[5], 32, 1600, 1700, 1.0, 1, true) and procs[6] == nil)
+        ns, procs = Rig()
+        Pass(ns, {}, { { id = 5, total = 10000 }, { id = 6, total = 10400 } },
+            Str({ 32, 1.0, 10000, 1600, 1700 }, { 4, 2.0, 10300, 3000, 3100 }))
+        Check("procs rhythm exact: the rows and groups exact pairs leave pair in the widened windows (10300 for row 10400)",
+            Cand(procs[5], 32, 1600, 1700, 1.0, 1, true) and Cand(procs[6], 4, 3000, 3100, 2.0, 1, false))
+        ns, procs = Rig()
+        Pass(ns, {}, X, Str({ 32, 1.0, 10000, 1600, 1700 }, { 4, 1.0, 10000, 1600, 1700 }))
+        Check("procs rhythm exact: two groups exact for one row (10000 school 32 and school 4) teach nothing", next(procs) == nil)
 
         -- replacement and widening
         ns, procs = Rig()
