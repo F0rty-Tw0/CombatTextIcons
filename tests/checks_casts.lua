@@ -586,6 +586,31 @@ do -- Phase 3: records and Claim
             and Hits(true, { { 30.2, 50000, "CRITICAL" } }) == MB
             and Hits(false, { { 30.4, 21000 } }) == MB and Hits(true, { { 30.4, 21000 } }) ~= MB
     end)
+    -- shaman5 fight 5: Lava Burst 51505 learned on its target hit 4 other dummies 0.13-0.45 s after its target hit, at
+    -- its learned sizes; hunter fight 18's pet left like-sized hits on other plates before a Kill Command's own hit too.
+    Scenario("splash: after its own hit a cast claims like-sized hits on other plates, unless they landed there before",
+        function()
+            local function Last(hits)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                MindBlast(ns)
+                local drawn
+                ns.Display.Plate = function(_, texture) drawn = texture end
+                S.now, S.target = 30, "nameplate1"
+                ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 8092)
+                for _, hit in ipairs(hits) do
+                    S.now, drawn = hit[1], nil
+                    ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 32)
+                end
+                return drawn
+            end
+            local MB, own = "tex:8092", { 30.2, 21000, "nameplate1" }
+            return Last({ own, { 30.4, 20000, "nameplate2" } }) == MB
+                and Last({ { 30.4, 20000, "nameplate2" } }) ~= MB
+                and Last({ own, { 30.2, 20000, "nameplate2" } }) ~= MB
+                and Last({ own, { 30.4, 12000, "nameplate2" } }) ~= MB
+                and Last({ { 30.05, 20000, "nameplate3" }, own, { 30.4, 20000, "nameplate2" } }) ~= MB
+        end)
 
     -- Run 134732Z: Mind Blast cast at nameplate4, the target moved on to the next mob before the cast
     -- finished, the killing hit landed on nameplate4 -> '?'. The cast's plate is the target at its start.

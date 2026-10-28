@@ -84,6 +84,9 @@ local LATE = 2          -- a cast with no hit yet takes a late one up to this ti
 local PAD_LO, PAD_HI = 0.7, 2 -- a sized hit fits a cast's band from 0.7 of its smallest to twice its biggest learned size
 local RECORD_MAX = 20   -- open records at most; the oldest is dropped
 local records = {}      -- oldest first: { spellID, base, at, plate, hops, plates, last, seen, settled }
+local SPLASH = 0.5      -- a cast's splash lands on other plates at most this long after its own hit (Splash)
+local QUIET = 1.5       -- and only when no unclaimed hit like it landed on another plate this long before that hit
+local wounds = {}       -- the hits Claim was asked about lately, oldest first: { plate, school, size, at, claimed }
 
 -- Travel time follows distance, and distance changes per fight: Shadow Bolt 686 learned at 1.10-1.16 s
 -- landed at 0.92-1.09 s the next fight, 1.12-1.26 s the one after (run 20261025T180045Z). So each cast
@@ -153,7 +156,7 @@ end
 function Casts.Flush(now)
     for _, record in ipairs(records) do Settle(record, math.huge) end
     SweepRecords(now)
-    centres = {}
+    centres, wounds = {}, {}
 end
 
 -- The cast in progress (UNIT_SPELLCAST_START): a spell with a cast time keeps the target it started
@@ -211,6 +214,37 @@ local function InLearnedSizes(record, size)
     return small ~= nil and IsNumber(size) and small <= size and size <= big
 end
 
+-- Whether normal-scale `size` lies within Streams.SIZE_GUARD of the learned sizes of the record's cast spell (two hits
+-- of a kind), not the padded band.
+local function NearSizes(record, size)
+    local small, big = Fingerprints.Band(record.base, record.spellID)
+    local guard = 1 - Streams.SIZE_GUARD
+
+    return small ~= nil and IsNumber(size) and size >= guard * small and size * guard <= big
+end
+
+-- Whether a hit of `school` on `plate`, another plate than the cast's, is the cast's splash: a plate it has not hit
+-- yet, NearSizes, in a later frame than the first hit the record saw on its own plate (Watch) and at most SPLASH after
+-- it, while no unclaimed hit of its school NearSizes landed on another plate in the QUIET before that own hit (wounds).
+-- Run shaman5 fight 5: Lava Burst 51505 learned at 0.20-0.28 s on its target hit 4 other dummies 0.13-0.45 s after its
+-- target hit, with 37-48K (learned 39.8-44.7K): 994K of its row's 2.14M that no claim took. Hits of its school and size
+-- that land on other plates anyway are no splash: lock3 fight 2 drew 8.5-10K Shadow hits on 4 plates 1.67 s after a
+-- Shadow Bolt 686's own hit, and on another plate in the own hit's frame; hunter fight 18's pet left ~5K Physical hits
+-- on every plate around, before and after a Kill Command 34026's own hit.
+local function Splash(record, plate, school, now, size)
+    if not record.seen or record.plates[plate] then return false end
+    local own = record.at + record.seen[1]
+    if now <= own or now - own > SPLASH or not NearSizes(record, size) then return false end
+    for _, wound in ipairs(wounds) do
+        if not wound.claimed and wound.plate ~= record.plate and wound.school == school and wound.at < own
+            and own - wound.at <= QUIET and NearSizes(record, wound.size) then
+            return false
+        end
+    end
+
+    return true
+end
+
 -- Does `record` still wait for a hit of `school` on `plate` at `now`? "in": its first hit
 -- lands on the cast's plate inside its delay window (RecordWindow), or a chain's later hit lands on a
 -- new plate within CHAIN_GAP of the one before (CHAIN_MAX in all). "late": a first hit past the
@@ -218,9 +252,13 @@ end
 -- seen no hit in its watch range: one it saw was its own, spoiled (Darkglare's beam took Shadow Bolt's
 -- late slot after an ambiguous hit, run 20261025T180045Z). An early first hit, up to WATCH under the
 -- window, fits the same weak way when `size` is inside the learned sizes, unpadded: Lava Burst learned
--- at 0.50-0.60 s in a first fight landed at 0.37-0.44 s in every later one. Else false.
+-- at 0.50-0.60 s in a first fight landed at 0.37-0.44 s in every later one. A hit on another plate fits a
+-- non-chain record the same weak way when it is the cast's Splash. Else false.
 local function Fits(record, fp, plate, school, now, size)
     if school ~= fp.school then return false end
+    if plate ~= record.plate and fp.pattern ~= "chain" then
+        return Splash(record, plate, school, now, size) and "late"
+    end
     if record.hops == 0 then
         local age = now - record.at
         local low, high = RecordWindow(record)
@@ -311,11 +349,9 @@ end
 -- little (lock3 fight 3: Shadow Bite learned at 2975-3123 hit 2774-3315).
 local function CrowdFits(record, now, size)
     local low, high = Fingerprints.Window(record.base, record.spellID)
-    local small, big = Fingerprints.Band(record.base, record.spellID)
-    local age, guard = now - record.at, 1 - Streams.SIZE_GUARD
+    local age = now - record.at
 
-    return low ~= nil and small ~= nil and IsNumber(size) and age >= low - SLACK and age <= high + SLACK
-        and size >= guard * small and size * guard <= big
+    return low ~= nil and age >= low - SLACK and age <= high + SLACK and NearSizes(record, size)
 end
 
 -- Whose hit is this? "learned", record: the open records that fit (InBand, then Fits) are all
@@ -324,7 +360,8 @@ end
 -- read literally: that alone spoils the answer, fit or not), unless the hit is Sure for the one record and the meter
 -- says that cast cannot have made it (Harmless). nil: nothing to say. `size` is the
 -- hit's normal-scale size (Streams.NormalAmount), nil when unknown. A "learned" answer's third value is true when
--- the record fit only late. Draws nothing; Accept is the only writer of hops.
+-- the record fit only late. Draws nothing; Accept is the only writer of hops. Each hit asked about stays a wound for
+-- QUIET + SPLASH (Splash).
 -- When `strict` (Core: the fight turned crowded), a record fits only a hit it CrowdFits: strangers' hits of its school
 -- land in every padded window (lock3 fight 3: 4 Shadow Bolt casts drew 118730 against a row of 76384; three of the
 -- four drawn hits lay outside the learned sizes, two of them crits of twice the biggest).
@@ -343,6 +380,8 @@ function Casts.Claim(plate, school, now, size, strict)
             late, lateFits = Count(late, lateFits, record)
         end
     end
+    wounds[#wounds + 1] = { plate = plate, school = school, size = size, at = now }
+    while now - wounds[1].at > QUIET + SPLASH do table.remove(wounds, 1) end
     local lateOnly = fits == 0 and late ~= nil
     if lateOnly then found, fits = late, lateFits end
     local sure = fits == 1 and not lateOnly and Sure(found, now, size)
@@ -352,9 +391,14 @@ function Casts.Claim(plate, school, now, size, strict)
     if fits == 1 then return "learned", found, lateOnly end
 end
 
--- The hit is drawn: the record has taken one more hit.
+-- The hit is drawn: the record has taken one more hit, and the hit (Claim's last wound) is claimed. A splash while the
+-- record's own first hit is unclaimed (ambiguous) leaves that hit open.
 function Casts.Accept(record, plate, now)
-    record.hops, record.plates[plate], record.last = record.hops + 1, true, now
+    local wound = wounds[#wounds]
+    if wound and wound.plate == plate and wound.at == now then wound.claimed = true end
+    record.plates[plate] = true
+    if plate ~= record.plate and record.hops == 0 then return end
+    record.hops, record.last = record.hops + 1, now
 end
 
 -- Whether a tracker cast's ticks explain a hit of `school`: a learned DoT only its own school's
