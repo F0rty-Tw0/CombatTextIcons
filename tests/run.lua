@@ -294,11 +294,12 @@ end
 
 -- Parses a /cti debug log (the lines of CombatTextIconsDB.debugLog) into the events ParseFixture
 -- makes. `line` is the 1-based index in the log (= file line - 11 in a SavedVariables file);
--- `order` = line. Only damage reads are replayed: a read's heal and taken counts (priest logs)
--- and HEAL lines with their routes are skipped. STAMP and RESOLVE lines (an older log's gate) and
+-- `order` = line. Only damage reads are replayed: a read's heal and taken counts (priest logs) are
+-- skipped. A HEAL line is a kind "H" event (unit, amount, school, flag; its logged route as .route): Replay
+-- feeds it to Core.Heal and keeps it out of the hits. STAMP and RESOLVE lines (an older log's gate) and
 -- TEACH and SPEC (a spec swap) lines are skipped.
 local function ParseLog(name, log)
-    local events, lastHit, pendingRead = {}, nil, nil -- lastHit: the HIT a route line belongs to; false after a HEAL
+    local events, lastHit, pendingRead = {}, nil, nil -- lastHit: the HIT or HEAL a route line belongs to
     for index, text in ipairs(log) do
         local t, rest = text:match("^([%d%.]+) (.*)$")
         assert(t, "unparsed log line " .. name .. ":" .. index)
@@ -312,6 +313,8 @@ local function ParseLog(name, log)
         local hitThreat = rest:match("^HIT .* threat=(%S+) ")
         local hitNPC = rest:match("^HIT .* npc=(%S+)")
         local hitGroup = rest:match("^HIT .* group=([^,%s]+),")
+        local healUnit, healSchool, healAmount, healFlag =
+            rest:match("^HEAL (%S+) school=(%d+) amount=(%d+) flag=(%S*)$")
         local skipped = rest:match("^STAMP %d+$") or rest:match("^RESOLVE ") or rest:match("^START ")
             or rest:match("^SPEC ")
         if route then
@@ -319,8 +322,11 @@ local function ParseLog(name, log)
             if lastHit then lastHit.route = route end          -- report only
         elseif skipped or rest:match("^TEACH ") then
             -- an older log's gate lines and the teacher's verdicts: report only
-        elseif rest:match("^HEAL ") then
-            lastHit = false
+        elseif healUnit then
+            event.kind, event.unit, event.flag = "H", healUnit, healFlag
+            event.amount, event.school = tonumber(healAmount), tonumber(healSchool)
+            lastHit = event
+            events[#events + 1] = event
         elseif unit then
             event.kind, event.unit, event.id = "C", unit, tonumber(id)
             events[#events + 1] = event
@@ -370,19 +376,26 @@ end
 -- cast ID, and `rowIDs[fight]["<printed id>:<meter>"]` names the real row. Other "TEACH <word>" lines (the passes'
 -- proc, steady, rhythm, ground, chain and stack lines between the clean line and the rows) are skipped. A read that
 -- printed its "TEACH row <id> total=<n>" lines before the clean line but no verdict rows takes those listed rows:
--- run dk F1-F3 ended after the clean line ("script ran too long" in Stack.Learn).
--- fights[i] = { endLine, seen, meter, area, rows = { { spellID, totalAmount, overkillAmount } } }.
+-- run dk F1-F3 ended after the clean line ("script ran too long" in Stack.Learn). The "TEACH heal <id> meter=<n>
+-- over=<o>" lines after the rows (/cti debug's heal probe) with n > 0 are the read's healing-done rows, healRows.
+-- fights[i] = { endLine, seen, meter, area, rows = { { spellID, totalAmount, overkillAmount } }, healRows (same) }.
 local function ParseTeach(lines, rowIDs)
     local fights, open, listed = {}, nil, {}
     for index, text in ipairs(lines) do
         local seen, meter, area = text:match("^[%d%.]+ TEACH clean seen=(%d+) meter=(%d+) %-> (%a+)$")
         local id, rowMeter, rowID = text:match("^[%d%.]+ TEACH (%d+) tally=%d+ meter=(%d+) verdict=%a+ ?r?o?w?=?(%d*)$")
         local listedID, listedTotal = text:match("^[%d%.]+ TEACH row (%d+) total=(%d+) ")
+        local healID, healMeter, healOver = text:match("^[%d%.]+ TEACH heal (%d+) meter=(%d+) over=(%d+)$")
         if seen then
             open = { endLine = index, seen = tonumber(seen), meter = tonumber(meter), area = area, rows = {},
-                listed = listed }
+                listed = listed, healRows = {} }
             fights[#fights + 1] = open
             listed = {}
+        elseif healID and open then
+            if tonumber(healMeter) > 0 then
+                open.healRows[#open.healRows + 1] = { spellID = tonumber(healID), totalAmount = tonumber(healMeter),
+                    overkillAmount = tonumber(healOver) }
+            end
         elseif listedID then
             local amount = tonumber(listedTotal)
             if amount > 0 then
@@ -580,6 +593,8 @@ end
 -- hit's npc= as its unit's creature GUID; seen stays the logged one (opts.seen). opts.labels / opts.events
 -- replace the fixture's labels and events (a slice of a log); info.charDB is the char DB after the fight.
 -- Each UNIT_COMBAT hit records its last "  -> " debug line as hit.route; info.teacher is the booted Teacher.
+-- A log's HEAL events (kind "H") go to Core.Heal; info.heals[i] = { event, shown = its draw or nil, route }.
+-- opts.healRows: the session's healing-done rows (the meter stub serves them for Meter.HEALING_DONE).
 local function Replay(name, opts)
     local fixtureLabels = opts.labels or labels[name]
     local ns = Boot(function()
@@ -629,7 +644,7 @@ local function Replay(name, opts)
         hit.shown, hit.via = draw, draw.texture == ns.Meter.UNKNOWN_ICON and "unknown" or "tracker"
     end
     local info = { uncovered = {}, group = S.group, learnLog = {}, births = {}, events = events, haste = S.haste, teacher = ns.Teacher,
-        steady = steady }
+        steady = steady, heals = {} }
     local phase -- of the event being replayed, for the learn log
     local onLearned = ns.Tracker.OnLearned
     ns.Tracker.OnLearned = function(spellID, now)
@@ -670,6 +685,12 @@ local function Replay(name, opts)
             draws = {}
             if draw then Show(hit, draw) end
             if not excluded[event.phase] then hits[#hits + 1] = hit end
+        elseif event.kind == "H" then
+            -- a logged heal reaches Core.Heal as in game; it is no hit: info.heals keeps what it drew
+            draws, route = {}, nil
+            Core.UNIT_COMBAT(event.unit, "HEAL", event.flag, event.amount, event.school)
+            info.heals[#info.heals + 1] = { event = event, shown = draws[#draws], route = route }
+            draws = {}
         elseif event.kind == "M" or event.kind == "R" or event.kind == "O" then
             -- meter reads and other lines draw nothing
         elseif event.kind == "C" and (event.unit == "player" or event.unit == "pet") then
@@ -693,7 +714,9 @@ local function Replay(name, opts)
     info.seen = ns.Teacher.fight and ns.Teacher.fight.seen
     Core.PLAYER_REGEN_ENABLED() -- the fight ends: buffered samples commit, the read is queued
     if opts.meter then
-        S.sessions = opts.sessionRows and { { sessionID = 1, name = "Current", durationSeconds = 60, rows = opts.sessionRows } } or {}
+        local session = { sessionID = 1, name = "Current", durationSeconds = 60, rows = opts.sessionRows,
+            healRows = opts.healRows }
+        S.sessions = opts.sessionRows and { session } or {}
         for _, timer in ipairs(S.timers) do timer.fn() end
     end
     info.resets = S.resets
@@ -735,7 +758,7 @@ local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shado
 -- A TEACH-bearing log splits into fights: each is the slice of events after the previous TEACH clean line up to
 -- its own; the tail after the last one is a slice with no rows (its read skips). opts.log (debug lines) and
 -- opts.fixture stand in for a fixture file; opts.label names the log for StartArea (default name).
--- slices[i] = { log, name, events, rows = the log's meter rows, seen, logThreat, replayThreat, startArea }.
+-- slices[i] = { log, name, events, rows = the log's meter rows, healRows, seen, logThreat, replayThreat, startArea }.
 local function SplitFights(name, opts)
     local fixture = opts.fixture or assert(FIGHT_FIXTURES[name], "no fight fixture " .. name)
     local log = opts.log or LoadLog(name .. ".sv.lua")
@@ -753,15 +776,19 @@ local function SplitFights(name, opts)
     for i = 1, #cuts + 1 do
         local fight = cuts[i] and cuts[i].fight
         local endLine = cuts[i] and cuts[i].endLine or math.huge
-        local events = {}
+        local events, damage = {}, 0
         for _, event in ipairs(all) do
-            if event.line > prevEnd and event.line < endLine then events[#events + 1] = event end
+            if event.line > prevEnd and event.line < endLine then
+                events[#events + 1] = event
+                if event.kind ~= "H" then damage = damage + 1 end
+            end
         end
-        -- a read with no damage events (a heal-only "fight", seen=0 meter=0) is no slice; the fights after it still are
-        if #events > 0 then
+        -- a read with no damage events (a heal-only "fight", seen=0 meter=0) is no slice, its heals are not replayed;
+        -- the fights after it still are
+        if damage > 0 then
             slices[#slices + 1] = { log = opts.label or name, name = name, events = events, rows = fight and fight.rows,
-                seen = not fixture.logThreat and fight and fight.seen or nil, logThreat = fixture.logThreat,
-                replayThreat = fixture.replayThreat, startArea = fixture.startArea }
+                healRows = fight and fight.healRows, seen = not fixture.logThreat and fight and fight.seen or nil,
+                logThreat = fixture.logThreat, replayThreat = fixture.replayThreat, startArea = fixture.startArea }
         end
         prevEnd = endLine
     end
@@ -788,8 +815,8 @@ local function ReplaySlices(slices, opts)
         local events = table.move(slice.events, 1, #slice.events, 1, {})
         local hits, _, info = Replay(slice.name, {
             labels = { haste = 0, castPlates = {}, targets = TargetsFromLog(events) }, events = events,
-            haste = opts.haste, meter = true, sessionRows = slice.rows, logThreat = slice.logThreat,
-            replayThreat = slice.replayThreat, seen = slice.seen,
+            haste = opts.haste, meter = true, sessionRows = slice.rows, healRows = slice.healRows,
+            logThreat = slice.logThreat, replayThreat = slice.replayThreat, seen = slice.seen,
             area = StartArea(slices, i, area, charDB), charDB = charDB and DeepCopy(charDB), setup = opts.setup,
         })
         runs[#runs + 1] = { hits = hits, info = info, last = info.teacher.last, rows = slice.rows }
@@ -1410,6 +1437,35 @@ local function ReplayFightsChecks()
     local afterHeal = SplitFights("x", { log = healOnly, fixture = {} })
     Check("SplitFights: a heal-only read is no slice and the fights after it still are",
         #afterHeal == 2 and afterHeal[2].events[1].t == 3.0)
+    -- the heal feed (tests/heals.lua): a logged HEAL reaches Core.Heal, the read's heal rows reach the meter stub
+    local healLog = { "1.000 CAST player 1", "1.000 HIT nameplate1 school=1 amount=100 flag= fps=60 target=true",
+        "1.000   -> unknown-solo", "1.500 HEAL player school=1 amount=50 flag=CRITICAL", "1.500   -> HIDDEN (crowded)",
+        "2.000 TEACH clean seen=100 meter=100 -> clear", "2.000 TEACH 1 tally=0 meter=100 verdict=unpaired",
+        "2.000 TEACH heal 77472 meter=40 over=7", "2.000 TEACH heal 61295 meter=0 over=0" }
+    local healEvent = ParseLog("t", healLog)[3] -- after the CAST and the HIT
+    Check("parse: a HEAL line is an H event with its unit, amount, school, flag and logged route",
+        healEvent.kind == "H" and healEvent.unit == "player" and healEvent.amount == 50 and healEvent.school == 1
+        and healEvent.flag == "CRITICAL" and healEvent.route == "HIDDEN (crowded)")
+    local healRead = ParseTeach(healLog)[1]
+    Check("ParseTeach: the TEACH heal rows with meter > 0 are the read's healRows; the damage rows stay",
+        #healRead.healRows == 1 and healRead.healRows[1].spellID == 77472 and healRead.healRows[1].totalAmount == 40
+        and healRead.healRows[1].overkillAmount == 7 and #healRead.rows == 1 and healRead.rows[1].spellID == 1)
+    local servedHeals
+    local healRuns = ReplaySlices(SplitFights("x", { log = healLog, fixture = { startArea = "clear" } }), {
+        setup = function()
+            local source = C_DamageMeter.GetCombatSessionSourceFromID
+            C_DamageMeter.GetCombatSessionSourceFromID = function(id, meterType, guid)
+                local result = source(id, meterType, guid)
+                if meterType == 2 then servedHeals = result.combatSpells end
+                return result
+            end
+        end })
+    local fed = healRuns[1].info.heals[1]
+    Check("Replay: a logged heal goes to Core.Heal (solo, clear: '?') and is no hit",
+        #healRuns == 1 and #healRuns[1].hits == 1 and #healRuns[1].info.heals == 1 and fed.route == "  -> unknown-solo"
+        and fed.shown and fed.shown.texture == UNKNOWN_ICON and fed.event.amount == 50)
+    Check("Replay: the meter stub serves the slice's heal rows for healing done",
+        servedHeals ~= nil and #servedHeals == 1 and servedHeals[1].spellID == 77472)
     local skipped = SplitFights("x", { log = { "1.0 CAST player 1", "1.5 TEACH clean seen=5 meter=5 -> clear",
         "1.5 TEACH 1 tally=5 meter=5 verdict=agree", "2.0 CAST player 1", "2.5 TEACH skip no sessions",
         "3.0 CAST player 1", "3.5 TEACH clean seen=7 meter=7 -> clear", "3.5 TEACH 1 tally=7 meter=7 verdict=agree" },
