@@ -366,6 +366,8 @@ local function Wound(plate, unit, flagText, amount, school, now)
     local stream
     if not Procs.Name(school, amount, flagText) then
         stream = Streams.Feed(plate, school, amount, flagText, "enemy", now, solo)
+        -- A learned DoT spread to a plate it was never cast on takes the stream there (Tracker.AdoptSpread).
+        if stream and solo and not crowded then Tracker.AdoptSpread(plate, stream, now) end
     end
     local candidates
     if solo then

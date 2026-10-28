@@ -554,6 +554,17 @@ function Streams.CastLog(key)
     return entry and entry.casts or {}
 end
 
+-- Whether any key logged a player cast in [at - window, at].
+function Streams.CastBefore(at, window)
+    for _, entry in pairs(state) do
+        for _, cast in ipairs(entry.casts) do
+            if cast.at <= at and at - cast.at <= window then return true end
+        end
+    end
+
+    return false
+end
+
 -- The key's live streams after the death sweep.
 function Streams.Live(key, now)
     local entry = state[key]

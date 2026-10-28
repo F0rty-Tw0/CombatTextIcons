@@ -1487,6 +1487,28 @@ return function(T)
             Check("onlearned: a stream that differs in " .. case[1] .. " is not adopted", rig.Hit(8.5, 1000, case[5]) == nil)
         end
     end
+    do -- AdoptSpread: a learned DoT spread to a plate it was never cast on (run lock3 F2: Seed of Corruption put Wither
+        -- on 5 plates, Wither never cast) takes that plate's stream solo; grouped, or when two learned DoTs fit, it
+        -- does not. The stream ticks every 1.6 s against the learned 1.7.
+        local function Spread(group, twin)
+            local rig = Rig()
+            rig.Seed(9501, 12, 1.7, "dot")
+            if twin then rig.Seed(9502, 12, 1.8, "dot") end
+            rig.S.group = group
+            rig.Cast(0, 9601, "nameplate1")                                   -- the spreading cast, on another plate
+            for _, t in ipairs({ 1.6, 3.2, 4.8, 6.4 }) do rig.Hit(t, 1000, 12, "nameplate2") end -- stream born at 6.4
+            rig.S.group = true -- in a group a hit nothing identifies stays hidden (solo it draws "?")
+            return rig.Hit(8.0, 1000, 12, "nameplate2"), rig.Hit(9.6, 2000, 12, "nameplate2"), rig
+        end
+        local tick, offSize, rig = Spread(false)
+        Check("spread: solo, the learned DoT's tick on a castless plate is drawn (" .. tostring(tick) .. ")",
+            tick == "tex:9501")
+        Check("spread: a hit 2x the tick on its lattice is not drawn (past a ramp step)", offSize == nil)
+        local period = rig.Learned(9501).period
+        Check("spread: a spread tick's 1.6 s gap leaves the learned 1.7 s base alone (" .. period .. ")", period == 1.7)
+        Check("spread: grouped, the castless stream is not adopted", Spread(true) == nil)
+        Check("spread: two learned DoTs fit the stream, neither adopts it", Spread(false, true) == nil)
+    end
     do -- OnLearned on a heal unit: a Renew-like HoT (school 2, period 2.5) on party2
         local rig = Rig()
         rig.S.harmful[9701], rig.S.helpful[9701] = false, true

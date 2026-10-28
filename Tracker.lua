@@ -13,7 +13,8 @@
 --   hot      an instance on the heal unit (player or group member), like target.
 -- A tick is attributed only when exactly one expectation fits it. Spells learned in one
 -- burst of casts (a macro, a talent that casts two) share one instance. A learned spell
--- that owns a running Streams stream (a cast during it, or learning it) adopts it. When several
+-- that owns a running Streams stream (a cast during it, or learning it) adopts it; solo, a learned DoT spread to a
+-- plate it was never cast on adopts that plate's stream (Tracker.AdoptSpread). When several
 -- expectations fit, or a burst instance's spells show different textures, the answer is
 -- Tracker.UNKNOWN: the hit is yours, the spell is not known.
 -- DoTs may tick faster than UnitSpellHaste explains: a first tick that misses
@@ -254,7 +255,9 @@ end
 -- and 2.1x, every one an orphan of the strict truth), and within half the usual tolerance of its time: a crowd's
 -- like-sized hits came 0.17-0.25 s early in each window (run lock3 F3: Agony 980 on its 1.37 s drew 10K hits
 -- 1.13-1.16 s apart, 120K against its 81K row), while its own ticks land within 0.07 s (run lock3 F2: gaps 1.27-1.40
--- on 1.33).
+-- on 1.33). A spread instance (Tracker.AdoptSpread) is held within Streams.RAMP_STEP of its last tick either way: no
+-- cast vouches for its window (run lock3 F2: Agony 980 spread to nameplate9 took a 1379 hit of Shadow of Nathreza
+-- 1262710 at 0.43x its last tick, a 6462 crit).
 local function Phase(instance, school, amount, flagText, now, strict)
     if instance.school ~= school then return nil end
     local tolerance = PhaseTolerance(instance.period, strict)
@@ -272,7 +275,11 @@ local function Phase(instance, school, amount, flagText, now, strict)
             local last = instance.lastAmount
             local tested = not instance.hot and normal and last and last > 0
             local low, high = AMOUNT_LOW, AMOUNT_HIGH
-            if strict then low, high = 1 - Streams.SIZE_GUARD, 1 / (1 - Streams.SIZE_GUARD) end
+            if strict then
+                low, high = 1 - Streams.SIZE_GUARD, 1 / (1 - Streams.SIZE_GUARD)
+            elseif instance.spread then
+                low, high = 1 / Streams.RAMP_STEP, Streams.RAMP_STEP
+            end
             if tested and (normal < low * last or normal > high * last) then
                 return nil
             end
@@ -431,8 +438,10 @@ local function Ticked(instance, multiple, amount, flagText, now, back)
         end
     end
     instance.seen = nil
-    -- A learned spell's base follows the real tick gap, undone for haste.
-    if instance.fromLearn and instance.lastTick and multiple >= 1 then
+    -- A learned spell's base follows the real tick gap, undone for haste. A spread instance's gaps do not move it: run
+    -- lock3 F5, Agony 980 spread to nameplate6 ticked 1.24-1.40 s apart and nudged its base 1.43 -> 1.39, so in F6 its
+    -- cast's first window took a 1281 hit of another series 0.27 s early instead of its own 1612 tick.
+    if instance.fromLearn and not instance.spread and instance.lastTick and multiple >= 1 then
         local haste = Learn.Haste()
         if haste then
             local sample = ((now - instance.lastTick) / multiple) * (1 + haste / 100)
@@ -821,6 +830,33 @@ function Tracker.Reset()
     directs = {}
     channel, channelTickAt = nil, nil
     Streams.Reset()
+end
+
+-- A stream no instance holds, on a plate whose cast log holds no cast of the learned DoT, is that DoT's when it is the
+-- one learned DoT of the stream's school whose period it keeps (within Tolerance) and an own cast came at most
+-- SPREAD_WINDOW before its birth: a spread puts a DoT on plates the player never cast it on (run lock3 F2: Seed of
+-- Corruption 27243 put Wither 445468 on 5 plates at once and Wither was never cast; its 666K went by as '?'; Agony 980
+-- ticked 3006-3607 on 3 plates it was not cast on). Two learned DoTs that fit leave the stream alone. The caller passes
+-- only solo, uncrowded fights: there a stranger's DoT of the same school and period is not on the plate. The instance
+-- is a `spread` one: Phase holds its ticks within a ramp step of each other (Wither's 1789 tick due with a 4458 hit of
+-- another 1.0 s series on run lock3 F2 nameplate6), and its gaps never nudge the learned base (Ticked).
+function Tracker.AdoptSpread(key, stream, now)
+    if AliveInstance(stream) then return end
+    local fit
+    for _, entry in ipairs(Learn.List()) do
+        local base = BasePeriod(entry.period, true)
+        local keeps = math.abs(stream.period - base) <= Tolerance(base)
+        if entry.kind == "dot" and entry.school == stream.school and keeps then
+            if fit then return end
+            fit = entry
+        end
+    end
+    if not fit or FindInstance(key, fit.spellID) or not Streams.CastBefore(stream.birth, SPREAD_WINDOW) then return end
+    for _, cast in ipairs(Streams.CastLog(key)) do
+        if cast.castID == fit.spellID then return end
+    end
+    AdoptInstance(key, fit.spellID, Learn.Get(fit.spellID), stream, stream.birth, now)
+    stream.instance.spread = true
 end
 
 -- Called when Learn stores a new spell (ascending ids): every live stream the spell owns
