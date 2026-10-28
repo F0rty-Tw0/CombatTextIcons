@@ -565,6 +565,13 @@ function Streams.CastBefore(at, window)
     return false
 end
 
+-- The key's loose hits of `school` ({ at, amount, crit }, oldest first; callers never mutate).
+function Streams.Loose(key, school)
+    local entry = key ~= nil and state[key]
+
+    return entry and entry.loose[school] or {}
+end
+
 -- The key's live streams after the death sweep.
 function Streams.Live(key, now)
     local entry = state[key]

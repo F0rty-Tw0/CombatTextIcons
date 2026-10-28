@@ -270,6 +270,16 @@ local function ProcWound(plate, school, amount, flagText)
     return true
 end
 
+-- Draws a hit with a learned rhythm proc's icon and tallies it; returns true.
+local function DrawRhythm(plate, rhythmID, school, amount, flagText)
+    if ns.Debug then ns.Debug("  -> rhythm %s", ShowValue(rhythmID)) end
+    Teacher.Drawn(rhythmID, amount)
+    Ledger.Add("damage", rhythmID, amount)
+    Display.Plate(plate, SpellTexture(rhythmID), HitText(flagText, amount), flagText, school)
+
+    return true
+end
+
 -- Draws a hit whose stream fits a learned rhythm proc (ticks that share no size band) with that row's icon; a
 -- hit before its stream is born is named by a logged cast of the proc's row that its band holds (Procs.NameCast).
 -- `candidates` is Casts.Candidates for the hit. Returns whether it drew.
@@ -277,12 +287,22 @@ local function RhythmWound(plate, stream, school, amount, flagText, candidates)
     local rhythmID = Teacher.AreaClear()
         and (Procs.NameStream(stream) or Procs.NameCast(school, amount, flagText, candidates))
     if not rhythmID then return false end
-    if ns.Debug then ns.Debug("  -> rhythm %s", ShowValue(rhythmID)) end
-    Teacher.Drawn(rhythmID, amount)
-    Ledger.Add("damage", rhythmID, amount)
-    Display.Plate(plate, SpellTexture(rhythmID), HitText(flagText, amount), flagText, school)
 
-    return true
+    return DrawRhythm(plate, rhythmID, school, amount, flagText)
+end
+
+-- Draws a loose hit (no stream took it) that pairs with the tick one learned rhythm period before it on the plate
+-- (Procs.NamePair), when no unlearned cast may have made it: a learned cast's own hit was claimed before (Casts.Claim).
+-- `candidates` is Casts.Candidates for the hit. Returns whether it drew.
+local function PairWound(plate, stream, school, amount, flagText, candidates, now)
+    if stream or not Teacher.AreaClear() then return false end
+    for _, cast in ipairs(candidates) do
+        if not Fingerprints.IsLearned(cast.castID) then return false end
+    end
+    local rhythmID = Procs.NamePair(Streams.Loose(plate, school), school, amount, flagText, now)
+    if not rhythmID then return false end
+
+    return DrawRhythm(plate, rhythmID, school, amount, flagText)
 end
 
 -- The hit route: the tracker names DoT and channel ticks and a learned cast fingerprint
@@ -295,7 +315,8 @@ end
 -- area is clear a learned proc that fits the hit (Procs.Name) draws its icon instead of the question
 -- mark; so does a learned rhythm proc that fits the stream the hit extends or births
 -- (Procs.NameStream), or that a recent cast of its row and the hit's size name before the stream is born
--- (Procs.NameCast), ranked below the Tracker and Casts.
+-- (Procs.NameCast), ranked below the Tracker and Casts; last, below the stack series, one whose tick a period
+-- before the hit is still loose on the plate (Procs.NamePair).
 -- The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
 -- (run 153349Z: strangers on 8 nearby dummies made both reads crowded).
@@ -387,6 +408,9 @@ local function Wound(plate, unit, flagText, amount, school, now)
         Ledger.Add("damage", stack.base, amount)
         return Display.Plate(plate, SpellTexture(stack.spellID), text, flagText, school)
     end
+    -- A loose tick pairs with the one a learned rhythm period before it only after the stack spells had it: lock3
+    -- F2, Unstable Affliction's 7821 (2 stacks x 3258 x 1.2) at 199540.864 sits in Darkglare's band.
+    if solo and PairWound(plate, stream, school, amount, flagText, candidates, now) then return end
     if solo then
         Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now, school), flagText, candidates)
         if not Teacher.AreaClear() then

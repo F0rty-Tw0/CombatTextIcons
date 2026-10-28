@@ -1929,16 +1929,53 @@ return function(T)
         local rig = RhythmRig()
         local ICON, UNKNOWN = "tex:" .. X, rig.ns.Meter.UNKNOWN_ICON
         local drawn = { Wound(rig), Wound(rig), Wound(rig), Wound(rig) }
-        Check("rhythm route: 4 wounds of 350 one second apart -> the first 3 draw ?, the 4th (the stream's birth) draws the rhythm icon",
-            drawn[1] == UNKNOWN and drawn[2] == UNKNOWN and drawn[3] == UNKNOWN and drawn[4] == ICON)
-        Check("rhythm route: the rhythm hit is tallied (350) and in the Ledger (1 hit), and the debug log holds the rhythm route line",
-            rig.ns.Teacher.fight.tally[X] == 350 and rig.ns.Ledger.Current().damage[X].hits == 1 and Logged("  -> rhythm " .. X))
+        Check("rhythm route: 4 wounds of 350 one second apart -> the first draws ?, the 2nd and 3rd pair with the loose tick"
+            .. " a period before (Procs.NamePair), the 4th (the stream's birth) draws by its stream",
+            drawn[1] == UNKNOWN and drawn[2] == ICON and drawn[3] == ICON and drawn[4] == ICON)
+        Check("rhythm route: the rhythm hits are tallied (3 x 350) and in the Ledger (3 hits), and the debug log holds the rhythm route line",
+            rig.ns.Teacher.fight.tally[X] == 1050 and rig.ns.Ledger.Current().damage[X].hits == 3 and Logged("  -> rhythm " .. X))
 
         rig = RhythmRig()
         local fifth = { Wound(rig), Wound(rig), Wound(rig), Wound(rig) }
         rig.ns.Procs.Forget()
         Check("rhythm route: Procs.Forget mid-stream -> the next hit draws ?, no further tally",
-            fifth[4] == ICON and Wound(rig) == UNKNOWN and rig.ns.Teacher.fight.tally[X] == 350)
+            fifth[4] == ICON and Wound(rig) == UNKNOWN and rig.ns.Teacher.fight.tally[X] == 1050)
+
+        -- The pair route's guards: the loose tick a period before must be like-sized, the band's only hit since, not
+        -- physical, and no unlearned cast may have made the hit.
+        local function Pair(r, first, second, gap, school, unit2)
+            r.Hit(10, "nameplate1", first, school or 106)
+            return r.Hit(10 + (gap or 1), unit2 or "nameplate1", second, school or 106)
+        end
+        rig = RhythmRig()
+        Check("rhythm pair: a second in-band hit one period after the first on the plate draws the rhythm icon",
+            Pair(rig, 350, 350) == ICON and rig.ns.Teacher.fight.tally[X] == 350)
+        rig = RhythmRig()
+        Check("rhythm pair: two periods apart (no tick between) -> ?", Pair(rig, 350, 350, 2) == UNKNOWN)
+        rig = RhythmRig()
+        Check("rhythm pair: the first tick on another plate -> ?", Pair(rig, 350, 350, 1, nil, "nameplate2") == UNKNOWN)
+        rig = RhythmRig()
+        rig.ns.Procs.Forget()
+        CombatTextIconsCharDB.procs = { [X] = { school = 106, period = 1.0, lo = 300, hi = 400, learned = true,
+            streak = 2, unpaired = 0, seen = 0 } }
+        rig.ns.Procs.Init(CombatTextIconsCharDB)
+        Check("rhythm pair: both in the band but not like-sized (300 then 395, past SIZE_GUARD) -> ?",
+            Pair(rig, 300, 395) == UNKNOWN)
+        rig = RhythmRig()
+        rig.Hit(10, "nameplate1", 350, 106)
+        rig.Hit(10.5, "nameplate1", 355, 106)
+        Check("rhythm pair: another in-band hit since the tick a period before (a crowd) -> ?",
+            rig.Hit(11, "nameplate1", 350, 106) == UNKNOWN)
+        rig = RhythmRig()
+        CombatTextIconsCharDB.procs[X].school = 1
+        rig.ns.Procs.Init(CombatTextIconsCharDB)
+        Check("rhythm pair: a physical rhythm never pairs (swings and GCD strikes pair a period apart)",
+            Pair(rig, 350, 350, 1, 1) ~= ICON and rig.ns.Teacher.fight.tally[X] == nil)
+        rig = RhythmRig()
+        rig.Hit(10, "nameplate1", 350, 106)
+        rig.Cast(10.6, "nameplate1", 8092)
+        Check("rhythm pair: an unlearned cast at the plate in the hit's window -> ?",
+            rig.Hit(11, "nameplate1", 350, 106) == UNKNOWN)
 
         rig = RhythmRig()
         rig.ns.Teacher.area = "crowded"

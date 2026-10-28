@@ -768,6 +768,15 @@ function Procs.Name(school, amount, flagText)
     return found
 end
 
+-- Whether the entry's padded band holds a hit: the normal range, or the crit range; crit nil (unknown) fits either.
+local function InBand(entry, amount, crit)
+    local lo, hi = entry.lo * PAD_LO, entry.hi * PAD_HI
+    local normal = lo <= amount and amount <= hi
+    local big = lo * CRIT_LO <= amount and amount <= hi * CRIT_HI
+
+    return (crit ~= true and normal) or (crit ~= false and big)
+end
+
 -- Procs.NameStream(stream): the one learned rhythm entry whose school and period match the stream and whose
 -- padded band holds its last hit, or nil for none or several. A positive answer is cached on stream.procID and
 -- served only while that entry is still a learned rhythm entry; once it is not, the stream is looked up afresh.
@@ -806,15 +815,54 @@ function Procs.NameCast(school, amount, flagText, candidates)
         while id ~= nil do
             local entry = procs[id]
             if id ~= found and entry and entry.learned == true and entry.period and entry.school == school then
-                local lo, hi = entry.lo * PAD_LO, entry.hi * PAD_HI
-                local normal = lo <= amount and amount <= hi
-                local big = lo * CRIT_LO <= amount and amount <= hi * CRIT_HI
-                if (crit ~= true and normal) or (crit ~= false and big) then
+                if InBand(entry, amount, crit) then
                     if found then return nil end
                     found = id
                 end
             end
             id, nextID = nextID, nil
+        end
+    end
+
+    return found
+end
+
+-- Whether two hits are one spell's ticks by size: two of a kind within SIZE_GUARD, a crit over a normal within the
+-- crit band (Streams' size guard).
+local function LikeSized(x, xCrit, y, yCrit)
+    if xCrit == yCrit then return math.abs(x - y) <= SIZE_GUARD * math.max(x, y) end
+    local crit, normal = x, y
+    if yCrit then crit, normal = y, x end
+
+    return CRIT_LO <= crit / normal and crit / normal <= CRIT_HI
+end
+
+-- Procs.NamePair(loose, school, amount, flagText, now): the one learned rhythm entry of the school whose padded band
+-- holds the hit and one like-sized loose hit of the plate (Streams.Loose, oldest first) one period before it, within
+-- the stream slack, the band's only hit since; nil for none or several. Names a known rhythm's ticks from its second
+-- on, where a stream is born only on the fourth: run lock3 F2, Darkglare 205231's first beams (199520.955,
+-- 199522.823, 199524.681, 8.5-10.3K, 1.77 s) hit 5 plates each and went by as '?' until the stream at 199526.558.
+-- Never physical: melee swings and GCD-paced strikes pair one period apart (old druid F10/F12, 3576-24815).
+function Procs.NamePair(loose, school, amount, flagText, now)
+    local crit = Procs.Crit(flagText)
+    if not (IsNumber(school) and IsNumber(amount) and IsNumber(now)) or crit == nil or school == 1 then return nil end
+    local found
+    for id, entry in pairs(procs) do
+        if entry.learned == true and entry.period and entry.school == school and InBand(entry, amount, crit) then
+            local slack = Streams.Slack(entry.period)
+            local inBand, partner = 0, false
+            for _, hit in ipairs(loose or {}) do
+                local gap = now - hit.at
+                if gap > 0 and gap <= entry.period + slack and hit.amount and InBand(entry, hit.amount, hit.crit) then
+                    inBand = inBand + 1
+                    partner = partner or gap >= entry.period - slack and LikeSized(amount, crit, hit.amount, hit.crit)
+                end
+            end
+            -- a crowd's in-band hits come denser than one a period
+            if partner and inBand == 1 then
+                if found then return nil end
+                found = id
+            end
         end
     end
 
