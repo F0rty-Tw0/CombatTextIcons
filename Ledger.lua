@@ -7,9 +7,11 @@
 -- clock restarts with the client), at most 5. A fight with no drawn hit is not saved, nor is one
 -- the meter started no session for (the Teacher drops it after its read).
 -- After a post-fight meter read the Teacher hands its verdicts over; they attach to the
--- newest saved fight only when it is the same fight. Saved data is checked on
--- load: bad fights, totals and verdicts are dropped, unknown fields too. The ledger only
--- records; it changes nothing about which hits draw.
+-- newest saved fight only when it is the same fight; so does the read's outcome (Ledger.SetOutcome: clear, crowded,
+-- group, short or skipped, with the meter's damage total when it was read), which the panel shows as why a fight
+-- taught nothing. Saved data is checked on load: bad fights, totals, verdicts and outcomes are dropped, unknown
+-- fields too; a fight saved before outcomes has none. The ledger only records; it changes nothing about which hits
+-- draw.
 
 local _, ns = ...
 
@@ -19,6 +21,7 @@ ns.Ledger = Ledger
 local MAX_FIGHTS = 5
 local MAX_KEY_LENGTH = 8 -- "?8", "?"
 local VERDICTS = { agree = true, over = true, under = true, unpaired = true }
+local OUTCOMES = { clear = true, crowded = true, group = true, short = true, skipped = true } -- Teacher's crowd check
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -78,8 +81,11 @@ local function CleanFight(fight)
     local damage, heal = CleanTotals(fight.damage), CleanTotals(fight.heal)
     if not (damage and heal) then return nil end
 
-    return { at = fight.at, date = fight.date, duration = fight.duration,
-        group = fight.group, damage = damage, heal = heal, verdicts = CleanVerdicts(fight.verdicts) }
+    local outcome = Plain(fight.outcome) and OUTCOMES[fight.outcome] and fight.outcome or nil
+    local meterTotal = outcome and IsNumber(fight.meterTotal) and fight.meterTotal >= 0 and fight.meterTotal or nil
+
+    return { at = fight.at, date = fight.date, duration = fight.duration, group = fight.group, damage = damage,
+        heal = heal, verdicts = CleanVerdicts(fight.verdicts), outcome = outcome, meterTotal = meterTotal }
 end
 
 function Ledger.Init(charDB)
@@ -141,6 +147,17 @@ function Ledger.SetVerdicts(results, at)
         end
     end
     fight.verdicts = verdicts
+end
+
+-- Attaches the Teacher's outcome for the fight started at `at` to the newest saved fight when that is the fight and
+-- holds none yet: "clear", "crowded", "group", "short" or "skipped", and `meterTotal`, the meter rows' damage total
+-- (kept only when plain).
+function Ledger.SetOutcome(at, outcome, meterTotal)
+    local fight = fights[1]
+    if not (fight and IsNumber(at) and fight.at == at and fight.outcome == nil) then return end
+    if not (Plain(outcome) and OUTCOMES[outcome]) then return end
+    fight.outcome = outcome
+    fight.meterTotal = IsNumber(meterTotal) and meterTotal >= 0 and meterTotal or nil
 end
 
 -- Drops the newest saved fight when it is the fight started at `at`: the meter started no session

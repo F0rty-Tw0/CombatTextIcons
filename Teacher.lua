@@ -16,7 +16,7 @@
 -- meter row. A read that meets a
 -- secret value or an error is skipped whole. The verdicts also unlearn DoTs, channels and
 -- procs whose drawn total overshoots the meter or never pairs with a row, and go to the
--- Ledger, which attaches them to the saved fight. A solo fight is also a crowd check: when
+-- Ledger, which attaches them and the read's outcome to the saved fight. A solo fight is also a crowd check: when
 -- the wounds seen that may be yours (Teacher.Seen) fit the meter's rows the area is "clear" and
 -- learning runs (the leftover '?' hits and still-open rows then go to Procs.Read, then to
 -- Ground.Castless), else it
@@ -753,6 +753,12 @@ local function Done(last)
     if Teacher.OnRead then Teacher.OnRead(last) end
 end
 
+-- The fight started at `at` is not read for `reason`: the Ledger keeps it as skipped.
+local function Skipped(at, reason)
+    Ledger.SetOutcome(at, "skipped")
+    Done({ skip = reason })
+end
+
 -- The crowd check: "group" (the state is kept) for a fight that started grouped or saw a wound while
 -- grouped; the group state at read time does not count (priest3: joining the dungeon group 2 s after a
 -- solo dummy fight lost that fight's whole read); "short" (the state is kept)
@@ -893,7 +899,7 @@ end
 -- One fight's judging of the session read for it: `sessionID` and its `rows`, else the skip `reason`.
 local function Judging(run, sessionID, rows, reason)
     if not rows then
-        Done({ skip = reason })
+        Skipped(run.at, reason)
         return
     end
 
@@ -933,6 +939,7 @@ local function Judging(run, sessionID, rows, reason)
         SaveArea(area)
     end
     last.area = area
+    Ledger.SetOutcome(run.at, area, total)
     if ns.Debug then
         ns.Debug("TEACH clean seen=%d meter=%d -> %s", math.floor(run.seen), math.floor(total), area)
     end
@@ -1047,12 +1054,12 @@ function Teacher.Finish(now)
     end
     if IsNumber(now) then fight.duration = now - fight.at + (fight.carried or 0) end
     if not Meter.Available() then
-        Judge(function() Done({ skip = "meter off" }) end)
+        Judge(function() Skipped(fight.at, "meter off") end)
         return
     end
 
     local queued = epoch
     if not pcall(C_Timer.After, READ_DELAY, function() if queued == epoch then Read(fight) end end) then
-        Judge(function() Done({ skip = "read failed" }) end)
+        Judge(function() Skipped(fight.at, "read failed") end)
     end
 end

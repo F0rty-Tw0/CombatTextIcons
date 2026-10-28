@@ -507,6 +507,7 @@ function Core.ADDON_LOADED(name)
         db.meter = nil -- the meter mode is gone
         if type(db.showUnknown) ~= "boolean" then db.showUnknown = nil end
         if type(db.showProgress) ~= "boolean" then db.showProgress = nil end
+        if type(db.panelDetails) ~= "boolean" then db.panelDetails = nil end -- the learned window's Details toggle
         CombatTextIconsDB = db
     elseif name == "Blizzard_CombatText" and db and db.enabled then
         SetCombatTextShown(false)

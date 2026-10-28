@@ -113,12 +113,13 @@ function Procs.Paired(id)
     if entry then entry.unpaired = 0 end
 end
 
--- Procs.List(): copies of every entry (candidates too), sorted by spellID.
+-- Procs.List(): copies of every entry (candidates too), sorted by spellID. A learned proc's `unpaired` is its strikes
+-- towards a drop (the panel's warnings).
 function Procs.List()
     local list = {}
     for id, entry in pairs(procs) do
         list[#list + 1] = { spellID = id, school = entry.school, lo = entry.lo, hi = entry.hi, streak = entry.streak,
-            learned = entry.learned, period = entry.period }
+            learned = entry.learned, period = entry.period, unpaired = entry.unpaired }
     end
     table.sort(list, function(a, b) return a.spellID < b.spellID end)
 

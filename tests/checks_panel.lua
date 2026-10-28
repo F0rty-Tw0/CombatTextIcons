@@ -146,6 +146,51 @@ return function(T)
         Check("ledger: bad result rows dropped", L.Fights()[1].verdicts == nil)
     end)
 
+    Scenario("outcome", function()
+        local L = Rig()
+        L.Start(10, false)
+        L.Add("damage", 591, 100)
+        L.Finish(12)
+        L.SetOutcome(99, "crowded", 400)
+        Check("ledger: outcome ignored on an at mismatch", L.Fights()[1].outcome == nil
+            and L.Fights()[1].meterTotal == nil)
+        L.SetOutcome(10, "crowded", 400)
+        Check("ledger: outcome and meter total attached by at", L.Fights()[1].outcome == "crowded"
+            and L.Fights()[1].meterTotal == 400)
+        L.SetOutcome(10, "clear", 1)
+        Check("ledger: a second outcome does not overwrite", L.Fights()[1].outcome == "crowded"
+            and L.Fights()[1].meterTotal == 400)
+
+        L.Start(20, false)
+        L.Add("damage", 591, 100)
+        L.Finish(22)
+        L.SetOutcome(20, "skipped")
+        Check("ledger: a skipped read keeps no meter total", L.Fights()[1].outcome == "skipped"
+            and L.Fights()[1].meterTotal == nil)
+
+        L.Start(30, false)
+        L.Add("damage", 591, 100)
+        L.Finish(32)
+        L.SetOutcome(30, "maybe", 5)
+        L.SetOutcome(30, Secret("clear"), 5)
+        Check("ledger: an unknown or secret outcome is ignored", L.Fights()[1].outcome == nil)
+        L.SetOutcome(30, "clear", Secret(5))
+        Check("ledger: a secret meter total is left out", L.Fights()[1].outcome == "clear"
+            and L.Fights()[1].meterTotal == nil)
+
+        local ns = T.Boot(function()
+            CombatTextIconsCharDB = { fights = { Saved(9, { outcome = "group", meterTotal = 80 }),
+                Saved(8, { outcome = "nonsense", meterTotal = -1 }), Saved(7) } }
+        end)
+        local fights = ns.Ledger.Fights()
+        Check("ledger: Init keeps a valid outcome and meter total", fights[1].outcome == "group"
+            and fights[1].meterTotal == 80)
+        Check("ledger: Init drops a bad outcome and meter total, keeps the fight", #fights == 3
+            and fights[2].outcome == nil and fights[2].meterTotal == nil)
+        Check("ledger: an old fight loads without outcome fields", fights[3].outcome == nil
+            and fights[3].meterTotal == nil)
+    end)
+
     Scenario("forget", function()
         local L = Rig()
         L.Start(10, false)
@@ -622,6 +667,142 @@ return function(T)
             and FindIn(idle, "heal", DRAIN_LIFE) == nil)
     end)
 
+    -- The plain view's words: status (+ why), This fight's share and the Meter check, per learn state.
+    Scenario("rows: status words", function()
+        local X = 1287663
+        local ns = RowsRig(true)
+        T.Store().procs = {
+            [X] = { school = 106, lo = 339, hi = 364, streak = 3, learned = true, unpaired = 0, seen = 0 },
+            [900001] = { school = 106, lo = 100, hi = 110, streak = 2, learned = false, unpaired = 0, seen = 0 },
+        }
+        ns.Procs.Init(T.Store())
+        local fight = { at = 1, date = 1000, duration = 5, group = false,
+            damage = { [PAIN] = { amount = 300, hits = 3 }, [LIGHTNING] = { amount = 100, hits = 1 },
+                ["?8"] = { amount = 100, hits = 2 }, [999] = { amount = 0, hits = 1 } },
+            heal = { [RENEW] = { amount = 50, hits = 1 } },
+            verdicts = { [PAIN] = { verdict = "agree", meter = 300, meterID = PAIN },
+                [LIGHTNING] = { verdict = "over", meter = 80, meterID = LIGHTNING },
+                [LAVA_BURST] = { verdict = "unpaired", meter = 70, meterID = LAVA_BURST },
+                [8092] = { verdict = "under", meter = 900, meterID = 8092 },
+                [999] = { verdict = "unpaired", meter = 0, meterID = 999 } } }
+        local rows = ns.Panel.Rows(fight)
+        local function Words(key, section)
+            local row = FindIn(rows, section, key)
+
+            return row and (row.status .. " | " .. row.why .. " | " .. row.tone)
+        end
+        Check("status: a learned DoT reads 'Knows it' by tick rhythm", Words(PAIN) == "Knows it | tick rhythm | ok")
+        Check("status: a learned HoT reads 'Knows it' by tick rhythm", Words(RENEW) == "Knows it | tick rhythm | ok")
+        Check("status: a fingerprint's strike is a warning", Words(LIGHTNING) == "Knows it, 1 warning | hit | warn")
+        Check("status: a learned proc reads 'Knows it' by proc", Words(X) == "Knows it | proc | ok")
+        Check("status: casts 1 of 3 reads 'Learning: 2 more casts'",
+            Words(LAVA_BURST) == "Learning: 2 more casts |  | warn")
+        Check("status: votes at the need read 'Learning: double-checking'",
+            Words(8092) == "Learning: double-checking |  | warn")
+        Check("status: a proc streak 2 of 3 reads 'Learning: 1 more fight'",
+            Words(900001) == "Learning: 1 more fight |  | warn")
+        Check("status: a '?' key reads 'Not named yet'", Words("?8") == "Not named yet |  | dim")
+        Check("status: an ID drawn with no meter row and no learn state reads 'Not learning: no meter row'",
+            Words(999) == "Not learning | no meter row | bad")
+        Check("meter check: a meter row nothing was drawn for reads 'drew nothing'",
+            FindIn(rows, "damage", LAVA_BURST).check == "drew nothing")
+        Check("meter check: agree, over, under, no meter row in words", Find(rows, PAIN).check == "matches"
+            and Find(rows, LIGHTNING).check == "drew too much" and Find(rows, 8092).check == "drew less"
+            and Find(rows, 999).check == "no meter row")
+        Check("meter check: heals are never checked", FindIn(rows, "heal", RENEW).check == "heals aren't checked")
+        Check("this fight: a damage row's share of the fight's drawn damage", Find(rows, PAIN).share == 0.6
+            and Find(rows, "?8").share == 0.2 and FindIn(rows, "heal", RENEW).share == nil
+            and Find(rows, X).share == nil)
+
+        for _, sig in ipairs(ns.Learn.Votes(8092).sigs) do sig.votes = 1 end
+        ns.Learn.Missed(PAIN)
+        ns.Learn.Unpaired(RENEW)
+        ns.Procs.Unpaired(X)
+        local lava = ns.Fingerprints.Get(LAVA_BURST).samples
+        lava[#lava + 1] = { school = 4, delay = 0.25, castAt = 2, hops = 1 }
+        rows = ns.Panel.Rows(fight)
+        Check("status: votes below the need read 'Learning: 1 more tick start'",
+            Words(8092) == "Learning: 1 more tick start |  | warn")
+        Check("status: casts 2 of 3 reads 'Learning: 1 more cast'",
+            Words(LAVA_BURST) == "Learning: 1 more cast |  | warn")
+        Check("status: a DoT's tickless cast is a warning", Words(PAIN) == "Knows it, 1 warning | tick rhythm | warn")
+        Check("status: a HoT's unpaired read is a warning", Words(RENEW) == "Knows it, 1 warning | tick rhythm | warn")
+        Check("status: a proc's unpaired read is a warning", Words(X) == "Knows it, 1 warning | proc | warn")
+        ns.Learn.Unpaired(PAIN)
+        Check("status: a miss and an unpaired read are 2 warnings",
+            FindIn(ns.Panel.Rows(fight), "damage", PAIN).status == "Knows it, 2 warnings")
+        local listed = {}
+        for _, entry in ipairs(ns.Learn.List()) do listed[entry.spellID] = entry end
+        Check("Learn.List exposes misses and unpaired", listed[PAIN].misses == 1 and listed[PAIN].unpaired == 1
+            and listed[RENEW].misses == 0 and listed[RENEW].unpaired == 1)
+        local procs = {}
+        for _, entry in ipairs(ns.Procs.List()) do procs[entry.spellID] = entry end
+        Check("Procs.List exposes unpaired", procs[X].unpaired == 1 and procs[900001].unpaired == 0)
+    end)
+
+    Scenario("summary and title", function()
+        local ns = RowsRig()
+        local Panel, Teacher = ns.Panel, ns.Teacher
+        local fight = { at = 1, date = 1000, duration = 5, group = false, heal = {},
+            damage = { [PAIN] = { amount = 300, hits = 3 }, ["?8"] = { amount = 100, hits = 2 } } }
+        Teacher.area = "clear"
+        Check("summary: area clear and the named share of drawn damage",
+            Panel.Summary(fight) == "Area: clear, '?' shown  ·  Named 75 % of drawn damage")
+        Teacher.area = "crowded"
+        Check("summary: crowded area", Panel.Summary(nil) == "Area: crowded, '?' hidden")
+        fight.outcome, fight.meterTotal = "group", 600
+        Check("summary: a saved group fight says nothing was learned, and the named share of the meter's total",
+            Panel.Summary(fight) == "Area: crowded, '?' hidden  ·  Named 75 % of drawn damage, 50 % of the meter's"
+            .. "  ·  Group fight: nothing learned")
+        fight.outcome, fight.meterTotal = "crowded", nil
+        Check("summary: a crowded read", Panel.Summary(fight):find("Crowded: nothing learned", 1, true) ~= nil
+            and Panel.Summary(fight):find("meter's", 1, true) == nil)
+        fight.outcome = "skipped"
+        Check("summary: a skipped read", Panel.Summary(fight):find("Not read: nothing learned", 1, true) ~= nil)
+        fight.outcome = "short"
+        Check("summary: a short read", Panel.Summary(fight):find("Short read: nothing learned", 1, true) ~= nil)
+        fight.outcome = nil
+        Check("summary: an old saved fight without outcome adds nothing",
+            Panel.Summary(fight) == "Area: crowded, '?' hidden  ·  Named 75 % of drawn damage")
+
+        Check("title: no spec name, no spec in the title", Panel.Title() == "Combat Text Icons")
+        C_SpecializationInfo.GetSpecializationInfo = function(index) if index == 1 then return 265, "Affliction" end end
+        Check("title: the spec's name", Panel.Title() == "Combat Text Icons — Affliction")
+        C_SpecializationInfo.GetSpecializationInfo = function() return 265, Secret("Affliction") end
+        Check("title: a secret spec name is left out", Panel.Title() == "Combat Text Icons")
+    end)
+
+    -- One fight per rig: Smite drawn once, then the read of `rows` (nil: no session); `setup(rig)` runs at combat start
+    -- and `beforeEnd(rig)` just before combat ends. Returns the newest saved fight.
+    local function OutcomeFight(rows, setup, beforeEnd)
+        local rig = Wired({ [SMITE] = 2 })
+        if setup then setup(rig) end
+        rig.Combat(9)
+        rig.Cast(10, "nameplate7", SMITE)
+        rig.Event(10.25, "nameplate7", "WOUND", 53, 2)
+        if beforeEnd then beforeEnd(rig) end
+        rig.EndCombat(130)
+        rig.S.sessions = rows and { { sessionID = 1, rows = rows } } or {}
+        rig.Fire()
+
+        return rig.L.Fights()[1], rig
+    end
+
+    Scenario("wiring outcome attaches to the fight", function()
+        local fight, rig = OutcomeFight({ Row(SMITE, 53), Row(8092, 47) })
+        Check("ledger wiring: a solo read saves its crowd check and the meter's total", fight ~= nil
+            and fight.outcome == rig.ns.Teacher.last.area and fight.outcome == "clear" and fight.meterTotal == 100)
+        fight = OutcomeFight({ Row(SMITE, 53) }, function(r) r.S.group = true end)
+        Check("ledger wiring: a group fight's outcome is group", fight ~= nil and fight.group == true
+            and fight.outcome == "group" and fight.meterTotal == 53)
+        fight = OutcomeFight(nil)
+        Check("ledger wiring: a read with no session is saved as skipped", fight ~= nil and fight.outcome == "skipped"
+            and fight.meterTotal == nil)
+        fight = OutcomeFight({ Row(SMITE, 53) }, nil, function(r) r.ns.Meter.Disable("test") end)
+        Check("ledger wiring: a fight ended with the meter off is saved as skipped", fight ~= nil
+            and fight.outcome == "skipped")
+    end)
+
     -- A shaman knows no table spell: only table rows of spells the character knows, or that drew in the fight, show.
     Scenario("rows: filters", function()
         local ns = RowsRig(true)
@@ -698,6 +879,41 @@ return function(T)
         panel = CombatTextIconsDB.panel
         Check("window: drag stop saves the offset from the screen centre", panel.point == "CENTER"
             and panel.x == 100 and panel.y == 100)
+    end)
+
+    -- The Details button flips CombatTextIconsDB.panelDetails; every rebuild draws the view it names, and the button
+    -- label says which view a click goes to.
+    Scenario("window: details toggle", function()
+        local ns = T.Boot()
+        Check("details: off by default", CombatTextIconsDB.panelDetails == nil)
+        ns.Panel.Toggle()
+        local frame = ns.Panel.frame
+        local label
+        frame.details.SetText = function(_, text) label = text end
+        frame.scripts.OnUpdate(frame, 0.6)
+        Check("details: the plain view's button offers Details", label == "Details")
+        frame.details.scripts.OnClick(frame.details)
+        Check("details: a click saves Details on and redraws", CombatTextIconsDB.panelDetails == true
+            and label == "Simple")
+        frame.details.scripts.OnClick(frame.details)
+        Check("details: a second click saves it off", CombatTextIconsDB.panelDetails == false and label == "Details")
+
+        ns = T.Boot(function() CombatTextIconsDB = { panelDetails = true } end)
+        local S = T.State()
+        Check("details: a saved true survives the load", CombatTextIconsDB.panelDetails == true)
+        ns.Panel.Toggle()
+        frame = ns.Panel.frame
+        frame.details.SetText = function(_, text) label = text end
+        ns.Core.PLAYER_REGEN_DISABLED()
+        ns.Ledger.Add("damage", 146739, 10)
+        ns.Ledger.Add("heal", "?2", 10)
+        S.prints = {}
+        frame.scripts.OnUpdate(frame, 0.6)
+        Check("details: a saved true opens the Details view", label == "Simple")
+        frame.details.scripts.OnClick(frame.details)
+        Check("details: both views draw rows without error", #S.prints == 0 and label == "Details")
+        T.Boot(function() CombatTextIconsDB = { panelDetails = "yes" } end)
+        Check("details: a junk saved value is dropped", CombatTextIconsDB.panelDetails == nil)
     end)
 
     Scenario("window: view follows the fights", function()

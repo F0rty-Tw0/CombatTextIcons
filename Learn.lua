@@ -203,11 +203,12 @@ function Learn.Forget()
     for spellID in pairs(votes) do votes[spellID] = nil end
 end
 
--- Learned spells, sorted by spell id.
+-- Learned spells, sorted by spell id; `misses` and `unpaired` are the strikes towards a drop (the panel's warnings).
 function Learn.List()
     local list = {}
     for spellID, entry in pairs(learned) do
-        list[#list + 1] = { spellID = spellID, school = entry.school, period = entry.period, kind = entry.kind }
+        list[#list + 1] = { spellID = spellID, school = entry.school, period = entry.period, kind = entry.kind,
+            misses = entry.misses, unpaired = entry.unpaired or 0 }
     end
     table.sort(list, function(a, b) return a.spellID < b.spellID end)
 
