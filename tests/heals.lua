@@ -72,7 +72,8 @@ local LOGS = { -- log: tests/score/<log>.txt; fixture: tests/fixtures/<fixture>.
 -- The logs' heal casts, which the game answers as not harmful (C_Spell.IsSpellHarmful), so Core takes them as your
 -- helpful casts. tests/score_lib.lua's HELPFUL leaves them harmful: the damage boards keep their measure.
 local HEAL_CASTS = {
-    shaman = { 1064, 77472, 5394, 108280, 974 }, -- Chain Heal, Healing Wave, the two healing totems, Earth Shield
+    -- Chain Heal, Healing Wave, the two healing totems (Healing Stream's other cast 1267068), Earth Shield
+    shaman = { 1064, 77472, 5394, 1267068, 108280, 974 },
     priest = { 2061, 19236, 17 },                -- Flash Heal, Desperate Prayer, Power Word: Shield
     paladin = { 85673 },                         -- Word of Glory
     hunter = { 109304 },                         -- Exhilaration

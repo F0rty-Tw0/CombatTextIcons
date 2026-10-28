@@ -377,10 +377,12 @@ end
 -- proc, steady, rhythm, ground, chain and stack lines between the clean line and the rows) are skipped. A read that
 -- printed its "TEACH row <id> total=<n>" lines before the clean line but no verdict rows takes those listed rows:
 -- run dk F1-F3 ended after the clean line ("script ran too long" in Stack.Learn). The "TEACH heal <id> meter=<n>
--- over=<o>" lines after the rows (/cti debug's heal probe) with n > 0 are the read's healing-done rows, healRows.
+-- over=<o>" lines after the rows (/cti debug's heal probe) with n > 0 are the read's healing-done rows, healRows,
+-- also past the next fight's first lines: shamanheal's read 1 logs its rows at 279327.780, after a HEAL and a CAST.
 -- fights[i] = { endLine, seen, meter, area, rows = { { spellID, totalAmount, overkillAmount } }, healRows (same) }.
 local function ParseTeach(lines, rowIDs)
     local fights, open, listed = {}, nil, {}
+    local healing -- the last clean line's fight: its heal rows may follow a HEAL or CAST line of the next fight
     for index, text in ipairs(lines) do
         local seen, meter, area = text:match("^[%d%.]+ TEACH clean seen=(%d+) meter=(%d+) %-> (%a+)$")
         local id, rowMeter, rowID = text:match("^[%d%.]+ TEACH (%d+) tally=%d+ meter=(%d+) verdict=%a+ ?r?o?w?=?(%d*)$")
@@ -390,10 +392,11 @@ local function ParseTeach(lines, rowIDs)
             open = { endLine = index, seen = tonumber(seen), meter = tonumber(meter), area = area, rows = {},
                 listed = listed, healRows = {} }
             fights[#fights + 1] = open
-            listed = {}
-        elseif healID and open then
+            healing, listed = open, {}
+        elseif healID and healing then
             if tonumber(healMeter) > 0 then
-                open.healRows[#open.healRows + 1] = { spellID = tonumber(healID), totalAmount = tonumber(healMeter),
+                local rows = healing.healRows
+                rows[#rows + 1] = { spellID = tonumber(healID), totalAmount = tonumber(healMeter),
                     overkillAmount = tonumber(healOver) }
             end
         elseif listedID then
@@ -1474,6 +1477,11 @@ local function ReplayFightsChecks()
     Check("ParseTeach: the TEACH heal rows with meter > 0 are the read's healRows; the damage rows stay",
         #healRead.healRows == 1 and healRead.healRows[1].spellID == 77472 and healRead.healRows[1].totalAmount == 40
         and healRead.healRows[1].overkillAmount == 7 and #healRead.rows == 1 and healRead.rows[1].spellID == 1)
+    local lateRead = ParseTeach({ "2.000 TEACH clean seen=100 meter=100 -> clear",
+        "2.100 HEAL player school=1 amount=5 flag=", "2.200 CAST player 974 base=974,974",
+        "2.300 TEACH heal 108280 meter=40 over=0" })[1]
+    Check("ParseTeach: heal rows logged after the next fight's HEAL or CAST lines are still the read's",
+        #lateRead.healRows == 1 and lateRead.healRows[1].spellID == 108280)
     local servedHeals
     local healRuns = ReplaySlices(SplitFights("x", { log = healLog, fixture = { startArea = "clear" } }), {
         setup = function()
