@@ -10,10 +10,13 @@
 -- life (LIFE_LO to LIFE_HI whole seconds, LIFE_TICKS periods at least), each plate of the spell's casts is walked:
 -- with no series running, a series starts on a hit in the seed's delay window (SPREAD) after a cast; a running one
 -- takes each hit one or two periods after its last tick (Streams.Slack) whose size over the live stacks (the casts
--- within the life) agrees with the last tick's within SIZE_GUARD. The draw route (Casts.StackTick) continues a series
--- the same way but starts one only on a step: one hit at a time has no luck test to guard its start. A walk that took
--- most of its ticks two periods apart walks again at twice the period, else learns nothing (half a period draws hits
--- between the ticks).
+-- within the life) agrees with the last tick's within SIZE_GUARD. A hit no series takes may start one on a step
+-- (Stack.Step), running or not: a buff breaks a series past SIZE_GUARD while stacks live, and a recast's first tick
+-- falls on the running timer's phase, not in a cast's window. Run lock3 fight 1: Darkglare stepped 3258 to 3910 at
+-- 199127.838 and the window-only walk took 10 extensions (luck 1 past the tries); the steps take 19, it learns there
+-- and fight 2 draws 16 ticks. The draw route (Casts.StackTick) continues a series the same way but starts one only on a
+-- step: one hit at a time has no luck test to guard its start. A walk that took most of its ticks two periods apart
+-- walks again at twice the period, else learns nothing (half a period draws hits between the ticks).
 -- MIN_STEPS ticks or more must change the stack count (a steady DoT is no stack), and the ticks must beat luck: each
 -- tick's next slots find a hit by luck with the plate's rate of the school's hits * the slots' width * the share of
 -- them that agree with the predicted size, Poisson tail times the patterns tried. The meter bounds from below only, as
@@ -39,6 +42,10 @@ local LIFE_LO, LIFE_HI = 2, 30      -- a stack's life, in whole seconds, lies in
 local LIFE_TICKS = 3
 local BLEND = 0.8     -- weight of the old period when a tick extends a series (Streams')
 local ALPHA = 0.01    -- the walks learn when luck alone gives them this often or less (Learn.lua's value)
+-- A series starts on a step: two ticks whose sizes over their live stacks lie within this share of each other. One
+-- stack's size holds to the unit while the stack count changes (lock3 fight 4: 10925 crit at 1 stack, 21851 crit at
+-- 2; 10163 at 2, 15245 at 3); a stranger's steady 1655 then Agony's 3607 at one stack more is 9 % off (lock2).
+local STEP_GUARD = 0.01
 local EPS = 1e-6
 
 -- Series rules, shared with the draw route (Casts.StackTick) ---------------------------------------------------------
@@ -65,6 +72,20 @@ function Stack.Tick(series, at, size, n, multiple, period)
     if multiple then period = BLEND * series.period + (1 - BLEND) * (at - series.at) / multiple end
 
     return { at = at, unit = size / n, n = n, period = period }
+end
+
+-- The series a step starts at `at`: a hit one or two `period`s after a seed of `seeds` (oldest first: { at, unit, n,
+-- crit }) of the same crit state, its normal-scale `size` over its `n` live stacks within STEP_GUARD of the seed's,
+-- at another stack count; else nil. Drops the seeds whose next two ticks are past.
+function Stack.Step(seeds, at, size, n, crit, period)
+    while seeds[1] and not Stack.Running({ at = seeds[1].at, period = period }, at) do table.remove(seeds, 1) end
+    for _, seed in ipairs(seeds) do
+        local from = { at = seed.at, period = period }
+        local multiple = Stack.Multiple(from, at)
+        if multiple and seed.n ~= n and seed.crit == crit and Stack.Agree(size / n, seed.unit, STEP_GUARD) then
+            return Stack.Tick(from, at, size, n, multiple)
+        end
+    end
 end
 
 -- Learning ----------------------------------------------------------------------------------------------------------
@@ -138,7 +159,7 @@ end
 -- period on), steps, expected, gaps, casts = { [castAt] = delay of the first taken tick it had a stack in },
 -- starts = { [castAt] = true } }.
 local function Walk(plate, pattern, walk)
-    local series
+    local series, seeds = nil, {}
     for _, hit in ipairs(plate.list) do
         local slack = Streams.Slack(series and series.period or pattern.period)
         local n, start = Stacks(plate.times, hit.at, pattern.life, pattern.low - slack, pattern.low + SPREAD + slack)
@@ -155,6 +176,10 @@ local function Walk(plate, pattern, walk)
         elseif start then
             tick = Stack.Tick(nil, hit.at, hit.size, n, nil, pattern.period)
             walk.starts[start] = true
+        end
+        if not tick and n > 0 then
+            tick = Stack.Step(seeds, hit.at, hit.size, n, hit.crit, series and series.period or pattern.period)
+            if not tick then seeds[#seeds + 1] = { at = hit.at, unit = hit.size / n, n = n, crit = hit.crit } end
         end
         if tick then
             series = tick

@@ -2692,6 +2692,47 @@ return function(T)
         end
         Check("stack (a): ticks every 1.4 s with a stranger's hits 0.7 s after each -> learned at 1.4 s, not 0.7",
             period ~= nil and math.abs(tonumber(period) - 1.4) < 0.05)
+
+        -- Run lock3 F1: Darkglare stepped Unstable Affliction's stack from 3258 to 3910 at 199127.838 while stacks
+        -- lived, and every recast's first tick fell on the running timer's phase, outside the first cast's delay
+        -- window; the walk restarted nowhere and missed its luck test. Here a x1.2 buff holds ticks 5-9 and 15-19,
+        -- and each recast lands at a new phase of the 1.4 s timer: only a step (another stack count, the same size a
+        -- stack) restarts the series after each buff edge.
+        CASTS = { 10, 13.1, 15.9, 19.5, 22.1, 25.7, 28.3, 31.1, 34.5, 37.3, 40.9, 43.5 }
+        rig = Rig({})
+        S, Core = rig.S, rig.ns.Core
+        SlashCmdList.COMBATTEXTICONS("debug")
+        S.now = 8
+        Core.PLAYER_REGEN_DISABLED()
+        sum, next = 0, 1
+        for k = 0, 26 do
+            local at = 11.3 + 1.4 * k
+            while CASTS[next] and CASTS[next] <= at - 0.05 do
+                rig.Cast(CASTS[next], "nameplate1", UA)
+                next = next + 1
+            end
+            local stacks = 0
+            for _, castAt in ipairs(CASTS) do
+                if at - castAt >= 0 and at - castAt <= 8 then stacks = stacks + 1 end
+            end
+            local unit = ((k >= 5 and k <= 9) or (k >= 15 and k <= 19)) and 3600 or 3000
+            if stacks > 0 then
+                rig.Hit(at, "nameplate1", unit * stacks, 32)
+                sum = sum + unit * stacks
+            end
+        end
+        S.now = 60
+        Core.PLAYER_REGEN_ENABLED()
+        S.sessions = { Session(nextSession, { Row(UA, sum + 5000) }) }
+        nextSession = nextSession + 1
+        pcall(rig.Fire)
+        local life
+        for _, line in ipairs(CombatTextIconsDB.debugLog) do
+            life = line:match("TEACH stack " .. UA .. " casts=%d+ %-> learned .* life=(%d+)") or life
+        end
+        -- Without the steps the walks break at each buff edge and the best is a 27 s life that keeps 14 ticks.
+        Check("stack (b): a x1.2 buff twice while stacks live -> the steps restart the walk, learned with an 8 s life",
+            life == "8")
     end
 
     do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899

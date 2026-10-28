@@ -92,10 +92,6 @@ local STACK_MAX = 40    -- learned stack casts kept at most (StackTick)
 local stackCasts = {}   -- the learned stack spells' casts with a plate, oldest first: { spellID, base, at, plate }
 local series = {}       -- [base .. "@" .. plate] = a stack spell's running series on that plate (Stack.Tick)
 local seeds = {}        -- [base .. "@" .. plate] = hits that may start its series, oldest first: { at, unit, n, crit }
--- A series starts on a step: two ticks whose sizes over their live stacks lie within this share of each other. One
--- stack's size holds to the unit while the stack count changes (lock3 fight 4: 10925 crit at 1 stack, 21851 crit at
--- 2; 10163 at 2, 15245 at 3); a stranger's steady 1655 then Agony's 3607 at one stack more is 9 % off (lock2).
-local STEP_GUARD = 0.01
 
 -- Travel time follows distance, and distance changes per fight: Shadow Bolt 686 learned at 1.10-1.16 s
 -- landed at 0.92-1.09 s the next fight, 1.12-1.26 s the one after (run 20261025T180045Z). So each cast
@@ -500,8 +496,8 @@ end
 -- the live stacks agrees with the last tick's, as the stack pass walked it (Stack.Running, Multiple, Agree, Tick). A
 -- crit counts on its normal scale (Streams.NormalAmount: x2; lock3's crits are x2.15, inside SIZE_GUARD).
 -- With none running, each hit of the spell's school on the plate while a stack lives is a seed, and a series starts on
--- a step only: a hit one or two learned periods after a seed of the same crit state, its size over the live stacks
--- within STEP_GUARD of the seed's, at another stack count. The stack pass learned from a start in a cast's window, but
+-- a step only (Stack.Step): a hit one or two learned periods after a seed of the same crit state, its size over the
+-- live stacks within 1 % of the seed's, at another stack count. The stack pass also starts in a cast's window, but
 -- that start takes any size: lock3 fight 3's crowd started a series on a 1007 (one stack is ~3258) and drew 9 hits of
 -- ~900 a stack, lock2 fight 4's took Shadow of Nathreza's 1655 and Agony's 3607; and lock3 fight 4's first tick came
 -- 2.95 s after the cast, outside the window.
@@ -537,17 +533,7 @@ function Casts.StackTick(plate, school, now, size, flagText)
             else
                 local list = seeds[key] or {}
                 seeds[key] = list
-                while list[1] and not Stack.Running({ at = list[1].at, period = fp.period }, now) do
-                    table.remove(list, 1)
-                end
-                for _, seed in ipairs(list) do
-                    local from = { at = seed.at, period = fp.period }
-                    local multiple = Stack.Multiple(from, now)
-                    if not tick and multiple and seed.n ~= n and seed.crit == crit
-                        and Stack.Agree(size / n, seed.unit, STEP_GUARD) then
-                        tick = Stack.Tick(from, now, size, n, multiple)
-                    end
-                end
+                tick = Stack.Step(list, now, size, n, crit, fp.period)
                 if not tick then list[#list + 1] = { at = now, unit = size / n, n = n, crit = crit } end
             end
             if tick and found then return nil end
