@@ -24,6 +24,7 @@ local FRESH = {
     { log = "dk", class = "deathknight", holdout = true },
     { log = "mage", class = "mage", holdout = true },
     { log = "warrior", class = "warrior", holdout = true },
+    { log = "shaman6", class = "shaman", holdout = true },
 }
 local STEP = 0.05 -- the smallest move of a percentage that counts
 local LATE = 4    -- "late" scores a log's fights from this one on: what a player sees once learning had a chance
