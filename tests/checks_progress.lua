@@ -364,4 +364,42 @@ return function(T)
         Check("notice: i = 1 starts a new batch: the previous notices are released (pooled frames reused)",
             shown == 1 and newShown and #frames == 5)
     end)
+
+    -- User, 2026-10-28: the text started at the plate's centre with the icon left of it, not centred as a whole. The
+    -- text centres (ICON_SIZE 22 + ICON_GAP 3) / 2 right of the popup's centre and the icon hangs off its left, so the
+    -- pair centres without reading the text's width; with no icon the text centres alone.
+    Scenario("display centres icon and text together", function()
+        local ns = T.Boot()
+        local createFrame, popups = CreateFrame, {}
+        CreateFrame = function(...)
+            local frame = createFrame(...)
+            frame.CreateFontString = function()
+                local text = T.Generic()
+                text.SetPoint = function(self, point, anchor, relativePoint, x)
+                    self.at = { point = point, anchor = anchor, relativePoint = relativePoint, x = x }
+                end
+                frame.text = text
+                return text
+            end
+            frame.CreateTexture = function()
+                local icon = T.Generic()
+                icon.SetPoint = function(self, point, anchor, relativePoint, x)
+                    self.at = { point = point, anchor = anchor, relativePoint = relativePoint, x = x }
+                end
+                icon.SetShown = function(self, shown) self.shown = shown end
+                return icon
+            end
+            popups[#popups + 1] = frame
+            return frame
+        end
+        ns.Display.Plate(T.Plate("nameplate1"), "tex", 1000, "", 36)
+        ns.Display.Plate(T.Plate("nameplate2"), nil, 1000, "", 36)
+        CreateFrame = createFrame
+        local withIcon, bare = popups[#popups - 1], popups[#popups]
+        local text, icon = withIcon.text.at, withIcon.icon.at
+        Check("display: the text centres 12.5 right of the popup, the icon hangs 3 off its left; no icon: x 0",
+            text.point == "CENTER" and text.anchor == withIcon and text.x == 12.5
+            and icon.point == "RIGHT" and icon.anchor == withIcon.text and icon.relativePoint == "LEFT" and icon.x == -3
+            and bare.text.at.point == "CENTER" and bare.text.at.x == 0)
+    end)
 end

@@ -15,6 +15,7 @@ local Display = {}
 ns.Display = Display
 
 local ICON_SIZE = 22
+local ICON_GAP = 3 -- pixels between the icon and its text
 local FONT_SIZE = 18
 local CRIT_SCALE = 1.6   -- crit font size multiplier
 local POP_START = 1 / CRIT_SCALE -- crit popups are born at normal-hit size
@@ -110,11 +111,13 @@ local function NewPopup()
     local popup = CreateFrame("Frame", nil, WorldFrame)
     popup:SetSize(ICON_SIZE, ICON_SIZE)
     popup:SetFrameStrata(STRATA)
-    popup.icon = popup:CreateTexture(nil, "ARTWORK")
-    popup.icon:SetAllPoints()
-    popup.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) -- trims the icon's baked-in border
     popup.text = popup:CreateFontString(nil, "OVERLAY")
-    popup.text:SetPoint("LEFT", popup, "RIGHT", 3, 0)
+    -- the icon hangs off the text's left, so icon and text centre on the popup together without measuring the text
+    -- (a secret amount's width cannot be read); Acquire centres the text alone when there is no icon
+    popup.icon = popup:CreateTexture(nil, "ARTWORK")
+    popup.icon:SetSize(ICON_SIZE, ICON_SIZE)
+    popup.icon:SetPoint("RIGHT", popup.text, "LEFT", -ICON_GAP, 0)
+    popup.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) -- trims the icon's baked-in border
     return popup
 end
 
@@ -159,7 +162,10 @@ local function Acquire(texture, text, flagText, color, prefix, anchor, point, re
     local popup = table.remove(pool) or NewPopup()
     local crit = Plain(flagText) and flagText == "CRITICAL"
     popup.icon:SetTexture(texture)
-    popup.icon:SetShown(issecretvalue(texture) or texture ~= nil)
+    local iconShown = issecretvalue(texture) or texture ~= nil
+    popup.icon:SetShown(iconShown)
+    popup.text:ClearAllPoints()
+    popup.text:SetPoint("CENTER", popup, "CENTER", iconShown and (ICON_SIZE + ICON_GAP) / 2 or 0, 0)
     popup.text:SetFont(STANDARD_TEXT_FONT, crit and FONT_SIZE * CRIT_SCALE or FONT_SIZE, "OUTLINE")
     popup.text:SetTextColor(color[1], color[2], color[3])
     local shown = Plain(text) and FormatAmount(text) or text
