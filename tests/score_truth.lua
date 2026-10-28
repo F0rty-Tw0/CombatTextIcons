@@ -34,8 +34,10 @@ return {
     [48181] = { casts = { 48181 }, life = 29 },
     -- Lightning Bolt: direct, life 3. Wowhead 188196: 2.5 s cast, one Nature damage effect, duration n/a
     [188196] = { casts = { 188196 }, life = 3 },
-    -- Flame Shock: DoT 18 s, life 29. Wowhead 188389: duration 18 s, Apply Aura: Periodic Damage every 2 s
-    [188389] = { casts = { 188389 }, life = 29 },
+    -- Flame Shock: DoT 18 s, life 29. Wowhead 188389: duration 18 s, Apply Aura: Periodic Damage every 2 s. Voltaic
+    -- Blaze 470057 applies it too: run shaman5 casts 470057 14 times (`CAST player 470057 base=470411`) and 188389
+    -- never, yet holds a 188389 row; its F10 draw of 20603 equals the row
+    [188389] = { casts = { 188389, 470057 }, life = 29 },
     -- Mind Blast: direct, life 3; Void Blast (450983) is its override, from the logs' `CAST player 450983 base=8092`.
     -- Wowhead 8092: 1.5 s cast, School Damage (Shadow), duration n/a
     [8092] = { casts = { 8092, 450983 }, life = 3 },
