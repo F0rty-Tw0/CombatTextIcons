@@ -2016,50 +2016,58 @@ do -- Rev 5 (in-game 2026-10-25): the forget5 run made 4 wrong aliases; only 413
 end
 
 do -- steady learning (2026-10-25): run 140233Z, /cti forget then 3 dummy fights; the sole-cast sums never learned Mind Blast
-    -- (a Devouring Plague cast shares two of its frames); each cast's largest hit by candidates meets its row in fight 2
-    local parts, ranOk, learnOk, baseOk, steadyLines = {}, true, true, true, {}
+    -- (a Devouring Plague cast shares two of its frames). Fight 1's 3 casts each left one ~17-19K Shadow hit at
+    -- 0.17-0.23 s beside small Shadow co-hits (0.4-2.2K): each cast's biggest hit counts, so fight 1 learns
+    -- Mind Blast and fights 2 and 3 draw 130K of its 178K row and 166K of 231K live (before: fight 2 learned it by
+    -- its exact sum, drawing none; fight 3 drew 137K).
+    local parts, ranOk, learnOk, drawOk, steadyLines = {}, true, true, true, {}
     local ok, err = pcall(function()
         for _, haste in ipairs(DOT_HASTES) do
-            local runs = ReplayFights(REPLAY_STEADY, { haste = haste })
+            local live = {} -- per fight: the amount drawn under 8092 during the fight
+            local runs = ReplayFights(REPLAY_STEADY, { haste = haste, setup = function(ns)
+                local fight, Drawn = { amount = 0 }, ns.Teacher.Drawn
+                live[#live + 1] = fight
+                ns.Teacher.Drawn = function(spellID, amount)
+                    if spellID == 8092 and type(amount) == "number" then fight.amount = fight.amount + amount end
+                    return Drawn(spellID, amount)
+                end
+            end })
             ranOk = ranOk and #runs >= 3
-            learnOk = learnOk and #runs >= 3 and runs[2].last.learned[8092] == 6
-            -- fight 3: the learned base takes the hits it missed (Mind Blast nearer than fight 2); Void Blast at +0 came in fight 2
-            local after = runs[3].info.charDB.casts[8092]
-            local voidLow, blastLow = math.huge, math.huge
-            for _, sample in ipairs(after and after.samples or {}) do
-                if sample.spell == 450983 then voidLow = math.min(voidLow, sample.delay) end
-                if sample.spell == 8092 then blastLow = math.min(blastLow, sample.delay) end
-            end
-            baseOk = baseOk and runs[3].last.learned[8092] == 5 and math.abs(voidLow) <= 1e-6 and blastLow <= 0.170 + 1e-6
-            parts[#parts + 1] = string.format("h%d after F3: Void Blast low %s, Mind Blast low %s", haste, voidLow, blastLow)
+            learnOk = learnOk and #runs >= 3 and runs[1].last.learned[8092] == 3
             local fights = {}
             for index, run in ipairs(runs) do
-                local learned = {}
+                local learned, drawn, meter = {}, live[index] and live[index].amount or 0, 0
                 for id, count in pairs(run.last and run.last.learned or {}) do
                     learned[#learned + 1] = id .. "=" .. count
-                    if index <= 2 and id ~= 8092 then learnOk = false end
-                    if id ~= 8092 then baseOk = false end
+                    if id ~= 8092 then learnOk = false end
                 end
+                for _, row in ipairs(run.rows or {}) do
+                    if row.spellID == 8092 then meter = meter + row.totalAmount end
+                end
+                -- fights 2 and 3: more than two thirds of the Mind Blast row drawn live under 8092
+                if index == 2 or index == 3 then drawOk = drawOk and meter > 0 and drawn > meter * 2 / 3 end
                 for _, line in ipairs(run.info.steady) do steadyLines[#steadyLines + 1] = "h" .. haste .. " F" .. index .. " " .. line end
                 table.sort(learned)
-                fights[#fights + 1] = string.format("F%d %s [%s]", index, tostring(run.last and (run.last.area or run.last.skip)),
-                    table.concat(learned, ", "))
+                fights[#fights + 1] = string.format("F%d %s [%s] 8092 drawn %d of %d", index,
+                    tostring(run.last and (run.last.area or run.last.skip)), table.concat(learned, ", "), drawn, meter)
             end
             local prints = {}
             for id, entry in pairs(runs[#runs].info.charDB.casts or {}) do
                 if entry.learned then prints[#prints + 1] = tostring(id) end
             end
             table.sort(prints)
-            baseOk = baseOk and #prints == 1 and prints[1] == "8092"
+            drawOk = drawOk and #prints == 1 and prints[1] == "8092"
             parts[#parts + 1] = string.format("h%d: %s; learned casts [%s]", haste, table.concat(fights, "; "),
                 table.concat(prints, ", "))
         end
     end)
     if not ok then Check("steady criterion ran without error: " .. tostring(err), false) end
-    Criterion(21, "steady replay (haste 25 and 0): run 140233Z fight 2 learns Mind Blast 8092 from 6 hits (each cast's largest meets row 8092); nothing else learns in fights 1-2",
+    Criterion(21, "steady replay (haste 25 and 0): run 140233Z fight 1 learns Mind Blast 8092 from its 3 casts' biggest"
+        .. " hits (small Shadow co-hits spoil none); nothing else learns",
         ok and ranOk and learnOk, table.concat(parts, "\n     ") .. "\n     " .. table.concat(steadyLines, "\n     "))
-    Criterion(22, "steady replay (haste 25 and 0): fight 3 adds 5 steady hits under the learned 8092 (Mind Blast from 0.170 s; Void Blast at +0 since fight 2); only 8092 ever learns",
-        ok and ranOk and baseOk, "as in 21")
+    Criterion(22, "steady replay (haste 25 and 0): fights 2 and 3 draw over two thirds of the Mind Blast row live under"
+        .. " 8092; only 8092 ever learns",
+        ok and ranOk and drawOk, "as in 21")
 end
 
 do -- own seen (2026-10-25): run 153349Z, strangers on 8 nearby dummies made both in-game reads crowded

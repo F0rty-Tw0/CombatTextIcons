@@ -2,10 +2,10 @@
 -- holds (one lost or extra hit spoils the sum), so after it the teacher asks this pass: did one cast
 -- spell leave one '?' hit at a steady delay with a steady size after most of its casts? Every '?'
 -- hit keeps its candidate casts (Casts.Candidates). Per cast spell, a window of SPREAD seconds over
--- the hits' delays, in one school, counts each cast that has exactly one hit of that school in it (a
--- co-hit of another school spoils nothing: Shadow Bolt's frame often holds a 412 s106 proc tick, run
--- 20261025T180045Z); a window qualifies when at least MIN_CASTS and SHARE of the casts count with hits
--- at most SIZE_SPREAD apart (an odd-sized hit leaves its own cast uncounted). Overlapping qualifying
+-- the hits' delays, in one school, counts each cast whose biggest hit of that school in it has no co-hit of that
+-- school within SIZE_SPREAD of its size (a co-hit of another school spoils nothing: Shadow Bolt's frame often holds a
+-- 412 s106 proc tick, run 20261025T180045Z); a window qualifies when at least MIN_CASTS and SHARE of the casts count
+-- with hits at most SIZE_SPREAD apart (an odd-sized hit leaves its own cast uncounted). Overlapping qualifying
 -- windows are one cluster; two clusters teach nothing, unless one of one school sums DOMINANT times
 -- each other's (Dominant): it alone teaches. A hit
 -- counted for two cast spells or two bases teaches neither. The meter judges last: the counted hits
@@ -101,23 +101,29 @@ local function PairsBySpell(hits, learnedNow)
     return pairsOf, castsOf, baseOf, modeOf
 end
 
--- The pairs W(d, school) counts: each cast with exactly one pair of `school` whose delay is in
--- [d, d + SPREAD], in pair order.
+-- The pairs W(d, school) counts, in pair order: per cast, its biggest pair of `school` whose delay is in
+-- [d, d + SPREAD], when it is the only one or more than SIZE_SPREAD times the size of each other one. A co-hit that
+-- small is no rival for the size band (Qualifies), a like-sized one is: run shaman5, two of 57984's ~36K hits shared
+-- their delay with a ~4K hit, and the window fell those two casts short of the share.
 local function Window(list, d, school)
     local perCast, order = {}, {}
     for _, pair in ipairs(list) do
         if pair.hit.school == school and pair.delay >= d - EPS and pair.delay <= d + SPREAD + EPS then
-            if perCast[pair.castAt] == nil then
-                perCast[pair.castAt] = pair
+            local cast = perCast[pair.castAt]
+            if not cast then
+                perCast[pair.castAt] = { top = pair }
                 order[#order + 1] = pair.castAt
+            elseif pair.hit.size > cast.top.hit.size then
+                cast.top, cast.second = pair, cast.top.hit.size
             else
-                perCast[pair.castAt] = false
+                cast.second = math.max(cast.second or 0, pair.hit.size)
             end
         end
     end
     local counted = {}
     for _, castAt in ipairs(order) do
-        if perCast[castAt] then counted[#counted + 1] = perCast[castAt] end
+        local cast = perCast[castAt]
+        if not cast.second or cast.top.hit.size > SIZE_SPREAD * cast.second then counted[#counted + 1] = cast.top end
     end
 
     return counted

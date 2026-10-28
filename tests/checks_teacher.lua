@@ -2199,29 +2199,51 @@ return function(T)
             last.area == "clear" and Learned(last) == 4 and rig.ns.Fingerprints.IsLearned(MIND_BLAST)
             and #entry.samples == 4 and delaysOk and Outcome(MIND_BLAST) == "learned")
 
-        rig, last = SteadyFight(Rotation(VARIED, 5000), { Row(MIND_BLAST, 112000) })
-        Check("steady (c): a co-hit in every MB hit's frame -> no cast counts, nothing learned",
+        rig, last = SteadyFight(Rotation(VARIED, 15000), { Row(MIND_BLAST, 152000) })
+        Check("steady (c): a like-sized co-hit (within 1.5 x) in every MB hit's frame -> no cast counts, none learned",
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "none")
 
         -- Run 20261025T180045Z: Shadow Bolt's hits often shared their frame with a 412 proc tick (s106).
-        -- `frames` picks the MB hits (1-4) that get one.
-        local function OtherSchool(frames)
+        -- `frames` picks the MB hits (1-4) that get a `size` co-hit of `school` (default: the 412 s106 tick).
+        local function CoHits(frames, size, school)
             local events, hits = {}, 0
             for _, event in ipairs(Rotation(VARIED)) do
                 events[#events + 1] = event
                 if event[3] and event[3] >= 19000 then
                     hits = hits + 1
-                    if frames[hits] then events[#events + 1] = { event[1], nil, 412, nil, 106 } end
+                    if frames[hits] then events[#events + 1] = { event[1], nil, size or 412, nil, school or 106 } end
                 end
             end
             return events
         end
-        rig, last = SteadyFight(OtherSchool({ true, false, true, false }), { Row(MIND_BLAST, 92000), Row(1287663, 2 * 412) })
+        rig, last = SteadyFight(CoHits({ true, false, true, false }), { Row(MIND_BLAST, 92000), Row(1287663, 2 * 412) })
         Check("steady (c2): a co-hit of another school in 2 of 4 MB hit frames spoils no cast -> 8092 learns 4",
             last.area == "clear" and Learned(last) == 4 and Outcome(MIND_BLAST) == "learned")
-        rig, last = SteadyFight(OtherSchool({ true, true, true, true }), { Row(MIND_BLAST, 92000), Row(1287663, 4 * 412) })
+        rig, last = SteadyFight(CoHits({ true, true, true, true }), { Row(MIND_BLAST, 92000), Row(1287663, 4 * 412) })
         Check("steady (c3): a co-hit of another school after every MB cast is a second cluster -> nothing learned",
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "clusters=2")
+
+        -- MB samples of `rig` all `low` or more (no co-hit learned in their place).
+        local function SamplesFrom(rig, low)
+            local ok = true
+            for _, sample in ipairs((rig.ns.Fingerprints.Get(MIND_BLAST) or { samples = {} }).samples) do
+                ok = ok and sample.size >= low
+            end
+            return ok
+        end
+        -- Run shaman5: two of 57984's ~36K hits shared their delay with a ~4K one: the window fell 2 casts short.
+        rig, last = SteadyFight(CoHits({ true, false, true, false }, 5000, 32), { Row(MIND_BLAST, 102000) })
+        Check("steady (c4): a same-school co-hit a quarter the size in 2 of 4 MB hit frames spoils no cast -> learns 4",
+            last.area == "clear" and Learned(last) == 4 and SamplesFrom(rig, 19000)
+            and Outcome(MIND_BLAST) == "learned")
+        rig, last = SteadyFight(CoHits({ true, false, true, false }, 15000, 32), { Row(MIND_BLAST, 122000) })
+        Check("steady (c5): a like-sized same-school co-hit in 2 of 4 MB hit frames spoils both casts -> none learned",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "none")
+        rig, last = SteadyFight(CoHits({ false, true, false, false }, 60000, 32),
+            { Row(MIND_BLAST, 92000), Row(1287663, 60000) })
+        Check("steady (c6): a big foreign hit beside one MB hit is its cast's pick, out of band -> learns the other 3",
+            last.area == "clear" and Learned(last) == 3 and SamplesFrom(rig, 19000)
+            and Outcome(MIND_BLAST) == "learned")
 
         local spread = {}
         for index, t in ipairs({ 10, 15, 20, 25, 30, 35 }) do
@@ -2270,12 +2292,9 @@ return function(T)
             return events
         end
         rig, last = SteadyFight(Odd({ 19000, 20500, 5000, 21000, 22000 }), { Row(MIND_BLAST, 90000) })
-        local oddOk = true
-        for _, sample in ipairs((rig.ns.Fingerprints.Get(MIND_BLAST) or { samples = {} }).samples) do
-            oddOk = oddOk and sample.size >= 19000
-        end
         Check("steady (d4): 4 of 5 casts steady at 0.30 s, the 5th's hit there a quarter the size -> learns the 4",
-            last.area == "clear" and Learned(last) == 4 and oddOk and Outcome(MIND_BLAST) == "learned")
+            last.area == "clear" and Learned(last) == 4 and SamplesFrom(rig, 19000)
+            and Outcome(MIND_BLAST) == "learned")
         rig, last = SteadyFight(Odd({ 20000, 5000, 21000, 5200, 22000, 5400 }), { Row(MIND_BLAST, 80000) })
         Check("steady (d5): 3 of 6 casts' hits at 0.30 s like-sized, 3 a quarter the size -> under the 60 % share",
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "none")
@@ -2394,14 +2413,16 @@ return function(T)
                     size = size })
             end
         end
-        rig, last = SteadyFight(Rotation(VARIED, 1655), { Row(MIND_BLAST, 98620) }, TwoSamples)
+        -- a 50K co-hit past the padded band (2 x 22000) in every frame: without the band it would be each cast's hit
+        rig, last = SteadyFight(Rotation(VARIED, 50000), { Row(MIND_BLAST, 92000), Row(1287663, 4 * 50000) },
+            TwoSamples)
         Check("steady (n): an unlearned base with 2 sized samples pairs only hits in their school and padded band -> 8092 learns 4",
             last.area == "clear" and Learned(last) == 4 and rig.ns.Fingerprints.IsLearned(MIND_BLAST)
             and Outcome(MIND_BLAST) == "learned")
-        rig, last = SteadyFight(Rotation(VARIED, 5000), { Row(MIND_BLAST, 112000) }, function(r)
+        rig, last = SteadyFight(Rotation(VARIED, 15000), { Row(MIND_BLAST, 152000) }, function(r)
             r.ns.Fingerprints.Add(MIND_BLAST, { school = 32, delay = 0.30, castAt = 1, hops = 1, spell = MIND_BLAST, size = 19000 })
         end)
-        Check("steady (n2): with 1 sized sample a co-hit in every frame still blocks every cast",
+        Check("steady (n2): with 1 sized sample a like-sized co-hit in every frame still blocks every cast",
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "none")
 
         rig, last = SteadyFight(blasts, { Row(MIND_BLAST, 79642) }, FarMindBlast,
