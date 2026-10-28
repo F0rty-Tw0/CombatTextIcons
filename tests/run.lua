@@ -1890,11 +1890,19 @@ do -- Plan criteria 3, 4, 6 (spec 5.3, 5.4, 5.6): chained learn, draw check, rou
         for _, haste in ipairs(DOT_HASTES) do
             local chain, endDB = ProcChain(haste)
             local at, others = ProcLearnedAt(chain), {}
+            -- Shadow F2's '?' hits of school 106 split whole into the two procs' exact sums (2548, 34910), so both learn
+            -- there at once (Procs' Whole), not after three exact fights (priest F3); each later row must not read over.
+            local after = {}
             for _, id in ipairs(PROC_IDS) do
-                learnOk = learnOk and at[id] == 6 -- after priest F3, not before
+                learnOk = learnOk and at[id] == 2
                 for fight, run in ipairs(chain) do -- the replay saw the spec's meter rows (oracle sanity)
-                    local _, _, meter = RowVerdict(run, id)
+                    local verdict, tally, meter = RowVerdict(run, id)
                     learnOk = learnOk and (meter or 0) == (PROC_ROWS[id][fight] or 0)
+                    if fight > 2 and meter then
+                        learnOk = learnOk and verdict ~= "over" and (tally or 0) <= meter
+                        after[#after + 1] = string.format("%d %s %s %s/%s", id, FightName(fight), tostring(verdict),
+                            tostring(tally), tostring(meter))
+                    end
                 end
             end
             for id, index in pairs(at) do
@@ -1904,8 +1912,9 @@ do -- Plan criteria 3, 4, 6 (spec 5.3, 5.4, 5.6): chained learn, draw check, rou
                 end
             end
             table.sort(others)
-            learnParts[#learnParts + 1] = string.format("h%d: %d@%s, %d@%s; other learns [%s]", haste, PROC_IDS[1],
-                at[PROC_IDS[1]] and FightName(at[PROC_IDS[1]]) or "never", PROC_IDS[2], at[PROC_IDS[2]] and FightName(at[PROC_IDS[2]]) or "never", table.concat(others, "; "))
+            learnParts[#learnParts + 1] = string.format("h%d: %d@%s, %d@%s; later rows [%s]; other learns [%s]", haste, PROC_IDS[1],
+                at[PROC_IDS[1]] and FightName(at[PROC_IDS[1]]) or "never", PROC_IDS[2], at[PROC_IDS[2]] and FightName(at[PROC_IDS[2]]) or "never",
+                table.concat(after, ", "), table.concat(others, "; "))
 
             -- criterion 4: the whole priest-dummy again, seeded with the criterion-3 DB of the same haste
             local again = ReplayFights(PRIEST_DUMMY, { haste = haste, charDB = endDB })
@@ -1939,7 +1948,7 @@ do -- Plan criteria 3, 4, 6 (spec 5.3, 5.4, 5.6): chained learn, draw check, rou
         end
     end)
     if not procOk then Check("castless-procs criteria ran without error: " .. tostring(procErr), false) end
-    Criterion(16, "chained replay shadow-dots then priest-dummy (haste 25 and 0): 1287663 and 1286716 learned by Procs after priest F3, not before; every other learn listed",
+    Criterion(16, "chained replay shadow-dots then priest-dummy (haste 25 and 0): 1287663 and 1286716 learned by Procs in shadow F2 (whole school), no later row over; every other learn listed",
         procOk and learnOk, table.concat(learnParts, "\n     "))
     Criterion(17, "priest-dummy replayed again, seeded with that DB (same haste): both procs draw with verdict agree in F3, no proc ID in MeterWrong",
         procOk and drawOk, table.concat(drawParts, "\n     "))

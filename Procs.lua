@@ -34,8 +34,9 @@ local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
--- [spellID] = { school, lo, hi, streak, learned, unpaired, seen, period, floor }; the saved table itself.
--- period is set on a rhythm proc only; floor is the lowest cut-short tick seen, kept only below lo.
+-- [spellID] = { school, lo, hi, streak, learned, unpaired, seen, period, floor, critSeen }; the saved table itself.
+-- period is set on a rhythm proc only; floor is the lowest cut-short tick seen, kept only below lo. critSeen: a group
+-- that paired the proc's row held a crit (false: none yet, so Name draws no crit; a store saved before it: true).
 local procs = {}
 
 local function Count(value) return IsNumber(value) and value >= 0 and value == math.floor(value) and value or 0 end
@@ -62,6 +63,7 @@ function Procs.Init(charDB)
             entry.learned = entry.learned == true
             entry.rest = entry.rest == true or nil
             entry.floor = IsNumber(entry.floor) and entry.floor > 0 and entry.floor < entry.lo and entry.floor or nil
+            entry.critSeen = entry.critSeen ~= false
         else
             bad[#bad + 1] = id
         end
@@ -182,7 +184,8 @@ local function Walk(school, amounts)
         if current and amount - current.lo <= SIZE_GUARD * amount then
             current.hi, current.sum, current.base, current.count = amount, current.sum + amount, current.base + amount, current.count + 1
         else
-            current = { school = school, lo = amount, hi = amount, floor = amount, sum = amount, base = amount, count = 1 }
+            current = { school = school, lo = amount, hi = amount, floor = amount, sum = amount, base = amount,
+                count = 1, critCount = 0 }
             groups[#groups + 1] = current
         end
     end
@@ -206,10 +209,13 @@ end
 -- Walked groups i..j as one group: their normals, and every crit in the run's own crit window (a crit that
 -- fits two of its groups is an orphan for each, but it is the run's).
 local function Run(walked, i, j, crits)
-    local run = { school = walked[i].school, lo = walked[i].lo, hi = walked[j].hi, floor = walked[i].lo, sum = 0, count = 0 }
+    local run = { school = walked[i].school, lo = walked[i].lo, hi = walked[j].hi, floor = walked[i].lo, sum = 0,
+        count = 0, critCount = 0 }
     for k = i, j do run.sum, run.count = run.sum + walked[k].base, run.count + walked[k].count end
     for _, amount in ipairs(crits) do
-        if run.lo * CRIT_LO <= amount and amount <= run.hi * CRIT_HI then run.sum = run.sum + amount end
+        if run.lo * CRIT_LO <= amount and amount <= run.hi * CRIT_HI then
+            run.sum, run.critCount = run.sum + amount, run.critCount + 1
+        end
     end
 
     return run
@@ -231,10 +237,12 @@ local function Ticking(groups, walked, crits)
             if core.count >= PARTIAL_CORE then
                 for a = 1, #lone do
                     local one = lone[a]
-                    groups[#groups + 1] = { school = core.school, lo = core.lo, hi = core.hi, floor = one.lo, sum = core.sum + one.base, count = core.count + 1 }
+                    groups[#groups + 1] = { school = core.school, lo = core.lo, hi = core.hi, floor = one.lo,
+                        sum = core.sum + one.base, count = core.count + 1, critCount = core.critCount }
                     for b = a + 1, #lone do
                         groups[#groups + 1] = { school = core.school, lo = core.lo, hi = core.hi, floor = one.lo,
-                            sum = core.sum + one.base + lone[b].base, count = core.count + 2 }
+                            sum = core.sum + one.base + lone[b].base, count = core.count + 2,
+                            critCount = core.critCount }
                     end
                 end
             end
@@ -283,7 +291,7 @@ local function Groups(hits, ticks)
         local walked = Walk(school, bySchool[school].normals)
         for _, amount in ipairs(bySchool[school].crits) do
             local group = Fit(walked, amount)
-            if group then group.sum = group.sum + amount end
+            if group then group.sum, group.critCount = group.sum + amount, group.critCount + 1 end
         end
         for _, group in ipairs(walked) do groups[#groups + 1] = group end
         Ticking(groups, walked, bySchool[school].crits)
@@ -297,14 +305,15 @@ local function Groups(hits, ticks)
         if IsNumber(school) and IsNumber(amount) and amount > 0 then
             local extra = drawn[school]
             if not extra then
-                extra = { school = school, sum = 0 }
+                extra = { school = school, sum = 0, critCount = 0 }
                 drawn[school], drawnSchools[#drawnSchools + 1] = extra, school
                 for _, group in ipairs(bySchool[school] and bySchool[school].walked or {}) do
-                    extra.sum = extra.sum + group.sum
+                    extra.sum, extra.critCount = extra.sum + group.sum, extra.critCount + group.critCount
                     extra.lo, extra.hi = math.min(extra.lo or group.lo, group.lo), math.max(extra.hi or group.hi, group.hi)
                 end
             end
             extra.sum = extra.sum + amount
+            if tick.crit == true then extra.critCount = extra.critCount + 1 end
             if tick.crit == false then extra.lo, extra.hi = math.min(extra.lo or amount, amount), math.max(extra.hi or amount, amount) end
         end
     end
@@ -349,17 +358,18 @@ local function Union(entry, group)
     local floor = math.min(Floor(entry), group.floor or group.lo)
     entry.lo, entry.hi = math.min(entry.lo, group.lo), math.max(entry.hi, group.hi)
     SetFloor(entry, floor)
+    entry.critSeen = entry.critSeen or group.critCount > 0
 end
 
 -- A counted pair for a candidate: one more exact fight, or a restart when the group is another proc's. An off-size
 -- group of the same school is first a miss that keeps the streak and band (Malevolence 446285 hit 22498 in four lock2
 -- fights, 18748 in F3); a candidate's unpaired counts misses in a row, and the UNPAIRED_MAX-th one restarts it.
-local function Grow(entry, group)
+local function Grow(entry, group, sure)
     local sameSchool = entry.school == group.school
     if sameSchool and Overlaps(entry, group) then
         Union(entry, group)
         entry.streak, entry.unpaired = entry.streak + 1, 0
-        if entry.streak < LEARN_STREAK then return "" end
+        if entry.streak < LEARN_STREAK and not sure then return "" end
         entry.learned = true
 
         return " learned"
@@ -367,15 +377,22 @@ local function Grow(entry, group)
     entry.unpaired = entry.unpaired + 1
     if sameSchool and entry.streak > 0 and entry.unpaired < UNPAIRED_MAX then return " miss" end
     entry.school, entry.lo, entry.hi, entry.streak, entry.unpaired = group.school, group.lo, group.hi, 1, 0
+    entry.critSeen = group.critCount > 0
     SetFloor(entry, group.floor or group.lo)
 
     return " restart"
 end
 
 -- The state x event table for one target; returns the log suffix of a change, nil when nothing changed.
-local function Step(entry, group, target)
+local function Step(entry, group, target, sure)
     if target.kind == "under" then
-        if not (group and entry.school == group.school and Widens(entry, group)) then return nil end
+        if not (group and entry.school == group.school) then return nil end
+        if not Widens(entry, group) then
+            if entry.critSeen or group.critCount == 0 then return nil end
+            entry.critSeen = true
+
+            return " crits"
+        end
         -- one lone hit below the band is a cut-short tick: it lowers the floor, not the band
         if group.count == 1 and group.hi < entry.lo then
             SetFloor(entry, math.min(Floor(entry), group.lo))
@@ -392,7 +409,7 @@ local function Step(entry, group, target)
 
         return " reset"
     end
-    if not entry.learned then return Grow(entry, group) end
+    if not entry.learned then return Grow(entry, group, sure) end
     if not (entry.school == group.school and Overlaps(entry, group) and Widens(entry, group)) then return nil end
     Union(entry, group)
 
@@ -403,14 +420,14 @@ end
 -- A school's remainder that equals an open row exactly (overkill 0) is learned at once: its spell is often cast once
 -- a fight (Wither 445468), so waiting LEARN_STREAK fights lost F1-F3 of every warlock run. Inside an overkill window
 -- it stays a candidate.
-local function Apply(target, group)
+local function Apply(target, group, sure)
     local entry = procs[target.id]
     if entry and entry.period then return nil end
-    if entry then return Step(entry, group, target) end
+    if entry then return Step(entry, group, target, sure) end
     if not group then return nil end
-    local learned = group.rest == true and target.overkill == 0
+    local learned = (group.rest == true or sure == true) and target.overkill == 0
     procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, streak = 1, learned = learned, unpaired = 0, seen = 0,
-        rest = group.rest }
+        rest = group.rest, critSeen = group.critCount > 0 }
     SetFloor(procs[target.id], group.floor or group.lo)
 
     return learned and " learned" or ""
@@ -580,10 +597,11 @@ local function Remainders(hits, ticks, matches)
         if not (IsNumber(school) and IsNumber(amount) and amount > 0) or whole[school] then return end
         local rest = bySchool[school]
         if not rest then
-            rest = { school = school, sum = 0, count = 0, rest = true }
+            rest = { school = school, sum = 0, count = 0, rest = true, critCount = 0 }
             bySchool[school], schools[#schools + 1] = rest, school
         end
         rest.sum, rest.count = rest.sum + amount, rest.count + 1
+        if crit == true then rest.critCount = rest.critCount + 1 end
         if crit == false then rest.lo, rest.hi = math.min(rest.lo or amount, amount), math.max(rest.hi or amount, amount) end
     end
     for _, hit in ipairs(hits) do
@@ -636,19 +654,53 @@ local function RemainderMatches(hits, ticks, groups, targets, matches, open, res
     end
 end
 
+-- The schools whose '?' hits the size pairs split whole: every hit held by a group that pairs an open row with no
+-- overkill to the unit, and those groups' sums add up to the school's '?' sum, with no remainder or drawn group
+-- among them and no drawn tick of the school. Each such pair is learned at once, as an exact remainder is: one exact
+-- sum can be luck, a school split whole into exact sums is not (synthetic Outbreak: Virulent Plague 191587 on 4 plates
+-- and Dread Plague 1240996 on the target summed to their rows in F1, yet waited LEARN_STREAK fights).
+local function Whole(hits, ticks, matches, targets)
+    local taken, covered = {}, {}
+    for index, group in pairs(matches) do
+        local target = targets[index]
+        if target.kind == "open" and target.overkill == 0 and not group.rest and not group.drawn then
+            taken[group.school] = taken[group.school] or {}
+            table.insert(taken[group.school], group)
+            covered[group.school] = (covered[group.school] or 0) + group.sum
+        else
+            covered[group.school] = false
+        end
+    end
+    for _, tick in ipairs(ticks or {}) do covered[tick.school] = false end
+    local sums = {}
+    for _, hit in ipairs(hits) do
+        local school, amount = hit.school, hit.amount
+        if IsNumber(school) and IsNumber(amount) and amount > 0 then
+            sums[school] = (sums[school] or 0) + amount
+            if not (Plain(hit.crit) and Held(taken, school, amount, hit.crit)) then covered[school] = false end
+        end
+    end
+    local whole = {}
+    for school, sum in pairs(covered) do whole[school] = sum ~= false and sums[school] == sum end
+
+    return whole
+end
+
 -- Read: the size pass, the remainder pass, then the rhythm pass when the fight's streams are given.
 function Procs.Read(hits, open, results, rows, at, ticks, streams)
     local targets = Targets(open, results, rows, Cast(hits))
     local groups = Groups(hits, ticks)
     local matches = Matches(groups, targets)
     RemainderMatches(hits, ticks, groups, targets, matches, open, results, rows)
+    local whole = Whole(hits, ticks, matches, targets)
     local taken = {}
     for index in pairs(matches) do
         if targets[index].kind == "open" then taken[targets[index].id] = true end
     end
     for index, target in ipairs(targets) do
         local group, isNew = matches[index], procs[target.id] == nil
-        local suffix = Apply(target, group)
+        local sure = group ~= nil and target.kind == "open" and target.overkill == 0 and whole[group.school] == true
+        local suffix = Apply(target, group, sure)
         if suffix then
             local entry = procs[target.id]
             entry.seen = at
@@ -676,8 +728,20 @@ function Procs.Teach(id, school, lo, hi, period, at)
 end
 
 -- Name ---------------------------------------------------------------------------------------------------
+-- Whether a hit may be the entry's crit: inside the padded crit range once a crit paired its row; before that, only
+-- a crit whose normal-scale size sits in the band itself. Shaman2 F3: 1310088 (learned from two normals, 5101-5310)
+-- drew crits 10433 and 9814, its own (with its normals they sum to the meter's 50489), and 11941, which was not
+-- (2.25x); now only 10433 draws (9814 / 2 sits under the band: a '?', not a wrong icon).
+local function Big(entry, amount, lo, hi)
+    if entry.critSeen ~= false then return lo * CRIT_LO <= amount and amount <= hi * CRIT_HI end
+    local size = Streams.NormalAmount(amount, "CRITICAL")
+
+    return size ~= nil and entry.lo <= size and size <= entry.hi
+end
+
 -- Procs.Name(school, amount, flagText): the one learned proc whose padded range holds the hit, or nil for none
--- or several. A plain flag picks the normal or the crit range; a nil or secret flag fits either (as Streams.Size).
+-- or several. A plain flag picks the normal or the crit range (Big); a nil or secret flag fits either
+-- (as Streams.Size).
 function Procs.Name(school, amount, flagText)
     if not (IsNumber(school) and IsNumber(amount)) then return nil end
     local crit = Procs.Crit(flagText) -- nil: unknown
@@ -686,7 +750,7 @@ function Procs.Name(school, amount, flagText)
         if entry.learned == true and not entry.period and entry.school == school then
             local lo, hi, floor = entry.lo * PAD_LO, entry.hi * PAD_HI, Floor(entry) * PAD_LO
             local normal = lo <= amount and amount <= hi
-            local big = lo * CRIT_LO <= amount and amount <= hi * CRIT_HI
+            local big = Big(entry, amount, lo, hi)
             if (crit ~= true and normal) or (crit ~= false and big) then
                 if found then return nil end
                 found = id

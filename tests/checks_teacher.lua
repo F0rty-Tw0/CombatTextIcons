@@ -1301,13 +1301,16 @@ return function(T)
             local rig = Rig({}); Votes(rig)
             Fight(rig, 10, false, { Row(WITHER_ROW, 5000) })
             Check("net votes: a cast with no row of its own loses its dot sig at the read", #rig.ns.Learn.Votes(WITHER).sigs == 0)
-            Fight(rig, 100, true, { Row(WITHER_ROW, 5000) })
+            -- The ticks' row stays off their sum (5500 against 5 x 1000) in the fights with ticks: five ticks that are
+            -- their school's whole '?' sum to the unit would learn the row as a castless proc at once (Procs' Whole)
+            -- and draw them before any vote.
+            Fight(rig, 100, true, { Row(WITHER_ROW, 5500) })
             Check("net votes: ... and its next cast and rhythm gets no vote, so nothing is learned",
                 rig.ns.Learn.Get(WITHER) == nil and #rig.ns.Learn.Votes(WITHER).sigs == 0)
             -- The own row is more than the ticks pay (9000 against 5000), so the teacher's DoT pass leaves it to the
             -- votes.
-            Fight(rig, 200, false, { Row(WITHER, 9000), Row(WITHER_ROW, 5000) })
-            Fight(rig, 300, true, { Row(WITHER, 9000), Row(WITHER_ROW, 5000) })
+            Fight(rig, 200, false, { Row(WITHER, 9000), Row(WITHER_ROW, 5500) })
+            Fight(rig, 300, true, { Row(WITHER, 9000), Row(WITHER_ROW, 5500) })
             Check("net votes: ... until a read lists the cast's own row, after which its rhythm votes again",
                 #rig.ns.Learn.Votes(WITHER).sigs == 1 and rig.ns.Learn.Votes(WITHER).sigs[1].votes == 1)
 
@@ -1397,8 +1400,10 @@ return function(T)
                 spy.calls == 1 and #spy.hits == 3 and spy.hits[1].school == 106 and spy.hits[1].amount == 339
                 and spy.hits[1].crit == false and #spy.open == 1 and spy.open[1].row.spellID == X and spy.open[1].index == 1
                 and spy.results == last.rows and #spy.rows == 1 and spy.rows[1].spellID == X and spy.at == 10)
-            Check("procs wiring: 339 + 350 + 364 = 1053 meets the row exactly: candidate, streak 1, not learned",
-                Candidate(rig, X) and Candidate(rig, X).streak == 1 and not Candidate(rig, X).learned)
+            -- the three hits are their school's whole '?' sum, so the exact pair learns at once (Procs' Whole)
+            Check("procs wiring: 339 + 350 + 364 = 1053 meets the row exactly and is the school's whole '?' sum: learned, streak 1",
+                Candidate(rig, X) and Candidate(rig, X).streak == 1 and Candidate(rig, X).learned
+                and Find(last, X).verdict == "agree")
         end
 
         do -- the fight's stream records reach Procs.Read as its 7th argument
@@ -1510,8 +1515,11 @@ return function(T)
             local rig = Rig({})
             ReadWith(rig, Volley(63), { { Y, 2364 } })
             local F = rig.ns.Fingerprints
-            Check("cast pass coverage: one holy hit after 1 of 4 casts makes no alias and no fingerprint; the row stays unpaired",
-                F.Alias(Y) == nil and F.Get(Z) == nil and Find(rig.ns.Teacher.last, Y).verdict == "unpaired")
+            -- the holy hit is its school's whole '?' sum and equals the row: a castless proc at once (Procs' Whole), as
+            -- Holy Retributor's Order 1260076 is (priest3 F1: one holy 2365 against its row 2365)
+            Check("cast pass coverage: one holy hit after 1 of 4 casts makes no alias and no fingerprint; the row is the proc's",
+                F.Alias(Y) == nil and F.Get(Z) == nil and rig.ns.Procs.Get(Y) ~= nil
+                and Find(rig.ns.Teacher.last, Y).verdict == "agree")
 
             rig = Rig({})
             ReadWith(rig, Volley(61), { { Y, 2364 } })
@@ -1778,12 +1786,13 @@ return function(T)
         end
 
         do -- three clear fights with the same exact row learn the proc; the learned row reads as agree
+            -- (a stray 50000 hit no row explains keeps the school from splitting whole, so each pair counts one fight)
             local rig = Rig({})
             SlashCmdList.COMBATTEXTICONS("debug")
             local fights = {
-                { { 106, 339 }, { 106, 350 }, { 106, 364 } },
-                { { 106, 340 }, { 106, 352 }, { 106, 361 } },
-                { { 106, 345 }, { 106, 348 }, { 106, 360 } },
+                { { 106, 339 }, { 106, 350 }, { 106, 364 }, { 106, 50000 } },
+                { { 106, 340 }, { 106, 352 }, { 106, 361 }, { 106, 50000 } },
+                { { 106, 345 }, { 106, 348 }, { 106, 360 }, { 106, 50000 } },
             }
             local streaks = {}
             for index, hits in ipairs(fights) do

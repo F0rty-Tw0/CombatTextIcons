@@ -137,6 +137,10 @@ return function(T)
     local function N(school, amount) return { school = school, amount = amount, crit = false } end
     local function C(school, amount) return { school = school, amount = amount, crit = true } end
     local function U(school, amount) return { school = school, amount = amount } end -- crit unknown (nil)
+    -- A read whose '?' hits of a school all sit in exact pairs learns those pairs at once (Procs' Whole), so the checks of
+    -- one exact pair below expect `learned`. Stray(school) is an unknown-flag hit no group holds: the school is not split
+    -- whole and a pair only counts one fight, which the streak checks need.
+    local function Stray(school) return U(school, 1) end
 
     -- The meter side of a read as Teacher.Verdicts builds it. spec = { id, total, overkill?, tally?, verdict? }:
     -- a row without `tally` is unpaired and listed in `open`.
@@ -175,11 +179,11 @@ return function(T)
     do
         local procs = Once({ N(106, 118), N(106, 100), N(106, 116) }, { { id = 1, total = 216 }, { id = 2, total = 118 } })
         Check("procs read walk: 100 and 116 share a group (16 <= 15 % of 116), 118 starts one (18 > 15 % of 118)",
-            Is(procs[1], 106, 100, 116, 1) and Is(procs[2], 106, 118, 118, 1))
+            Is(procs[1], 106, 100, 116, 1, true) and Is(procs[2], 106, 118, 118, 1, true))
 
         procs = Once({ N(106, 1000), N(106, 1100), C(106, 1810) }, { { id = 1, total = 3910 } })
         Check("procs read crit: a crit inside [smallest x 1.8, largest x 2.7] adds to the group's sum, not to its band",
-            Is(procs[1], 106, 1000, 1100, 1))
+            Is(procs[1], 106, 1000, 1100, 1, true))
         local low = Once({ N(106, 1000), N(106, 1100), C(106, 1790) }, { { id = 1, total = 2100 } })
         local high = Once({ N(106, 1000), N(106, 1100), C(106, 2980) }, { { id = 1, total = 2100 } })
         Check("procs read crit: a crit below (1790) or above (2980) every band is an orphan (the sum stays 2100)",
@@ -196,7 +200,7 @@ return function(T)
         local stepped = { N(106, 343), N(106, 343), N(106, 343), N(106, 411), N(106, 412), N(106, 412) }
         procs = Once(stepped, { { id = 1287663, total = 2264 } })
         Check("procs read step: one school's groups spanning less than a crit (343-412) also count as one group",
-            Is(procs[1287663], 106, 343, 412, 1) and Count(procs) == 1)
+            Is(procs[1287663], 106, 343, 412, 1, true) and Count(procs) == 1)
         -- Run 20261025T194314Z: a vote-learned DoT (Wither) drew half of proc 1287663's ticks, so no '?' group summed to the row.
         local ns, store = Rig()
         local world = World({ { id = 1287663, total = 2265 } })
@@ -214,11 +218,11 @@ return function(T)
     do
         local procs, _, lines = Once({ N(8, 2315), N(8, 11592), N(8, 11720), N(8, 11802), N(8, 12117) }, { { id = 73921, total = 49546 } })
         Check("procs read partial: a core of 3+ normals plus one lone hit below it sums to the row -> band 11592-12117, floor 2315",
-            Is(procs[73921], 8, 11592, 12117, 1) and procs[73921].floor == 2315 and Count(procs) == 1
-            and lines[1] == "TEACH proc 73921 school=8 band=11592-12117 floor=2315 streak=1")
+            Is(procs[73921], 8, 11592, 12117, 1, true) and procs[73921].floor == 2315 and Count(procs) == 1
+            and lines[1] == "TEACH proc 73921 school=8 band=11592-12117 floor=2315 streak=1 learned")
         procs = Once({ N(8, 9458), N(8, 11314), N(8, 11955), C(8, 22832) }, { { id = 73921, total = 55559 } })
         Check("procs read run: walk-split groups (9458 | 11314-11955) less than a crit apart are one group with the crits in its"
-            .. " window (55559)", Is(procs[73921], 8, 9458, 11955, 1) and procs[73921].floor == nil)
+            .. " window (55559)", Is(procs[73921], 8, 9458, 11955, 1, true) and procs[73921].floor == nil)
         procs = Once({ N(8, 1000), N(8, 1000), N(8, 500) }, { { id = 1, total = 2500 } })
         Check("procs read partial: a core under 3 normals takes no lone hit (1000, 1000 + 500 is no 2500 group; only the"
             .. " school's remainder pairs the row)", Is(procs[1], 8, 500, 1000, 1, true) and procs[1].rest == true)
@@ -289,7 +293,7 @@ return function(T)
         local twoRows = Once({ N(106, 500) }, { { id = 1, total = 500 }, { id = 2, total = 500 } })
         Check("procs read unique: one group matching two rows -> neither counts", next(twoRows) == nil)
         local lone = Once({ N(106, 400), N(32, 300) }, { { id = 1, total = 400 } })
-        Check("procs read unique: a lone match counts (control for the two checks above)", Is(lone[1], 106, 400, 400, 1) and Count(lone) == 1)
+        Check("procs read unique: a lone match counts (control for the two checks above)", Is(lone[1], 106, 400, 400, 1, true) and Count(lone) == 1)
 
         local atEnd = Once({ N(106, 500) }, { { id = 1, total = 480, overkill = 20 } })
         local over = Once({ N(106, 501) }, { { id = 1, total = 480, overkill = 20 } })
@@ -302,12 +306,12 @@ return function(T)
 
     -- State x event table of spec 3.1 (row id 7; hits sum to the row's total) ----------------------
     do
-        local procs, world, lines, ns = Once({ N(106, 340), N(106, 360) }, { { id = 7, total = 700 } })
+        local procs, world, lines, ns = Once({ N(106, 340), N(106, 360), Stray(106) }, { { id = 7, total = 700 } })
         Check("procs read state: no entry + unique match -> candidate (school, band, streak 1, seen = run.at) and one debug line",
             Is(procs[7], 106, 340, 360, 1) and procs[7].seen == AT and procs[7].unpaired == 0
             and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=340-360 streak=1")
 
-        procs, world, lines = Once({ N(106, 330), N(106, 370) }, { { id = 7, total = 700 } }, Seed(7, 106, 339, 364, 1))
+        procs, world, lines = Once({ N(106, 330), N(106, 370), Stray(106) }, { { id = 7, total = 700 } }, Seed(7, 106, 339, 364, 1))
         Check("procs read state: candidate + same school + overlapping bands -> streak + 1, band = union",
             Is(procs[7], 106, 330, 370, 2) and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=330-370 streak=2")
 
@@ -384,6 +388,28 @@ return function(T)
             and Is(candidateUnder[7], 106, 330, 360, 2))
     end
 
+    -- A school whose '?' hits split whole into exact pairs learns them at once (synthetic Outbreak: Virulent Plague and
+    -- Dread Plague summed to their rows in F1; shaman2 F2: 1310088's two normals were school 8's whole '?' sum) ------
+    do
+        local split = { N(32, 1000), N(32, 1000), N(32, 1000), N(32, 5000), N(32, 5000) }
+        local rows = { { id = 1, total = 3000 }, { id = 2, total = 10000 } }
+        local procs, world = Once(split, rows)
+        Check("procs read whole: two exact pairs holding every '?' hit of their school are learned at once, rows agree",
+            Is(procs[1], 32, 1000, 1000, 1, true) and Is(procs[2], 32, 5000, 5000, 1, true)
+            and world.results[1].verdict == "agree" and world.results[2].verdict == "agree")
+        local stray = Once({ N(32, 1000), N(32, 1000), N(32, 1000), N(32, 5000), N(32, 5000), Stray(32) }, rows)
+        Check("procs read whole: a hit no pair holds (unknown flag) keeps both pairs candidates",
+            Is(stray[1], 32, 1000, 1000, 1) and Is(stray[2], 32, 5000, 5000, 1))
+        local overkill = Once(split, { { id = 1, total = 3000 }, { id = 2, total = 9990, overkill = 20 } })
+        Check("procs read whole: a pair inside an overkill window leaves the school unsure (both candidates)",
+            Is(overkill[1], 32, 1000, 1000, 1) and Is(overkill[2], 32, 5000, 5000, 1))
+        local ns, store = Rig()
+        local ticked = World(rows)
+        ns.Procs.Read(split, ticked.open, ticked.results, ticked.rows, AT, { N(32, 7000) })
+        Check("procs read whole: a drawn tick of the school (votes, not the meter) leaves it unsure (both candidates)",
+            Is(store[1], 32, 1000, 1000, 1) and Is(store[2], 32, 5000, 5000, 1))
+    end
+
     -- One group fitting an open row and a learned-under complement: neither counts ----------------
     do
         local specs = { { id = 7, total = 1000, tally = 600, verdict = "under" }, { id = 8, total = 400 } } -- complement window [400, 400]
@@ -392,8 +418,8 @@ return function(T)
             Is(both[7], 106, 330, 360, 3, true) and both[8] == nil)
         local complementOnly = Once({ N(106, 400) }, { specs[1] }, Seed(7, 106, 330, 360, 3, true))
         local openOnly = Once({ N(106, 400) }, { specs[2] }, Seed(7, 106, 330, 360, 3, true))
-        Check("procs read unique: with the complement alone 7 widens to 330-400; with the open row alone 8 becomes a candidate (controls)",
-            Is(complementOnly[7], 106, 330, 400, 3, true) and Is(openOnly[8], 106, 400, 400, 1) and Is(openOnly[7], 106, 330, 360, 3, true))
+        Check("procs read unique: with the complement alone 7 widens to 330-400; with the open row alone 8 is learned (controls)",
+            Is(complementOnly[7], 106, 330, 400, 3, true) and Is(openOnly[8], 106, 400, 400, 1, true) and Is(openOnly[7], 106, 330, 360, 3, true))
     end
 
     -- Excluded rows: a spell Learn or Fingerprints knows has one owner ---------------------------------
@@ -411,7 +437,7 @@ return function(T)
             ns.Fingerprints.IsLearned(7) and byLearn[7] == nil and byFingerprint[7] == nil)
         local shared = Once({ N(106, 400) }, { { id = 7, total = 400 }, { id = 8, total = 400 } }, LearnOwns)
         Check("procs read exclude: an excluded row is removed before matching, so it does not make the group ambiguous (8 is taught)",
-            shared[7] == nil and Is(shared[8], 106, 400, 400, 1))
+            shared[7] == nil and Is(shared[8], 106, 400, 400, 1, true))
     end
 
     -- Rev 4b: a row whose saved alias names a learned fingerprint is owned too ---------------------------
@@ -424,7 +450,7 @@ return function(T)
         Check("procs read exclude: a row whose alias names a learned fingerprint (8 -> 7) is never a candidate",
             ns.Fingerprints.IsLearned(7) and ns.Fingerprints.Alias(8) == 7 and owned[8] == nil)
         local free = Once({ N(106, 400) }, { { id = 8, total = 400 } }, function(_, ns2) ns2.Fingerprints.SetAlias(8, 7) end)
-        Check("procs read exclude: ... while an alias to an unlearned cast leaves the row free (control)", Is(free[8], 106, 400, 400, 1))
+        Check("procs read exclude: ... while an alias to an unlearned cast leaves the row free (control)", Is(free[8], 106, 400, 400, 1, true))
     end
 
     -- Targets' under-loop guards: a complement widens only a proc that has one owner and its own result -------
@@ -459,7 +485,7 @@ return function(T)
         Check("procs read zero: a 0-amount hit against a row with total 0 creates no candidate", next(zero) == nil)
         local mixed = Once({ N(106, 0), N(106, 400) }, { { id = 1, total = 0 }, { id = 2, total = 400 } })
         Check("procs read zero: ... and a positive hit beside it still teaches its row (control)",
-            mixed[1] == nil and Is(mixed[2], 106, 400, 400, 1))
+            mixed[1] == nil and Is(mixed[2], 106, 400, 400, 1, true))
     end
 
     -- Three reads teach; the store records the last change ----------------------------------------------
@@ -469,11 +495,11 @@ return function(T)
             local world = World({ { id = 7, total = 700 } })
             ns.Procs.Read(hitList, world.open, world.results, world.rows, at)
         end
-        Read({ N(106, 340), N(106, 360) }, 10)
-        Read({ N(106, 335), N(106, 365) }, 20)
+        Read({ N(106, 340), N(106, 360), Stray(106) }, 10)
+        Read({ N(106, 335), N(106, 365), Stray(106) }, 20)
         Check("procs read chain: after two exact reads the entry is a candidate with streak 2 (Procs.Get gives nil)",
             Is(procs[7], 106, 335, 365, 2) and procs[7].seen == 20 and ns.Procs.Get(7) == nil)
-        Read({ N(106, 338), N(106, 362) }, 30)
+        Read({ N(106, 338), N(106, 362), Stray(106) }, 30)
         Check("procs read chain: the third exact read learns it (streak 3, learned, seen 30)",
             Is(procs[7], 106, 335, 365, 3, true) and procs[7].seen == 30 and ns.Procs.Get(7) == procs[7])
     end
@@ -485,7 +511,7 @@ return function(T)
             for id = 1001, 1063 do procs[id] = Entry(106, 100, 120, 1, false); procs[id].seen = id - 999 end
             for id = 2000, 2002 do procs[id] = Entry(32, 100, 120, 3, true) end
         end
-        local procs = Once({ N(106, 400) }, { { id = 5, total = 400 } }, Crowded)
+        local procs = Once({ N(106, 400), Stray(106) }, { { id = 5, total = 400 } }, Crowded)
         local candidates = 0
         for _, entry in pairs(procs) do
             if not entry.learned then candidates = candidates + 1 end
@@ -544,6 +570,38 @@ return function(T)
         procs[73921].floor = nil
         Check("procs name floor: without the floor the padded hits name 1310088 (4600, 13562 crit)",
             Name(8, 4600, "") == 1310088 and Name(8, 13562, "CRITICAL") == 1310088)
+    end
+    -- Procs.Name and critSeen: shaman2 F3, 1310088 learned from two normals (5101-5310) drew crit 11941, not its own
+    -- (its normals with crits 10433 and 9814 sum to the meter's 50489) -----------------------------------------
+    do
+        local ns, procs = Rig()
+        local Name = ns.Procs.Name
+        procs[1310088] = Entry(8, 5101, 5310, 1, true)
+        procs[1310088].critSeen = false
+        Check("procs name crit unseen: a crit draws only when its half sits in the band (10433 yes; 9814, 11941 no);"
+            .. " normals keep the padded range (5279, 4907)",
+            Name(8, 10433, "CRITICAL") == 1310088 and Name(8, 9814, "CRITICAL") == nil and Name(8, 11941, "CRITICAL") == nil
+            and Name(8, 5279, "") == 1310088 and Name(8, 4907, "") == 1310088)
+        procs[1310088].critSeen = true
+        Check("procs name crit seen: once a crit paired the row the padded crit range is back (11941, 9814)",
+            Name(8, 11941, "CRITICAL") == 1310088 and Name(8, 9814, "CRITICAL") == 1310088)
+
+        local normals = Once({ N(8, 5101), N(8, 5310) }, { { id = 1310088, total = 10411 } })
+        local withCrit = Once({ N(8, 5101), N(8, 5310), C(8, 10620) }, { { id = 1310088, total = 21031 } })
+        Check("procs read crit seen: a pair of normals leaves critSeen false; a group holding a crit sets it",
+            normals[1310088].critSeen == false and withCrit[1310088].critSeen == true)
+        local under = { id = 7, total = 5000, tally = 1900, verdict = "under" } -- complement window [3100, 3100]
+        local seed = function(p) p[7] = Entry(106, 1000, 1100, 3, true); p[7].critSeen = false end
+        local crits, _, lines = Once({ N(106, 1050), C(106, 2050) }, { under }, seed)
+        Check("procs read crit seen: a complement group inside the band that holds a crit sets critSeen ('crits' line)",
+            Is(crits[7], 106, 1000, 1100, 3, true) and crits[7].critSeen == true
+            and lines[1] == "TEACH proc 7 school=106 band=1000-1100 streak=3 crits")
+
+        local saved = { procs = { [5] = Entry(8, 100, 200, 3, true), [6] = Entry(8, 100, 200, 3, true) } }
+        saved.procs[6].critSeen = false
+        ns.Procs.Init(saved)
+        Check("procs init: a store saved before critSeen draws crits as before (nil -> true); a saved false stays",
+            saved.procs[5].critSeen == true and saved.procs[6].critSeen == false)
     end
     -- Procs.Has (spec 3.1 Rev 4b): a learned entry, or a candidate with a streak -----------------------
     do
@@ -638,7 +696,7 @@ return function(T)
         local procs = Once({ N(32, 500), N(32, 500) }, { { id = 1, total = 1500, tally = 500, verdict = "under" }, { id = 2, total = 1000 } },
             function(store) store[1] = Rhythm(32, 300, 400, 1, true) end)
         Check("procs rhythm under: a learned rhythm entry owns no 'under' window, so a 1000 group goes to the open row alone",
-            Is(procs[2], 32, 500, 500, 1) and procs[1].lo == 300 and procs[1].hi == 400 and procs[1].streak == 1 and procs[1].period == 1)
+            Is(procs[2], 32, 500, 500, 1, true) and procs[1].lo == 300 and procs[1].hi == 400 and procs[1].streak == 1 and procs[1].period == 1)
     end
     do
         local ns, procs = Rig()
@@ -827,8 +885,8 @@ return function(T)
 
         ns, procs = Rig()
         Pass(ns, { N(32, 10000) }, X, Str({ 32, 1.0, 9800, 1600, 1700 }))
-        Check("procs rhythm target: a row the size pass matched in the same Read is skipped (a size candidate, no period)",
-            Is(procs[5], 32, 10000, 10000, 1) and procs[5].period == nil)
+        Check("procs rhythm target: a row the size pass matched in the same Read is skipped (a size proc, no period)",
+            Is(procs[5], 32, 10000, 10000, 1, true) and procs[5].period == nil)
 
         ns, procs = Rig()
         Pass(ns, {}, X, Str({ 32, 1.0, 9800, nil, nil }))
@@ -847,7 +905,7 @@ return function(T)
         Pass(ns, { N(32, 10000) }, X, nil)
         local sizeOnly = Once({ N(32, 10000) }, X)
         Check("procs rhythm pass: with streams = nil the store is what a size-only Read makes",
-            Is(procs[5], 32, 10000, 10000, 1) and procs[5].period == nil and Is(sizeOnly[5], 32, 10000, 10000, 1))
+            Is(procs[5], 32, 10000, 10000, 1, true) and procs[5].period == nil and Is(sizeOnly[5], 32, 10000, 10000, 1, true))
         ns, procs = Rig()
         Pass(ns, {}, X, nil)
         Check("procs rhythm pass: with streams = nil and no hits the store stays empty", next(procs) == nil)
