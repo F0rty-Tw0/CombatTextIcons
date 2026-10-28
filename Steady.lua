@@ -4,9 +4,10 @@
 -- hit keeps its candidate casts (Casts.Candidates). Per cast spell, a window of SPREAD seconds over
 -- the hits' delays, in one school, counts each cast that has exactly one hit of that school in it (a
 -- co-hit of another school spoils nothing: Shadow Bolt's frame often holds a 412 s106 proc tick, run
--- 20261025T180045Z); a window qualifies when it counts at least MIN_CASTS and SHARE of the casts, the biggest hit at most SIZE_SPREAD times
--- the smallest. Overlapping qualifying windows are one cluster; two clusters teach nothing, unless one
--- of one school sums DOMINANT times each other's (Dominant): it alone teaches. A hit
+-- 20261025T180045Z); a window qualifies when at least MIN_CASTS and SHARE of the casts count with hits
+-- at most SIZE_SPREAD apart (an odd-sized hit leaves its own cast uncounted). Overlapping qualifying
+-- windows are one cluster; two clusters teach nothing, unless one of one school sums DOMINANT times
+-- each other's (Dominant): it alone teaches. A hit
 -- counted for two cast spells or two bases teaches neither. The meter judges last: the counted hits
 -- must fit the base's row (total + overkill + tolerance, less what was drawn under it, unless a learned
 -- DoT of another school drew it); a base with no row of its own needs every cast counted and the sum to agree
@@ -122,15 +123,27 @@ local function Window(list, d, school)
     return counted
 end
 
--- Whether `counted` holds `need` casts whose sizes stay within SIZE_SPREAD.
+-- The most pairs of `counted` whose sizes stay within SIZE_SPREAD (tie: the smallest sizes), in pair order, when
+-- they are `need` or more, else nil. An odd-sized hit drops out alone: run warrior F1, Shield Slam 23922 hit
+-- 0.159-0.167 s after each of 7 casts, ~600-870K normal-scale, but one 204K, and that one kept the window from
+-- learning (its 6.1M row of F2 went by as '?').
 local function Qualifies(counted, need)
-    if #counted < need then return false end
-    local low, high
+    if #counted < need then return nil end
+    local sizes = {}
+    for _, pair in ipairs(counted) do sizes[#sizes + 1] = pair.hit.size end
+    table.sort(sizes)
+    local bestLow, bestCount, first = nil, 0, 1
+    for last = 1, #sizes do
+        while sizes[last] > SIZE_SPREAD * sizes[first] do first = first + 1 end
+        if last - first + 1 > bestCount then bestLow, bestCount = sizes[first], last - first + 1 end
+    end
+    if bestCount < need then return nil end
+    local kept = {}
     for _, pair in ipairs(counted) do
-        low, high = math.min(low or pair.hit.size, pair.hit.size), math.max(high or pair.hit.size, pair.hit.size)
+        if pair.hit.size >= bestLow and pair.hit.size <= SIZE_SPREAD * bestLow then kept[#kept + 1] = pair end
     end
 
-    return high <= SIZE_SPREAD * low
+    return kept
 end
 
 local function Overlaps(hitsA, hitsB)
@@ -147,8 +160,8 @@ end
 local function Clusters(list, need)
     local clusters = {}
     for _, pair in ipairs(list) do
-        local counted = Window(list, pair.delay, pair.hit.school)
-        if Qualifies(counted, need) then
+        local counted = Qualifies(Window(list, pair.delay, pair.hit.school), need)
+        if counted then
             local merged = { best = { d = pair.delay, counted = counted }, hits = {} }
             for _, item in ipairs(counted) do merged.hits[item.hit] = true end
             for index = #clusters, 1, -1 do

@@ -2257,6 +2257,29 @@ return function(T)
         Check("steady (d3): steady at 0.30 (20000s) and 0.80 (5000s): the 0.30 cluster sums 4 x the other -> learns its 4 alone",
             last.area == "clear" and Learned(last) == 4 and echoOk and Outcome(MIND_BLAST) == "learned")
 
+        -- Run warrior F1: Shield Slam 23922 hit 0.165 s after each cast, ~600-870K, but one 204K. One MB cast a
+        -- `sizes[i]` hit at 0.30 s each, a Shadow Word: Death before each at a varied offset (no sole cast).
+        local function Odd(sizes)
+            local events = {}
+            for index, size in ipairs(sizes) do
+                local t = 5 + 5 * index
+                events[#events + 1] = { t - 0.2 - 0.15 * index, SWD }
+                events[#events + 1] = { t, MIND_BLAST }
+                events[#events + 1] = { t + 0.30, nil, size }
+            end
+            return events
+        end
+        rig, last = SteadyFight(Odd({ 19000, 20500, 5000, 21000, 22000 }), { Row(MIND_BLAST, 90000) })
+        local oddOk = true
+        for _, sample in ipairs((rig.ns.Fingerprints.Get(MIND_BLAST) or { samples = {} }).samples) do
+            oddOk = oddOk and sample.size >= 19000
+        end
+        Check("steady (d4): 4 of 5 casts steady at 0.30 s, the 5th's hit there a quarter the size -> learns the 4",
+            last.area == "clear" and Learned(last) == 4 and oddOk and Outcome(MIND_BLAST) == "learned")
+        rig, last = SteadyFight(Odd({ 20000, 5000, 21000, 5200, 22000, 5400 }), { Row(MIND_BLAST, 80000) })
+        Check("steady (d5): 3 of 6 casts' hits at 0.30 s like-sized, 3 a quarter the size -> under the 60 % share",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "none")
+
         -- Priest Devouring Plague 335467 (lead L24): 5 MB casts beside a ~1/s ~1K shadow DoT stream; the first tick
         -- after 3 of them falls at ~0.94 s by coincidence. 3 of 5 across the 15 delay windows is luck, not a pattern.
         local ticks, casts = {}, { 10.56, 15.55, 20.564, 25.2, 30.8 }
