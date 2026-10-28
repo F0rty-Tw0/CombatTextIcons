@@ -24,7 +24,7 @@
 local L = dofile("tests/score_lib.lua")
 local Pct, Out, ReadLines = L.Pct, L.Out, L.ReadLines
 
-local WINDOW = 30 -- s a cast can still heal: Riptide's HoT 18 s, the totems 10-15 s; Earth Shield (974) lasts longer
+local WINDOW = 30 -- s a cast can still heal when TRUTH lists no life; Earth Shield (974) lasts longer
 
 -- What ties a drawn heal ID to the player's casts, past its own CAST lines (Ties), and for how long. Test-only, as
 -- tests/score_truth.lua; editing it changes the measure. life: seconds a cast can still heal under the ID (WINDOW
@@ -37,6 +37,12 @@ local TRUTH = {
     [77472] = { life = 0.01 },
     -- Healing Rain: the meter's row is 73921 while its CAST lines read `444995 base=73920,73920` (shamanheal line 12)
     [73921] = { casts = { 444995, 73920 } },
+    -- The trains, a cast's life a little past its last tick on the player in shamanheal: Healing Stream Totem's
+    -- 1267068 at 279467.759 ticks every ~1.5 s, 12 ticks to +18.08 s; Healing Tide Totem's at 279666.642 every
+    -- ~1.7 s to +10.04 s; Riptide's HoT at 279632.060 every ~2.6 s to +18.06 s.
+    [5394] = { life = 20 },
+    [108280] = { life = 12 },
+    [61295] = { life = 20 },
 }
 
 local LOGS = { -- log: tests/score/<log>.txt; fixture: tests/fixtures/<fixture>.sv.lua, replayed as tests/score.lua does
@@ -212,7 +218,8 @@ end
 
 local function Replayed(spec)
     local lines = spec.fixture and FixtureLines(spec.fixture) or ReadLines(L.DIR .. spec.log .. ".txt")
-    local classSetup = L.Setup(spec.class, {}, {}, {})
+    -- the game's base spells as the log's CAST lines answered them: Healing Stream Totem casts as `1267068 base=5394`
+    local classSetup = L.Setup(spec.class, L.BaseSpells(lines), {}, {})
     local function setup(ns, S)
         classSetup(ns, S)
         for _, id in ipairs(HEAL_CASTS[spec.class] or {}) do S.harmful[id], S.helpful[id] = false, true end

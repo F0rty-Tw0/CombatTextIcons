@@ -272,4 +272,4 @@ end
 
 return { H = H, RUNS = RUNS, DIR = DIR, ReadLines = ReadLines, Setup = Setup, ScoreFight = ScoreFight, NewScore = NewScore,
     NewTotal = NewTotal, ClassLabel = ClassLabel, Add = Add, Pct = Pct, Line = Line, Out = Out, LoadLogs = LoadLogs, Run = Run,
-    Collect = Collect }
+    Collect = Collect, BaseSpells = BaseSpells }
