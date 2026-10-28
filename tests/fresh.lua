@@ -25,6 +25,7 @@ local FRESH = {
     { log = "mage", class = "mage", holdout = true },
     { log = "warrior", class = "warrior", holdout = true },
     { log = "shaman6", class = "shaman", holdout = true },
+    { log = "shamanresto", class = "shaman", holdout = true },
 }
 local STEP = 0.05 -- the smallest move of a percentage that counts
 local LATE = 4    -- "late" scores a log's fights from this one on: what a player sees once learning had a chance
@@ -37,12 +38,16 @@ for index, value in ipairs(arg) do
 end
 
 -- The icons the game drew, per fight: each HIT's route line (tracker, cast, proc, rhythm) names the ID its amount was
--- tallied under (a cast route under the cast's base spell). fights[i] = { tally, aliases }, closed at TEACH clean.
+-- tallied under (a cast route under the cast's base spell, unless the meter showed a row of the cast's own ID: Casts.Base
+-- keeps an ID with its own row). fights[i] = { tally, aliases }, closed at TEACH clean. Run shamanresto: CAST lines log
+-- Lava Burst 51505 with base=73899, and its draws were scored wrong under 73899 though 51505 has its own meter row.
 local function GameFights(lines)
-    local bases = {}
+    local bases, rowIDs = {}, {}
     for _, line in ipairs(lines) do
         local id, base = line:match(" CAST player (%d+) base=(%d+)")
         if id then bases[tonumber(id)] = tonumber(base) end
+        local row = line:match(" TEACH row (%d+)")
+        if row then rowIDs[tonumber(row)] = true end
     end
     local fights, tally, amount, closed = {}, {}, nil, nil
     for _, text in ipairs(lines) do
@@ -53,7 +58,7 @@ local function GameFights(lines)
             amount = tonumber(hit)
         elseif kind and amount and (kind == "tracker" or kind == "cast" or kind == "proc" or kind == "rhythm") then
             id = tonumber(id)
-            if kind == "cast" then id = bases[id] or id end
+            if kind == "cast" and not rowIDs[id] then id = bases[id] or id end
             tally[id] = (tally[id] or 0) + amount
             amount = nil
         elseif text:match("^[%d%.]+ HEAL ") then
