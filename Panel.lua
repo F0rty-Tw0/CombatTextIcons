@@ -16,7 +16,8 @@
 -- verdict in words; heals are never judged.
 --
 -- The window (/cti learned) shows those rows for one view: the open fight ("live")
--- or a saved fight, remembered by its `at`. The plain view shows Spell, Status, This fight (drawn amount and share of
+-- or a saved fight, remembered by its `at`; each new fight takes the view, live and then saved.
+-- The plain view shows Spell, Status, This fight (drawn amount and share of
 -- the fight's drawn damage) and Meter check; the Details button swaps in the raw columns (ID, kind, state, hits,
 -- meter, verdict) and is remembered in CombatTextIconsDB.panelDetails. Hovering a row shows its full raw state. A
 -- summary line under the header gives the area, how much drawn damage is named and, for a saved fight, the read's
@@ -350,6 +351,7 @@ local window       -- built on the first open
 local content      -- the scroll child the rows sit on
 local rowPool = {} -- row frames by line, reused on every rebuild
 local view         -- "live", a saved fight's `at`, or nil (no fights at all)
+local followed     -- the first view Resolve last saw (Views()[1]); a new one moves `view` to it
 local broken = false
 
 local function Amount(amount)
@@ -381,10 +383,12 @@ local function Position(views, wanted)
     return nil
 end
 
--- Keeps the viewed fight while it is listed; else the newest saved fight, else live, else nothing.
--- Returns the views and the fight shown (nil when there is none).
+-- A new first view (a fight opened, or the open one was saved) takes the window: it always shows the current fight,
+-- and `<` `>` browse until the next one. Else keeps the viewed fight while it is listed; else the newest saved fight,
+-- else live, else nothing. Returns the views and the fight shown (nil when there is none).
 local function Resolve()
     local views = Views()
+    if views[1] ~= followed then view, followed = views[1], views[1] end
     if view == nil or not Position(views, view) then
         local newest = Ledger.Fights()[1]
         view = newest and newest.at or views[1]
