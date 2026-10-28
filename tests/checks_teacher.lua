@@ -1678,6 +1678,18 @@ return function(T)
             ReadWith(rig, { AREA[1], AREA[2], AREA[3], AREA[5], AREA[9] }, { { Y, 5000 } })
             Check("candidates: a cast whose largest has no frame mate keeps the top-only rule: no row of another ID (5000)",
                 rig.ns.Fingerprints.Alias(Y) == nil)
+
+            -- Run shaman6 F2: Earthquake's cand met row 157348 of another ID from hits at 0.10, 0.79 and 1.29 s after
+            -- its casts, then drew castless bursts as Earthquake. The same 9 hits 0.1 / 0.8 / 1.3 s after Z's casts.
+            local LATE = {}
+            for index, hit in ipairs(AREA) do
+                local delay = ({ 0.1, 0.8, 1.3 })[math.ceil(index / 4)]
+                LATE[index] = { hit[1], hit[2], hit[3], hit[4], hit[5] + delay, hit[6], hit[7] }
+            end
+            rig = Rig({})
+            ReadWith(rig, LATE, { { Y, 9000 } })
+            Check("candidates: frame mates whose delays span 1.2 s (past 0.3) meet row 9000 of another ID -> no alias",
+                rig.ns.Fingerprints.Alias(Y) == nil and rig.ns.Fingerprints.Get(Z) == nil)
         end
 
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks
@@ -1700,6 +1712,16 @@ return function(T)
             _, last = Meter(rig, Y)
             drawn = Find(last, MIND_BLAST)
             Check("procs alias pass: with no proc the same saved alias pairs the row (control)",
+                drawn and drawn.verdict == "agree" and drawn.meterID == Y)
+
+            -- Run shaman6 F3: Voltaic Blaze aliased to two rows met one exactly and was judged against the other.
+            rig = Rig({})
+            rig.ns.Fingerprints.SetAlias(Y, MIND_BLAST)
+            rig.ns.Fingerprints.SetAlias(X, MIND_BLAST)
+            nextSession = nextSession + 1
+            _, last = rig.Read({ [MIND_BLAST] = { 5551 } }, { Session(nextSession, { Row(Y, 5551), Row(X, 300) }) })
+            drawn = Find(last, MIND_BLAST)
+            Check("alias pass: a cast aliased to two open rows pairs the one that agrees (5551 with Y, not 300 with X)",
                 drawn and drawn.verdict == "agree" and drawn.meterID == Y)
 
             rig = Rig({})

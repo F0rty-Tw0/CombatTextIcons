@@ -46,6 +46,12 @@ local CROWD_PACE, CROWD_WAIT = 4, 5
 -- The DoT pass's slack: a stream records no tick before its birth, so a row may run past its school's ticks by the
 -- fight's unseen damage, at most this share of the row. lock3 F1: Wither's streams held 91 % of its row.
 local DOT_FIT = 0.1
+-- A way pairs with a row of another ID only when its hits' delays after their casts span at most this (Ground's and
+-- Chain's first-hit window). shaman6 F2: Earthquake's cand summed three castless 12-school hits at 0.10, 0.79 and
+-- 1.29 s to row 157348 (20438 of 20408); its alias then drew 12 castless bursts as Earthquake in F3. The other
+-- aliases of the fresh logs span at most 0.11 s, but hunter's 1264359 (hits 0.00 or 1.00 s after a cast) spans
+-- 1.005 s in F1 and so learns each delay alone (F9, F11).
+local ALIAS_SPREAD = 0.3
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -221,16 +227,21 @@ local function Verdicts(tally, rows)
     end
 
     -- A saved alias names the cast spell a meter row belongs to. A learned proc owns its row, even
-    -- against an alias saved before it was learned.
-    for position = #open, 1, -1 do
-        local row, index = open[position].row, open[position].index
-        local castID = Fingerprints.Alias(row.spellID)
-        if castID and tally[castID] and not paired[castID] and not Procs.Get(row.spellID) then
-            paired[castID] = true
-            local entry = { spellID = castID, meterID = row.spellID, tally = tally[castID], meter = row.total }
-            results[index] = entry
-            Apply(entry, castID, row)
-            table.remove(open, position)
+    -- against an alias saved before it was learned. A cast with several aliased rows open pairs first
+    -- with one that agrees: shaman6 F2 aliased Voltaic Blaze 470057 to rows 157331 and 1259101, and F3's
+    -- tally 546080 met 1259101 exactly yet was judged against 157331 (32944), striking a right fingerprint.
+    for _, agreeing in ipairs({ true, false }) do
+        for position = #open, 1, -1 do
+            local row, index = open[position].row, open[position].index
+            local castID = Fingerprints.Alias(row.spellID)
+            if castID and tally[castID] and not paired[castID] and not Procs.Get(row.spellID)
+                and (not agreeing or Judge(tally[castID], row.total, row.overkill) == "agree") then
+                paired[castID] = true
+                local entry = { spellID = castID, meterID = row.spellID, tally = tally[castID], meter = row.total }
+                results[index] = entry
+                Apply(entry, castID, row)
+                table.remove(open, position)
+            end
         end
     end
 
@@ -427,13 +438,24 @@ end
 -- one-hit row by chance. An `area` cand (each cast's largest with its frame mates) is a whole sum and may.
 -- A row of another ID also needs the way in at least half the cast's casts:
 -- a castless proc's lone hit in one of many cast frames is no hit of the cast (run 153349Z: one holy
--- 2364 after 1 of 6 Void Volley casts equalled the proc's row 1260076).
+-- 2364 after 1 of 6 Void Volley casts equalled the proc's row 1260076). Its delays span at most ALIAS_SPREAD.
+local function DelaySpan(way)
+    local low, high = math.huge, -math.huge
+    for _, hit in ipairs(way.hits) do
+        local cast = way.castOf and way.castOf[hit] or hit
+        local delay = hit.at - cast.castAt
+        low, high = math.min(low, delay), math.max(high, delay)
+    end
+
+    return high - low
+end
+
 local function Pairs(group, way, row, owners)
     if way == group and group.mixed then return false end
     local whole = way == group or way.area
     if row.spellID ~= group.castID
         and (not whole or Procs.Has(row.spellID) or owners.rows[group.castID] or owners.casts[row.spellID]
-            or 2 * way.covered < way.casts) then
+            or 2 * way.covered < way.casts or DelaySpan(way) > ALIAS_SPREAD) then
         return false
     end
 
