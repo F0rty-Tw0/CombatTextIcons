@@ -476,6 +476,7 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
         elseif fit and ground then
             -- every ground record a hit fits steps to its tick, whichever record draws it
             if record.tickAt then continued[record.base] = true end
+            if record.tickAt and tick > record.tick then record.latticeAt = now end
             record.tick, record.tickAt = tick, now
         elseif fp then
             Watch(record, fp, plate, school, now, size)
@@ -491,7 +492,12 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
     local lateOnly = fits == 0 and late ~= nil
     if lateOnly then found, fits = late, lateFits end
     local sure = fits == 1 and not lateOnly and Sure(found, now, size)
-    if fits >= 2 or UnlearnedCastAt(plate, now, found and found.at or -math.huge, sure, school) then
+    -- a ground tick on its lattice, after one seen, near the learned sizes, is the ground spell's: shaman5 fight 5's
+    -- pet cast 57984 (unlearned until after the fight) spoiled 13 Earthquake ticks on the target
+    local fp = found and Fingerprints.Get(found.base)
+    local lattice = fits == 1 and found.latticeAt == now and fp.pattern == "ground"
+        and NearSizes(found, GroundSize(fp, size, crit))
+    if fits >= 2 or not lattice and UnlearnedCastAt(plate, now, found and found.at or -math.huge, sure, school) then
         return "ambiguous"
     end
     if fits == 1 then return "learned", found, lateOnly end

@@ -723,6 +723,35 @@ do -- Phase 3: records and Claim
         return Last(first, 32) == EQ and Last(later, 32) == EQ and Last(shared, 32) == EQ
             and Last(shared, 99) ~= EQ
     end)
+    -- shaman5 fight 5: the pet's cast 57984, unlearned until after the fight, spoiled 13 Earthquake ticks on the target
+    -- (8.0-9.0K normals, 26.7-27.8K crits, on the lattice). Learned here: first tick 1.0 s, period 1.0, 6 ticks. An
+    -- unlearned cast on the plate spoils the first tick still, not a tick on the lattice after one seen.
+    Scenario("ground: an unlearned cast spoils no lattice tick after one seen, only a first tick", function()
+        local function Last(hits, castAt)
+            local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+            local S = T.State()
+            for at = 1, 3 do
+                ns.Fingerprints.Add(462620, { school = 8, delay = 1, castAt = at, hops = 1, size = 6400, tick = 0 })
+                ns.Fingerprints.Add(462620, { school = 8, delay = 6, castAt = at, hops = 1, size = 6600, tick = 5 })
+            end
+            local drawn
+            ns.Display.Plate = function(_, texture) drawn = texture end
+            S.now, S.target = 30, nil
+            ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 462620)
+            for _, hit in ipairs(hits) do
+                if hit[1] > castAt and S.now <= castAt then
+                    S.now, S.target = castAt, "nameplate2"
+                    ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c99", 589)
+                end
+                S.now, drawn = hit[1], nil
+                ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 8)
+            end
+            return drawn
+        end
+        local EQ = "tex:462620"
+        local ticks = { { 31, 6500, "nameplate2" }, { 32, 6500, "nameplate2" } }
+        return Last(ticks, 31.5) == EQ and Last(ticks, 99) == EQ and Last({ ticks[1] }, 30.5) ~= EQ
+    end)
 
     -- Run 134732Z: Mind Blast cast at nameplate4, the target moved on to the next mob before the cast
     -- finished, the killing hit landed on nameplate4 -> '?'. The cast's plate is the target at its start.
