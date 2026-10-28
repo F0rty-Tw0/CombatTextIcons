@@ -2,7 +2,7 @@
 --
 -- Two entry points. Read learns a proc from exact size-group sums of the '?' hits, or from a tick
 -- stream's fight total (a rhythm proc), against the meter rows after a fight; Name draws a learned
--- proc at hit time. The store is per character (charDB.procs), checked on load and never trusted.
+-- proc at hit time. The store is per spec (charDB.procs), checked on load and never trusted.
 -- No spell or class tables: every proc is learned.
 
 local _, ns = ...

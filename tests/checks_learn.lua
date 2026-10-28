@@ -7,7 +7,7 @@ return function(T)
 
     -- Writes a learned entry straight into the saved table (Learn.Get serves it like a table row).
     local function SeedLearned(id, school, period, kind)
-        CombatTextIconsCharDB.learned[id] = { school = school, period = period, kind = kind, misses = 0 }
+        T.Store().learned[id] = { school = school, period = period, kind = kind, misses = 0 }
     end
 
     -- Forever gate and harness stubs ------------------------------------------------------
@@ -46,7 +46,7 @@ return function(T)
             and C_Spell.IsAutoRepeatSpell(6) == true and select(4, GetBuildInfo()) == 120105)
         CombatTextIconsCharDB = { learned = { [1] = { school = 32, period = 3, kind = "dot" } } }
         T.Boot()
-        Check("harness: Boot resets CombatTextIconsCharDB", next(CombatTextIconsCharDB.learned) == nil)
+        Check("harness: Boot resets CombatTextIconsCharDB", next(T.Store().learned) == nil)
     end
 
     -- Learn store ----------------------------------------------------------------------------
@@ -63,7 +63,7 @@ return function(T)
             toc:find("## SavedVariablesPerCharacter: CombatTextIconsCharDB", 1, true) ~= nil)
 
         local ns = T.BootSpells()
-        local Learn, db = ns.Learn, CombatTextIconsCharDB
+        local Learn, db = ns.Learn, T.Store()
         Check("learn: Init creates learned and votes and no pending", type(db.learned) == "table" and type(db.votes) == "table" and db.pending == nil)
         SeedLearned(589, 32, 3.0, "dot")
         local entry = Learn.Get(589)
@@ -113,30 +113,28 @@ return function(T)
                     [107] = { school = 32, period = 3, kind = "channel", misses = 5 },
                     x = { school = 32, period = 3, kind = "dot" },
                 },
-                pending = { [200] = { school = 32, period = 3, kind = "hot" }, [201] = { school = 32, period = 99, kind = "hot" } },
             }
         end)
         Learn = ns.Learn
-        Learn.Init()
+        Learn.Init(T.Store())
         local kept = {}
         for _, row in ipairs(Learn.List()) do kept[#kept + 1] = row.spellID end
         Check("saved data: invalid learned entries dropped", table.concat(kept, ",") == "100,107")
-        Check("saved data: the old pending table is deleted", CombatTextIconsCharDB.pending == nil)
         Learn.Missed(107)
         Check("saved data: misses restart at 0 on load", Learn.Get(107) ~= nil)
         ns = T.Boot(function() CombatTextIconsCharDB = { learned = 5 } end)
-        ns.Learn.Init()
+        ns.Learn.Init(T.Store())
         Check("saved data: a non-table learned is replaced",
-            type(CombatTextIconsCharDB.learned) == "table" and type(CombatTextIconsCharDB.votes) == "table")
+            type(T.Store().learned) == "table" and type(T.Store().votes) == "table")
         ns = T.Boot(function() CombatTextIconsCharDB = "junk" end)
-        ns.Learn.Init()
-        Check("saved data: a non-table db is replaced", type(CombatTextIconsCharDB) == "table")
+        ns.Learn.Init(T.Store())
+        Check("saved data: a non-table db is replaced", type(T.Store()) == "table")
     end
 
     -- Learn.Drop / Unpaired / Paired (spec 3.3) -----------------------------------------------
     do
         local ns = T.BootSpells()
-        local Learn, db = ns.Learn, CombatTextIconsCharDB
+        local Learn, db = ns.Learn, T.Store()
         SeedLearned(589, 32, 3.0, "dot")
         db.votes[589] = { casts = 2, sigs = { { kind = "dot", school = 32, period = 3, votes = 1, expected = 0.1 } } }
         Learn.Drop(589)
@@ -170,7 +168,7 @@ return function(T)
             } }
         end)
         Learn = ns.Learn
-        Learn.Init()
+        Learn.Init(T.Store())
         for id = 100, 103 do Learn.Unpaired(id) end
         Check("saved data: unpaired = 1 survives the load (one more strike drops it)", Learn.Get(100) == nil)
         Check("saved data: unpaired -3, 'x' and 1.5 restart at 0 (one strike keeps them)",
@@ -202,10 +200,10 @@ return function(T)
         Check("slash: /cti learned does not toggle the addon", db.enabled == true and S.resets == resets)
 
         S.prints = {}
-        CombatTextIconsCharDB.votes[701] = { casts = 1, sigs = {} }
+        T.Store().votes[701] = { casts = 1, sigs = {} }
         SlashCmdList.COMBATTEXTICONS("FORGET")
         Check("slash: /cti forget clears learned and votes", Learn.Get(589) == nil and Learn.Get(700) == nil
-            and next(CombatTextIconsCharDB.learned) == nil and next(CombatTextIconsCharDB.votes) == nil)
+            and next(T.Store().learned) == nil and next(T.Store().votes) == nil)
         Check("slash: /cti forget confirms and does not toggle the addon",
             #S.prints == 1 and S.prints[1]:find("forgot", 1, true) ~= nil and db.enabled == true and S.resets == resets)
 
@@ -321,7 +319,7 @@ return function(T)
             ns.Core.UNIT_COMBAT("nameplate1", event, "", nil, 32)
         end
         rig.Seed = SeedLearned
-        function rig.Learned(id) return CombatTextIconsCharDB.learned[id] end
+        function rig.Learned(id) return T.Store().learned[id] end
         function rig.Drawn(id)
             local count = 0
             for _, texture in ipairs(rig.icons) do if texture == "tex:" .. id then count = count + 1 end end
@@ -408,12 +406,11 @@ return function(T)
         ns = T.Boot(function()
             CombatTextIconsCharDB = {
                 learned = { [589] = { school = 32, period = 3.1, kind = "dot", misses = 1 } }, -- old probe learner: a real period
-                pending = { [200] = { school = 32, period = 3, kind = "hot" } },
             }
         end)
-        local db = CombatTextIconsCharDB
-        Check("saved: pending is deleted on load, valid learned entries load unchanged",
-            db.pending == nil and type(db.votes) == "table" and ns.Learn.Get(589) ~= nil and ns.Learn.Get(589).period == 3.1)
+        local db = T.Store()
+        Check("saved: valid learned entries load unchanged",
+            type(db.votes) == "table" and ns.Learn.Get(589) ~= nil and ns.Learn.Get(589).period == 3.1)
         T.State().target = "nameplate1"
         ns.Tracker.OnCast("player", 589, 100)
         Check("saved: an old learned DoT still serves its tick (cast 100, tick 103.1)",
@@ -682,7 +679,7 @@ return function(T)
         for _, aliased in ipairs({ false, true }) do
             rig = Rig()
             if aliased then rig.ns.Fingerprints.SetAlias(446285, 205180) end
-            CombatTextIconsCharDB.votes[205180] = { casts = 2, sigs = { { kind = "dot", school = 32, period = 1.69, votes = 2, expected = 0.2 } } }
+            T.Store().votes[205180] = { casts = 2, sigs = { { kind = "dot", school = 32, period = 1.69, votes = 2, expected = 0.2 } } }
             rig.Cast(0, 205180)
             for k = 1, 5 do rig.Hit(k * 1.69, 1000, 32) end
             if aliased then
@@ -1013,7 +1010,7 @@ return function(T)
         for _, hit in ipairs(hits) do rig.Hit(hit[1], hit[2], hit[3]) end
         Check("spec 11: Wither ticks still shown 7 of 8 (" .. rig.Drawn(445474) .. ")", rig.Drawn(445474) == 7)
         Check("spec 11: the school-106 item series teaches nothing (learned empty)",
-            next(CombatTextIconsCharDB.learned) == nil)
+            next(T.Store().learned) == nil)
     end
 
     -- spec 12: retail Agony ticking, then an unknown harmful cast on the same plate
@@ -1032,7 +1029,7 @@ return function(T)
         local rig = Run(true)
         Check("spec 12: Agony ticks are unchanged by an unknown cast on the plate (" .. rig.Drawn(980) .. " vs " .. base.Drawn(980) .. ")",
             rig.Drawn(980) == base.Drawn(980) and rig.Drawn(980) == 10)
-        Check("spec 12: nothing learned from Agony's ticks", next(CombatTextIconsCharDB.learned) == nil)
+        Check("spec 12: nothing learned from Agony's ticks", next(T.Store().learned) == nil)
         Check("spec 12: Agony's ticks are not fed; the unknown cast is counted but gets no sig",
             #rig.Fed() == 0 and rig.Votes(9013).casts == 1 and #rig.Votes(9013).sigs == 0)
     end
@@ -1047,8 +1044,8 @@ return function(T)
         end
         local function Log(ns, key) return ns.Streams.CastLog(key) end
         local function Learned(ns, S)
-            CombatTextIconsCharDB.learned[RENEW] = { school = HOLY, period = 3, kind = "hot", misses = 0 }
-            ns.Learn.Init()
+            T.Store().learned[RENEW] = { school = HOLY, period = 3, kind = "hot", misses = 0 }
+            ns.Learn.Init(T.Store())
         end
 
         do -- heal unit
@@ -1190,8 +1187,8 @@ return function(T)
             return api
         end
         local function Preload(api)
-            CombatTextIconsCharDB.learned[RENEW] = { school = HOLY, period = 3, kind = "hot", misses = 0 }
-            api.ns.Learn.Init()
+            T.Store().learned[RENEW] = { school = HOLY, period = 3, kind = "hot", misses = 0 }
+            api.ns.Learn.Init(T.Store())
         end
 
         do -- Renew on party2: logged there only; a learned Renew shows every tick of the next cast

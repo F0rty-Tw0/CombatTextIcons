@@ -1,4 +1,4 @@
--- Unit checks for Procs.lua (castless procs): the per-character store, the post-fight learner
+-- Unit checks for Procs.lua (castless procs): the per-spec store, the post-fight learner
 -- Procs.Read and the hit-time lookup Procs.Name. Called by tests/checks.lua with the same T table
 -- (see its header).
 
@@ -18,9 +18,9 @@ return function(T)
     -- Load plus Init on the booted char DB; returns ns and the live store (the saved table).
     local function Rig(setup)
         local ns = Load(setup)
-        ns.Procs.Init(CombatTextIconsCharDB)
+        ns.Procs.Init(T.Store())
 
-        return ns, CombatTextIconsCharDB.procs
+        return ns, T.Store().procs
     end
     local function Entry(school, lo, hi, streak, learned)
         return { school = school, lo = lo, hi = hi, streak = streak or 0, learned = learned == true, unpaired = 0, seen = 0 }
@@ -60,8 +60,8 @@ return function(T)
             } }
             CombatTextIconsCharDB.procs[secretKey] = { school = 106, lo = 339, hi = 364 }
         end)
-        local ok = pcall(ns.Procs.Init, CombatTextIconsCharDB)
-        local procs = CombatTextIconsCharDB.procs
+        local ok = pcall(ns.Procs.Init, T.Store())
+        local procs = T.Store().procs
         Check("procs load: junk entries (string, string key, lo > hi, lo 0, lo < 0, string school or lo, secret hi, secret entry, secret key) raise no error", ok)
         local ids = {}
         for id in pairs(procs) do ids[#ids + 1] = type(id) == "number" and id or -1 end
@@ -79,9 +79,9 @@ return function(T)
             and procs[23] and procs[23].streak == 0 and procs[23].unpaired == 0 and procs[23].seen == 0 and procs[23].learned == false)
 
         ns = Load(function() CombatTextIconsCharDB = { procs = "junk" } end)
-        ns.Procs.Init(CombatTextIconsCharDB)
+        ns.Procs.Init(T.Store())
         Check("procs load: a procs value that is not a table is replaced by an empty store",
-            type(CombatTextIconsCharDB.procs) == "table" and next(CombatTextIconsCharDB.procs) == nil)
+            type(T.Store().procs) == "table" and next(T.Store().procs) == nil)
     end
 
     -- Get, Drop, Unpaired, Paired, Forget, List ------------------------------------------------
@@ -130,7 +130,7 @@ return function(T)
 
         Procs.Forget()
         Check("procs forget: empties the store in place (the saved table stays the same table)",
-            next(procs) == nil and CombatTextIconsCharDB.procs == procs)
+            next(procs) == nil and T.Store().procs == procs)
     end
 
     -- Read helpers ---------------------------------------------------------------------------
@@ -425,8 +425,8 @@ return function(T)
     -- Excluded rows: a spell Learn or Fingerprints knows has one owner ---------------------------------
     do
         local function LearnOwns(_, ns)
-            CombatTextIconsCharDB.learned[7] = { school = 32, period = 3, kind = "dot", misses = 0 }
-            ns.Learn.Init()
+            T.Store().learned[7] = { school = 32, period = 3, kind = "dot", misses = 0 }
+            ns.Learn.Init(T.Store())
         end
         local function FingerprintOwns(_, ns)
             for castAt = 1, 3 do ns.Fingerprints.Add(7, { school = 106, delay = 0.25, castAt = castAt, hops = 1 }) end
@@ -458,8 +458,8 @@ return function(T)
         local under = { id = 7, total = 5000, tally = 3000, verdict = "under" } -- complement window [2000, 2000]
         local function LearnToo(procs, ns)
             procs[7] = Entry(106, 330, 360, 3, true)
-            CombatTextIconsCharDB.learned[7] = { school = 32, period = 3, kind = "dot", misses = 0 }
-            ns.Learn.Init()
+            T.Store().learned[7] = { school = 32, period = 3, kind = "dot", misses = 0 }
+            ns.Learn.Init(T.Store())
         end
         local function PrintToo(procs, ns)
             procs[7] = Entry(106, 330, 360, 3, true)
@@ -664,8 +664,8 @@ return function(T)
                 [6] = { school = 32, lo = 100, hi = 120, learned = true },
             } }
         end)
-        ns.Procs.Init(CombatTextIconsCharDB)
-        local procs = CombatTextIconsCharDB.procs
+        ns.Procs.Init(T.Store())
+        local procs = T.Store().procs
         Check("procs rhythm load: a period 1.5 is kept; period 0, -1, 'x' and a secret drop the whole entry; no period is unchanged",
             procs[1] and procs[1].period == 1.5 and procs[1].learned == true and procs[2] == nil and procs[3] == nil
             and procs[4] == nil and procs[5] == nil and procs[6] and procs[6].period == nil and procs[6].learned == true)

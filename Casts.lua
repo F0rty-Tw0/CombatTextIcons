@@ -25,7 +25,7 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 -- has its own row and none for its base 73899, run 20261025T175419Z; Wither 445468 over
 -- Corruption 172, run 20261025T180045Z). Void Blast never shows a row of its own, so it stays 8092.
 local remembered = {}   -- castID -> the base it was seen overriding; never saved
-local ownRows = {}      -- spellID -> true: the meter showed a row of this ID; CombatTextIconsCharDB.ownRows
+local ownRows = {}      -- spellID -> true: the meter showed a row of this ID; the spec store's ownRows
 
 function Casts.Base(castID)
     if ownRows[castID] then return castID end

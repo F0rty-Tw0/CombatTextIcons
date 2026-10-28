@@ -46,7 +46,7 @@ return function(T)
             S.now = t
             if ns.Core.NAME_PLATE_UNIT_ADDED then ns.Core.NAME_PLATE_UNIT_ADDED(unit) end
         end
-        function rig.Learned() return CombatTextIconsCharDB.learned[SWP] ~= nil end
+        function rig.Learned() return T.Store().learned[SWP] ~= nil end
         return rig
     end
 

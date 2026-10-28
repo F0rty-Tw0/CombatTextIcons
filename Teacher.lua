@@ -66,11 +66,14 @@ Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {..
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; a read saves it with its map (SaveArea)
 Teacher.OnRead = nil -- function(last), called once per fight when its outcome is final; Progress sets it
 
--- the character table; its `area` = { state, map } is the last read's verdict and where it was made, its `pace` the
+-- the spec's store; its `area` = { state, map } is the last read's verdict and where it was made, its `pace` the
 -- best meter total per second of a clear read (the live crowd check's yardstick)
 local store = nil
 local lastSession = nil -- ID of the session processed last
 local lastRows = {}     -- that session's rows at its last read, by spell ID: { total, overkill }
+local epoch = 0         -- counts Init calls: a read queued under an older one is dropped (a spec swap)
+local jobs = {}         -- judgings waiting their turn, oldest first (sliced reads, below)
+local judging = nil     -- the coroutine of the judging under way
 
 -- The map the player stands on as a plain positive integer, or nil.
 local function CurrentMap()
@@ -79,9 +82,12 @@ local function CurrentMap()
 end
 
 -- Saved data is checked, never trusted: adopts charDB.area when it is { state = "clear" | "crowded", map = a map ID },
--- else drops it, and charDB.pace when it is a positive finite number. The state itself waits for Teacher.EnterWorld.
+-- else drops it, and charDB.pace when it is a positive finite number. The state itself waits for Teacher.EnterWorld
+-- (a spec swap keeps it: the place did not change). charDB is a spec's store (Core's UseSpec): a swap drops the
+-- judgings under way or waiting and the reads not fired yet, as a /reload does, so the spec before teaches nothing
+-- into this one. The meter's last session (Growth) stays: it is the meter's, not the spec's.
 function Teacher.Init(charDB)
-    store = charDB
+    store, epoch, jobs, judging, Teacher.last = charDB, epoch + 1, {}, nil, nil
     local saved = charDB.area
     local valid = type(saved) == "table" and (saved.state == "clear" or saved.state == "crowded")
         and IsNumber(saved.map) and saved.map > 0 and saved.map % 1 == 0
@@ -835,11 +841,9 @@ end
 -- fights' reads fired. A judging that has yielded waits while a fight is open (Teacher.fight) and goes on when it
 -- ends (Teacher.Finish), so what is learned never changes mid-fight. The meter is still read when the read fires: a
 -- read that meets the next fight still carries into it, and one judged late keeps its own session's rows. A /reload
--- drops a judging under way: what its finished passes taught stays, the rest of that fight teaches nothing and it
--- has no outcome.
+-- or a spec swap (Teacher.Init) drops a judging under way: what its finished passes taught stays, the rest of that
+-- fight teaches nothing and it has no outcome.
 local SLICE_MS = 10
-local jobs = {}        -- judgings waiting their turn, oldest first
-local judging = nil    -- the coroutine of the judging under way
 local sliceEnd = nil   -- the debugprofilestop() time past which the running slice yields
 local resuming = false -- a slice waits on C_Timer.After(0)
 
@@ -1047,7 +1051,8 @@ function Teacher.Finish(now)
         return
     end
 
-    if not pcall(C_Timer.After, READ_DELAY, function() Read(fight) end) then
+    local queued = epoch
+    if not pcall(C_Timer.After, READ_DELAY, function() if queued == epoch then Read(fight) end end) then
         Judge(function() Done({ skip = "read failed" }) end)
     end
 end

@@ -60,8 +60,15 @@ local function InstallStubs()
         interface = 120105, helpful = {}, autoRepeat = {}, spellNames = {}, guids = {}, threat = {},
         sessions = {}, timers = {}, sourceCalls = {}, frames = {}, map = 1, -- map: the map the player stands on, constant unless a check moves it
         baseSpells = { [450983] = 8092 }, -- override cast -> its base spell (Void Blast -> Mind Blast)
+        spec = 262, -- the player's spec ID; nil: the client does not know it yet
     }
     issecretvalue = IsSecret
+    -- The spec is the class's first: index 1 answers S.spec. GetSpecialization's deprecated globals are unset.
+    C_SpecializationInfo = {
+        GetSpecialization = function() return S.spec and 1 end,
+        GetSpecializationInfo = function(index) if index == 1 then return S.spec end end,
+    }
+    GetSpecialization, GetSpecializationInfo = nil, nil
     bit = { band = function(a, b) return a & b end }
     GetTime = function() return S.now end
     GetFramerate = function() return 60 end
@@ -221,9 +228,15 @@ local fixtureSpells = dofile(FIXTURE_SPELLS)
 -- if given, adjusts the stub state before the addon loads. `withSpells` loads a
 -- fresh copy of the fixture table into ns.Spells right after Spells.lua, before
 -- Learn.lua indexes it and Tracker.lua keeps a reference to it.
+-- A char DB `setup` seeds without `specs` is the store of the spec S.spec names (as a save holds it), unless
+-- S.oldSave keeps it whole: a save from before the per-spec stores.
 local function Boot(setup, withSpells)
     InstallStubs()
     if setup then setup(S) end
+    local seeded = CombatTextIconsCharDB
+    if type(seeded) == "table" and seeded.specs == nil and not S.oldSave then
+        CombatTextIconsCharDB = { specs = { [S.spec or 0] = seeded } }
+    end
     local ns = {}
     for _, file in ipairs(TocFiles()) do
         local chunk = assert(loadfile(ROOT .. "/" .. file))
@@ -235,6 +248,9 @@ local function Boot(setup, withSpells)
     ns.Core.PLAYER_ENTERING_WORLD()
     return ns
 end
+
+-- The store of the spec S.spec names (0: unknown), the table the learning modules hold after login.
+local function Store() return CombatTextIconsCharDB.specs[S.spec or 0] end
 
 local UNKNOWN_ICON = Boot().Meter.UNKNOWN_ICON -- the question mark
 local ROUTE_UNKNOWN, ROUTE_CROWDED = "  -> unknown-solo", "  -> HIDDEN (crowded)" -- Core's debug route lines
@@ -280,7 +296,7 @@ end
 -- makes. `line` is the 1-based index in the log (= file line - 11 in a SavedVariables file);
 -- `order` = line. Only damage reads are replayed: a read's heal and taken counts (priest logs)
 -- and HEAL lines with their routes are skipped. STAMP and RESOLVE lines (an older log's gate) and
--- TEACH lines are skipped.
+-- TEACH and SPEC (a spec swap) lines are skipped.
 local function ParseLog(name, log)
     local events, lastHit, pendingRead = {}, nil, nil -- lastHit: the HIT a route line belongs to; false after a HEAL
     for index, text in ipairs(log) do
@@ -297,6 +313,7 @@ local function ParseLog(name, log)
         local hitNPC = rest:match("^HIT .* npc=(%S+)")
         local hitGroup = rest:match("^HIT .* group=([^,%s]+),")
         local skipped = rest:match("^STAMP %d+$") or rest:match("^RESOLVE ") or rest:match("^START ")
+            or rest:match("^SPEC ")
         if route then
             assert(lastHit ~= nil, "route line with no HIT " .. name .. ":" .. index)
             if lastHit then lastHit.route = route end          -- report only
@@ -550,7 +567,7 @@ end
 -- Tracker.OnLearned call as { id, t, phase }; info.events: the replayed events; info.haste: the stub haste).
 -- Single mode: no meter is read, so S.pending stays empty. Recorded meter events draw nothing. The fight
 -- opens with PLAYER_REGEN_DISABLED and closes with PLAYER_REGEN_ENABLED (the Teacher's read waits in S.timers).
--- opts.group: the player is in a group. opts.charDB: the carried CombatTextIconsCharDB.
+-- opts.group: the player is in a group. opts.charDB: the carried spec store (Boot seeds it as S.spec's).
 -- opts.noise = seed: stranger hits (opts.noSameFrame: none at each own read); opts.crowd: three at each
 -- recorded type-0 stamp (see AddNoise); opts.minPhase: the first phase that gets strangers.
 -- opts.area ("clear" | "crowded", default "clear"): the crowd check's state when the fight starts; every
@@ -571,7 +588,7 @@ local function Replay(name, opts)
     end)
     if opts.setup then opts.setup(ns, S) end -- tests/score.lua: class stubs and its own tally of draws
     -- no opts.area: keep the area the addon restored when the boot char DB holds a saved one, else "clear"
-    if opts.area or type(CombatTextIconsCharDB.area) ~= "table" then ns.Teacher.area = opts.area or "clear" end
+    if opts.area or type(Store().area) ~= "table" then ns.Teacher.area = opts.area or "clear" end
     if opts.noSeen then
         -- the test session holds only the labeled hits, not the whole meter, so the crowd check cannot judge it
         ns.Teacher.Seen = function() end
@@ -681,16 +698,16 @@ local function Replay(name, opts)
     end
     info.resets = S.resets
     allResets = allResets + S.resets
-    info.casts = DeepCopy(CombatTextIconsCharDB.casts)
-    info.castAliases = DeepCopy(CombatTextIconsCharDB.castAliases)
-    info.learned = Copy(CombatTextIconsCharDB.learned)
+    info.casts = DeepCopy(Store().casts)
+    info.castAliases = DeepCopy(Store().castAliases)
+    info.learned = Copy(Store().learned)
     info.votes = {}
-    for id, votes in pairs(CombatTextIconsCharDB.votes) do
+    for id, votes in pairs(Store().votes) do
         local sigs = {}
         for key, sig in pairs(votes.sigs or {}) do sigs[key] = Copy(sig) end
         info.votes[id] = { casts = votes.casts, sigs = sigs }
     end
-    info.charDB = DeepCopy(CombatTextIconsCharDB)
+    info.charDB = DeepCopy(Store())
     return hits, fixtureLabels, info
 end
 
@@ -1070,7 +1087,7 @@ local function RunChecks()
     T = {
         Boot = Boot, BootSpells = function(setup) return Boot(setup, true) end, Check = Check, Secret = Secret, Generic = Generic, Plate = Plate, TocFiles = TocFiles,
         Note = function(text) notes[#notes + 1] = text end,
-        State = function() return S end, Root = ROOT,
+        State = function() return S end, Store = Store, Root = ROOT,
         RunFile = function(file) RunCheckFile(file, T) end,
     }
     RunCheckFile("checks.lua", T)
@@ -1740,7 +1757,7 @@ for _, name in ipairs(DIRECT_NAMES) do
     local _, _, one = Replay(name, { noSeen = true, seen = labeledTotal })
     S.sessions = { LabeledSession(lines, one) }
     for _, timer in ipairs(S.timers) do timer.fn() end
-    one.casts, one.castAliases = DeepCopy(CombatTextIconsCharDB.casts), DeepCopy(CombatTextIconsCharDB.castAliases)
+    one.casts, one.castAliases = DeepCopy(Store().casts), DeepCopy(Store().castAliases)
     local hits, _, two = Replay(name, { charDB = { casts = one.casts, castAliases = one.castAliases or {} } })
     local score = ScoreDirect(lines, hits)
     if priest then

@@ -3,7 +3,7 @@
 -- drew its icon with (for a cast's direct hit, the cast's base spell: Void Blast is kept under
 -- Mind Blast, as the meter keeps it), or "?<school>" / "?" for hits no spell could be named
 -- for. Fights end up in
--- CombatTextIconsCharDB.fights, newest first by position (never sorted by time: the
+-- the spec's store (CombatTextIconsCharDB.specs[spec ID].fights), newest first by position (never sorted by time: the
 -- clock restarts with the client), at most 5. A fight with no drawn hit is not saved, nor is one
 -- the meter started no session for (the Teacher drops it after its read).
 -- After a post-fight meter read the Teacher hands its verdicts over; they attach to the
@@ -24,7 +24,7 @@ local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
-local fights = {}  -- the saved fights, newest first; the table inside CombatTextIconsCharDB after Init
+local fights = {}  -- the saved fights, newest first; the table inside the spec's store after Init
 local current = nil -- the open fight: { at, date, group, damage = {}, heal = {} }
 
 local function ValidKey(key)
@@ -84,7 +84,7 @@ end
 
 function Ledger.Init(charDB)
     if type(charDB.fights) ~= "table" then charDB.fights = {} end
-    fights = charDB.fights
+    fights, current = charDB.fights, nil
     local clean = {}
     for _, fight in ipairs(fights) do
         local kept = #clean < MAX_FIGHTS and CleanFight(fight)

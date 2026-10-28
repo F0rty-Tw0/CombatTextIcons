@@ -550,7 +550,7 @@ return function(T)
 
         local known = Fresh(nil, true)
         local KL = known.ns.Learn
-        CombatTextIconsCharDB.learned[9801] = { school = 32, period = 3.0, kind = "dot", misses = 0 } -- learned
+        T.Store().learned[9801] = { school = 32, period = 3.0, kind = "dot", misses = 0 } -- learned
         known.Cast("k", 8, 445474); known.Cast("k", 8, 980); known.Cast("k", 8, 9801); known.Cast("k", 8, 9802)
         local ok = pcall(KL.OnCast, Secret(5))
         Check("can vote: table keys, tick icons (445474) and learned spells never get an entry; unknown ones do; secret ids are ignored",
@@ -693,7 +693,7 @@ return function(T)
         local Learn = rig.ns.Learn
         Check("init: invalid vote entries dropped (casts < 0, junk, non-table sigs, non-number key); a bad sig is dropped alone",
             Learn.Votes(100) and #Learn.Votes(100).sigs == 1 and Learn.Votes(101) == nil and Learn.Votes(103) == nil
-            and Learn.Votes(104) == nil and CombatTextIconsCharDB.votes.x == nil and #Learn.Votes(102).sigs == 1)
+            and Learn.Votes(104) == nil and T.Store().votes.x == nil and #Learn.Votes(102).sigs == 1)
         local periods = {}
         for _, sig in ipairs(Learn.Votes(106).sigs) do periods[#periods + 1] = sig.period end
         table.sort(periods)
@@ -711,19 +711,19 @@ return function(T)
         rig = Fresh()
         Learn = rig.ns.Learn
         rig.Trial(32, 9601, 1)
-        local votesRef = CombatTextIconsCharDB.votes
+        local votesRef = T.Store().votes
         Learn.Forget()
-        Check("forget: clears votes in place", Learn.Votes(9601) == nil and next(CombatTextIconsCharDB.votes) == nil
-            and CombatTextIconsCharDB.votes == votesRef)
-        CombatTextIconsCharDB.learned[9602] = { school = 32, period = 3.0, kind = "dot", misses = 0 }
-        CombatTextIconsCharDB.votes[9602] = { casts = 1, sigs = {} }
+        Check("forget: clears votes in place", Learn.Votes(9601) == nil and next(T.Store().votes) == nil
+            and T.Store().votes == votesRef)
+        T.Store().learned[9602] = { school = 32, period = 3.0, kind = "dot", misses = 0 }
+        T.Store().votes[9602] = { casts = 1, sigs = {} }
         Learn.Missed(9602)
         Check("missed: one miss keeps learned and votes", Learn.Get(9602) ~= nil and Learn.Votes(9602) ~= nil)
         Learn.Missed(9602)
         Check("missed: the second miss clears learned and votes", Learn.Get(9602) == nil and Learn.Votes(9602) == nil)
 
-        CombatTextIconsCharDB.learned[9701] = { school = 32, period = 2.2, kind = "dot", misses = 0 }
-        local saved = CombatTextIconsCharDB.learned[9701]
+        T.Store().learned[9701] = { school = 32, period = 2.2, kind = "dot", misses = 0 }
+        local saved = T.Store().learned[9701]
         Learn.Nudge(9701, 2.4)
         Check("nudge: base <- 0.9 * 2.2 + 0.1 * 2.4 = 2.22", Near(saved.period, 2.22, 1e-9))
         Learn.Nudge(9701, 5.0); Learn.Nudge(9701, 3.0); Learn.Nudge(9999, 2.4)
@@ -793,7 +793,7 @@ return function(T)
                     else ns.Streams.Feed(KEY, e.school, e.amount, e.flag, "enemy", e.t) end
                 end
                 local count = 0
-                for _ in pairs(CombatTextIconsCharDB.learned) do count = count + 1 end
+                for _ in pairs(T.Store().learned) do count = count + 1 end
                 out.perTrial[trial] = count
             end
             return out

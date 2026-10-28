@@ -24,7 +24,7 @@ return function(T)
         ns.Display.Notice = function(texture, text, i)
             rig.notices[#rig.notices + 1] = i .. " " .. text .. " " .. tostring(texture)
         end
-        local char, castAt = CombatTextIconsCharDB, 0
+        local char, castAt = T.Store(), 0
         -- `n` more fingerprint samples of `spellID`, one per new cast (school 4): 3 casts learn it.
         function rig.Casts(spellID, n)
             for _ = 1, n do
@@ -165,7 +165,7 @@ return function(T)
         Check("progress kinds: proc streak 2 -> learned is learned!", rig.Fight(function() rig.Proc(G, 3, true) end)
             == "1 learned! " .. rig.Tex(G))
         Check("progress kinds: a learned proc that is gone is dropped",
-            rig.Fight(function() CombatTextIconsCharDB.procs[G] = nil end) == "1 dropped " .. rig.Tex(G))
+            rig.Fight(function() T.Store().procs[G] = nil end) == "1 dropped " .. rig.Tex(G))
         Check("progress kinds: a rhythm proc candidate counts toward Procs.RHYTHM_STREAK (learning 1/2)",
             rig.Fight(function() rig.Proc(K, 1, false, 1.5) end) == "1 learning 1/2 " .. rig.Tex(K))
         rig.Proc(H, 2)

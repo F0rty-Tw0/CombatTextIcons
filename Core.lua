@@ -513,18 +513,53 @@ function Core.ADDON_LOADED(name)
     end
 end
 
+-- The player's spec ID, or nil while the client does not know it (early at login).
+local function SpecID()
+    local api = C_SpecializationInfo or {}
+    local getIndex = api.GetSpecialization or GetSpecialization
+    local getInfo = api.GetSpecializationInfo or GetSpecializationInfo
+    if not (getIndex and getInfo) then return nil end
+    local ok, index = pcall(getIndex)
+    if not (ok and Plain(index) and type(index) == "number" and index > 0) then return nil end
+    local okInfo, specID = pcall(getInfo, index)
+    if okInfo and Plain(specID) and type(specID) == "number" and specID > 0 then return specID end
+end
+
+local spec = nil -- the spec whose store the modules use; 0 while the spec is unknown
+
+-- Every learning module takes the store of the player's spec, CombatTextIconsCharDB.specs[spec ID]: a resto
+-- shaman never draws with what elemental learned. Saved data is checked, never trusted. Until the client knows the
+-- spec the store is specs[0]; the first known spec takes it over when it has no store yet, else it is dropped (it
+-- holds at most what a fight before then taught). A swap drops the Teacher's judging under way (Teacher.Init).
+local function UseSpec()
+    local id = SpecID() or spec or 0
+    if id == spec then return end
+    local specs = CombatTextIconsCharDB.specs
+    if spec == 0 then
+        if specs[id] == nil then specs[id] = specs[0] end
+        specs[0] = nil
+    end
+    if type(specs[id]) ~= "table" then specs[id] = {} end
+    if ns.Debug then ns.Debug("SPEC %s -> %d", ShowValue(spec), id) end
+    spec = id
+    local store = specs[id]
+    Learn.Init(store)
+    Fingerprints.Init(store)
+    Casts.InitOwnRows(store)
+    Procs.Init(store)
+    Ledger.Init(store)
+    Teacher.Init(store)
+    Tracker.Reset()
+    Streams.Reset()
+end
+
 function Core.PLAYER_LOGIN()
     local fresh = type(CombatTextIconsCharDB) ~= "table" -- this character's first login with the addon
+    -- a store from before the per-spec one holds only learning: it is dropped whole, once
+    if fresh or type(CombatTextIconsCharDB.specs) ~= "table" then CombatTextIconsCharDB = { specs = {} } end
     Meter.Init()
-    Learn.Init()
-    -- Learn.Init made the character table; saved data is checked, never trusted.
-    local charDB = CombatTextIconsCharDB
-    charDB.chainSchools = nil -- the chain route's saved schools are gone
-    Fingerprints.Init(charDB)
-    Casts.InitOwnRows(charDB)
-    Procs.Init(charDB)
-    Ledger.Init(charDB)
-    Teacher.Init(charDB)
+    spec = nil
+    UseSpec()
     if db.enabled then Core.SuppressBlizzard() end
     if fresh and db.enabled then
         print(PREFIX .. "'?' icons are hits it hasn't learned yet. Fight a few mobs solo and they turn into your spell icons."
@@ -533,9 +568,16 @@ function Core.PLAYER_LOGIN()
     MinimapButton.Init() -- last: a UI error here must not skip the combat setup above
 end
 
--- Login, reload and every loading screen: the crowd verdict comes back on the map it was made on.
+-- Login, reload and every loading screen: the crowd verdict comes back on the map it was made on. A spec the
+-- client did not know at login is known by now.
 function Core.PLAYER_ENTERING_WORLD()
+    UseSpec()
     Teacher.EnterWorld()
+end
+
+-- Fires for talent changes too; UseSpec swaps only when the spec ID changed. Before login nothing is loaded yet.
+function Core.PLAYER_SPECIALIZATION_CHANGED()
+    if spec then UseSpec() end
 end
 
 function Core.PLAYER_LOGOUT()
@@ -637,6 +679,7 @@ events:RegisterEvent("UNIT_COMBAT")
 events:RegisterEvent("NAME_PLATE_UNIT_ADDED")
 events:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
 events:RegisterEvent("GROUP_ROSTER_UPDATE")
+events:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
 events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pet")
 events:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
 events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
@@ -648,7 +691,7 @@ events:SetScript("OnEvent", function(_, event, ...) Core[event](...) end)
 -- /cti toggles the addon, /cti on and /cti off set it; /cti test shows a
 -- sample popup on your target's nameplate; /cti learned opens the learned window
 -- (works while the addon is off), /cti learned chat lists the spells the addon
--- learned by itself in chat and /cti forget clears them.
+-- learned by itself in chat and /cti forget clears them (the current spec's only).
 -- /cti minimap shows or hides the minimap button (works while the addon is off).
 -- /cti unknown on|off shows or hides the '?' icon of a hit no spell could be named for
 -- (the number stays; works while the addon is off).
@@ -691,7 +734,7 @@ SlashCmdList.COMBATTEXTICONS = function(message)
         Casts.Forget()
         Procs.Forget()
         Ledger.Forget()
-        print(PREFIX .. "forgot all learned spells")
+        print(PREFIX .. "forgot this spec's learned spells")
         return
     end
     if message == "learned" then

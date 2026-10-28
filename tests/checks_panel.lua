@@ -8,7 +8,7 @@ return function(T)
     -- A booted addon with the Ledger initialised on the character table. Returns Ledger and the stub state.
     local function Rig()
         local ns = T.Boot()
-        ns.Ledger.Init(CombatTextIconsCharDB)
+        ns.Ledger.Init(T.Store())
 
         return ns.Ledger, T.State()
     end
@@ -155,12 +155,12 @@ return function(T)
         L.Add("damage", 592, 5)
         local live = L.Current()
         L.Forget()
-        Check("ledger: Forget clears the saved table in place", L.Fights() == CombatTextIconsCharDB.fights
-            and next(CombatTextIconsCharDB.fights) == nil)
+        Check("ledger: Forget clears the saved table in place", L.Fights() == T.Store().fights
+            and next(T.Store().fights) == nil)
         Check("ledger: Forget keeps the open fight", L.Current() == live and live.damage[592].hits == 1)
         L.Finish(21)
-        Check("ledger: a fight saved after Forget lands in the same table", CombatTextIconsCharDB.fights[1] ~= nil
-            and CombatTextIconsCharDB.fights[1].at == 20)
+        Check("ledger: a fight saved after Forget lands in the same table", T.Store().fights[1] ~= nil
+            and T.Store().fights[1].at == 20)
     end)
 
     Scenario("init validation", function()
@@ -190,10 +190,10 @@ return function(T)
             Saved(10),
             Saved(5),
         }
-        CombatTextIconsCharDB.fights = fights
-        ns.Ledger.Init(CombatTextIconsCharDB)
+        T.Store().fights = fights
+        ns.Ledger.Init(T.Store())
         local kept = ns.Ledger.Fights()
-        Check("ledger: Init prunes in place", kept == fights and CombatTextIconsCharDB.fights == fights)
+        Check("ledger: Init prunes in place", kept == fights and T.Store().fights == fights)
         Check("ledger: Init drops junk fights and caps at 5", #kept == 5 and kept[1].at == 60 and kept[2].at == 30
             and kept[3].at == 20 and kept[4].at == 10 and kept[5].at == 5)
         local f = kept[2]
@@ -205,10 +205,10 @@ return function(T)
             and f.verdicts[592] == nil and f.verdicts[593] == nil and f.verdicts.x == nil)
         Check("ledger: Init leaves Current() empty", ns.Ledger.Current() == nil)
 
-        CombatTextIconsCharDB.fights = "x"
-        ns.Ledger.Init(CombatTextIconsCharDB)
-        Check("ledger: Init replaces a non-table fights", type(CombatTextIconsCharDB.fights) == "table"
-            and ns.Ledger.Fights() == CombatTextIconsCharDB.fights and #ns.Ledger.Fights() == 0)
+        T.Store().fights = "x"
+        ns.Ledger.Init(T.Store())
+        Check("ledger: Init replaces a non-table fights", type(T.Store().fights) == "table"
+            and ns.Ledger.Fights() == T.Store().fights and #ns.Ledger.Fights() == 0)
     end)
 
     Scenario("single mode: Start(now, grouped) and old meter fights", function()
@@ -428,7 +428,7 @@ return function(T)
         local live = rig.L.Current()
         SlashCmdList.COMBATTEXTICONS("forget")
         Check("ledger wiring: /cti forget empties the saved fights in place",
-            next(rig.L.Fights()) == nil and rig.L.Fights() == CombatTextIconsCharDB.fights)
+            next(rig.L.Fights()) == nil and rig.L.Fights() == T.Store().fights)
         Check("ledger wiring: /cti forget keeps the open fight",
             live ~= nil and rig.L.Current() == live and live.damage["?1"].hits == 1)
     end)
@@ -561,7 +561,7 @@ return function(T)
         local function Proc(school, lo, hi, streak, learned, period)
             return { school = school, lo = lo, hi = hi, streak = streak, learned = learned, unpaired = 0, seen = 0, period = period }
         end
-        CombatTextIconsCharDB.procs = {
+        T.Store().procs = {
             [X] = Proc(106, 339, 364, 3, true), [Y] = Proc(106, 5538, 5827, 3, true),
             [900001] = Proc(106, 100, 110, 2, false), [900002] = Proc(106, 100, 110, 0, false),
             [PAIN] = Proc(106, 100, 110, 3, true),      -- learned dot 594 owns the key
@@ -569,7 +569,7 @@ return function(T)
             [8092] = Proc(106, 100, 110, 1, false),     -- a vote candidate owns the key
             [900003] = Proc(32, 1000, 1100, 1, false, 1.5), [900004] = Proc(32, 1000, 1100, 2, true, 1.5), -- rhythm procs
         }
-        ns.Procs.Init(CombatTextIconsCharDB)
+        ns.Procs.Init(T.Store())
         local fight = { at = 1, date = 1000, duration = 5, group = false, heal = {},
             damage = { [X] = { amount = 700, hits = 2 } } }
         local rows = ns.Panel.Rows(fight)

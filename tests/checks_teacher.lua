@@ -421,9 +421,9 @@ return function(T)
 
     -- Procs store seeded with one entry: a learned proc (streak 3) or a candidate (streak 2), school 106, band 339-364.
     local function SeedProc(rig, id, learned)
-        CombatTextIconsCharDB.procs = { [id] = { school = 106, lo = 339, hi = 364, streak = learned and 3 or 2,
+        T.Store().procs = { [id] = { school = 106, lo = 339, hi = 364, streak = learned and 3 or 2,
             learned = learned, unpaired = 0, seen = 0 } }
-        rig.ns.Procs.Init(CombatTextIconsCharDB)
+        rig.ns.Procs.Init(T.Store())
     end
 
     do -- the whole loop through Core
@@ -820,15 +820,15 @@ return function(T)
             -- A clear read of one Smite row `total` over the fight 10..`finish` saves the pace (total per second).
             local function PaceAfter(total, finish, preset)
                 local rig = Rig({ [SMITE] = 2 })
-                CombatTextIconsCharDB.pace = preset
-                rig.ns.Teacher.Init(CombatTextIconsCharDB)
+                T.Store().pace = preset
+                rig.ns.Teacher.Init(T.Store())
                 rig.S.sessions = { Session(1, { Row(SMITE, total) }) }
                 rig.ns.Teacher.Start(10)
                 rig.ns.Teacher.Drawn(SMITE, total)
                 rig.ns.Teacher.Seen(total, 11)
                 rig.ns.Teacher.Finish(finish)
                 pcall(rig.Fire)
-                return CombatTextIconsCharDB.pace
+                return T.Store().pace
             end
             Check("crowd live: a clear read saves its pace (1000 over 10 s = 100)", PaceAfter(1000, 20) == 100)
             Check("crowd live: a faster clear read raises the pace, a slower one keeps it",
@@ -843,8 +843,8 @@ return function(T)
             local function Boss(pace, crowd)
                 local rig = Rig({})
                 SeedProc(rig, PROC, true)
-                CombatTextIconsCharDB.pace = pace
-                rig.ns.Teacher.Init(CombatTextIconsCharDB)
+                T.Store().pace = pace
+                rig.ns.Teacher.Init(T.Store())
                 SlashCmdList.COMBATTEXTICONS("debug")
                 rig.S.now = 10
                 rig.ns.Core.PLAYER_REGEN_DISABLED()
@@ -885,12 +885,12 @@ return function(T)
                 local ns = BootArea({ state = state, map = MAP }, MAP)
                 Check("crowd saved: the same map restores " .. state,
                     ns.Teacher.area == state and ns.Teacher.AreaClear() == (state == "clear")
-                    and CombatTextIconsCharDB.area.state == state and CombatTextIconsCharDB.area.map == MAP)
+                    and T.Store().area.state == state and T.Store().area.map == MAP)
             end
 
             local ns = BootArea({ state = "clear", map = MAP }, MAP + 1)
             Check("crowd saved: another map boots crowded, and the saved verdict stays for its own map",
-                ns.Teacher.area == "crowded" and CombatTextIconsCharDB.area.state == "clear" and CombatTextIconsCharDB.area.map == MAP)
+                ns.Teacher.area == "crowded" and T.Store().area.state == "clear" and T.Store().area.map == MAP)
 
             for label, map in pairs({ nil_ = false, text = "2022", secret = Secret(MAP), zero = 0, fraction = 2022.5 }) do
                 ns = BootArea({ state = "clear", map = MAP }, map or nil)
@@ -903,38 +903,38 @@ return function(T)
             for label, area in pairs(bad) do
                 ns = BootArea(area, MAP)
                 Check("crowd saved: a saved area that is " .. label .. " is dropped on load",
-                    CombatTextIconsCharDB.area == nil and ns.Teacher.area == "crowded")
+                    T.Store().area == nil and ns.Teacher.area == "crowded")
             end
 
             ns = BootArea(nil, MAP)
-            Check("crowd saved: no saved area boots crowded and saves nothing", ns.Teacher.area == "crowded" and CombatTextIconsCharDB.area == nil)
+            Check("crowd saved: no saved area boots crowded and saves nothing", ns.Teacher.area == "crowded" and T.Store().area == nil)
 
             for _, case in ipairs({ { "crowded", 173, "clear" }, { "clear", 300, "crowded" } }) do
                 local rig = Crowd(case[1], case[2])
-                local S, saved = rig.S, CombatTextIconsCharDB.area
+                local S, saved = rig.S, T.Store().area
                 Check("crowd saved: a " .. case[3] .. " read saves { state, map = the current map }",
                     saved and saved.state == case[3] and saved.map == S.map and saved.map ~= nil)
             end
 
             local kept = { state = "clear", map = 7 }
-            local function Preset(rig) CombatTextIconsCharDB.area = { state = kept.state, map = kept.map } end
-            local function Unchanged() local a = CombatTextIconsCharDB.area return a and a.state == kept.state and a.map == kept.map end
+            local function Preset(rig) T.Store().area = { state = kept.state, map = kept.map } end
+            local function Unchanged() local a = T.Store().area return a and a.state == kept.state and a.map == kept.map end
             Crowd("clear", 86, nil, nil, Preset)
             Check("crowd saved: a short read saves nothing new", Unchanged())
             Crowd("clear", 300, true, nil, Preset)
             Check("crowd saved: a group read saves nothing new", Unchanged())
             local groupedLate = Crowd("clear", 173, false, true, Preset)
-            local savedLate = CombatTextIconsCharDB.area
+            local savedLate = T.Store().area
             Check("crowd saved: a solo read grouped only at read time saves its clear verdict",
                 savedLate and savedLate.state == "clear" and savedLate.map == groupedLate.S.map)
             Crowd("crowded", 173, nil, nil, function(rig) Preset(rig) rig.S.map = nil end)
             Check("crowd saved: a read with no map drops the older verdict instead of keeping it for a map it no longer describes",
-                CombatTextIconsCharDB.area == nil)
+                T.Store().area == nil)
 
             local rig = Crowd("crowded", 173)
             SlashCmdList.COMBATTEXTICONS("forget")
             Check("crowd saved: /cti forget keeps the saved area",
-                CombatTextIconsCharDB.area and CombatTextIconsCharDB.area.state == "clear" and rig.ns.Teacher.area == "clear")
+                T.Store().area and T.Store().area.state == "clear" and rig.ns.Teacher.area == "clear")
             rig.S.map = rig.S.map + 1
             rig.ns.Core.PLAYER_ENTERING_WORLD()
             Check("crowd saved: a loading screen onto another map turns crowded", rig.ns.Teacher.area == "crowded")
@@ -1054,8 +1054,8 @@ return function(T)
     do -- safety net (spec 3.3): learned DoTs and channels are judged by every read
         local TRIGGER, VT = 1227280, 34914 -- Tentacle Slam (no meter row of its own), Vampiric Touch (row 34914)
         local function Seed(rig, id)
-            CombatTextIconsCharDB.learned[id] = { school = 32, period = 3, kind = "dot", misses = 0 }
-            rig.ns.Learn.Init()
+            T.Store().learned[id] = { school = 32, period = 3, kind = "dot", misses = 0 }
+            rig.ns.Learn.Init(T.Store())
         end
         -- One read of a fresh session; tally = { [id] = total }. Returns Teacher.last.
         local function Step(rig, tally, rows)
@@ -1144,8 +1144,8 @@ return function(T)
             Check("net: ... and the second such read drops it", not Kept(rig, FS_TWIN))
 
             rig = Rig({})
-            CombatTextIconsCharDB.learned[FS_TWIN] = { school = 2, period = 3, kind = "hot", misses = 0 }
-            rig.ns.Learn.Init()
+            T.Store().learned[FS_TWIN] = { school = 2, period = 3, kind = "hot", misses = 0 }
+            rig.ns.Learn.Init(T.Store())
             Cast(rig, FS_TWIN, 15)
             Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
             Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
@@ -1282,8 +1282,8 @@ return function(T)
         do -- a cast cast this fight with no meter row of its own loses its dot votes at the read: a DoT learned under it is always struck
             local WITHER, WITHER_ROW = 442726, 445468 -- the cast has no row; its ticks pay under another ID
             local function Votes(rig)
-                CombatTextIconsCharDB.votes[WITHER] = { casts = 1, sigs = { { kind = "dot", school = 36, period = 1.0, votes = 1, expected = 0.06 } } }
-                rig.ns.Learn.Init()
+                T.Store().votes[WITHER] = { casts = 1, sigs = { { kind = "dot", school = 36, period = 1.0, votes = 1, expected = 0.06 } } }
+                rig.ns.Learn.Init(T.Store())
             end
             -- One fight at `at`: the cast (and 5 school-36 hits 1.0 s apart when `hits`), then its read against `rows`.
             local function Fight(rig, at, hits, rows)
@@ -1321,7 +1321,7 @@ return function(T)
             Check("net votes: ... and its next cast and rhythm is the second vote and learns it", rig.ns.Learn.Get(WITHER) ~= nil)
 
             rig = Rig({}); Votes(rig)
-            local sigs = CombatTextIconsCharDB.votes[WITHER].sigs
+            local sigs = T.Store().votes[WITHER].sigs
             sigs[2] = { kind = "hot", school = 2, period = 3.0, votes = 1, expected = 0.1 }
             Fight(rig, 10, false, { Row(WITHER_ROW, 5000) })
             local left = rig.ns.Learn.Votes(WITHER).sigs
@@ -1332,7 +1332,7 @@ return function(T)
             Fight(rig, 10, false, { Row(WITHER_ROW, 5000) })
             rig.S.sessions = { Session(nextSession + 1, { Row(WITHER_ROW, 5000) }) }
             nextSession = nextSession + 1
-            CombatTextIconsCharDB.votes[WITHER].sigs[1] = { kind = "dot", school = 36, period = 1.0, votes = 1, expected = 0.06 }
+            T.Store().votes[WITHER].sigs[1] = { kind = "dot", school = 36, period = 1.0, votes = 1, expected = 0.06 }
             rig.ns.Teacher.Start(100); rig.ns.Teacher.Finish(120)
             assert(pcall(rig.Fire))
             Check("net votes: a spell not cast this fight keeps its sigs (no cast since the fight began)",
@@ -1446,9 +1446,9 @@ return function(T)
             local function Cast(at) return { spellID = MIND_BLAST, base = MIND_BLAST, at = at } end
             local ONE = { { 106, 5551, "", Cast(60), 60.25 } } -- one Mind Blast hit, 5551
             local function Seed(rig, id, lo)
-                CombatTextIconsCharDB.procs = { [id] = { school = 106, lo = lo, hi = 5827, streak = 1, learned = false,
+                T.Store().procs = { [id] = { school = 106, lo = lo, hi = 5827, streak = 1, learned = false,
                     unpaired = 0, seen = 0 } }
-                rig.ns.Procs.Init(CombatTextIconsCharDB)
+                rig.ns.Procs.Init(T.Store())
             end
 
             local rig = Rig({})
@@ -1567,7 +1567,7 @@ return function(T)
             local last = ns.Teacher.last
             Check("base spell: Mind Blast and Void Blast '?' hits (100 + 200 + 150) sum to row 8092 -> fingerprint 8092 learned, no alias",
                 ok and last.learned[MIND_BLAST] == 3 and F.IsLearned(MIND_BLAST) and F.Get(VOID_BLAST) == nil
-                and next(CombatTextIconsCharDB.castAliases) == nil and Find(last, MIND_BLAST).verdict == "agree")
+                and next(T.Store().castAliases) == nil and Find(last, MIND_BLAST).verdict == "agree")
 
             keys = {}
             local okLater, drawn, tally = pcall(Fight, { { 50, VOID_BLAST, 300 } }, { Row(MIND_BLAST, 300) })
@@ -1732,8 +1732,8 @@ return function(T)
                 and Find(last, MIND_BLAST) and Find(last, MIND_BLAST).verdict == "unpaired")
 
             rig = Rig({})
-            CombatTextIconsCharDB.procs = { [Y] = { school = 106, lo = 339, hi = 364, streak = 0, learned = false, unpaired = 0, seen = 0 } }
-            rig.ns.Procs.Init(CombatTextIconsCharDB)
+            T.Store().procs = { [Y] = { school = 106, lo = 339, hi = 364, streak = 0, learned = false, unpaired = 0, seen = 0 } }
+            rig.ns.Procs.Init(T.Store())
             Meter(rig, Y)
             Check("procs rule 2: a streak-0 candidate does not block the alias (Rev 4b)", rig.ns.Fingerprints.Alias(Y) == MIND_BLAST)
 
@@ -1926,21 +1926,21 @@ return function(T)
             and kept == "tex:" .. OTHER)
 
         rig = ProcRig() -- X learned; add a candidate
-        CombatTextIconsCharDB.procs[900001] = { school = 106, lo = 100, hi = 110, streak = 1, learned = false, unpaired = 0, seen = 0 }
-        rig.ns.Procs.Init(CombatTextIconsCharDB)
+        T.Store().procs[900001] = { school = 106, lo = 100, hi = 110, streak = 1, learned = false, unpaired = 0, seen = 0 }
+        rig.ns.Procs.Init(T.Store())
         local before = #rig.ns.Procs.List()
         SlashCmdList.COMBATTEXTICONS("forget")
         Check("procs forget: /cti forget clears learned procs and candidates (2 before), in the saved table too",
-            before == 2 and rig.ns.Procs.Get(X) == nil and #rig.ns.Procs.List() == 0 and next(CombatTextIconsCharDB.procs) == nil)
+            before == 2 and rig.ns.Procs.Get(X) == nil and #rig.ns.Procs.List() == 0 and next(T.Store().procs) == nil)
     end
     do -- rhythm procs: the Core route (a hit that extends or births a stream fitting a learned rhythm entry)
         local X = 1262710
         local function RhythmRig()
             local rig = Rig({})
             SlashCmdList.COMBATTEXTICONS("debug")
-            CombatTextIconsCharDB.procs = { [X] = { school = 106, period = 1.0, lo = 340, hi = 365, learned = true,
+            T.Store().procs = { [X] = { school = 106, period = 1.0, lo = 340, hi = 365, learned = true,
                 streak = 2, unpaired = 0, seen = 0 } }
-            rig.ns.Procs.Init(CombatTextIconsCharDB)
+            rig.ns.Procs.Init(T.Store())
             rig.S.now = 9
             rig.ns.Core.PLAYER_REGEN_DISABLED()
             return rig
@@ -1978,9 +1978,9 @@ return function(T)
         Check("rhythm pair: the first tick on another plate -> ?", Pair(rig, 350, 350, 1, nil, "nameplate2") == UNKNOWN)
         rig = RhythmRig()
         rig.ns.Procs.Forget()
-        CombatTextIconsCharDB.procs = { [X] = { school = 106, period = 1.0, lo = 300, hi = 400, learned = true,
+        T.Store().procs = { [X] = { school = 106, period = 1.0, lo = 300, hi = 400, learned = true,
             streak = 2, unpaired = 0, seen = 0 } }
-        rig.ns.Procs.Init(CombatTextIconsCharDB)
+        rig.ns.Procs.Init(T.Store())
         Check("rhythm pair: both in the band but not like-sized (300 then 395, past SIZE_GUARD) -> ?",
             Pair(rig, 300, 395) == UNKNOWN)
         rig = RhythmRig()
@@ -1989,8 +1989,8 @@ return function(T)
         Check("rhythm pair: another in-band hit since the tick a period before (a crowd) -> ?",
             rig.Hit(11, "nameplate1", 350, 106) == UNKNOWN)
         rig = RhythmRig()
-        CombatTextIconsCharDB.procs[X].school = 1
-        rig.ns.Procs.Init(CombatTextIconsCharDB)
+        T.Store().procs[X].school = 1
+        rig.ns.Procs.Init(T.Store())
         Check("rhythm pair: a physical rhythm never pairs (swings and GCD strikes pair a period apart)",
             Pair(rig, 350, 350, 1, 1) ~= ICON and rig.ns.Teacher.fight.tally[X] == nil)
         rig = RhythmRig()
@@ -2453,8 +2453,8 @@ return function(T)
             fires[#fires + 1] = event[2] and event or { event[1], nil, event[3], "", 4 }
         end
         local function StaleDotDrew(r)
-            CombatTextIconsCharDB.learned[LAVA_BURST] = { school = 8, period = 1.65, kind = "dot", misses = 0 }
-            r.ns.Learn.Init()
+            T.Store().learned[LAVA_BURST] = { school = 8, period = 1.65, kind = "dot", misses = 0 }
+            r.ns.Learn.Init(T.Store())
             r.ns.Teacher.Drawn(LAVA_BURST, 150000)
         end
         rig, last = SteadyFight(fires, { Row(LAVA_BURST, 226000) }, nil, StaleDotDrew)
@@ -2710,8 +2710,8 @@ return function(T)
 
         rig = Rig({})
         AuraFight(rig, 130000, 1000, function()
-            CombatTextIconsCharDB.learned[445468] = { school = 32, period = 1.4, kind = "dot", misses = 0 }
-            rig.ns.Learn.Init()
+            T.Store().learned[445468] = { school = 32, period = 1.4, kind = "dot", misses = 0 }
+            rig.ns.Learn.Init(T.Store())
         end)
         Check("castless (c): a learned DoT ticks in the school -> the pass never walks it, nothing learned",
             Outcome() == nil and rig.ns.Procs.Get(NATHREZA) == nil)
@@ -2937,5 +2937,84 @@ return function(T)
         rig.Cast(30, "nameplate1", LAVA_BURST)
         Check("own row: after a read with row 51505 the next Lava Burst files under 51505 (before: 73899)",
             before == LAVA_BASE and (rig.ns.Casts.SoleCast(P1, 30.1) or {}).base == LAVA_BURST)
+    end
+
+    -- Spec stores (user report 2026-10-28: a resto shaman drew with what elemental learned). Each spec learns into and
+    -- draws from its own store; a swap back brings the first spec's learning back.
+    local SPEC_A, SPEC_B = 262, 264
+    local function Swap(rig, spec)
+        rig.S.spec = spec
+        rig.ns.Core.PLAYER_SPECIALIZATION_CHANGED("player")
+    end
+    do
+        local rig = Rig({ [SMITE] = 2 })
+        local ns = rig.ns
+        SlashCmdList.COMBATTEXTICONS("debug")
+        T.Store().learned[SWP] = { school = 32, period = 3, kind = "dot", misses = 0 }
+        local storeA = T.Store()
+        -- Smite's direct hit at t + 0.25 (its icon or nil), and whether SW:P's DoT and Smite's fingerprint are learned.
+        local function Shown(t)
+            rig.Cast(t, "nameplate1", SMITE)
+            return rig.Hit(t + 0.25, "nameplate1", 30, 2), ns.Learn.Get(SWP) ~= nil, ns.Fingerprints.IsLearned(SMITE)
+        end
+        local drawnA, dotA, fpA = Shown(10)
+        Swap(rig, SPEC_B)
+        local drawnB, dotB, fpB = Shown(20)
+        local logged
+        for _, line in ipairs(CombatTextIconsDB.debugLog) do logged = line:match("^[%d%.]+ SPEC .*") or logged end
+        SlashCmdList.COMBATTEXTICONS("forget")
+        Swap(rig, SPEC_A)
+        local drawnBack, dotBack, fpBack = Shown(30)
+        Check("spec stores: spec A draws Smite and holds SW:P; spec B draws neither and learned nothing",
+            drawnA == "tex:591" and dotA and fpA and drawnB ~= "tex:591" and not dotB and not fpB
+            and #ns.Learn.List() == 1)
+        Check("spec stores: back in spec A (after /cti forget in B) its own store and learning are back",
+            drawnBack == "tex:591" and dotBack and fpBack and T.Store() == storeA
+            and CombatTextIconsCharDB.specs[SPEC_B] ~= storeA)
+        Check("spec stores: the swap logs a SPEC line (" .. tostring(logged) .. ")",
+            logged ~= nil and logged:find(" SPEC 262 %-> 264$") ~= nil)
+    end
+    do -- a spec unknown at login learns into specs[0]; the first known spec takes that store over
+        local ns = T.Boot(function(S) S.spec = nil end)
+        local unknown = T.Store()
+        unknown.learned[SWP] = { school = 32, period = 3, kind = "dot", misses = 0 }
+        T.State().spec = SPEC_A
+        ns.Core.PLAYER_ENTERING_WORLD()
+        Check("spec stores: the store made before the spec was known becomes the spec's, still learned",
+            unknown ~= nil and T.Store() == unknown and CombatTextIconsCharDB.specs[0] == nil
+            and ns.Learn.Get(SWP) ~= nil)
+    end
+
+    -- A judging in flight across a swap teaches the new spec nothing: a read still queued, and a judging that has
+    -- yielded mid-way (sliced reads), are both dropped, as by a /reload.
+    do
+        local rig = Rig({ [SMITE] = 2 })
+        local outcomes = 0
+        rig.ns.Teacher.OnRead = function() outcomes = outcomes + 1 end
+        rig.Fight({ [SMITE] = { 30 } }, { Session(1, { Row(SMITE, 30) }) })
+        Swap(rig, SPEC_B)
+        while #rig.S.timers > 0 do rig.Fire() end
+        local storeB = T.Store()
+        Check("spec swap: a read queued before the swap is dropped (no outcome, nothing saved in the new spec)",
+            outcomes == 0 and rig.ns.Teacher.last == nil and storeB.area == nil and next(storeB.ownRows) == nil)
+
+        rig = Rig({ [SMITE] = 2 })
+        outcomes = 0
+        rig.ns.Teacher.OnRead = function() outcomes = outcomes + 1 end
+        local storeA, looks = T.Store(), 0
+        debugprofilestop = function() -- each look is past the slice: the judging yields at its first Teacher.Yield
+            looks = looks + 1
+            return looks * 100
+        end
+        rig.Fight({ [SMITE] = { 30 } }, { Session(1, { Row(SMITE, 30) }) })
+        local ran = pcall(rig.Fire)
+        local paused = outcomes == 0 and #rig.S.timers == 1 and storeA.area ~= nil
+        Swap(rig, SPEC_B)
+        local drained = pcall(function() while #rig.S.timers > 0 do rig.Fire() end end)
+        debugprofilestop = nil
+        storeB = T.Store()
+        Check("spec swap: a judging paused mid-way is dropped; what it taught before the swap stays in the old spec",
+            ran and paused and drained and outcomes == 0 and rig.ns.Teacher.last == nil and storeB.area == nil
+            and storeB.pace == nil and next(storeB.ownRows) == nil and storeA.ownRows[SMITE] == true)
     end
 end

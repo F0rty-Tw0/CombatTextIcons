@@ -57,8 +57,8 @@ return function(T)
         Check("meter off: damage taken still shows, without an icon",
             taken and taken.kind == "taken" and taken.texture == nil and taken.text == 4500)
 
-        CombatTextIconsCharDB.learned[RENEW] = { school = 2, period = 3, kind = "hot", misses = 0 }
-        ns.Learn.Init()
+        T.Store().learned[RENEW] = { school = 2, period = 3, kind = "hot", misses = 0 }
+        ns.Learn.Init(T.Store())
         rig.Cast(200, RENEW, nil)
         local heals = {}
         for k = 1, 3 do heals[k] = rig.Hit(200 + 3 * k, "player", "HEAL", 800, 2) end
@@ -89,9 +89,9 @@ return function(T)
     do -- run 20261025T182530Z: Surging Totem's ~12K Nature hits (learned proc 73921) taught Lava Burst, cast in its frame, as a DoT
         local rig = Rig()
         local ns = rig.ns
-        CombatTextIconsCharDB.procs = { [73921] = { school = 8, lo = 11612, hi = 11871, streak = 3, learned = true,
+        T.Store().procs = { [73921] = { school = 8, lo = 11612, hi = 11871, streak = 3, learned = true,
             unpaired = 0, seen = 0 } }
-        ns.Procs.Init(CombatTextIconsCharDB)
+        ns.Procs.Init(T.Store())
         local feed, fed = ns.Streams.Feed, {}
         ns.Streams.Feed = function(plate, school, amount, ...)
             fed[#fed + 1] = amount
@@ -111,8 +111,8 @@ return function(T)
         local function Run(boltLearned, delay)
             local rig = Rig()
             local ns = rig.ns
-            CombatTextIconsCharDB.learned = { [DOT] = { school = 8, period = 1.65, kind = "dot", misses = 0 } }
-            ns.Learn.Init(CombatTextIconsCharDB)
+            T.Store().learned = { [DOT] = { school = 8, period = 1.65, kind = "dot", misses = 0 } }
+            ns.Learn.Init(T.Store())
             if boltLearned then
                 for castAt = 1, 3 do ns.Fingerprints.Add(BOLT, { school = 8, delay = 0.4, castAt = castAt, hops = 1 }) end
             end
@@ -180,8 +180,8 @@ return function(T)
             (Casts.SoleCast(P1, 41.75) or {}).spellID == 8092)
 
         -- Run shaman3 start: a stale save learned Lava Burst 51505 as a Nature DoT; its Fire hits sat unexplained.
-        CombatTextIconsCharDB.learned = { [51505] = { school = 8, period = 1.65, kind = "dot", misses = 0 } }
-        rig.ns.Learn.Init(CombatTextIconsCharDB)
+        T.Store().learned = { [51505] = { school = 8, period = 1.65, kind = "dot", misses = 0 } }
+        rig.ns.Learn.Init(T.Store())
         rig.Cast(50, "nameplate1", 51505)
         local function Named(list) return #list == 1 and list[1].castSpell == 51505 end
         Check("soleCast: a learned DoT's cast stays the cast for a hit of another school (Fire 4 vs its Nature 8 ticks)",
@@ -283,19 +283,19 @@ return function(T)
         Check("own row: a row of a base changes nothing for its override (row 8092, Void Blast stays 8092)",
             ns.Casts.Base(VOID_BLAST) == MIND_BLAST)
         SlashCmdList.COMBATTEXTICONS("forget")
-        Check("own row: saved per character and kept by /cti forget", CombatTextIconsCharDB.ownRows[LAVA_BURST] == true
+        Check("own row: saved per spec and kept by /cti forget", T.Store().ownRows[LAVA_BURST] == true
             and ns.Casts.Base(LAVA_BURST) == LAVA_BURST)
 
         ns = T.Boot(function(S)
             S.baseSpells[LAVA_BURST] = LAVA_BASE
             CombatTextIconsCharDB = { ownRows = { [LAVA_BURST] = true, ["188196"] = true, [188443] = 1 } }
         end)
-        local saved = CombatTextIconsCharDB.ownRows
+        local saved = T.Store().ownRows
         Check("own row: login keeps a saved row and drops a string key and a non-true value",
             ns.Casts.Base(LAVA_BURST) == LAVA_BURST and saved[LAVA_BURST] == true and saved["188196"] == nil
             and saved[188443] == nil)
         T.Boot(function() CombatTextIconsCharDB = { ownRows = "x" } end)
-        Check("own row: login replaces a non-table ownRows", type(CombatTextIconsCharDB.ownRows) == "table")
+        Check("own row: login replaces a non-table ownRows", type(T.Store().ownRows) == "table")
     end
 
     do -- Task 2.2: Fingerprints
@@ -406,20 +406,20 @@ return function(T)
                 [595] = Copy({ pattern = "aoe" }),             -- unknown pattern
             }, castAliases = { [75] = "x", [76] = 5019, abc = 3 } }
         end)
-        local loaded = CombatTextIconsCharDB
+        local loaded = T.Store()
         Check("fingerprints: garbage entries are pruned on login, the valid one stays with its range recomputed",
             Count(loaded.casts) == 1 and loaded.casts[591] and loaded.casts[591].delayLo == 0.1 and loaded.casts[591].delayHi == 0.2)
         Check("fingerprints: only number -> number aliases survive", Count(loaded.castAliases) == 1 and loaded.castAliases[76] == 5019)
         T.Boot(function() CombatTextIconsCharDB = { casts = "x", castAliases = 5 } end)
         Check("fingerprints: non-table casts / castAliases are replaced by empty tables",
-            type(CombatTextIconsCharDB.casts) == "table" and type(CombatTextIconsCharDB.castAliases) == "table")
+            type(T.Store().casts) == "table" and type(T.Store().castAliases) == "table")
 
         -- /cti forget clears the fingerprints and aliases in place
         local ns = T.Boot()
         ns.Fingerprints.Add(591, Sample(2, 0.2, 1)); ns.Fingerprints.SetAlias(75, 5019)
         SlashCmdList.COMBATTEXTICONS("forget")
         Check("fingerprints: /cti forget empties casts and castAliases",
-            next(CombatTextIconsCharDB.casts) == nil and next(CombatTextIconsCharDB.castAliases) == nil
+            next(T.Store().casts) == nil and next(T.Store().castAliases) == nil
             and ns.Fingerprints.Get(591) == nil)
     end
 
@@ -473,7 +473,7 @@ do -- Phase 3: records and Claim
             CombatTextIconsCharDB = { casts = { [8092] = { learned = true, pattern = "single", school = 32, delays = { 0.2 },
                 samples = { Saved(1, 20000), Saved(2, "x"), Saved(3, -5) } } } }
         end)
-        local samples = CombatTextIconsCharDB.casts[8092].samples
+        local samples = T.Store().casts[8092].samples
         return #samples == 3 and samples[1].size == 20000 and samples[2].size == nil and samples[3].size == nil
     end)
     Scenario("samples: a saved entry with 20 samples loads as its last 16", function()
@@ -483,7 +483,7 @@ do -- Phase 3: records and Claim
             CombatTextIconsCharDB = { casts = { [8092] = { learned = true, pattern = "single", school = 32, delays = { 0.2 },
                 samples = saved } } }
         end)
-        local samples = CombatTextIconsCharDB.casts[8092].samples
+        local samples = T.Store().casts[8092].samples
         return #samples == 16 and samples[1].castAt == 5 and samples[16].castAt == 20
     end)
     Scenario("InBand: by base and cast spell, the padded band of the spell's samples, else the whole entry's", function()
@@ -926,8 +926,8 @@ do -- Phase 3: records and Claim
     Scenario("claim: a cast whose row is a learned proc of another school spoils no sure hit; of the hit's school it does", function()
         local function WithProc(school)
             return AfterOther(function(n)
-                CombatTextIconsCharDB.procs = { [OTHER] = { school = school, lo = 3000, hi = 6000, learned = true } }
-                n.Procs.Init(CombatTextIconsCharDB)
+                T.Store().procs = { [OTHER] = { school = school, lo = 3000, hi = 6000, learned = true } }
+                n.Procs.Init(T.Store())
             end)
         end
         return WithProc(12) == "learned" and WithProc(32) == "ambiguous"

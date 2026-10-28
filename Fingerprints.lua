@@ -1,4 +1,4 @@
--- Combat Text Icons: fingerprints. The per-character store of what the addon
+-- Combat Text Icons: fingerprints. The per-spec store of what the addon
 -- learned about each of your direct-hit spells: its school, how long after the
 -- cast its hit lands (a ring of recent delays), and whether it hits once or
 -- hops from plate to plate (chain). A spell is learned when 3 different casts

@@ -150,9 +150,25 @@ return function(T)
         Check("single mode: Meter exports only Init, Available, Disable, UNKNOWN_ICON and the type constants",
             table.concat(exports, " ") == "Available DAMAGE_DONE DAMAGE_TAKEN Disable HEALING_DONE Init UNKNOWN_ICON")
     end
-    do
-        local ns = T.Boot(function() CombatTextIconsCharDB = { chainSchools = { [188443] = 8 } } end)
-        Check("migration: chainSchools nil after login", CombatTextIconsCharDB.chainSchools == nil)
+    do -- a save from before the per-spec stores holds only learning: login drops it whole, once
+        local ns = T.Boot(function(S)
+            S.oldSave = true
+            CombatTextIconsCharDB = { chainSchools = { [188443] = 8 }, pending = {},
+                learned = { [589] = { school = 32, period = 3, kind = "dot" } },
+                votes = { [589] = { casts = 1, sigs = {} } },
+                casts = {}, castAliases = { [75] = 5019 }, ownRows = { [51505] = true },
+                procs = { [10] = { school = 106, lo = 339, hi = 364, streak = 3, learned = true } },
+                fights = {}, area = { state = "clear", map = 1 }, pace = 5000 }
+        end)
+        local keys = {}
+        for key in pairs(CombatTextIconsCharDB) do keys[#keys + 1] = key end
+        local spec = T.Store()
+        Check("migration: an old save's learning is dropped at login; only the spec stores stay",
+            table.concat(keys, ",") == "specs" and ns.Learn.Get(589) == nil and ns.Procs.Get(10) == nil
+            and ns.Fingerprints.Alias(75) == nil and spec.area == nil and spec.pace == nil
+            and next(spec.ownRows) == nil)
+        ns.Core.PLAYER_LOGIN()
+        Check("migration: a login with spec stores keeps them", T.Store() == spec)
     end
     do -- first-login hint: once per character, only with the addon on
         local function Hints(S)
@@ -172,7 +188,7 @@ return function(T)
         Check("hint: a character with saved data gets no hint", Hints(T.State()) == 0)
         T.Boot(function() CombatTextIconsDB = { enabled = false } end)
         Check("hint: a new character with the addon off gets no hint, and its table is made",
-            Hints(T.State()) == 0 and type(CombatTextIconsCharDB) == "table")
+            Hints(T.State()) == 0 and type(T.Store()) == "table")
     end
     do
         -- learned fingerprint cast, solo, no SetMeterOn call: its record opens and claims the hit

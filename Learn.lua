@@ -1,4 +1,4 @@
--- Learn: the per-character store of tick rhythms the addon learned itself.
+-- Learn: the per-spec store of tick rhythms the addon learned itself.
 --
 -- A DoT, channel or HoT that Spells.lua does not know (it ships empty: every spell) is learned from Streams:
 -- each stream birth (a ground patch's wide one aside) gives every spell cast just before it a vote (`votes`),
@@ -128,13 +128,11 @@ local function Prune(tbl)
     end
 end
 
-function Learn.Init()
-    if type(CombatTextIconsCharDB) ~= "table" then CombatTextIconsCharDB = {} end
-    local db = CombatTextIconsCharDB
+-- Learn.Init(db): adopts a spec's store (Core's UseSpec) and forgets the casts seen under the spec before.
+function Learn.Init(db)
     if type(db.learned) ~= "table" then db.learned = {} end
-    db.pending = nil -- the probe learner's store; dropped on load
     if type(db.votes) ~= "table" then db.votes = {} end
-    learned, votes = db.learned, db.votes
+    learned, votes, castAt = db.learned, db.votes, {}
     Prune(learned)
     PruneVotes(votes)
     for _, entry in pairs(learned) do
