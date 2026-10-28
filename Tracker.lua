@@ -362,7 +362,15 @@ local function Ticked(instance, multiple, amount, flagText, now)
     if multiple == 0 then
         -- a tick after a recast: that gap is not a period, so nothing is smoothed
     elseif instance.lastTick then
-        instance.period = 0.8 * instance.period + 0.2 * ((now - instance.lastTick) / multiple)
+        -- A learned instance never smooths in a gap well under its learned period: a stranger's hit inside the
+        -- window comes early, and each one shrank the next window (run lock3 F3, crowded: Agony 980's matches came
+        -- 0.9 s, then 0.3 s apart on its 1.33 s, and it drew 121K against its 81K row). Longer gaps still count (hunter
+        -- 466930 ticks 1.4 s apart on its 1.03 s).
+        local gap = (now - instance.lastTick) / multiple
+        local learned = instance.fromLearn and instance.base
+        if not learned or gap > instance.base or Learn.PeriodsAgree(gap, instance.base) then
+            instance.period = 0.8 * instance.period + 0.2 * gap
+        end
     elseif not instance.channel then
         local period = RhythmPeriod(instance, now)
         if period then

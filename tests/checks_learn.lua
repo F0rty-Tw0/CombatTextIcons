@@ -814,6 +814,17 @@ return function(T)
         Check("haste: secret UnitSpellHaste: no error, 5/5 ticks, base untouched",
             ok and rig.Drawn(9001) == 5 and rig.Learned(9001).period == 2.2)
     end
+    do -- run lock3 F3, crowded: a stranger's hit inside a learned DoT's window must not shrink its period
+        local rig = Rig()
+        rig.Seed(9001, 32, 0.8, "dot")
+        rig.Cast(100, 9001)
+        rig.Hit(100.8, 1000, 32)
+        rig.Hit(101.6, 1000, 32)
+        local stranger = rig.Hit(102.16, 1000, 32)          -- 0.56 s on: inside the 0.25 s tolerance, 30 % short
+        rig.Hit(102.4, 1000, 32)                            -- the DoT's own tick, 0.24 s after the stranger: no match
+        Check("ticks: a learned instance smooths in no gap 30 % under its base (0.56 on 0.8): the tick 1.04 s on still"
+            .. " matches", stranger == "tex:9001" and rig.Hit(103.2, 1000, 32) == "tex:9001")
+    end
     do -- learned instances never touch `speeds`: a rhythm-learned period must not shorten the next cast
         local rig = Rig()
         rig.Seed(9001, 32, 2.2, "dot")
