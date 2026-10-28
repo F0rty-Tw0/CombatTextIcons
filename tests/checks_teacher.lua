@@ -735,6 +735,56 @@ return function(T)
             Check("crowd: a read with nothing seen and a zero meter is short and keeps the state",
                 Teacher.last.area == "short" and Teacher.area == "crowded")
         end
+
+        do -- own schools: a clear read proves its seen wounds were yours, so their schools are; '?' of any other
+            -- school is a stranger's (shamanally2: an ally's 873 physical hits drew '?' on a resto shaman's dummy)
+            -- A read of one 1000 row against seen `hits` = { { amount, school }, ... }; returns the rig.
+            local function SchoolRead(hits, prep)
+                local rig = Rig({ [SMITE] = 2 })
+                if prep then prep(rig) end
+                rig.S.sessions = { Session(1, { Row(SMITE, 1000) }) }
+                rig.ns.Teacher.Start(10)
+                for _, hit in ipairs(hits) do rig.ns.Teacher.Seen(hit[1], 11, hit[2]) end
+                rig.ns.Teacher.Finish(20)
+                pcall(rig.Fire)
+                return rig
+            end
+            local rig = SchoolRead({ { 990, 8 }, { 5, 1 }, { 12, 4 } })
+            local schools = T.Store().schools
+            Check("schools: a clear read records the schools seen above 1 % of the meter",
+                rig.ns.Teacher.last.area == "clear" and schools and schools[8] and schools[4] and schools[1] == nil)
+            Check("schools: a recorded school is yours, an unrecorded one is not",
+                rig.ns.Teacher.OwnSchool(8) and not rig.ns.Teacher.OwnSchool(1) and not rig.ns.Teacher.OwnSchool(nil))
+            rig = SchoolRead({ { 990, 8 }, { 2000, 1 } })
+            Check("schools: a crowded read records nothing",
+                rig.ns.Teacher.last.area == "crowded" and T.Store().schools == nil)
+            rig = SchoolRead({ { 300, 1 } })
+            Check("schools: a short read records nothing",
+                rig.ns.Teacher.last.area == "short" and T.Store().schools == nil)
+            rig = SchoolRead({ { 995, 1 } }, function() T.Store().schools = { [8] = true } end)
+            Check("schools: a clear read adds to the schools already recorded",
+                T.Store().schools[8] and T.Store().schools[1])
+            rig = Rig({})
+            Check("schools: with none recorded yet every school counts as yours",
+                rig.ns.Teacher.OwnSchool(1) and rig.ns.Teacher.OwnSchool(64))
+
+            local ns = T.Boot(function()
+                CombatTextIconsCharDB = { schools = { [8] = true, [0] = true, [128] = true, ["4"] = true, [2] = "yes",
+                    [2.5] = true, [64] = Secret(true) } }
+            end)
+            Check("schools: saved schools keep only an integer 1-127 marked true",
+                Count(T.Store().schools) == 1 and T.Store().schools[8] == true and ns.Teacher.OwnSchool(8))
+            ns = T.Boot(function() CombatTextIconsCharDB = { schools = "8" } end)
+            Check("schools: saved schools that are no table are dropped", T.Store().schools == nil)
+
+            rig = Rig({})
+            T.Store().schools = { [8] = true }
+            rig.ns.Teacher.Start(10)
+            local stranger, own = rig.Hit(11, "nameplate1", 5000, 1), rig.Hit(12, "nameplate1", 5000, 8)
+            Check("schools: a solo unexplained hit of an unrecorded school stays hidden, one of yours draws '?'",
+                stranger == nil and own == rig.ns.Meter.UNKNOWN_ICON)
+            Check("schools: the hidden one still reaches the teacher", #rig.ns.Teacher.fight.unknown == 2)
+        end
         for _, area in ipairs({ "clear", "crowded" }) do
             local rig, ok, last, learned = Crowd(area, 86)
             Check("crowd: a short read keeps the state (" .. area .. ") and skips learning",

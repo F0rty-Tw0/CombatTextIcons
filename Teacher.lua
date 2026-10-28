@@ -66,8 +66,9 @@ Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {..
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; a read saves it with its map (SaveArea)
 Teacher.OnRead = nil -- function(last), called once per fight when its outcome is final; Progress sets it
 
--- the spec's store; its `areas` = { [map ID] = "clear" | "crowded" } is each map's last read verdict, its `pace` the
--- best meter total per second of a clear read (the live crowd check's yardstick)
+-- the spec's store; its `areas` = { [map ID] = "clear" | "crowded" } is each map's last read verdict, its `schools`
+-- = { [school] = true } the schools clear reads saw (Teacher.OwnSchool), its `pace` the best meter total per second
+-- of a clear read (the live crowd check's yardstick)
 local store = nil
 local lastSession = nil -- ID of the session processed last
 local lastRows = {}     -- that session's rows at its last read, by spell ID: { total, overkill }
@@ -87,8 +88,9 @@ local function CurrentMap()
 end
 
 -- Saved data is checked, never trusted: keeps each charDB.areas entry of a map ID and "clear" or "crowded", drops
--- the rest; an older save's single charDB.area = { state, map } joins them unless its map has its own; keeps
--- charDB.pace when it is a positive finite number. The state itself waits for Teacher.EnterWorld
+-- the rest; an older save's single charDB.area = { state, map } joins them unless its map has its own; keeps each
+-- charDB.schools entry of an integer school 1-127 marked true; keeps charDB.pace when it is a positive finite
+-- number. The state itself waits for Teacher.EnterWorld
 -- (a spec swap keeps it: the place did not change). charDB is a spec's store (Core's UseSpec): a swap drops the
 -- judgings under way or waiting and the reads not fired yet, as a /reload does, so the spec before teaches nothing
 -- into this one. The meter's last session (Growth) stays: it is the meter's, not the spec's.
@@ -105,6 +107,15 @@ function Teacher.Init(charDB)
         areas[old.map] = old.state
     end
     charDB.area, charDB.areas = nil, next(areas) and areas or nil
+    local schools = {}
+    if type(charDB.schools) == "table" then
+        for school, own in pairs(charDB.schools) do
+            if IsNumber(school) and school >= 1 and school <= 127 and school % 1 == 0 and own == true then
+                schools[school] = true
+            end
+        end
+    end
+    charDB.schools = next(schools) and schools or nil
     local pace = charDB.pace
     if not (IsNumber(pace) and pace > 0 and pace < math.huge) then charDB.pace = nil end
 end
@@ -824,6 +835,7 @@ local function Carry(run, into)
     for index, tick in ipairs(run.ticks or {}) do table.insert(into.ticks, index, tick) end
     for index, cast in ipairs(run.casts or {}) do table.insert(into.casts, index, cast) end
     into.seen = into.seen + run.seen
+    for school, sum in pairs(run.schools or {}) do into.schools[school] = (into.schools[school] or 0) + sum end
     into.carried = (into.carried or 0) + (run.duration or 0)
     into.streams = Streams.JoinFight(into.streams or {}, run.streams or {})
     into.group = into.group or run.group
@@ -850,6 +862,18 @@ local function SavePace(total, duration)
     if not (store and IsNumber(duration) and duration > 0) then return end
     local pace = total / duration
     if not store.pace or pace > store.pace then store.pace = pace end
+end
+
+-- A clear read's seen `schools` ({ [school] = sum }) are yours: each past 1 % of the meter's `total` is recorded
+-- (a clear read lets strangers' wounds reach that tolerance, no more).
+local function SaveSchools(schools, total)
+    if not store then return end
+    for school, sum in pairs(schools or {}) do
+        if sum > total / 100 then
+            store.schools = store.schools or {}
+            store.schools[school] = true
+        end
+    end
 end
 
 -- Sliced reads. BugSack 2026-10-28: "script ran too long" twice after a fight, in Stack.lua's Stacks and
@@ -958,6 +982,7 @@ local function Judging(run, sessionID, rows, reason)
     end
     if area == "clear" then
         SavePace(total, run.duration)
+        SaveSchools(run.schools, total)
         local learnedGroups, rewritten = Learn(run, results, open, rows)
         for _, group in ipairs(learnedGroups) do last.learned[group.castID] = #group.hits end
         local hits, openRows = Leftover(run.unknown, learnedGroups), StillOpen(open, rewritten)
@@ -986,8 +1011,8 @@ end
 -- Combat began: open a fight (an unfinished one is replaced).
 function Teacher.Start(now, group)
     local streams = Streams.NewFight()
-    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, casts = {}, seen = 0, live = 0, group = group,
-        streams = streams }
+    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, casts = {}, seen = 0, live = 0, schools = {},
+        group = group, streams = streams }
 end
 
 -- A wound landed while the player was grouped: the fight's read will not learn.
@@ -995,18 +1020,27 @@ function Teacher.Grouped()
     if Teacher.fight then Teacher.fight.group = true end
 end
 
--- A wound of this size that may be yours was seen at `now`, drawn or not (Core's Wound decides which count). Past the
--- live crowd check's bound (CROWD_PACE) the fight is crowded until it ends.
-function Teacher.Seen(amount, now)
+-- A wound of this size and `school` that may be yours was seen at `now`, drawn or not (Core's Wound decides which
+-- count). Past the live crowd check's bound (CROWD_PACE) the fight is crowded until it ends.
+function Teacher.Seen(amount, now, school)
     local fight = Teacher.fight
     if not (fight and IsNumber(amount)) then return end
     fight.seen, fight.live = fight.seen + amount, fight.live + amount
+    if IsNumber(school) then fight.schools[school] = (fight.schools[school] or 0) + amount end
     local pace = store and store.pace
     if fight.crowded or not (pace and IsNumber(now)) then return end
     if fight.live > CROWD_PACE * pace * math.max(now - fight.at, CROWD_WAIT) then
         fight.crowded = true
         if ns.Debug then ns.Debug("TEACH crowd live seen=%d pace=%d", math.floor(fight.live), math.floor(pace)) end
     end
+end
+
+-- A clear read saw wounds of `school`, or none has recorded any school yet (nothing to tell yours from others').
+function Teacher.OwnSchool(school)
+    local schools = store and store.schools
+    if not schools then return true end
+
+    return IsNumber(school) and schools[school] == true
 end
 
 -- The last solo fight's wounds fit the meter, the meter is readable, and the open fight is not crowded.

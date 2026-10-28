@@ -334,7 +334,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     -- A crowded fight draws only like-sized ticks (Tracker.Identify) and CrowdFits casts (Casts.Claim).
     local crowded = Teacher.fight and Teacher.fight.crowded
     local spellID = Tracker.Identify(plate, school, amount, flagText, now, crowded)
-    if fightsYou or (spellID and spellID ~= Tracker.UNKNOWN) then Teacher.Seen(amount, now) end
+    if fightsYou or (spellID and spellID ~= Tracker.UNKNOWN) then Teacher.Seen(amount, now, school) end
     -- A learned proc (exact meter sums) outranks a learned DoT's answer (votes) or an ambiguous one.
     local voted = spellID == Tracker.UNKNOWN or (spellID and Learn.Get(spellID))
     if voted and solo and ProcWound(plate, school, amount, flagText) then return end
@@ -415,6 +415,11 @@ local function Wound(plate, unit, flagText, amount, school, now)
         Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now, school), flagText, candidates)
         if not Teacher.AreaClear() then
             if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
+            return
+        end
+        -- no clear read ever saw this school: a stranger's (shamanally2: an ally's physical hits on a resto shaman)
+        if not Teacher.OwnSchool(school) then
+            if ns.Debug then ns.Debug("  -> HIDDEN (school)") end
             return
         end
         if ns.Debug then ns.Debug("  -> unknown-solo") end
