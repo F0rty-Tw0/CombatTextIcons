@@ -774,27 +774,43 @@ local function Big(entry, amount, lo, hi)
     return size ~= nil and entry.lo <= size and size <= entry.hi
 end
 
--- Procs.Name(school, amount, flagText): the one learned proc whose padded range holds the hit, or nil for none
--- or several. A plain flag picks the normal or the crit range (Big); a nil or secret flag fits either
--- (as Streams.Size).
+-- Whether a hit sits inside the entry's own learned sizes, unpadded: a normal hit by its size (never a crit-only
+-- entry's), a crit by its normal-scale size (Streams.NormalAmount). A hit of unknown flag sits in none.
+local function Own(entry, amount, crit)
+    if crit == nil or (not crit and entry.critOnly) then return false end
+    local size = crit and Streams.NormalAmount(amount, "CRITICAL") or amount
+
+    return size ~= nil and entry.lo <= size and size <= entry.hi
+end
+
+-- Procs.Name(school, amount, flagText): the one learned proc whose padded range holds the hit, or nil for none.
+-- A plain flag picks the normal or the crit range (Big); a nil or secret flag fits either (as Streams.Size).
+-- When several padded ranges hold it, the one whose own sizes hold it (Own) names it; none or several: nil. The pads
+-- are drift slack, the own sizes are the hits the row paired: run shamanele F6, crit-only 285452 (13017-13460) and
+-- 447419 (10571-11342) both held the fixed 22680 crits (11340 a normal, 447419's own top), which stayed '?'.
 function Procs.Name(school, amount, flagText)
     if not (IsNumber(school) and IsNumber(amount)) then return nil end
     local crit = Procs.Crit(flagText) -- nil: unknown
-    local found, contested
+    local found, contested, several, owner, owners = nil, false, false, nil, 0
     for id, entry in pairs(procs) do
         if entry.learned == true and not entry.period and entry.school == school then
             local lo, hi, floor = entry.lo * PAD_LO, entry.hi * PAD_HI, Floor(entry) * PAD_LO
             local normal = not entry.critOnly and lo <= amount and amount <= hi
             local big = Big(entry, amount, lo, hi)
             if (crit ~= true and normal) or (crit ~= false and big) then
-                if found then return nil end
-                found = id
+                several = several or found ~= nil
+                found = found or id
+                if Own(entry, amount, crit) then owner, owners = id, owners + 1 end
             end
             -- below the band down to its floor a cut-short tick of this proc may be the hit: no proc names it
             local short = floor <= amount and amount < lo
             local shortBig = floor * CRIT_LO <= amount and amount < lo * CRIT_LO
             if (crit ~= true and short) or (crit ~= false and shortBig) then contested = true end
         end
+    end
+    if several then
+        if owners ~= 1 then return nil end
+        found = owner
     end
     -- a normal hit inside a proc's own band (unpadded) is that proc's, cut-short ticks or not
     local own = found and crit == false and procs[found].lo <= amount and amount <= procs[found].hi

@@ -619,6 +619,27 @@ return function(T)
         Check("procs name floor: without the floor the padded hits name 1310088 (4600, 13562 crit)",
             Name(8, 4600, "") == 1310088 and Name(8, 13562, "CRITICAL") == 1310088)
     end
+    -- Procs.Name and two padded bands: run shamanele F6, crit-only 285452 (13017-13460) and 447419 (10571-11342) both
+    -- held the fixed 22680 crits (11340 a normal, inside 447419's own sizes only) -------------------------------------
+    do
+        local ns, procs = Rig()
+        local Name = ns.Procs.Name
+        procs[285452] = Entry(4, 13017, 13460, 3, true)
+        procs[285452].critOnly = true
+        procs[447419] = Entry(4, 10571, 11342, 3, true)
+        procs[447419].critOnly = true
+        Check("procs name tie: a crit both padded bands hold names the proc whose own sizes hold its normal scale"
+            .. " (22680 -> 447419); inside neither own band (25000 -> 12500) or of unknown flag it names nothing",
+            Name(4, 22680, "CRITICAL") == 447419 and Name(4, 25000, "CRITICAL") == nil and Name(4, 22680, nil) == nil)
+        procs[7] = Entry(8, 100, 120, 3, true)
+        procs[8] = Entry(8, 125, 140, 3, true)
+        Check("procs name tie: a normal hit both padded bands hold names the proc whose own band holds it (118 -> 7,"
+            .. " 130 -> 8); between the bands (122) nothing",
+            Name(8, 118, "") == 7 and Name(8, 130, "") == 8 and Name(8, 122, "") == nil)
+        procs[9] = Entry(8, 110, 135, 3, true)
+        Check("procs name tie: two own bands that hold a hit (118 in 100-120 and 110-135; 130 in 125-140 and 110-135)"
+            .. " name nothing", Name(8, 118, "") == nil and Name(8, 130, "") == nil)
+    end
     -- Procs.Name and critSeen: shaman2 F3, 1310088 learned from two normals (5101-5310) drew crit 11941, not its own
     -- (its normals with crits 10433 and 9814 sum to the meter's 50489) -----------------------------------------
     do
