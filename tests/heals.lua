@@ -10,13 +10,15 @@
 --   hidden  replayed, drawn nothing          out  in a heal-only read: SplitFights makes no slice of it, never replayed
 -- named + ? + hidden + out = 100 %.
 --   wrong    named under an ID no player cast ties to (Ties) in that ID's life before the heal (or 0.01 s after: a
---            cast on the same stamp later in the line order), or under an ID that is no "TEACH heal" row anywhere in
---            that log (strict orphan); a share of the raw amount, inside named
+--            cast on the same stamp later in the line order), under a castless proc's ID (TRUTH sizes) at another
+--            size, or under an ID that is no "TEACH heal" row anywhere in that log (strict orphan); a share of the
+--            raw amount, inside named
 --   control  named on a party unit in a log whose player heals nobody but itself (not `healer`): an ally's heal, so
 --            anything here is wrong; a share of the raw amount, must stay 0
 -- The meter's heal rows are EFFECTIVE healing on every target, the HEAL lines RAW healing on player and party: the two
--- sums never compare, so the rows serve only as the list of the player's own heal IDs. Blind spot: the log never says
--- which heal of a frame a cast made, so a named heal on its cast's stamp scores right even when it was a proc's.
+-- sums never compare, so the rows serve only as the list of the player's own heal IDs. Blind spots: the log never says
+-- which heal of a frame a cast made, so a named heal on its cast's stamp scores right even when it was a proc's; a
+-- heal of a castless proc's size scores right under that proc even when another source healed that size.
 --
 -- shamanheal is the 2026-10-28 resto capture (tests/score/shaman4.txt is an older, different run). shamanresto and
 -- priest3 are the hold-out logs: scored, never tuned on.
@@ -43,7 +45,25 @@ local TRUTH = {
     [5394] = { life = 20 },
     [108280] = { life = 12 },
     [61295] = { life = 20 },
+    -- Castless procs of one size (no CAST line ever ties them): a heal named under one is right when its amount is
+    -- a listed size (a crit twice it), within 1. Measured where the fight's row is exactly that size's heals summed:
+    -- Rune of Self-Mending 5763 (priest3 F9 23053 = 2 x 5763 + 11527 crit), 6046 (druid2 F9), 6370 (druid F1);
+    -- 1263002 11526 (hunter F12, paladin F4: 11527); 1287665 720 (hunter F12 1440 = 2 x 720); Holy Retributor's
+    -- Order 21535 (priest3 F8), 28864 (druid2 F9), 29472 (druid F1 58945 = 2 x 29472.5).
+    [1287908] = { sizes = { 5763, 6046, 6370 } },
+    [1263002] = { sizes = { 11526 } },
+    [1287665] = { sizes = { 720 } },
+    [1260079] = { sizes = { 21535, 28864, 29472 } },
 }
+
+-- Whether a heal of `amount` (`flag` its crit flag) named under `id` is one of id's TRUTH sizes, within 1.
+local function TrueSize(id, amount, flag)
+    local size = flag == "CRITICAL" and amount / 2 or amount
+    for _, listed in ipairs(TRUTH[id] and TRUTH[id].sizes or {}) do
+        if math.abs(size - listed) <= 1 then return true end
+    end
+    return false
+end
 
 local LOGS = { -- log: tests/score/<log>.txt; fixture: tests/fixtures/<fixture>.sv.lua, replayed as tests/score.lua does
     { log = "shamanheal", class = "shaman", healer = true },
@@ -155,7 +175,9 @@ local function ScoreHeals(heals, facts, healer, into)
                 local stat = into.byID[id] or { named = 0, wrong = 0, control = 0 }
                 into.byID[id] = stat
                 into.named, stat.named = into.named + amount, stat.named + amount
-                if not facts.meter[id] or not CastWithin(facts.ties[id], id, heal.event.t) then
+                local tied = TRUTH[id] and TRUTH[id].sizes and TrueSize(id, amount, heal.event.flag)
+                    or CastWithin(facts.ties[id], id, heal.event.t)
+                if not facts.meter[id] or not tied then
                     into.wrong, stat.wrong = into.wrong + amount, stat.wrong + amount
                 end
                 if not healer and unit ~= "player" then
@@ -204,6 +226,13 @@ do -- self-check: casts of 10 at 100; rows 10; heals of 100 each on the player u
         tied, false, truth)
     assert(truth.named == 400 and truth.wrong == 100 and truth.byID[1064].wrong == 100,
         "heals self-check: a cast ties its base= IDs and TRUTH's rows; a direct heal's cast 1 s before is wrong")
+    local function Sized(amount, flag) return { event = { t = 500, unit = "player", amount = amount, flag = flag },
+        shown = { texture = "tex:1287908" } } end
+    local castless = NewHeals("castless")
+    ScoreHeals({ Sized(5764), Sized(11526, "CRITICAL"), Sized(5000) },
+        { ties = {}, meter = { [1287908] = 1 }, raw = 22290, heals = 3 }, false, castless)
+    assert(castless.named == 22290 and castless.wrong == 5000,
+        "heals self-check: a castless proc named at its size (a crit twice it) is right with no cast; another size is wrong")
 end
 
 -- The fixture logs' debug lines, as tests/score_lib.lua's ReadLines keeps them.
