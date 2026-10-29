@@ -268,19 +268,13 @@ function Fingerprints.Agree(spellID)
     entry.strikes = 0
 end
 
--- The teacher saw more drawn than the meter holds; STRIKES in a row delete the entry. With `keep` (a group or crowded
--- read: strangers' hits may be the overshoot) the last strike keeps it, starts the strikes over and returns true.
-function Fingerprints.Over(spellID, keep)
+-- The teacher saw more drawn than the meter holds; STRIKES in a row delete the entry.
+function Fingerprints.Over(spellID)
     local entry = Fingerprints.Get(spellID)
     if not entry then return end
     entry.over = entry.over + 1
     entry.strikes = entry.strikes + 1
-    if entry.strikes < STRIKES then return end
-    if keep then
-        entry.strikes = 0
-        return true
-    end
-    casts[spellID] = nil
+    if entry.strikes >= STRIKES then casts[spellID] = nil end
 end
 
 function Fingerprints.SetAlias(meterID, castID)

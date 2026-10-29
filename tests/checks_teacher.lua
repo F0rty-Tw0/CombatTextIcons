@@ -18,7 +18,7 @@ return function(T)
             combatSpellDetails = {}, creatureName = "", isAvoidable = false, isDeadly = false }
     end
     -- `rows` plus a BALANCE row for whatever the tally ({ [spellID] = { amount, ... } }) passes them by: rig.Fight
-    -- counts every drawn hit as seen, so an over read would be crowded and pause instead of judge (a solo over among
+    -- counts every drawn hit as seen, so an over read would be crowded and freeze instead of judge (a solo over among
     -- many rows reads clear: the other rows' damage covers the overshoot).
     local function Balanced(tally, rows)
         local excess = 0
@@ -71,9 +71,9 @@ return function(T)
             ns.Core.UNIT_COMBAT(unit, "WOUND", flag or "", amount, school)
             return #rig.draws > before and rig.draws[#rig.draws] or nil
         end
-        -- Teacher fight without Core: tally = { [spellID] = { amount, ... } }, each hit drawn and seen; the
-        -- read is queued, not run.
-        function rig.Fight(tally, sessions)
+        -- Teacher fight without Core: tally = { [spellID] = { amount, ... } }, each hit drawn and seen, plus
+        -- `seen` more wounds drawn by nothing; the read is queued, not run.
+        function rig.Fight(tally, sessions, seen)
             S.sessions = sessions
             ns.Teacher.Start(10)
             for spellID, amounts in pairs(tally) do
@@ -82,6 +82,7 @@ return function(T)
                     ns.Teacher.Seen(amount)
                 end
             end
+            if seen then ns.Teacher.Seen(seen) end
             ns.Teacher.Finish(20)
         end
         -- Fires the oldest queued C_Timer.After callback.
@@ -112,15 +113,16 @@ return function(T)
         local S, Teacher, F = rig.S, rig.ns.Teacher, rig.ns.Fingerprints
         local probe = { Session(1, { Row(AUTO_SHOT, 189) }),
             Session(2, { Row(AUTO_SHOT, 87), Row(SWP, 81), Row(GRAVE, 56), Row(SMITE, 53) }) }
-        rig.Fight({ [SMITE] = { 30, 23 }, [SWP] = { 81 } }, probe)
+        -- 100 seen undrawn (Auto Shot, Touch of the Grave): 234 of the rows' 277 is a clear read, not short
+        rig.Fight({ [SMITE] = { 30, 23 }, [SWP] = { 81 } }, probe, 100)
         Check("teacher: Finish queues one read after 1 s and reads nothing before it",
             #S.timers == 1 and S.timers[1].delay == 1 and #S.sourceCalls == 0 and Teacher.last == nil
             and Teacher.fight == nil)
         local ok = pcall(rig.Fire)
         local last, call = Teacher.last, S.sourceCalls[1]
-        Check("teacher: reads the highest session ID (2 of [1, 2]) for the player's damage done",
-            ok and last and last.session == 2 and #S.sourceCalls == 1 and call.id == 2 and call.meterType == DAMAGE
-            and call.guid == S.guid)
+        Check("teacher: reads the highest session ID (2 of [1, 2]) for the player's damage done (a clear read then its heals)",
+            ok and last and last.session == 2 and #S.sourceCalls == 2 and call.id == 2 and call.meterType == DAMAGE
+            and call.guid == S.guid and S.sourceCalls[2].id == 2 and S.sourceCalls[2].meterType ~= DAMAGE)
         local smite = Find(last, SMITE)
         Check("teacher: Smite 30 + 23 = 53 against the meter's 53 -> agree, one fight, no strikes",
             smite and smite.tally == 53 and smite.meter == 53 and smite.verdict == "agree"
@@ -132,7 +134,7 @@ return function(T)
             Find(last, SWP).verdict == "agree" and F.Get(SWP) == nil)
 
         local ok2, last2 = rig.Read({ [SMITE] = { 60 } },
-            { Session(4, { Row(SMITE, 53) }), Session(3, { Row(SMITE, 999) }) })
+            { Session(4, Balanced({ [SMITE] = { 60 } }, { Row(SMITE, 53) })), Session(3, { Row(SMITE, 999) }) })
         Check("teacher: the highest ID wins whatever the list order ([4, 3] reads 4)", ok2 and last2.session == 4)
         Check("teacher: Smite 60 against 53 (TOL 1, upper 54) -> over: over 1, still one agreed fight",
             Find(last2, SMITE).verdict == "over" and F.Get(SMITE).over == 1 and F.Get(SMITE).fights == 1)
@@ -372,7 +374,7 @@ return function(T)
         local rig = Rig({ [WAND] = 4 })
         local F = rig.ns.Fingerprints
         F.SetAlias(AUTO_SHOT, WAND)
-        local ok, last = rig.Read({ [WAND] = { 120 } }, { Session(1, { Row(AUTO_SHOT, 100) }) })
+        local ok, last = rig.Read({ [WAND] = { 120 } }, { Session(1, Balanced({ [WAND] = { 120 } }, { Row(AUTO_SHOT, 100) })) })
         local row = Find(last, WAND)
         Check("teacher alias: row 75 pairs with the cast spell 5019 through a saved alias (120 > 100 + TOL 1 -> over)",
             ok and row and row.verdict == "over" and row.meterID == AUTO_SHOT and row.meter == 100 and F.Get(WAND).over == 1)
@@ -1183,8 +1185,8 @@ return function(T)
 
         do -- rule 1: over drops at once; under keeps
             local rig = Rig({}); Seed(rig, TRIGGER)
-            Step(rig, { [TRIGGER] = 40 }, { Row(TRIGGER, 100) })
-            Check("net: an under read (40 vs 100) keeps the learned spell", Kept(rig, TRIGGER))
+            Step(rig, { [TRIGGER] = 60 }, { Row(TRIGGER, 100) }) -- 60 seen of 100: clear, not short
+            Check("net: an under read (60 vs 100) keeps the learned spell", Kept(rig, TRIGGER))
             Step(rig, { [TRIGGER] = 200 }, { Row(TRIGGER, 100) })
             Check("net: an over read (200 vs 100 + TOL 1) drops it at once", not Kept(rig, TRIGGER))
         end
@@ -1200,7 +1202,7 @@ return function(T)
         do -- rule 4: a paired read (under, then agree) resets the count
             local rig = Rig({}); Seed(rig, TRIGGER)
             Strike(rig, TRIGGER)
-            Step(rig, { [TRIGGER] = 40 }, { Row(TRIGGER, 100) }) -- under
+            Step(rig, { [TRIGGER] = 60 }, { Row(TRIGGER, 100) }) -- under (60 seen of 100: clear, not short)
             Strike(rig, TRIGGER)
             Check("net: strike, under, strike keeps the spell", Kept(rig, TRIGGER))
             Step(rig, { [TRIGGER] = 100 }, { Row(TRIGGER, 100) }) -- agree
@@ -1305,77 +1307,89 @@ return function(T)
             Check("net rule 2: ... and struck again by the second, so it is dropped", not Kept(rig, TRIGGER))
         end
 
-        do -- a group or crowded read pauses where a clear one drops: strangers' hits may be the overshoot
-            local function Crowded(rig, group, rows)
+        do -- a group, crowded or short read is frozen: it judges for the Ledger, changes no learned state
+            local BIG, VOTER = 777, 48181 -- a row the fight barely saw (a short read); an unlearned cast collecting votes
+            -- One fight read as `area`: `drawn` = { [id] = amount }, each drawn and seen, against `rows`; a group or
+            -- crowded fight also sees far more than the meter holds (strangers), a short one sees under half of it.
+            local function Frozen(rig, area, drawn, rows, during)
                 local Teacher = rig.ns.Teacher
                 nextSession = nextSession + 1
-                rig.S.sessions = { Session(nextSession, rows or { Row(GRAVE, 56) }) }
-                Teacher.Start(10, group)
-                Teacher.Drawn(TRIGGER, 500)
-                Teacher.Seen(1e9) -- far above the meter: crowded (solo) or group
+                rig.S.sessions = { Session(nextSession, rows) }
+                Teacher.Start(10, area == "group")
+                for id, amount in pairs(drawn) do
+                    Teacher.Drawn(id, amount)
+                    Teacher.Seen(amount)
+                end
+                if area ~= "short" then Teacher.Seen(1e9) end
+                if during then during() end
                 Teacher.Finish(20)
-                pcall(rig.Fire)
-            end
-            for _, group in ipairs({ false, true }) do
-                local rig = Rig({}); Seed(rig, TRIGGER)
-                local Teacher = rig.ns.Teacher
-                local area = group and "group" or "crowded"
-                Crowded(rig, group)
-                Check("net: first strike keeps it, not paused (" .. area .. ")",
-                    Kept(rig, TRIGGER) and not Teacher.Paused(TRIGGER) and Teacher.last.area == area)
-                Crowded(rig, group)
-                Check("net: the second strike keeps it and pauses it, strikes start over (" .. area .. ")",
-                    Kept(rig, TRIGGER) and Teacher.Paused(TRIGGER) and rig.ns.Learn.List()[1].unpaired == 0)
-                Check("net: the pause is saved in the spec's store (" .. area .. ")", T.Store().paused[TRIGGER] == true)
-                Teacher.Start(30, true)
-                Check("net: a group fight's start keeps the pause (" .. area .. ")", Teacher.Paused(TRIGGER))
-                Teacher.Start(30, false)
-                Check("net: a solo start lifts the pause only on a clear map (" .. area .. ")",
-                    Teacher.Paused(TRIGGER) == (Teacher.area ~= "clear"))
+                local ok, problem = pcall(rig.Fire)
+                assert(ok, problem)
+                return Teacher.last
             end
 
-            local rig = Rig({}); Seed(rig, TRIGGER)
-            Crowded(rig, false, { Row(TRIGGER, 100) })
-            Check("net: a crowded over read pauses the learned spell, never drops it",
-                Kept(rig, TRIGGER) and rig.ns.Teacher.Paused(TRIGGER))
-            Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
-            Check("net: a clear read lifts every pause", rig.ns.Teacher.last.area == "clear"
-                and not rig.ns.Teacher.Paused(TRIGGER) and T.Store().paused == nil and Kept(rig, TRIGGER))
+            for _, area in ipairs({ "group", "crowded", "short" }) do
+                local rig = Rig({ [SMITE] = 2 }); Seed(rig, TRIGGER)
+                local F = rig.ns.Fingerprints
+                local rows = { Row(BIG, 1e6), Row(TRIGGER, 100), Row(SMITE, 100), Row(AUTO_SHOT, 87) }
+                local last
+                for _ = 1, 2 do last = Frozen(rig, area, { [TRIGGER] = 500, [SMITE] = 500, [WAND] = 87 }, rows) end
+                Check("frozen (" .. area .. "): two over reads are still judged for the Ledger",
+                    last.area == area and Find(last, TRIGGER).verdict == "over" and Find(last, SMITE).verdict == "over")
+                Check("frozen (" .. area .. "): two over reads keep the learned DoT with no strike",
+                    Kept(rig, TRIGGER) and rig.ns.Learn.List()[1].unpaired == 0)
+                Check("frozen (" .. area .. "): two over reads keep the fingerprint with no over and no strike",
+                    F.Get(SMITE) ~= nil and F.Get(SMITE).over == 0 and F.Get(SMITE).strikes == 0)
+                Check("frozen (" .. area .. "): the one tally and one agreeing row save no alias",
+                    Find(last, WAND).verdict == "agree" and F.Alias(AUTO_SHOT) == nil)
+                Frozen(rig, area, { [SMITE] = 100 }, { Row(BIG, 1e6), Row(SMITE, 100) })
+                Check("frozen (" .. area .. "): an agreeing read counts no fight",
+                    F.Get(SMITE) ~= nil and F.Get(SMITE).fights == 0)
 
-            rig = Rig({ [SMITE] = 2 })
-            local F = rig.ns.Fingerprints
-            for _ = 1, 2 do
-                nextSession = nextSession + 1
-                rig.S.sessions = { Session(nextSession, { Row(SMITE, 100) }) }
-                rig.ns.Teacher.Start(10, true)
-                rig.ns.Teacher.Drawn(SMITE, 500)
-                rig.ns.Teacher.Seen(500)
-                rig.ns.Teacher.Finish(20)
-                pcall(rig.Fire)
+                rig = Rig({}); Seed(rig, TRIGGER)
+                local Learn = rig.ns.Learn
+                local function CastBoth() Learn.OnCast(TRIGGER, 12); Learn.OnCast(VOTER, 12) end
+                for _ = 1, 2 do Frozen(rig, area, {}, { Row(GRAVE, 56) }, CastBoth) end
+                Check("frozen (" .. area .. "): a learned DoT cast with no row and nothing drawn survives two reads",
+                    Kept(rig, TRIGGER) and Learn.List()[1].unpaired == 0)
+                Check("frozen (" .. area .. "): a voting cast with no row keeps its votes (not rowless)",
+                    Learn.Votes(VOTER) ~= nil and not Learn.Rowless(VOTER))
+                Learn.OnCast(VOTER, 15)
+                Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
+                Check("frozen (" .. area .. "): ... while a clear read marks it rowless", Learn.Rowless(VOTER))
             end
-            Check("net: two group overs keep a fingerprint and pause it, strikes start over",
-                F.Get(SMITE) ~= nil and F.Get(SMITE).over == 2 and F.Get(SMITE).strikes == 0
-                and rig.ns.Teacher.Paused(SMITE))
 
-            rig = Rig({ [SMITE] = 2 })
-            rig.S.now = 9
-            rig.ns.Core.PLAYER_REGEN_DISABLED()
-            rig.Cast(10, "nameplate7", SMITE)
-            local before = rig.Hit(10.25, "nameplate7", 30, 2)
-            T.Store().paused = { [SMITE] = true } -- after the fight's start, which lifts pauses solo on a clear map
-            rig.Cast(20, "nameplate8", SMITE)
-            local drawn, tally = rig.Hit(20.25, "nameplate8", 23, 2), rig.ns.Teacher.fight.tally[SMITE]
-            Check("net: a paused cast's hit is hidden and untallied (Core)",
-                before == "tex:" .. SMITE and drawn == nil and tally == 30)
+            for _, area in ipairs({ "group", "crowded" }) do
+                local rig = Rig({ [SMITE] = 2 }); Seed(rig, TRIGGER)
+                local F = rig.ns.Fingerprints
+                -- TRIGGER drawn with no row (unpaired), Smite drawn over its row
+                Frozen(rig, area, { [TRIGGER] = 500, [SMITE] = 500 }, { Row(GRAVE, 56), Row(SMITE, 100) })
+                local last = Step(rig, { [TRIGGER] = 500, [SMITE] = 200 }, { Row(GRAVE, 56), Row(SMITE, 100) })
+                Check("frozen (" .. area .. "): its read leaves no strike for the next clear one: one strike each, kept",
+                    last.area == "clear" and Kept(rig, TRIGGER) and rig.ns.Learn.List()[1].unpaired == 1
+                    and F.Get(SMITE) ~= nil and F.Get(SMITE).strikes == 1)
 
-            T.Store().paused = { [SMITE] = true, [-1] = true, [1.5] = true, [592] = "yes", x = true }
+                rig = Rig({}); Seed(rig, TRIGGER)
+                Strike(rig, TRIGGER)
+                Frozen(rig, area, { [TRIGGER] = 100 }, { Row(TRIGGER, 100) }) -- would agree
+                Strike(rig, TRIGGER)
+                Check("frozen (" .. area .. "): an agreeing read resets no strike: clear strike, " .. area
+                    .. " agree, clear strike drops", not Kept(rig, TRIGGER))
+            end
+
+            local rig = Rig({ [SMITE] = 2 })
+            local S, Core = rig.S, rig.ns.Core
+            for _ = 1, 2 do Frozen(rig, "group", { [SMITE] = 500 }, { Row(SMITE, 100) }) end
+            S.group, S.now = true, 99
+            Core.PLAYER_REGEN_DISABLED()
+            rig.Cast(100, "nameplate7", SMITE)
+            local drawn = rig.Hit(100.25, "nameplate7", 30, 2)
+            Check("frozen: after two group over reads your learned cast still draws and is tallied in a group (Core)",
+                drawn == "tex:" .. SMITE and rig.ns.Teacher.fight.tally[SMITE] == 30)
+
+            T.Store().paused = { [SMITE] = true }
             rig.ns.Teacher.Init(T.Store())
-            local kept = T.Store().paused
-            Check("net: saved pauses are checked on load: only spell IDs marked true stay",
-                kept and kept[SMITE] == true and Count(kept) == 1)
-            T.Store().paused = { x = true }
-            rig.ns.Teacher.Init(T.Store())
-            Check("net: a saved pause set with nothing valid is dropped", T.Store().paused == nil)
+            Check("frozen: an older save's paused spells are discarded on load", T.Store().paused == nil)
         end
 
         do -- fingerprints keep their own rules; spells Learn does not know are untouched
@@ -1396,7 +1410,7 @@ return function(T)
             local function Gone(rig) return rig.ns.Procs.Get(PROC) == nil end
 
             local rig = Rig({}); SeedProc(rig, PROC, true)
-            Step(rig, { [PROC] = 40 }, { Row(PROC, 100) })
+            Step(rig, { [PROC] = 60 }, { Row(PROC, 100) }) -- 60 seen of 100: clear, not short
             Check("net proc: an under read keeps the learned proc", not Gone(rig))
             Step(rig, { [PROC] = 200 }, { Row(PROC, 100) })
             Check("net proc: an over read drops it at once", Gone(rig))
@@ -1451,7 +1465,8 @@ return function(T)
                 T.Store().votes[WITHER] = { casts = 1, sigs = { { kind = "dot", school = 36, period = 1.0, votes = 1, expected = 0.06 } } }
                 rig.ns.Learn.Init(T.Store())
             end
-            -- One fight at `at`: the cast (and 5 school-36 hits 1.0 s apart when `hits`), then its read against `rows`.
+            -- One fight at `at`: the cast (and 5 school-36 hits 1.0 s apart when `hits`, else the rows' total seen
+            -- undrawn, so the read is clear, not short), then its read against `rows`.
             local function Fight(rig, at, hits, rows)
                 nextSession = nextSession + 1
                 rig.S.sessions = { Session(nextSession, rows) }
@@ -1459,6 +1474,10 @@ return function(T)
                 rig.Cast(at + 1, "nameplate1", WITHER)
                 if hits then
                     for k = 1, 5 do rig.Hit(at + 1 + k, "nameplate1", 1000, 36) end
+                else
+                    local total = 0
+                    for _, row in ipairs(rows) do total = total + row.totalAmount end
+                    rig.ns.Teacher.Seen(total)
                 end
                 rig.ns.Teacher.Finish(at + 20)
                 assert(pcall(rig.Fire))
@@ -1956,9 +1975,8 @@ return function(T)
                 and spy.calls == 0 and Candidate(rig, X) == nil)
         end
 
-        do -- Review Focus 4: clear at hit time, crowded at read time: no learning; an over pauses the proc
-            local cases = { { total = 100, verdict = "over", paused = true },
-                { total = 350, verdict = "agree", paused = false } }
+        do -- Review Focus 4: clear at hit time, crowded at read time: no learning; the frozen read strikes nothing
+            local cases = { { total = 100, verdict = "over" }, { total = 350, verdict = "agree" } }
             for _, case in ipairs(cases) do
                 local rig = Rig({}); SeedProc(rig, X, true)
                 local spy = Spy(rig)
@@ -1970,9 +1988,9 @@ return function(T)
                 rig.ns.Teacher.Finish(20)
                 pcall(rig.Fire)
                 Check("procs wiring: crowded read, drawn 350 against " .. case.total .. " -> " .. case.verdict
-                    .. ", proc kept" .. (case.paused and " and paused" or "") .. ", Procs.Read not called",
+                    .. ", proc kept with no strike, Procs.Read not called",
                     rig.ns.Teacher.last.area == "crowded" and Find(rig.ns.Teacher.last, X).verdict == case.verdict
-                    and rig.ns.Procs.Get(X) ~= nil and rig.ns.Teacher.Paused(X) == case.paused and spy.calls == 0)
+                    and rig.ns.Procs.Get(X) ~= nil and rig.ns.Procs.Get(X).unpaired == 0 and spy.calls == 0)
             end
         end
 

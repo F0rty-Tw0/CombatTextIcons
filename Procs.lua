@@ -13,7 +13,7 @@ ns.Procs = Procs
 
 local LEARN_STREAK = 3 -- exact fights in a row before a candidate is learned
 local CAP = 64         -- unlearned candidates kept
-local UNPAIRED_MAX = 2 -- unpaired reads in a row drop a learned proc
+local UNPAIRED_MAX = 2 -- unpaired clear reads in a row drop a learned proc
 local SIZE_GUARD, CRIT_LO, CRIT_HI = Streams.SIZE_GUARD, Streams.CRIT_LO, Streams.CRIT_HI
 local PARTIAL_CORE = 3 -- normals a group needs before lone hits below it may be its cut-short last ticks
 local PAD_LO, PAD_HI = 0.85, 1.15 -- draw pads; two bands are also the same proc's when each, shrunk by PAD_LO, reaches the other
@@ -100,18 +100,12 @@ function Procs.Drop(id)
     if IsNumber(id) then procs[id] = nil end
 end
 
--- Procs.Unpaired(id, keep): a learned proc the meter did not pair; the second strike in a row drops it. With `keep` (a
--- group or crowded read) that strike keeps it, starts the strikes over and returns true.
-function Procs.Unpaired(id, keep)
+-- Procs.Unpaired(id): a learned proc a clear read did not pair; the second strike in a row drops it.
+function Procs.Unpaired(id)
     local entry = Procs.Get(id)
     if not entry then return end
     entry.unpaired = entry.unpaired + 1
-    if entry.unpaired < UNPAIRED_MAX then return end
-    if keep then
-        entry.unpaired = 0
-        return true
-    end
-    Procs.Drop(id)
+    if entry.unpaired >= UNPAIRED_MAX then Procs.Drop(id) end
 end
 
 function Procs.Paired(id)

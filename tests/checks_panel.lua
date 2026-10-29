@@ -731,12 +731,11 @@ return function(T)
         ns.Learn.Unpaired(PAIN)
         Check("status: a miss and an unpaired read are 2 warnings",
             FindIn(ns.Panel.Rows(fight), "damage", PAIN).status == "Knows it, 2 warnings")
-        T.Store().paused = { [PAIN] = true }
-        local paused = FindIn(ns.Panel.Rows(fight), "damage", PAIN)
+        T.Store().paused = { [PAIN] = true } -- an older save's pause: group and crowded reads no longer hide a spell
+        local stale = FindIn(ns.Panel.Rows(fight), "damage", PAIN)
         T.Store().paused = nil
-        Check("status: a spell a group or crowded read paused reads 'Paused' with why",
-            paused.status == "Paused" and paused.why:find("group or crowd", 1, true) and paused.tone == "warn"
-            and paused.group == "learned")
+        Check("status: an older save's pause leaves a learned spell 'Knows it'",
+            stale.status == "Knows it, 2 warnings" and stale.group == "learned")
         local listed = {}
         for _, entry in ipairs(ns.Learn.List()) do listed[entry.spellID] = entry end
         Check("Learn.List exposes misses and unpaired", listed[PAIN].misses == 1 and listed[PAIN].unpaired == 1

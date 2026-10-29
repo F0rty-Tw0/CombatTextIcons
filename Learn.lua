@@ -25,7 +25,7 @@ if ns.IsForever then ns.Spells = {} end
 
 local PERIOD_MIN, PERIOD_MAX = 0.5, 10 -- seconds; anything outside is not a tick rhythm
 local MAX_MISSES = 2                   -- consecutive tickless casts that drop a learned spell
-local UNPAIRED_MAX = 2                  -- consecutive meter reads without the spell's ticks that drop it
+local UNPAIRED_MAX = 2                  -- consecutive clear reads without the spell's ticks that drop it
 local MODES = { dot = "target", channel = "channel", hot = "hot" } -- kind -> Tracker mode
 local SIG_AGREE = 0.25                 -- a vote sig and a new base period may differ by this share
 local RATE_WINDOW = 12                 -- seconds of cast log counted towards luck
@@ -171,19 +171,13 @@ function Learn.Drop(spellID)
     votes[spellID] = nil
 end
 
--- A meter read found no ticks for the spell's trigger: the second strike in a row drops it. With `keep` (a group or
--- crowded read) that strike keeps it, starts the strikes over and returns true.
-function Learn.Unpaired(spellID, keep)
+-- A clear meter read found no ticks for the spell's trigger: the second strike in a row drops it.
+function Learn.Unpaired(spellID)
     if not IsId(spellID) then return end
     local entry = learned[spellID]
     if not entry then return end
     entry.unpaired = (entry.unpaired or 0) + 1
-    if entry.unpaired < UNPAIRED_MAX then return end
-    if keep then
-        entry.unpaired = 0
-        return true
-    end
-    Learn.Drop(spellID)
+    if entry.unpaired >= UNPAIRED_MAX then Learn.Drop(spellID) end
 end
 
 -- A meter read matched the spell's ticks: the strikes start over.
