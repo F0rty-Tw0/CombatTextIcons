@@ -686,7 +686,8 @@ do -- Phase 3: records and Claim
                 and Last({ own, { 30.4, 20000, "nameplate1" } }, Twice) ~= MB
                 and Last(frame) ~= MB and Last(frame, Around) == MB
                 and Last({ { 30.15, 20000, "nameplate2" } }) ~= MB and Last({ { 30.15, 20000, "nameplate2" } }, Around) == MB
-                -- an area record lives SPLASH past its window top (30.73), past LATE times it (30.51); 13000 is no Splash
+                -- an area record lives SPLASH past its window top (30.73), past SEEN_LIFE times it (30.51); 13000 is no
+                -- Splash
                 and Last({ own, { 30.6, 13000, "nameplate2" } }, Around) == MB
                 and Last({ own, { 30.8, 20000, "nameplate2" } }, Around) ~= MB
                 and Last({ own, { 30.2, 12000, "nameplate2" } }, Around) ~= MB
@@ -1173,20 +1174,33 @@ end
         local second = rig.Hit(200, "nameplate1", "WOUND", 24031, 32)
         Check("casts: two open casts of one spell that both fit are not ambiguous: each takes one hit",
             first and first.texture == "tex:" .. VOID_BLAST and second and second.texture == "tex:" .. VOID_BLAST)
-        -- Mind Blast travel varies (0.17-0.34 s across runs 115649Z-123754Z): window 0.17 s, late up to 2 x 0.17 + 0.05
+        -- Mind Blast travel varies (0.17-0.34 s across runs 115649Z-123754Z): window 0.17 s, late up to 0.17 + 0.5 + 0.05;
+        -- run paladin F5-F7: Hammer of Wrath learned at 0.16 s landed at 0.44-0.69 s
         rig.Cast(300, MIND_BLAST, "nameplate1")
         local late = rig.Hit(300.29, "nameplate1", "WOUND", 21009, 32)
         rig.Cast(311, MIND_BLAST, "nameplate1") -- 11 s after the 300 cast: its centre (0.29 s) is stale
-        local tooLate = rig.Hit(311.5, "nameplate1", "WOUND", 21009, 32)
+        local far = rig.Hit(311.5, "nameplate1", "WOUND", 21009, 32)
         rig.Cast(320, MIND_BLAST, "nameplate1")
         local inWindow = rig.Hit(320.17, "nameplate1", "WOUND", 19000, 32)
         local after = rig.Hit(320.3, "nameplate1", "WOUND", 2000, 32)
-        Check("casts: a cast with no hit yet takes a late hit up to twice its window top (0.29 s of 0.17)",
-            late and late.texture == "tex:" .. MIND_BLAST)
-        Check("casts: past twice the window top (0.5 s) it takes nothing",
+        rig.Cast(340, MIND_BLAST, "nameplate1")
+        local tooLate = rig.Hit(340.8, "nameplate1", "WOUND", 21009, 32)
+        Check("casts: a cast with no hit yet takes a late hit past twice its window top (0.29 and 0.5 s of 0.17)",
+            late and late.texture == "tex:" .. MIND_BLAST and far and far.texture == "tex:" .. MIND_BLAST)
+        Check("casts: past its top + 0.5 s (0.8 s) it takes nothing",
             not (tooLate and tooLate.texture == "tex:" .. MIND_BLAST))
         Check("casts: a cast that took its hit in the window takes no late hit",
             inWindow and inWindow.texture == "tex:" .. MIND_BLAST and not (after and after.texture == "tex:" .. MIND_BLAST))
+        -- distance adds seconds, not a share of the window: bench distance warlock lock2 F5, a Shadow Bolt with a ~0.9 s
+        -- top took a crit 3.6 s on at 4 x; past its top a long window reaches 2 x (1.8 s), not top + 0.5 or 4 x
+        local SHADOW_BOLT = 686
+        for castAt = 7, 9 do F.Add(SHADOW_BOLT, { school = 32, delay = 0.9, castAt = castAt, hops = 1, spell = SHADOW_BOLT }) end
+        rig.Cast(400, SHADOW_BOLT, "nameplate1")
+        local reached = rig.Hit(401.7, "nameplate1", "WOUND", 21009, 32)
+        rig.Cast(420, SHADOW_BOLT, "nameplate1")
+        local stray = rig.Hit(422.5, "nameplate1", "WOUND", 21009, 32)
+        Check("casts: a 0.9 s window takes a late hit at 1.7 s (2 x its top) but none at 2.5 s (inside 4 x)",
+            reached and reached.texture == "tex:" .. SHADOW_BOLT and not (stray and stray.texture == "tex:" .. SHADOW_BOLT))
         F.Init({ casts = { [1] = { learned = true, pattern = "single", school = 32, delays = { 0.2 },
             samples = { { school = 32, delay = 0.2, castAt = 1, hops = 1, spell = VOID_BLAST } } } } })
         Check("fingerprints: a saved sample keeps its cast spell", select(2, F.Window(1, VOID_BLAST)) == 0.2

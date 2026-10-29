@@ -81,7 +81,21 @@ local log = {}           -- harmful player and pet casts, oldest first: { spellI
 -- Open records: a learned cast waiting for its hit. A hit that fits one is drawn with the
 -- cast's icon; Accept is the only writer of hops. Claim only notes what each record saw (its centre).
 local SLACK = 0.05      -- a window edge may be this far off
-local LATE = 2          -- a cast with no hit yet takes a late one up to this times its window top
+-- A cast that saw no hit near its window takes a late one up to LateTop: travel grows with distance, and a window
+-- learned close up is short. Run paladin F5-F7: Hammer of Wrath 24275 learned at 0.160-0.163 s landed at 0.44-0.69 s,
+-- past twice its top (0.33 s), and 408385 learned at 0.226-0.235 s landed at 0.73 s; reaching LATE times the top the
+-- paladin log's late right rose 42.4 -> 49.0 %, wrong and over flat on every log (6x let wrong in on dk). Distance
+-- adds seconds, not a share of the window, so the reach past the top is capped at LATE_REACH: uncapped, a Shadow Bolt
+-- whose own hit was refused waited 4 x its ~0.9 s top and took a crit 3.6 s on (bench distance warlock, lock2 F5);
+-- a 0.4 s cap missed 408385's 0.73 s. A top past LATE_REACH keeps SEEN_LIFE times itself. A cast that saw a hit there
+-- lives SEEN_LIFE times its window top, for its splashes (Splash).
+local LATE = 4
+local LATE_REACH = 0.5
+local SEEN_LIFE = 2
+
+local function LateTop(high)
+    return math.max(SEEN_LIFE * high, math.min(LATE * high, high + LATE_REACH))
+end
 local PAD_LO, PAD_HI = 0.7, 2 -- a sized hit fits a cast's band from 0.7 of its smallest to twice its biggest learned size
 local SHRINK = 0.5      -- an unlearned cast's hits may shrink to this share of its samples (SampledAt)
 local RECORD_MAX = 20   -- open records at most; the oldest is dropped
@@ -189,7 +203,7 @@ local function Live(record, now)
         return nil
     end
     local _, high = RecordWindow(record)
-    local limit = record.at + LATE * high + SLACK
+    local limit = record.at + (record.seen and SEEN_LIFE * high or LateTop(high)) + SLACK
     if fp.pattern == "chain" and record.hops >= 1 then limit = math.max(limit, record.last + CHAIN_GAP) end
     if fp.pattern ~= "chain" and record.seen and Splashed(record) then
         limit = math.max(limit, record.at + record.seen[1] + SPLASH)
@@ -348,7 +362,7 @@ end
 -- new plate within CHAIN_GAP of the one before (CHAIN_MAX in all), in a later frame no smaller than its learned sizes
 -- (HopSize).
 -- "late": a first hit past the
--- window, up to LATE times its top (Mind Blast's travel varies with distance), while the record has
+-- window, up to LateTop (Mind Blast's travel varies with distance), while the record has
 -- seen no hit in its watch range: one it saw was its own, spoiled (Darkglare's beam took Shadow Bolt's
 -- late slot after an ambiguous hit, run 20261025T180045Z). An early first hit, up to WATCH under the
 -- window, fits the same weak way when `size` is inside the learned sizes, unpadded: Lava Burst learned
@@ -381,7 +395,7 @@ local function Fits(record, fp, plate, school, now, size, crit)
         end
         if age <= high + SLACK then return "in" end
 
-        return not record.seen and age <= LATE * high + SLACK and "late"
+        return not record.seen and age <= LateTop(high) + SLACK and "late"
     end
     if fp.pattern ~= "chain" then
         local low, high = RecordWindow(record)
