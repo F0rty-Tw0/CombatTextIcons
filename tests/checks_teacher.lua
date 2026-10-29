@@ -1352,11 +1352,10 @@ return function(T)
                 for _ = 1, 2 do Frozen(rig, area, {}, { Row(GRAVE, 56) }, CastBoth) end
                 Check("frozen (" .. area .. "): a learned DoT cast with no row and nothing drawn survives two reads",
                     Kept(rig, TRIGGER) and Learn.List()[1].unpaired == 0)
-                Check("frozen (" .. area .. "): a voting cast with no row keeps its votes (not rowless)",
-                    Learn.Votes(VOTER) ~= nil and not Learn.Rowless(VOTER))
-                Learn.OnCast(VOTER, 15)
-                Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
-                Check("frozen (" .. area .. "): ... while a clear read marks it rowless", Learn.Rowless(VOTER))
+                -- the meter's rows are yours alone, strangers or not: a cast with no row votes no DoT (synthetic group
+                -- lock: Malevolence 442726 voted on through crowded reads, was learned and drew other DoTs' ticks)
+                Check("frozen (" .. area .. "): a voting cast with no row is rowless all the same",
+                    Learn.Votes(VOTER) ~= nil and Learn.Rowless(VOTER))
             end
 
             for _, area in ipairs({ "group", "crowded" }) do

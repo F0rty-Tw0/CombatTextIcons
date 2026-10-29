@@ -979,8 +979,9 @@ local function Judging(run, sessionID, rows, reason)
     local area, total = CrowdCheck(run, rows)
     -- a group, crowded or short read is frozen: it judges for the Ledger and changes no learned state
     local frozen = area ~= "clear"
-    -- this fight's casts with no row: no dot votes; learned, a strike
-    if not frozen then ns.Learn.RowsRead(full, run.at, run.tally) end
+    -- this fight's casts with no row: no dot votes (the rows are yours alone, so a frozen read bans too); learned and
+    -- read clear, a strike
+    ns.Learn.RowsRead(full, run.at, run.tally, frozen)
     if ns.Debug then
         ReportSession(sessionID, again)
         -- grug: override probe (2026-10-25): what each meter row's spell turns into right now.

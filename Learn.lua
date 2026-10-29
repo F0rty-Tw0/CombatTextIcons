@@ -317,7 +317,10 @@ end
 -- A learned dot or channel cast since `since` that drew nothing (`tally`, the fight's drawn totals) and has no row is
 -- struck as unpaired too: the net only judges drawn spells, and twins cast in one frame tie on every tick, so neither
 -- draws (Flame Shock 188389 and its rowless twin 470411 kept Flame Shock '?' for all 4 fights of run shaman4).
-function Learn.RowsRead(rows, since, tally)
+-- A `frozen` read (group, crowded or short) strikes nothing, but bans as any read does: the meter's rows are your
+-- spells alone, strangers or not, and a cast with no row that kept voting in crowded fights was learned there and
+-- drew other DoTs' ticks (synthetic group lock, Malevolence 442726: 6.7 % of the meter wrong).
+function Learn.RowsRead(rows, since, tally, frozen)
     if type(since) ~= "number" then return end
     local listed = {}
     for _, row in ipairs(rows) do
@@ -326,7 +329,8 @@ function Learn.RowsRead(rows, since, tally)
     end
     for spellID, entry in pairs(learned) do
         local cast, drawn = castAt[spellID], tally and tally[spellID]
-        if entry.kind ~= "hot" and type(cast) == "number" and cast >= since and not listed[spellID] and not drawn then
+        if not frozen and entry.kind ~= "hot" and type(cast) == "number" and cast >= since and not listed[spellID]
+            and not drawn then
             Learn.Unpaired(spellID)
         end
     end
