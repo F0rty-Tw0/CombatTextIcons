@@ -370,6 +370,29 @@ return function(T)
             Teacher.last.area == "clear" and not small and Find(Teacher.last, BOLT).verdict ~= "agree")
     end
 
+    do -- ele log F3: Lightning Bolt 188196's row held each bolt and its Elemental Overload on the bolt's plate
+       -- (63230 + 28817 + 64483 + 26106 + 25821 = 208457): the proven way teaches 2 hits a cast (sizes here within
+       -- CRIT_LO of each other, so the whole group may pair)
+        local BOLT = 188196
+        local rig = Rig({})
+        local Teacher, SoleCast, P1 = rig.ns.Teacher, rig.ns.Casts.SoleCast, rig.Plate("nameplate1")
+        rig.S.sessions = { Session(1, { Row(BOLT, 3 * (60000 + 40000)) }) }
+        Teacher.Start(5)
+        for castAt = 10, 30, 10 do
+            rig.Cast(castAt, "nameplate1", BOLT)
+            for _, hit in ipairs({ { 0.45, 60000 }, { 0.6, 40000 } }) do
+                local at = castAt + hit[1]
+                Teacher.Seen(hit[2])
+                Teacher.Unknown(P1, 8, hit[2], at, SoleCast(P1, at), "")
+            end
+        end
+        Teacher.Finish(40)
+        rig.Fire()
+        local fp = rig.ns.Fingerprints.Get(BOLT)
+        Check("teacher per cast: a proven way with a bolt and its overload on each cast's plate teaches 2 hits a cast",
+            fp ~= nil and fp.learned and fp.perCast == 2)
+    end
+
     do -- alias pairing and the new-alias rule (teacher read driven directly)
         local rig = Rig({ [WAND] = 4 })
         local F = rig.ns.Fingerprints

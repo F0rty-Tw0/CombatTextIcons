@@ -521,6 +521,20 @@ local function Owners(groups, rows)
     return owners
 end
 
+-- The most hits of `way` one cast left on its own plate (a frame mate is another plate's).
+local function OwnHitsPerCast(way)
+    local counts, most = {}, 0
+    for _, hit in ipairs(way.hits) do
+        if not (way.mates and way.mates[hit]) then
+            local castAt = (way.castOf and way.castOf[hit] or hit).castAt
+            counts[castAt] = (counts[castAt] or 0) + 1
+            most = math.max(most, counts[castAt])
+        end
+    end
+
+    return most
+end
+
 -- One pairing pass over the rows and groups `seen` does not hold yet: `WayOf(group)` is the
 -- group's sum to try. A row and a group that agree only with each other are learned; every row
 -- and group that agreed with anything goes into `seen`, so a later pass never revisits them.
@@ -547,6 +561,7 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
                         castAt = cast.castAt, hops = hops, spell = cast.castSpell, size = hit.size })
                 end
                 if row.spellID ~= group.castID then Fingerprints.SetAlias(row.spellID, group.castID) end
+                Fingerprints.SetPerCast(group.castID, OwnHitsPerCast(way))
                 learned[#learned + 1] = way
                 rewritten[position] = true
                 results[item.index] = { spellID = group.castID, meterID = row.spellID, tally = way.sum,
@@ -701,8 +716,10 @@ end
 -- steady hits no sum explained; then the ground pass (Ground.lua) learns a rowless cast's ticks on many plates,
 -- bounded by one open row; then the chain pass (Chain.lua) learns a cast's hops from plate to plate under its own
 -- open row, before the DoT pass: a proven chain is direct hits, so they leave the school's '?' sum the DoT pass
--- bounds; then the DoT pass learns a cast's DoT from its school's streams, bounded by its own open row; last, the
--- stack pass (Stack.lua) learns a stacking DoT's ticks on its cast's plate under its own open row.
+-- bounds; then the DoT pass learns a cast's DoT from its school's streams, bounded by its own open row; then the
+-- stack pass (Stack.lua) learns a stacking DoT's ticks on its cast's plate under its own open row; last, the area
+-- pass (Area.lua) marks a spell learned before this read whose row's residual its hits on other plates explain.
+-- A way the meter proved also teaches how many hits one cast landed on its plate (Fingerprints.SetPerCast).
 -- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so
 -- the DoT's draws were other spells' (a stale save's Nature DoT under Lava Burst 51505 drew Surging Totem's ticks).
 -- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
@@ -730,6 +747,7 @@ local function Learn(run, results, open, rows)
     DotPass(run, rows, open, rewritten, results, learned)
     Teacher.Yield()
     for _, way in ipairs(Stack.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Area.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(learned) do
         local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)
         if dot and fp and fp.learned and fp.school ~= dot.school then ns.Learn.Drop(way.castID) end
