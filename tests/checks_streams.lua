@@ -487,6 +487,20 @@ return function(T)
         Check("haste: an erroring API reads as nil", ok and haste == nil)
     end
 
+    -- A learned rhythm proc's stream gives no DoT votes (run lock4 F18: Haunt 48181 won rhythm proc 1262710's stream)
+    do
+        local rig = Fresh()
+        rig.Trial(32, 48181, 1.0)
+        local free = rig.Sig(48181)
+        rig = Fresh()
+        rig.ns.Procs.Teach(1262710, 32, 900, 1100, 1.0, 0)
+        rig.Trial(32, 48181, 1.0)
+        local taken = rig.Sig(48181)
+        Check("rhythm proc stream: a cast before 1.0 s Shadow ticks of 1000 votes once alone, never when a learned"
+            .. " rhythm proc (1.0 s, 900-1100) names the stream",
+            free ~= nil and free.votes == 1 and (taken == nil or taken.votes == 0))
+    end
+
     -- shaman-fs-forget by hand: 3 fresh plates ------------------------------------------------
     do
         local rig = Fresh()

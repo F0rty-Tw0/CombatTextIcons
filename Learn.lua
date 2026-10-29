@@ -424,6 +424,9 @@ function Learn.OnBirth(key, stream, now)
     local ownChannel = #owners == 1 and stream.ownerKind and stream.ownerKind[owners[1]] == "channel"
     if Frozen() and not ownChannel then return end
     if ns.Tracker.ExplainsHits(key, stream.school, stream.hits, stream.period) then return end
+    -- A learned rhythm proc's stream is the proc's ticks: run lock4 F18, Haunt 48181 (a direct hit) won the 0.96 s
+    -- stream of rhythm proc 1262710 (1.0 s) and drew 269K of strangers' and DoT ticks over its row in the F19 dungeon.
+    if ns.Procs.NameStream(stream) then return end
     local base = stream.period * (1 + (Learn.Haste() or 0) / 100)
     local paired = stream.halved and 2 * base or base -- a halved birth was paired at twice its ticks' period
     if paired < PERIOD_MIN or base > PERIOD_MAX then return end -- not a tick rhythm; Init would drop the sig
