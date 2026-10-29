@@ -8,7 +8,9 @@
 -- post-fight teacher (Teacher.lua) only counts fights it agreed with or
 -- overshot. Two overshoots in a row delete the entry. Samples keep the hit's normal-scale
 -- size (crits divided by CRIT_FACTOR); a claim needs a hit inside the padded band (Casts.lua).
--- `castAliases` maps a meter row ID to the cast ID (Auto Shot 75 -> Shoot 5019). A ground spell's samples
+-- `castAliases` maps a meter row ID to the cast ID (Auto Shot 75 -> Shoot 5019); `aliasFills` marks the row IDs
+-- whose alias a filled sum set (Steady's OtherRow): their cast draws its crits in the near sizes only (Casts.Claim).
+-- A ground spell's samples
 -- (Ground.lua) carry `tick`: 0 for its first tick, whose delays alone give the window, k for its kth tick after that;
 -- they make the pattern "ground" with a `period` and `ticks` (Casts.lua walks them); a first tick's sample may carry
 -- `crit`, its walk's crits' size over its normal ticks' (the median is the entry's `crit`). A stack spell's samples
@@ -45,7 +47,7 @@ local function Tick(value) return IsNumber(value) and value >= 0 and value % 1 =
 local function Positive(value) return IsNumber(value) and value > 0 and value or nil end -- a plain number above 0
 
 -- The in-memory tables are the saved ones once Init ran.
-local casts, aliases = {}, {}
+local casts, aliases, fills = {}, {}, {}
 
 -- Whether `sample` is a ground spell's later tick, whose delay is no window delay.
 local function LaterTick(sample) return sample.tick ~= nil and sample.tick > 0 end
@@ -319,8 +321,11 @@ function Fingerprints.SetArea(spellID)
     if entry then entry.area = true end
 end
 
-function Fingerprints.SetAlias(meterID, castID)
-    if IsNumber(meterID) and IsNumber(castID) then aliases[meterID] = castID end
+-- `filled`: the alias rests on a filled sum (Steady's CastSum), so Filled answers for its cast; an alias set again
+-- without it drops the mark.
+function Fingerprints.SetAlias(meterID, castID, filled)
+    if not (IsNumber(meterID) and IsNumber(castID)) then return end
+    aliases[meterID], fills[meterID] = castID, filled == true or nil
 end
 
 function Fingerprints.Alias(meterID)
@@ -337,9 +342,19 @@ function Fingerprints.IsAliasTarget(castID)
     return false
 end
 
+-- Whether a row aliased to `castID` got its alias from a filled sum (SetAlias).
+function Fingerprints.Filled(castID)
+    for meterID in pairs(fills) do
+        if aliases[meterID] == castID then return true end
+    end
+
+    return false
+end
+
 function Fingerprints.Forget()
     for spellID in pairs(casts) do casts[spellID] = nil end
     for meterID in pairs(aliases) do aliases[meterID] = nil end
+    for meterID in pairs(fills) do fills[meterID] = nil end
 end
 
 local function CountOrZero(value) return type(value) == "number" and value or 0 end
@@ -403,11 +418,15 @@ end
 function Fingerprints.Init(charDB)
     if type(charDB.casts) ~= "table" then charDB.casts = {} end
     if type(charDB.castAliases) ~= "table" then charDB.castAliases = {} end
-    casts, aliases = charDB.casts, charDB.castAliases
+    if type(charDB.aliasFills) ~= "table" then charDB.aliasFills = {} end
+    casts, aliases, fills = charDB.casts, charDB.castAliases, charDB.aliasFills
     for key, entry in pairs(casts) do
         if type(key) == "number" and ValidEntry(entry) then Repair(entry) else casts[key] = nil end
     end
     for meterID, castID in pairs(aliases) do
         if type(meterID) ~= "number" or type(castID) ~= "number" then aliases[meterID] = nil end
+    end
+    for meterID, value in pairs(fills) do
+        if value ~= true or aliases[meterID] == nil then fills[meterID] = nil end
     end
 end

@@ -1863,7 +1863,9 @@ for _, name in ipairs(DIRECT_NAMES) do
     S.sessions = { LabeledSession(lines, one) }
     for _, timer in ipairs(S.timers) do timer.fn() end
     one.casts, one.castAliases = DeepCopy(Store().casts), DeepCopy(Store().castAliases)
-    local hits, _, two = Replay(name, { charDB = { casts = one.casts, castAliases = one.castAliases or {} } })
+    local fills = DeepCopy(Store().aliasFills)
+    local hits, _, two = Replay(name, { charDB = { casts = one.casts, castAliases = one.castAliases or {},
+        aliasFills = fills } })
     local score = ScoreDirect(lines, hits)
     if priest then
         c12Total.den, c12Total.right, c12Total.wrong = c12Total.den + score.den, c12Total.right + score.right, c12Total.wrong + score.wrong

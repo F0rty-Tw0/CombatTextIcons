@@ -10,8 +10,10 @@
 -- each other's (Dominant): it alone teaches. A hit
 -- counted for two cast spells or two bases teaches neither. The meter judges last: the counted hits
 -- must fit the base's row (total + overkill + tolerance, less what was drawn under it, unless a learned
--- DoT of another school drew it); a base with no row of its own needs every cast counted and the sum to agree
--- with exactly one row of another ID, which it then aliases (OtherRow). Learned
+-- DoT of another school drew it); a base with no row of its own needs every cast counted (or filled by its near
+-- hit) and the sum to agree with exactly one row of another ID, which it then aliases (OtherRow). A filled sum only
+-- aliases the row: the base learns nothing that read, and learns in a later fight from hits that fit under the row
+-- (Fits); its crits draw in the near sizes only (Casts.Claim). Learned
 -- hits become fingerprint samples. A base learned before the fight keeps learning the hits it
 -- missed (Void Blast in its cast frame, Mind Blast at a new distance): its pairs need its school and
 -- the padded size band. A cluster also needs more than luck: a steady '?' stream (two DoT series)
@@ -34,6 +36,7 @@ local EPS = 1e-6        -- float slack on window edges
 local ALPHA = 0.01      -- a cluster learns when luck alone gives it this often or less (Learn.lua's value)
 local WINDOWS = 15      -- delay windows the scan tries (Casts' UNKNOWN_WAIT 1.5 / SPREAD): the multiple comparisons
 local DOMINANT = 2      -- one cluster's counted sum at least this times each other's speaks for the cast spell
+local FILL_TOL = 0.001  -- a filled sum's tolerance against a row of another ID, a share of the row (OtherRow)
 
 -- How the pass treats a base this read: "new" (unlearned), "base" (learned before this read: it
 -- learns the hits it missed), or nil (learned by this read's exact-sum passes, or a ground spell: skipped). A ground
@@ -225,20 +228,51 @@ local function Fits(castID, hits, rows, tally)
     return sum <= room
 end
 
--- The one row of another ID that the counted hits of a cast with no row of its own sum to (Teacher's Judge: within
--- 1 % of the total, overkill above it), or nil. Every cast of the base must count, so the sum is all it dealt on
--- its target. A row owned by a cast of this fight, tracked by Procs, drawn under or aliased is no match. Run dk F11:
--- the meter files Death Coil 47541 under 47632; its 3 casts left one Shadow hit each at 0.125-0.139 s summing to
--- 4105, the row's 4105, and the pass said "meter" for want of a 47541 row (Scourge Strike 55090: row 207311).
-local function OtherRow(castID, base, rows, tally, owned)
-    local sum = 0
-    for _, result in ipairs(base.results) do
-        if #result.counted < result.casts then return nil end
+-- What every cast of `base` dealt on its target: the counted hits, plus for each cast left uncounted its biggest pair
+-- of the counted school within SPREAD of the counted delays (an odd-sized hit Qualifies dropped, or one a like-sized
+-- co-hit spoiled). Returns the sum and whether any cast was filled, or nil when a cast has no such pair.
+local function CastSum(base)
+    local sum, low, high, school, filled = 0, math.huge, -math.huge, nil, false
+    for _, pair in ipairs(base.hits) do
+        sum, school = sum + pair.hit.amount, pair.hit.school
+        low, high = math.min(low, pair.delay), math.max(high, pair.delay)
     end
-    for _, pair in ipairs(base.hits) do sum = sum + pair.hit.amount end
+    for _, result in ipairs(base.results) do
+        local counted, best = {}, {}
+        for _, pair in ipairs(result.counted) do counted[pair.castAt] = true end
+        for _, pair in ipairs(result.pairs) do
+            local near = pair.delay >= low - SPREAD - EPS and pair.delay <= high + SPREAD + EPS
+            local top = best[pair.castAt]
+            if not counted[pair.castAt] and pair.hit.school == school and near
+                and (not top or pair.hit.amount > top.hit.amount) then
+                best[pair.castAt] = pair
+            end
+        end
+        local found = 0
+        for _, pair in pairs(best) do sum, found, filled = sum + pair.hit.amount, found + 1, true end
+        if #result.counted + found < result.casts then return nil end
+    end
+
+    return sum, filled
+end
+
+-- The one row of another ID that the hits of a cast with no row of its own sum to (Teacher's Judge: within 1 % of
+-- the total, overkill above it), or nil, and whether the sum was filled. Every cast of the base must count or be
+-- filled (CastSum), so the sum is all it dealt on its target. A filled sum must meet the row to FILL_TOL: a fill
+-- takes each cast's biggest near hit, so a wrong one moves the sum by a whole hit and a like-sized row of another
+-- spell may sit within 1 % (run dk F14:
+-- Scourge Strike 55090's 6 counted and 1 filled hits summed 4444 against row 317791's 4485). A row owned by a cast of
+-- this fight, tracked by Procs, drawn under or aliased is no match. Run dk F11: the meter files Death Coil 47541
+-- under 47632; its 3 casts left one Shadow hit each at 0.125-0.139 s summing to 4105, the row's 4105, and the pass
+-- said "meter" for want of a 47541 row (Scourge Strike 55090: row 207311). Run hunter F1: the meter files the hits
+-- of 467718 (cast every ~2.7 s) under Auto Shot 75; 12 of 18 casts counted at 0.380-0.476 s, the other 6 filled,
+-- and the 18 hits summed to the row's 162894 exactly.
+local function OtherRow(castID, base, rows, tally, owned)
+    local sum, filled = CastSum(base)
+    if not sum then return nil end
     local found
     for _, row in ipairs(rows) do
-        local id, tol = row.spellID, math.max(1, row.total / 100)
+        local id, tol = row.spellID, math.max(1, row.total * (filled and FILL_TOL or 0.01))
         if id ~= castID and not owned[id] and not Procs.Has(id) and not tally[id] and not Fingerprints.Alias(id)
             and sum >= row.total - tol and sum <= row.total + row.overkill + tol then
             if found then return nil end
@@ -246,7 +280,7 @@ local function OtherRow(castID, base, rows, tally, owned)
         end
     end
 
-    return found
+    return found, found ~= nil and filled
 end
 
 -- How often luck alone gives `counted`'s count: each of `casts` casts finds a hit of the counted
@@ -286,7 +320,7 @@ local function Dominant(clusters)
 end
 
 -- One cast spell's result: { spell, castID, casts, counted (nil without a Dominant cluster, or when luck
--- explains it: then luckCounted), outcome }.
+-- explains it: then luckCounted), outcome, pairs (all its pairs, for CastSum) }.
 local function SpellResults(hits, learnedNow, span)
     local pairsOf, castsOf, baseOf, modeOf = PairsBySpell(hits, learnedNow)
     local spells = {}
@@ -296,7 +330,8 @@ local function SpellResults(hits, learnedNow, span)
     for _, spell in ipairs(spells) do
         local casts = Count(castsOf[spell])
         local clusters = Clusters(pairsOf[spell], math.max(MIN_CASTS, math.ceil(SHARE * casts - EPS)))
-        local result = { spell = spell, castID = baseOf[spell], mode = modeOf[spell], casts = casts, outcome = "none" }
+        local result = { spell = spell, castID = baseOf[spell], mode = modeOf[spell], casts = casts, outcome = "none",
+            pairs = pairsOf[spell] }
         local dominant = Dominant(clusters)
         if dominant then result.counted = dominant.best.counted end
         if result.counted then
@@ -314,8 +349,12 @@ end
 
 -- Marks the outcome of every cast spell with a cluster: "shared" when one of its hits is counted
 -- twice (two cast spells or two bases), "meter" when its base's hits do not fit the row (or, with no row of
--- its own, agree with no single row of another ID: OtherRow, kept as `other`), else "learned". Returns the bases
--- that learn, with their counted pairs.
+-- its own, agree with no single row of another ID: OtherRow, kept as `other`), "alias" when they agree with one only
+-- by a filled sum, else "learned". Returns the bases that learn, with their counted pairs.
+-- A filled sum's alias is set here and teaches no samples: a fill guesses each uncounted cast's hit, so the sum's
+-- agreement says less than an exact one, and the base learns only once a later fight's counted hits fit under the
+-- aliased row (Fits). Run dk F2: 47468 aliased 91776 from 8 counted and 3 filled hits, learned at once, and drew over
+-- the row in F4 (a 308 crit), F5 and F13 (late hits).
 local function Gate(results, rows, run)
     local tally, owned = run.tally, {}
     for _, cast in ipairs(run.casts or {}) do owned[cast.spellID], owned[cast.base] = true, true end
@@ -336,8 +375,16 @@ local function Gate(results, rows, run)
             if owners[pair.hit] > 1 then outcome = "shared" end
         end
         if outcome == "learned" and not Fits(castID, base.hits, rows, tally) then
-            base.other = not RowOf(castID, rows) and OtherRow(castID, base, rows, tally, owned)
-            if not base.other then outcome = "meter" end
+            local other, filled
+            if not RowOf(castID, rows) then other, filled = OtherRow(castID, base, rows, tally, owned) end
+            if filled then
+                Fingerprints.SetAlias(other.spellID, castID, true)
+                outcome = "alias"
+            elseif other then
+                base.other = other
+            else
+                outcome = "meter"
+            end
         end
         for _, result in ipairs(base.results) do result.outcome = outcome end
         if outcome ~= "learned" then byBase[castID] = nil end

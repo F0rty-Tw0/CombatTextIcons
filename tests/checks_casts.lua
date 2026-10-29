@@ -431,6 +431,11 @@ return function(T)
         F.SetAlias("x", 1); F.SetAlias(76, "y")
         Check("fingerprints: alias 75 -> 5019; bad types are not stored",
             F.Alias(75) == 5019 and F.Alias(76) == nil and Count(aliases.castAliases) == 1)
+        F.SetAlias(77, 8092, true)
+        local filled = F.Filled(8092) and aliases.aliasFills[77] == true and not F.Filled(5019)
+        F.SetAlias(77, 8092)
+        Check("fingerprints: an alias set from a filled sum marks its cast Filled; set again plainly, the mark goes",
+            filled and not F.Filled(8092) and aliases.aliasFills[77] == nil)
 
         -- secret values: nothing stored, nothing errors
         local secretDB = {}
@@ -454,12 +459,15 @@ return function(T)
                 [593] = Copy({ delays = {} }),                 -- learned, empty delays
                 [594] = Copy({ school = "x" }),                -- learned, school not a number
                 [595] = Copy({ pattern = "aoe" }),             -- unknown pattern
-            }, castAliases = { [75] = "x", [76] = 5019, abc = 3 } }
+            }, castAliases = { [75] = "x", [76] = 5019, abc = 3 },
+            aliasFills = { [75] = true, [76] = true, [77] = "yes" } }
         end)
         local loaded = T.Store()
         Check("fingerprints: garbage entries are pruned on login, the valid one stays with its range recomputed",
             Count(loaded.casts) == 1 and loaded.casts[591] and loaded.casts[591].delayLo == 0.1 and loaded.casts[591].delayHi == 0.2)
         Check("fingerprints: only number -> number aliases survive", Count(loaded.castAliases) == 1 and loaded.castAliases[76] == 5019)
+        Check("fingerprints: only a true fill mark of a kept alias survives",
+            Count(loaded.aliasFills) == 1 and loaded.aliasFills[76] == true)
         local taught = T.Boot(function()
             CombatTextIconsCharDB = { casts = {
                 [591] = Copy({ perCast = 2, area = true }),
@@ -476,16 +484,17 @@ return function(T)
         taught.SetPerCast(591, 9); taught.SetPerCast(593, 1)
         Check("fingerprints: SetPerCast keeps the most hits a cast any proof showed, at most 4; 1 teaches nothing",
             most == 3 and kept[591].perCast == 4 and kept[593].perCast == nil)
-        T.Boot(function() CombatTextIconsCharDB = { casts = "x", castAliases = 5 } end)
-        Check("fingerprints: non-table casts / castAliases are replaced by empty tables",
-            type(T.Store().casts) == "table" and type(T.Store().castAliases) == "table")
+        T.Boot(function() CombatTextIconsCharDB = { casts = "x", castAliases = 5, aliasFills = "y" } end)
+        Check("fingerprints: non-table casts / castAliases / aliasFills are replaced by empty tables",
+            type(T.Store().casts) == "table" and type(T.Store().castAliases) == "table"
+            and type(T.Store().aliasFills) == "table")
 
         -- /cti forget clears the fingerprints and aliases in place
         local ns = T.Boot()
-        ns.Fingerprints.Add(591, Sample(2, 0.2, 1)); ns.Fingerprints.SetAlias(75, 5019)
+        ns.Fingerprints.Add(591, Sample(2, 0.2, 1)); ns.Fingerprints.SetAlias(75, 5019, true)
         SlashCmdList.COMBATTEXTICONS("forget")
-        Check("fingerprints: /cti forget empties casts and castAliases",
-            next(T.Store().casts) == nil and next(T.Store().castAliases) == nil
+        Check("fingerprints: /cti forget empties casts, castAliases and aliasFills",
+            next(T.Store().casts) == nil and next(T.Store().castAliases) == nil and next(T.Store().aliasFills) == nil
             and ns.Fingerprints.Get(591) == nil)
     end
 
@@ -652,6 +661,30 @@ do -- Phase 3: records and Claim
             and Hits(true, { { 30.2, 50000, "CRITICAL" } }) == MB
             and Hits(false, { { 30.4, 21000 } }) == MB and Hits(true, { { 30.4, 21000 } }) ~= MB
     end)
+    -- hunter F15: 467718, whose alias of Auto Shot 75 rests on a filled sum, drew a 28534 crit (14267 halved, inside
+    -- the padded band of its 5816-7345) of another spell. Such a cast's crits draw only near its learned sizes, as in a
+    -- crowd; its plain hits and a plain alias's crits keep the padded band.
+    Scenario("filled alias: a crit draws only near the learned sizes when the cast's alias rests on a filled sum",
+        function()
+            local function Hit(filled, hit)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                MindBlast(ns)
+                if filled ~= nil then ns.Fingerprints.SetAlias(75, 8092, filled) end
+                ns.Teacher.Start(29)
+                local drawn
+                ns.Display.Plate = function(_, texture) drawn = texture end
+                S.now, S.target = 30, "nameplate1"
+                ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 8092)
+                S.now = hit[1]
+                ns.Core.UNIT_COMBAT("nameplate1", "WOUND", hit[3] or "", hit[2], 32)
+                return drawn
+            end
+            local MB = "tex:8092"
+            return Hit(nil, { 30.2, 90000, "CRITICAL" }) == MB and Hit(false, { 30.2, 90000, "CRITICAL" }) == MB
+                and Hit(true, { 30.2, 90000, "CRITICAL" }) ~= MB and Hit(true, { 30.2, 50000, "CRITICAL" }) == MB
+                and Hit(true, { 30.2, 45000 }) == MB
+        end)
     -- shaman5 fight 5: Lava Burst 51505 learned on its target hit 4 other dummies 0.13-0.45 s after its target hit, at
     -- its learned sizes; hunter fight 18's pet left like-sized hits on other plates before a Kill Command's own hit too.
     Scenario("splash: after its own hit a cast claims like-sized hits on other plates, unless they landed there before",

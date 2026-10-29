@@ -2714,6 +2714,29 @@ return function(T)
         Check("steady (e5): 5 of 6 casts counted, their sum agrees with a row of another ID -> meter, nothing learned",
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "meter"
             and rig.ns.Fingerprints.Alias(OTHER_ROW) == nil)
+        -- Run hunter F1's shape: 467718's hits are filed under Auto Shot 75; 12 of 18 casts counted, the other 6 had
+        -- odd-sized hits at the counted delays, and all 18 summed to the row exactly. Here a 5th cast's hit at 0.30 s
+        -- is twice the others (Qualifies drops it), so the sum fills it in.
+        local odd = Rotation(VARIED)
+        odd[#odd + 1] = { 30, MIND_BLAST }
+        odd[#odd + 1] = { 30.3, nil, 40000 }
+        rig, last = SteadyFight(odd, { Row(OTHER_ROW, 122500), Row(SWP_ROW, 9500) })
+        Check("steady (e6): 4 of 5 casts counted, the 5th's odd-sized hit at their delay fills the sum, which meets a "
+            .. "row of another ID exactly -> aliases the row as filled, learns nothing yet",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "alias"
+            and rig.ns.Fingerprints.Alias(OTHER_ROW) == MIND_BLAST and rig.ns.Fingerprints.Filled(MIND_BLAST)
+            and not rig.ns.Fingerprints.IsLearned(MIND_BLAST))
+        -- A later fight: the base's counted hits fit under the aliased row (Fits), so it learns there.
+        rig, last = SteadyFight(Rotation(VARIED), { Row(OTHER_ROW, 82500), Row(SWP_ROW, 9500) },
+            function(rig) rig.ns.Fingerprints.SetAlias(OTHER_ROW, MIND_BLAST, true) end)
+        Check("steady (e6b): a later fight's 4 counted hits fit under the row a filled sum aliased -> learns the 4",
+            last.area == "clear" and Learned(last) == 4 and Outcome(MIND_BLAST) == "learned"
+            and rig.ns.Fingerprints.Filled(MIND_BLAST))
+        -- Run dk F14: Scourge Strike 55090's 6 counted and 1 filled hits summed 4444, 0.9 % under row 317791's 4485.
+        rig, last = SteadyFight(odd, { Row(OTHER_ROW, 123100), Row(SWP_ROW, 9500) })
+        Check("steady (e7): the filled sum 0.5 % under a row of another ID (inside Judge's 1 %) -> meter, no alias",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "meter"
+            and rig.ns.Fingerprints.Alias(OTHER_ROW) == nil)
 
         rig, last = SteadyFight(Rotation({ 0.5, 0.5, 0.5, 0.5 }), { Row(MIND_BLAST, 92000) })
         Check("steady (f): Shadow Word: Death always 0.5 s before is steady on the same hits -> shared, neither learns",

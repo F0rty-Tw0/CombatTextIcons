@@ -535,7 +535,10 @@ end
 -- `flagText` (the hit's, optional) tells a crit, which anchors no ground tick before one was seen (Fits).
 -- When `strict` (Core: the fight turned crowded), a record fits only a hit it CrowdFits: strangers' hits of its school
 -- land in every padded window (lock3 fight 3: 4 Shadow Bolt casts drew 118730 against a row of 76384; three of the
--- four drawn hits lay outside the learned sizes, two of them crits of twice the biggest).
+-- four drawn hits lay outside the learned sizes, two of them crits of twice the biggest). A crit holds a record to the
+-- same when the cast's row alias rests on a filled sum (Fingerprints.Filled): its sizes were learned beside a guess,
+-- and the padded band takes a crit of another spell's hit twice their size (run hunter F15: 467718 learned at 5816-7345
+-- drew a 28534 crit, 14267 halved, 0.105 s after its cast: a 392060 hit, its 28591 twin in the same frame).
 function Casts.Claim(plate, school, now, size, strict, flagText)
     if not (Plain(plate) and Plain(school) and Plain(now)) then return nil end
     local found, fits, late, lateFits = nil, 0, nil, 0
@@ -549,7 +552,8 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
         local ground = fp and fp.pattern == "ground"
         local crowdFit = ground and NearSizes(record, GroundSize(fp, size, crit))
             or not ground and CrowdFits(record, now, size)
-        if strict and not (fit == "in" and crowdFit) then fit = false end
+        local near = strict or crit and fp and Fingerprints.Filled(record.base)
+        if near and not (fit == "in" and crowdFit) then fit = false end
         local tick, off
         if fit and ground then tick, off = GroundTick(record, fp, now) end
         local stray = not record.tickAt and tick == 0 or record.tickAt and off ~= nil and off > GROUND_OWN
