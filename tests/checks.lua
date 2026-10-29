@@ -653,6 +653,11 @@ return function(T)
         S.group = true
         Check("core: miss in a group hidden", Hit(60.8, "nameplate3", "PARRY", nil, 1) == nil)
         S.group = false
+        Core.UNIT_SPELLCAST_SUCCEEDED("player", "Cast-4", 686)
+        ns.Teacher.area = "crowded"
+        Check("core: miss solo with strangers around hidden (another player's dodge looks the same)",
+            Hit(60.9, "nameplate3", "DODGE", nil, 1) == nil)
+        ns.Teacher.area = "clear"
 
         -- heals: the channel's heal paired with its same-frame tick; others' heals stay hidden
         local ownHeal = Hit(82, "player", "HEAL", 3000, 2)

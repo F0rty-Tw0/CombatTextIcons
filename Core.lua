@@ -449,9 +449,11 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if ns.Debug then ns.Debug("  -> HIDDEN") end
 end
 
--- Misses carry no amount; shown only solo, on the target, for a recent harmful cast.
+-- Misses carry no amount and no source: shown only solo, while the area is clear, on the target, for a recent harmful
+-- cast. Another player's dodge or parry on your target looks the same as yours, so with strangers around it would draw
+-- your last cast's icon with "Miss" (in-game report 2026-10-29: learned spells showed "Miss" often near others).
 local function Miss(plate, unit, event, now)
-    if InGroup() or not IsTarget(unit) then return end
+    if InGroup() or not Teacher.AreaClear() or not IsTarget(unit) then return end
     local castID = Tracker.TakeMissCast(now)
     if castID then
         Display.Plate(plate, SpellTexture(castID), _G[event] or event)
