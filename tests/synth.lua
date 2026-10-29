@@ -266,7 +266,7 @@ function S.Perturb(lines, case, seed)
     return perturb(lines, S.Seeded(seed))
 end
 
-local SPELL_A, SPELL_B, SPELL_C = 990001, 990002, 990003
+local SPELL_A, SPELL_B, SPELL_C, SPELL_D = 990001, 990002, 990003, 990004
 local WINDOW = 40
 S.FIGHTS = 6 -- fights in a fabricated log
 
@@ -332,6 +332,7 @@ local MULTI = {
     DOT_FIRST = 1.5, DOT_STEP = 2, DOT_TICKS = 4,      -- dot-tail: ticks from 1.5 s, 2 s apart
     AREA_SINGLE = 2,                                    -- area-plates: single-plate fights first, then more plates
     OVERLOAD_SIZE = 0.45, OVERLOAD_LOW = 0.09, OVERLOAD_HIGH = 0.32, -- overload: size of the bolt, delay after the bolt
+    BOLT_LOW = 0.09, BOLT_HIGH = 0.32, LONE_LOW = 1500, LONE_HIGH = 2000, -- overload-lone: bolt delay, proc's size
 }
 
 -- A cast every 10-14 s (school 32): its hit, then DOT_TICKS ticks of a third of it from DOT_FIRST s, DOT_STEP s apart.
@@ -376,11 +377,32 @@ local function Overload(rand, start, events)
     end
 end
 
+-- Short kills (run shaman5 F9): 2-3 casts 1.1-1.6 s apart (school 8), the bolt's hit at one delay per fight
+-- (BOLT_LOW-BOLT_HIGH s: the plate's range) +-0.02, an OVERLOAD_SIZE hit after about half the bolts as in overload,
+-- and once a fight a castless one-hit proc of the same school (spell D, LONE_LOW-LONE_HIGH) 0.2-0.6 s after one bolt.
+local function OverloadLone(rand, start, events)
+    local c, delay, casts = start, Uniform(rand, MULTI.BOLT_LOW, MULTI.BOLT_HIGH), 2 + math.floor(rand() * 2)
+    local loneAfter = 1 + math.floor(rand() * casts)
+    for cast = 1, casts do
+        AddCast(events, c, SPELL_C)
+        local at, bolt = c + delay + Uniform(rand, -0.02, 0.02), Amount(rand, 10000)
+        AddHit(events, at, 1, 8, bolt, SPELL_C)
+        if rand() < 0.5 then
+            local after = Uniform(rand, MULTI.OVERLOAD_LOW, MULTI.OVERLOAD_HIGH)
+            AddHit(events, at + after, 1, 8, Amount(rand, bolt * MULTI.OVERLOAD_SIZE), SPELL_C)
+        end
+        if cast == loneAfter then
+            AddHit(events, at + Uniform(rand, 0.2, 0.6), 1, 8, math.floor(Uniform(rand, MULTI.LONE_LOW, MULTI.LONE_HIGH)), SPELL_D)
+        end
+        c = c + Uniform(rand, 1.1, 1.6)
+    end
+end
+
 local FABRICATES = {
     doublecast = Doublecast, aoe = AreaCasts(0.05, 0.12), ["aoe-spread"] = AreaCasts(0.3, 0.6),
-    ["dot-tail"] = DotTail, ["area-plates"] = AreaPlates, overload = Overload,
+    ["dot-tail"] = DotTail, ["area-plates"] = AreaPlates, overload = Overload, ["overload-lone"] = OverloadLone,
 }
-S.FABRICATE_CASES = { "doublecast", "aoe", "aoe-spread", "dot-tail", "area-plates", "overload" }
+S.FABRICATE_CASES = { "doublecast", "aoe", "aoe-spread", "dot-tail", "area-plates", "overload", "overload-lone" }
 
 -- S.FIGHTS fights of `case`, each ending in a TEACH clean and one true row per spell. Same seed, same lines.
 function S.Fabricate(case, seed)
@@ -556,6 +578,35 @@ local function CheckMulti(label, case, casts, hits)
     end
     if case == "overload" then
         for fight, count in pairs(perFight) do assert(count >= 6 and count <= 15, label .. "fight " .. fight .. " casts " .. count) end
+    end
+end
+
+-- overload-lone: 2-3 casts of spell C a fight, each cast's HITs (up to the next cast) on nameplate1: its bolt at the
+-- fight's one delay (+-0.02, inside BOLT_LOW-BOLT_HIGH), at most one overload, and one spell D hit a fight.
+local function CheckLone(label, casts, hits)
+    local perFight = {}
+    for index, cast in ipairs(casts) do
+        assert(cast.id == SPELL_C, label .. "every cast is spell " .. SPELL_C)
+        local fight = perFight[cast.fight] or { casts = 0, lone = 0 }
+        perFight[cast.fight] = fight
+        fight.casts = fight.casts + 1
+        local nextAt = casts[index + 1] and casts[index + 1].at or #hits
+        local bolt = hits[cast.at + 1]
+        assert(bolt and bolt.spell == SPELL_C, label .. "a cast's first HIT is its bolt")
+        local delay = bolt.t - cast.t
+        assert(delay >= MULTI.BOLT_LOW - 0.02 - TOLERANCE and delay <= MULTI.BOLT_HIGH + 0.02 + TOLERANCE, label .. "bolt delay " .. delay)
+        fight.low, fight.high = math.min(fight.low or delay, delay), math.max(fight.high or delay, delay)
+        local overloads = 0
+        for i = cast.at + 1, nextAt do
+            assert(hits[i].plate == "nameplate1" and hits[i].school == 8, label .. "every HIT is school 8 on nameplate1")
+            if hits[i].spell == SPELL_D then fight.lone = fight.lone + 1 elseif i > cast.at + 1 then overloads = overloads + 1 end
+        end
+        assert(overloads <= 1, label .. "at most one overload a cast")
+    end
+    for fight, record in pairs(perFight) do
+        assert(record.casts >= 2 and record.casts <= 3, label .. "fight " .. fight .. " casts " .. record.casts)
+        assert(record.lone == 1, label .. "fight " .. fight .. " has one proc hit, got " .. record.lone)
+        assert(record.high - record.low <= 0.04 + TOLERANCE, label .. "fight " .. fight .. " bolt delays spread")
     end
 end
 
@@ -738,6 +789,12 @@ end
 do -- start-up asserts: Fabricate
     local SPELL_OF = { doublecast = { [32] = SPELL_A, [4] = SPELL_B } }
     local HOP = { aoe = { 0.05, 0.12 }, ["aoe-spread"] = { 0.3, 0.6 } }
+    -- overload-lone's proc shares the bolt's school: it is the only hit of LONE_HIGH or less
+    local function SpellOf(case, school, amount)
+        if case == "overload-lone" then return amount <= MULTI.LONE_HIGH and SPELL_D or SPELL_C end
+
+        return SPELL_OF[case] and SPELL_OF[case][school] or SPELL_C
+    end
 
     for _, case in ipairs(S.FABRICATE_CASES) do
         local label = case .. ": "
@@ -760,7 +817,7 @@ do -- start-up asserts: Fabricate
             if hit then
                 local plate, school, amount = line:match(PATTERN.HIT)
                 assert(t > previousClean, label .. "a HIT after the previous clean: " .. line)
-                local spell = SPELL_OF[case] and SPELL_OF[case][tonumber(school)] or SPELL_C
+                local spell = SpellOf(case, tonumber(school), tonumber(amount))
                 totals[spell] = (totals[spell] or 0) + tonumber(amount)
                 sum = sum + tonumber(amount)
                 hits[#hits + 1] = { t = t, plate = plate, target = line:match("target=(%a+)$"), school = tonumber(school),
@@ -792,6 +849,8 @@ do -- start-up asserts: Fabricate
 
         if case == "doublecast" then
             CheckDoublecast(label, casts, hits)
+        elseif case == "overload-lone" then
+            CheckLone(label, casts, hits)
         elseif not HOP[case] then
             CheckMulti(label, case, casts, hits)
         else
