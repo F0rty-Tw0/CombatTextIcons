@@ -700,7 +700,8 @@ return function(T)
 
     do -- the crowd check (spec 4.3): seen against the meter's rows decides clear / crowded; groups keep the state
         local fresh = T.Boot() -- not the rig: Rig sets area = "clear"
-        Check("crowd: a fresh boot is crowded", fresh.Teacher.area == "crowded" and not fresh.Teacher.AreaClear())
+        Check("crowd: a fresh boot is unknown: procs may draw, '?' may not",
+            fresh.Teacher.area == "unknown" and fresh.Teacher.NotCrowded() and not fresh.Teacher.AreaClear())
 
         -- One Mind Blast '?' hit of `amount` after a lone cast at t 10, handed to the open fight.
         local function Unknown(rig, amount)
@@ -995,8 +996,8 @@ return function(T)
             end
 
             local ns = BootArea({ [MAP] = "clear" }, MAP + 1)
-            Check("crowd saved: a map with no verdict boots crowded, and the saved one stays for its own map",
-                ns.Teacher.area == "crowded" and T.Store().areas[MAP] == "clear" and T.Store().areas[MAP + 1] == nil)
+            Check("crowd saved: a map with no verdict boots unknown, and the saved one stays for its own map",
+                ns.Teacher.area == "unknown" and T.Store().areas[MAP] == "clear" and T.Store().areas[MAP + 1] == nil)
 
             for _, case in ipairs({ { MAP, "clear" }, { OTHER, "crowded" } }) do
                 ns = BootArea({ [MAP] = "clear", [OTHER] = "crowded" }, case[1])
@@ -1007,7 +1008,7 @@ return function(T)
 
             for label, map in pairs({ nil_ = false, text = "2022", secret = Secret(MAP), zero = 0, fraction = 2022.5 }) do
                 ns = BootArea({ [MAP] = "clear" }, map or nil)
-                Check("crowd saved: a current map that is " .. label .. " boots crowded", ns.Teacher.area == "crowded")
+                Check("crowd saved: a current map that is " .. label .. " boots unknown", ns.Teacher.area == "unknown")
             end
 
             local bad = { state = { [MAP] = "maybe" }, tableState = { [MAP] = { state = "clear" } },
@@ -1019,11 +1020,11 @@ return function(T)
                 local count = 0
                 for _ in pairs(T.Store().areas) do count = count + 1 end
                 Check("crowd saved: a saved verdict that is " .. label .. " is dropped on load, the good one kept",
-                    count == 1 and T.Store().areas[OTHER] == "clear" and ns.Teacher.area == "crowded")
+                    count == 1 and T.Store().areas[OTHER] == "clear" and ns.Teacher.area == "unknown")
             end
             ns = BootArea("clear", MAP)
             Check("crowd saved: saved areas that are no table are dropped",
-                T.Store().areas == nil and ns.Teacher.area == "crowded")
+                T.Store().areas == nil and ns.Teacher.area == "unknown")
 
             ns = BootArea(nil, MAP, { state = "clear", map = MAP })
             Check("crowd saved: an older save's single verdict is kept for its map",
@@ -1035,12 +1036,12 @@ return function(T)
             for label, area in pairs(badOld) do
                 ns = BootArea(nil, MAP, area)
                 Check("crowd saved: an older save's single verdict that is " .. label .. " is dropped",
-                    T.Store().area == nil and T.Store().areas == nil and ns.Teacher.area == "crowded")
+                    T.Store().area == nil and T.Store().areas == nil and ns.Teacher.area == "unknown")
             end
 
             ns = BootArea(nil, MAP)
-            Check("crowd saved: no saved area boots crowded and saves nothing",
-                ns.Teacher.area == "crowded" and T.Store().areas == nil)
+            Check("crowd saved: no saved area boots unknown and saves nothing",
+                ns.Teacher.area == "unknown" and T.Store().areas == nil)
 
             for _, case in ipairs({ { "crowded", 173, "clear" }, { "clear", 300, "crowded" } }) do
                 local rig = Crowd(case[1], case[2])
@@ -1070,7 +1071,7 @@ return function(T)
                 T.Store().areas[first] == "clear" and rig.ns.Teacher.area == "clear")
             rig.S.map = first + 1
             rig.ns.Core.PLAYER_ENTERING_WORLD()
-            Check("crowd saved: a loading screen onto another map turns crowded", rig.ns.Teacher.area == "crowded")
+            Check("crowd saved: a loading screen onto another map turns unknown", rig.ns.Teacher.area == "unknown")
             rig.S.map = first
             rig.ns.Core.PLAYER_ENTERING_WORLD()
             Check("crowd saved: a loading screen back onto a judged map restores its verdict",
@@ -2174,6 +2175,18 @@ return function(T)
         Check("procs route: crowded -> the proc hit stays hidden and is an Unknown entry (crit false, then true), not tallied, no proc route",
             hidden == nil and hiddenCrit == nil and #u == 2 and u[1].crit == false and u[2].crit == true
             and rig.ns.Teacher.fight.tally[X] == nil and Logged("HIDDEN (crowded)") and not Logged("-> proc"))
+
+        rig = ProcRig()
+        rig.ns.Teacher.area = "unknown" -- a map no read decided yet
+        local procHit, stray = Wound(rig, 350), Wound(rig, 200)
+        Check("procs route: a new area -> the proc hit draws and is tallied; a hit no proc names stays hidden",
+            procHit == ICON and stray == nil and rig.ns.Teacher.fight.tally[X] == 350
+            and #rig.ns.Teacher.fight.unknown == 1 and Logged("HIDDEN (new area)") and not Logged("-> unknown-solo"))
+        rig = ProcRig()
+        rig.ns.Teacher.area = "unknown"
+        rig.ns.Teacher.fight.crowded = true -- the live crowd check fired
+        Check("procs route: a new area whose fight turned crowded hides the proc hit",
+            Wound(rig, 350) == nil and Logged("HIDDEN (crowded)") and not Logged("-> proc"))
 
         rig = ProcRig()
         Wound(rig, 350)

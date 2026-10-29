@@ -263,7 +263,8 @@ function Panel.Rows(fight)
     return rows
 end
 
-local AREA_TEXT = { clear = "clear, '?' shown", crowded = "crowded, '?' hidden" } -- Teacher.area -> summary words
+-- Teacher.area -> summary words
+local AREA_TEXT = { clear = "clear, '?' shown", crowded = "crowded, '?' hidden", unknown = "new, '?' hidden" }
 local OUTCOME_TEXT = { -- a saved fight's read outcome (Ledger.SetOutcome) -> summary words
     clear = "Clear: learning ran", crowded = "Crowded: nothing learned", group = "Group fight: nothing learned",
     short = "Short read: nothing learned", skipped = "Not read: nothing learned",

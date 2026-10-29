@@ -23,7 +23,8 @@
 -- is "crowded"; seen below half the rows' total is "short"; a fight in a group is "group". Those three reads are
 -- frozen: they judge for the Ledger and change no learned state (no agree, strike, drop, alias or vote), so what
 -- was learned keeps drawing and learning goes on at the next clear read. Each map keeps the verdict last decided on it, which comes back on entering the
--- world there (EnterWorld); a map with none starts "crowded". Mid-fight, seen wounds far past the best pace
+-- world there (EnterWorld); a map with none starts "unknown" (learned procs draw, '?' stays hidden: AreaClear and
+-- NotCrowded) until its first solo read decides. Mid-fight, seen wounds far past the best pace
 -- a clear read measured make that fight crowded at once (Teacher.Seen), before its read. With /cti debug each
 -- outcome logs TEACH lines.
 -- Each fight's outcome, a read or a skip, ends with one Teacher.OnRead(Teacher.last) call
@@ -73,7 +74,9 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 --   Heals.Learn) }
 Teacher.fight = nil
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
-Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; a read saves it with its map (SaveArea)
+-- the crowd check's state: "clear" or "crowded", which a read saves with its map (SaveArea), or "unknown" on a map no
+-- read decided yet
+Teacher.area = "unknown"
 Teacher.OnRead = nil -- function(last), called once per fight when its outcome is final; Progress sets it
 
 -- the spec's store; its `areas` = { [map ID] = "clear" | "crowded" } is each map's last read verdict, its `schools`
@@ -131,10 +134,14 @@ function Teacher.Init(charDB)
     if not (IsNumber(pace) and pace > 0 and pace < math.huge) then charDB.pace = nil end
 end
 
--- The player entered the world (login, reload, a loading screen): the map's own saved verdict, else "crowded".
+-- The player entered the world (login, reload, a loading screen): the map's own saved verdict, else "unknown".
+-- An unknown map draws learned procs but no '?' (NotCrowded, AreaClear). Every first fight on a new map started
+-- "crowded" before, and hid the procs: with the start saves, lock2/shaman3/shaman4 right +1.0 to +1.3 and shaman3
+-- wrong 0.3 -> 0.0 (tests/score.lua). A stranger hitting each of your plates once a second in that first fight drew
+-- 4 of 182 hits as a learned proc (0.2 % of the fight's meter); '?' would have drawn 2281 of 4956, so it stays hidden.
 function Teacher.EnterWorld()
     local map = CurrentMap()
-    Teacher.area = map and store and store.areas and store.areas[map] or "crowded"
+    Teacher.area = map and store and store.areas and store.areas[map] or "unknown"
 end
 
 -- A read decided `area`: it is kept for the current map; with no map nothing is kept.
@@ -1157,10 +1164,16 @@ function Teacher.OwnSchool(school)
     return IsNumber(school) and schools[school] == true
 end
 
--- The last solo fight's wounds fit the meter, the meter is readable, and the open fight is not crowded.
-function Teacher.AreaClear()
+-- No read found this map crowded (it is "clear", or "unknown": none decided it yet), the meter is readable, and the
+-- open fight is not crowded: a learned proc may draw.
+function Teacher.NotCrowded()
     local fight = Teacher.fight
-    return Teacher.area == "clear" and Meter.Available() and not (fight and fight.crowded)
+    return Teacher.area ~= "crowded" and Meter.Available() and not (fight and fight.crowded)
+end
+
+-- The last solo fight's wounds fit the meter and NotCrowded holds: '?' may draw.
+function Teacher.AreaClear()
+    return Teacher.area == "clear" and Teacher.NotCrowded()
 end
 
 -- A harmful cast of the player or the pet (`base` is Casts.Base of `spellID`), for the ground pass; `plate` (the

@@ -223,7 +223,7 @@ local function LoadLogs()
         local lines = ReadLines(DIR .. spec.log .. ".txt")
         logs[#logs + 1] = { class = spec.class, log = spec.log, holdout = spec.holdout, bases = BaseSpells(lines), name = "x",
             -- replayThreat: hits on mobs not fighting you stay hidden, as they did in game
-            opts = { log = lines, fixture = { startArea = "crowded", replayThreat = true } },
+            opts = { log = lines, fixture = { startArea = "unknown", replayThreat = true } },
             start = LoadCharDB(DIR .. spec.log .. ".start.lua") }
     end
     for _, name in ipairs(PRIEST) do

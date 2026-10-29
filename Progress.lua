@@ -22,7 +22,7 @@ local Learn, Fingerprints, Procs, Teacher, Display, Meter = ns.Learn, ns.Fingerp
 local Progress = {}
 ns.Progress = Progress
 
-local AREA_TEXT = { clear = "area clear: '?' shown", crowded = "crowded: '?' hidden" }
+local AREA_TEXT = { clear = "area clear: '?' shown", crowded = "crowded: '?' hidden", unknown = "new area: '?' hidden" }
 local RANKS = { area = 1, learned = 2, dropped = 3, learning = 4 } -- change kind -> priority, 1 first
 
 local issecretvalue = issecretvalue or function() return false end

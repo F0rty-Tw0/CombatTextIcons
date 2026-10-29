@@ -108,7 +108,7 @@ end
 
 local function Replayed(spec, lines)
     local tallies, records = {}, {}
-    local opts = { log = lines, fixture = { startArea = "crowded", replayThreat = true },
+    local opts = { log = lines, fixture = { startArea = "unknown", replayThreat = true },
         setup = L.Setup(spec.class, {}, tallies, records) }
     local fights = {}
     for index, run in ipairs(L.H.ReplayFights("x", opts)) do

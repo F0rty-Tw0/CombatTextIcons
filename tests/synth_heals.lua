@@ -199,7 +199,7 @@ local function Score(case, seed)
         for _, id in ipairs(helpful) do S.harmful[id], S.helpful[id] = false, true end
     end
     local total, byID = NewScore(), {}
-    for _, run in ipairs(L.H.ReplayFights("x", { log = lines, fixture = { startArea = "crowded" }, setup = setup })) do
+    for _, run in ipairs(L.H.ReplayFights("x", { log = lines, fixture = { startArea = "unknown" }, setup = setup })) do
         for _, heal in ipairs(run.info.heals) do
             local id, amount = truth[heal.event.line], heal.event.amount
             local key = id or "foreign"

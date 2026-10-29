@@ -11,7 +11,8 @@
 -- draws the question mark at once while the area is clear (Teacher.AreaClear:
 -- the last fight's meter read showed only your hits), else it stays hidden. An
 -- unnamed heal on you decides the same way. A learned proc (Procs.lua) draws its own icon where
--- the question mark would, while the area is clear. A learned direct heal (Heals.lua) names a heal on you in its
+-- the question mark would, while no read found the area crowded (Teacher.NotCrowded: a map no read decided yet
+-- counts). A learned direct heal (Heals.lua) names a heal on you in its
 -- cast's frame, in a group too; so does a learned coupled heal in the frame of the hit it is a share of.
 -- Damage you take is always shown, without an icon.
 
@@ -266,15 +267,17 @@ local function Drawn(spellID, amount)
 end
 
 -- Why a solo unexplained hit or heal stays hidden when the area is not clear: no meter to
--- check it against, or the area is crowded.
+-- check it against, no read decided this map yet (Teacher.NotCrowded still holds), or the area is crowded.
 local function HiddenRoute()
-    return Meter.Available() and "HIDDEN (crowded)" or "HIDDEN (meter off)"
+    if not Meter.Available() then return "HIDDEN (meter off)" end
+
+    return Teacher.NotCrowded() and "HIDDEN (new area)" or "HIDDEN (crowded)"
 end
 
--- A solo hit on a mob fighting you that a learned proc names, while the area is clear: draws the
--- proc's icon and tallies it. Returns whether it drew; false leaves the hit to the question-mark route.
+-- A solo hit on a mob fighting you that a learned proc names, while the area is not crowded (Teacher.NotCrowded):
+-- draws the proc's icon and tallies it. Returns whether it drew; false leaves the hit to the question-mark route.
 local function ProcWound(plate, school, amount, flagText)
-    local procID = Teacher.AreaClear() and Procs.Name(school, amount, flagText)
+    local procID = Teacher.NotCrowded() and Procs.Name(school, amount, flagText)
     if not procID then return false end
     if ns.Debug then ns.Debug("  -> proc %s", ShowValue(procID)) end
     Drawn(procID, amount)
@@ -298,7 +301,7 @@ end
 -- hit before its stream is born is named by a logged cast of the proc's row that its band holds (Procs.NameCast).
 -- `candidates` is Casts.Candidates for the hit. Returns whether it drew.
 local function RhythmWound(plate, stream, school, amount, flagText, candidates)
-    local rhythmID = Teacher.AreaClear()
+    local rhythmID = Teacher.NotCrowded()
         and (Procs.NameStream(stream) or Procs.NameCast(school, amount, flagText, candidates))
     if not rhythmID then return false end
 
@@ -311,7 +314,7 @@ end
 -- and run mage F6 paired Arcane Missiles 5143's as the mislearned proc 153626. `candidates` is Casts.Candidates for the
 -- hit. Returns whether it drew.
 local function PairWound(plate, stream, school, amount, flagText, candidates, now)
-    if stream or not Teacher.AreaClear() then return false end
+    if stream or not Teacher.NotCrowded() then return false end
     for _, cast in ipairs(candidates) do
         if not Fingerprints.IsLearned(cast.castID) then return false end
     end
@@ -329,8 +332,8 @@ end
 -- and draw it, else it also goes to the teacher, and draws the question mark only while the
 -- area is clear (Teacher.AreaClear); else it stays hidden (route "meter off" or "crowded"). In a group
 -- such a hit on a mob fighting you may still tick a stack series; in a crowded fight no hit does. While the
--- area is clear a learned proc that fits the hit (Procs.Name) draws its icon instead of the question
--- mark; so does a learned rhythm proc that fits the stream the hit extends or births
+-- area is not crowded (Teacher.NotCrowded) a learned proc that fits the hit (Procs.Name) draws its icon instead of
+-- the question mark; so does a learned rhythm proc that fits the stream the hit extends or births
 -- (Procs.NameStream), or that a recent cast of its row and the hit's size name before the stream is born
 -- (Procs.NameCast), ranked below the Tracker and Casts; last, below the stack series, one whose tick a period
 -- before the hit is still loose on the plate (Procs.NamePair).

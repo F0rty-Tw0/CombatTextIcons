@@ -255,7 +255,7 @@ local function Replayed(spec)
         for _, id in ipairs(HEAL_CASTS[spec.class] or {}) do S.harmful[id], S.helpful[id] = false, true end
     end
     local opts = spec.fixture and { setup = setup }
-        or { log = lines, fixture = { startArea = "crowded", replayThreat = true }, setup = setup }
+        or { log = lines, fixture = { startArea = "unknown", replayThreat = true }, setup = setup }
     local heals = {}
     for _, run in ipairs(L.H.ReplayFights(spec.fixture or "x", opts)) do
         table.move(run.info.heals, 1, #run.info.heals, #heals + 1, heals)

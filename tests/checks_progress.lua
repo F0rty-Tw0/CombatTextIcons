@@ -121,6 +121,11 @@ return function(T)
         rig.ns.Teacher.area = "crowded"
         Check("progress area: the first solo read since login, crowded",
             rig.Fight() == "1 " .. CROWDED .. " " .. rig.UNKNOWN)
+
+        rig = Rig()
+        rig.ns.Teacher.area = "unknown" -- a map no read decided yet (a group or short read keeps it)
+        Check("progress area: the first solo read since login, area not decided yet",
+            rig.Fight() == "1 new area: '?' hidden " .. rig.UNKNOWN)
     end)
 
     Scenario("skip and group", function()

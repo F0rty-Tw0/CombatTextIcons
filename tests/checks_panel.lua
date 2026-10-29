@@ -755,6 +755,9 @@ return function(T)
             Panel.Summary(fight) == "Area: clear, '?' shown  ·  Named 75 % of drawn damage")
         Teacher.area = "crowded"
         Check("summary: crowded area", Panel.Summary(nil) == "Area: crowded, '?' hidden")
+        Teacher.area = "unknown"
+        Check("summary: an area no read decided yet", Panel.Summary(nil) == "Area: new, '?' hidden")
+        Teacher.area = "crowded"
         fight.outcome, fight.meterTotal = "group", 600
         Check("summary: a saved group fight says nothing was learned, and the named share of the meter's total",
             Panel.Summary(fight) == "Area: crowded, '?' hidden  ·  Named 75 % of drawn damage, 50 % of the meter's"

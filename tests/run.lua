@@ -586,7 +586,7 @@ end
 -- opts.group: the player is in a group. opts.charDB: the carried spec store (Boot seeds it as S.spec's).
 -- opts.noise = seed: stranger hits (opts.noSameFrame: none at each own read); opts.crowd: three at each
 -- recorded type-0 stamp (see AddNoise); opts.minPhase: the first phase that gets strangers.
--- opts.area ("clear" | "crowded", default "clear"): the crowd check's state when the fight starts; every
+-- opts.area ("clear" | "crowded" | "unknown", default "clear"): the crowd check's state when the fight starts; every
 -- replay was written for "an unexplained solo hit draws '?'", so clear is the default. A boot char DB that holds
 -- a saved area (opts.charDB) leaves the default to the addon: it restores or refuses the saved one itself.
 -- opts.noSeen: the crowd check is off (Teacher.Seen does nothing).
