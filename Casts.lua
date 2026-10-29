@@ -83,6 +83,7 @@ local log = {}           -- harmful player and pet casts, oldest first: { spellI
 local SLACK = 0.05      -- a window edge may be this far off
 local LATE = 2          -- a cast with no hit yet takes a late one up to this times its window top
 local PAD_LO, PAD_HI = 0.7, 2 -- a sized hit fits a cast's band from 0.7 of its smallest to twice its biggest learned size
+local SHRINK = 0.5      -- an unlearned cast's hits may shrink to this share of its samples (SampledAt)
 local RECORD_MAX = 20   -- open records at most; the oldest is dropped
 local records = {}      -- oldest first: { spellID, base, at, plate, hops, plates, last, seen, settled }
 local SPLASH = 0.5      -- a cast's splash lands on other plates at most this long after its own hit (Splash)
@@ -443,6 +444,32 @@ local function UnlearnedCastAt(plate, now, since, sure, school)
             return true
         end
     end
+    return false
+end
+
+-- Whether an unlearned cast logged on `plate` within UNKNOWN_WAIT, not of the spell `procID`, may have made a hit of
+-- `school` and normal-scale `size` at `now` on its own samples (exact meter sums): one of that school landed this long
+-- after its cast (SLACK), and the hit lies from SHRINK of the smallest of them to the biggest, padded. A learned
+-- castless proc leaves such a hit alone (Core): synthetic shamanele, the pet's Fire Blast 57984 (samples of 57-58K on
+-- its cast's stamp) drew its 37K hits as the proc 285452, whose tally ran over its row and lost it. The pet's real
+-- hits shrank to 0.64 of its samples (run shamanele F7); the proc 1286970's 5.5K on its stamp stays the proc's.
+function Casts.SampledAt(plate, now, school, size, procID)
+    if not (Plain(plate) and Plain(school) and Plain(now) and IsNumber(size)) then return false end
+    for _, entry in ipairs(log) do
+        local fp = Fingerprints.Get(entry.base)
+        local other = entry.base ~= procID and entry.plate == plate
+        if other and now - entry.at <= UNKNOWN_WAIT and fp and not fp.learned then
+            local low, high, timed = nil, nil, false
+            for _, sample in ipairs(fp.samples) do
+                if sample.school == school and sample.size then
+                    low, high = math.min(low or sample.size, sample.size), math.max(high or sample.size, sample.size)
+                    timed = timed or math.abs(now - entry.at - (sample.delay or -math.huge)) <= SLACK
+                end
+            end
+            if timed and size >= SHRINK * low and Casts.InSizes(0, high, size) then return true end
+        end
+    end
+
     return false
 end
 

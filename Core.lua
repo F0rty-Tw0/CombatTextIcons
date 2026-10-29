@@ -277,9 +277,12 @@ end
 
 -- A solo hit on a mob fighting you that a learned proc names, while the area is not crowded (Teacher.NotCrowded):
 -- draws the proc's icon and tallies it. Returns whether it drew; false leaves the hit to the question-mark route.
-local function ProcWound(plate, school, amount, flagText)
+-- An unlearned cast of another spell whose samples place a hit like it here (Casts.SampledAt) keeps it from the proc.
+local function ProcWound(plate, school, amount, flagText, now)
     local procID = Teacher.NotCrowded() and Procs.Name(school, amount, flagText)
-    if not procID then return false end
+    if not procID or Casts.SampledAt(plate, now, school, Streams.NormalAmount(amount, flagText), procID) then
+        return false
+    end
     if ns.Debug then ns.Debug("  -> proc %s", ShowValue(procID)) end
     Drawn(procID, amount)
     Ledger.Add("damage", procID, amount)
@@ -358,7 +361,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if fightsYou or (spellID and spellID ~= Tracker.UNKNOWN) then Teacher.Seen(amount, now, school) end
     -- A learned proc (exact meter sums) outranks a learned DoT's answer (votes) or an ambiguous one.
     local voted = spellID == Tracker.UNKNOWN or (spellID and Learn.Get(spellID))
-    if voted and solo and ProcWound(plate, school, amount, flagText) then return end
+    if voted and solo and ProcWound(plate, school, amount, flagText, now) then return end
     local named = spellID and spellID ~= Tracker.UNKNOWN
     local kind, record, late, claimed
     crowded = Teacher.fight and Teacher.fight.crowded -- Teacher.Seen may have turned it crowded
@@ -413,7 +416,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     end
     local candidates
     if solo then
-        if ProcWound(plate, school, amount, flagText) then return end
+        if ProcWound(plate, school, amount, flagText, now) then return end
         candidates = Casts.Candidates(plate, now, school) -- one list for both: drawing changes no cast log
         if RhythmWound(plate, stream, school, amount, flagText, candidates) then return end
     end

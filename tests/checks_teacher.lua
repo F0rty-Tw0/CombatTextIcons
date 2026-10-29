@@ -2235,6 +2235,26 @@ return function(T)
         Check("procs route: a learned proc beats the Tracker UNKNOWN answer (700 crit); a hit it does not name draws ? and hands flagText to Teacher.Unknown",
             trackerUnknown == ICON and rig.ns.Teacher.fight.tally[X] == 700 and unnamed == UNKNOWN and flagSeen == "CRITICAL")
 
+        -- Synthetic shamanele: the pet's Fire Blast 57984 (unlearned, samples of 57-58K on its cast's stamp) drew its
+        -- 37K hits on that stamp as the castless proc 285452. A pet cast whose samples sit at `delay`, sized `sizes`,
+        -- just before the next Wound (or `castID` itself); returns what the 350 hit draws.
+        local function AfterPet(sizes, delay, castID)
+            local PET = castID or 57984
+            local pet = ProcRig()
+            for index, size in ipairs(sizes) do
+                pet.ns.Fingerprints.Add(PET, { school = 106, delay = delay or 0, castAt = index, size = size, spell = PET })
+            end
+            pet.S.target = "nameplate1"
+            pet.S.now = pet.S.now + 1
+            pet.ns.Core.UNIT_SPELLCAST_SUCCEEDED("pet", "p1", PET)
+            pet.S.now = pet.S.now - 1
+            return Wound(pet, 350)
+        end
+        Check("procs route: an unlearned pet cast whose samples land on its stamp (500-560, 350 is 0.64 of the smallest)"
+            .. " keeps its hit from the proc; samples a tenth as big, at 0.3 s, none, or of the proc's own spell do not",
+            AfterPet({ 500, 560 }) == UNKNOWN and AfterPet({ 3500, 3600 }) == ICON and AfterPet({ 500, 560 }, 0.3) == ICON
+            and AfterPet({}) == ICON and AfterPet({ 500, 560 }, 0, X) == ICON)
+
         -- Run 20261025T194314Z: Wither 445468, cast in the opener's frame, learned castless proc X's ticks by votes;
         -- the tracker then drew them before the proc could, so the proc's row went unpaired.
         rig = ProcRig()
