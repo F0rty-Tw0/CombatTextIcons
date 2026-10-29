@@ -402,6 +402,29 @@ return function(T)
         end
         Check("heals: the fight's heal amounts reach the teacher, and a row of one size's sum learns it",
             SizeOf(1287908).reads == 2 and ns.Heals.AnyLearned())
+
+        -- two clear reads of Drain Life ticks drawn with its icon, each healing you 7 x the tick on its stamp, and one
+        -- tick drawn with no stamp (it tallies, it pairs with nothing)
+        ns = T.Boot()
+        ns.Teacher.area = "clear"
+        S = T.State()
+        for _ = 1, 2 do
+            local session = Session({})
+            session.healRows = { { spellID = 234153, totalAmount = 1, overkillAmount = 0 } }
+            S.sessions = { session }
+            ns.Teacher.Start(1)
+            ns.Teacher.Seen(53)
+            for k, tick in ipairs({ 1413, 2827, 1414 }) do
+                ns.Teacher.Drawn(234153, tick, 10 * k)
+                ns.Teacher.Healed(7 * tick, "", 10 * k)
+            end
+            ns.Teacher.Drawn(234153, 1413)
+            ns.Teacher.Finish(100)
+            FireAll(S)
+        end
+        local couple = (T.Store().healCouples or {})[234153] or {}
+        Check("heals: the fight's drawn hits reach the teacher, and two reads of one k learn the couple",
+            couple.reads == 2 and ns.Heals.AnyLearned())
     end
 
     -- Core wiring: once Chain Heal is learned (saved: 40000-42000, padded 28000-84000), a heal on you waits for its

@@ -69,7 +69,8 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 --   casts = { { spellID, base, at, plate }, ... }, streams = { [stream] = record }, seen = sum, live = this fight's
 --   own seen (no carried fight's), crowded = the live crowd check fired, carried = seconds of fights carried in,
 --   duration = seconds in combat (set at Finish), group, heals = { { size, amount, at }, ... } on you, helps = { { spellID,
---   at }, ... } your helpful casts (for Heals.Learn) }
+--   at }, ... } your helpful casts and drawn = { { spellID, amount, at }, ... } the hits drawn with an icon (for
+--   Heals.Learn) }
 Teacher.fight = nil
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
 Teacher.area = "crowded" -- the crowd check's state: "clear" or "crowded"; a read saves it with its map (SaveArea)
@@ -876,6 +877,7 @@ local function Carry(run, into)
     for index, cast in ipairs(run.casts or {}) do table.insert(into.casts, index, cast) end
     for index, heal in ipairs(run.heals or {}) do table.insert(into.heals, index, heal) end
     for index, help in ipairs(run.helps or {}) do table.insert(into.helps, index, help) end
+    for index, hit in ipairs(run.drawn or {}) do table.insert(into.drawn, index, hit) end
     into.seen = into.seen + run.seen
     for school, sum in pairs(run.schools or {}) do into.schools[school] = (into.schools[school] or 0) + sum end
     into.carried = (into.carried or 0) + (run.duration or 0)
@@ -1039,7 +1041,7 @@ local function Judging(run, sessionID, rows, reason)
         Procs.Read(hits, openRows, results, rows, run.at, run.ticks, run.streams)
         Teacher.Yield()
         Ground.Castless(run, hits, openRows, rows, results)
-        if healRows then Heals.Learn(run.heals, run.helps, healRows, run.duration) end
+        if healRows then Heals.Learn(run.heals, run.helps, healRows, run.duration, run.drawn) end
     end
     Ledger.SetVerdicts(last.rows, run.at)
     Done(last)
@@ -1062,7 +1064,7 @@ end
 function Teacher.Start(now, group)
     local streams = Streams.NewFight()
     Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, casts = {}, seen = 0, live = 0, schools = {},
-        group = group, streams = streams, heals = {}, helps = {} }
+        group = group, streams = streams, heals = {}, helps = {}, drawn = {} }
 end
 
 -- A wound landed while the player was grouped: the fight's read will not learn.
@@ -1123,11 +1125,12 @@ function Teacher.Helped(spellID, now)
     fight.helps[#fight.helps + 1] = { spellID = spellID, at = now }
 end
 
--- A hit was drawn with this spell's icon.
-function Teacher.Drawn(spellID, amount)
+-- A hit was drawn with this spell's icon at `now` (nil: unknown); Heals.Learn pairs it with the heals on its stamp.
+function Teacher.Drawn(spellID, amount, now)
     local fight = Teacher.fight
     if not (fight and IsNumber(spellID) and IsNumber(amount)) then return end
     fight.tally[spellID] = (fight.tally[spellID] or 0) + amount
+    if IsNumber(now) then fight.drawn[#fight.drawn + 1] = { spellID = spellID, amount = amount, at = now } end
 end
 
 -- A hit a learned DoT drew: its votes named it, not the meter, so Procs.Read also sums it with its school's '?' hits.
