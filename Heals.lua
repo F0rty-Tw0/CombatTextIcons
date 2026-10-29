@@ -11,8 +11,9 @@
 -- 90650-231640). A stamp two different helpful casts share counts for the one of them that already has samples
 -- (none when both or neither do), a sample only when its largest heal fits that cast's padded band: shamanheal's
 -- Chain Heal goes out on a totem's stamp in 13 of its 17 casts.
--- A cast is learned once LEARN_CASTS of its casts left a sample, at least HIT_SHARE of its counted casts did, its ID
--- was a heal row, and luck alone (some heal on the cast's stamp by chance, FRAME) gives that many at most ALPHA often.
+-- A cast is learned once LEARN_CASTS of its casts left a sample (TWIN_CASTS of one size), at least HIT_SHARE of its
+-- counted casts did, its ID was a heal row, and luck alone (some heal on the cast's stamp by chance, FRAME) gives
+-- that many at most ALPHA often.
 -- Core's waiting heals ask Heals.Claim which of a frame's heals its helpful casts made.
 -- Kept apart from the damage stores: an ID can be both a damage and a heal row (Healing Rain 73921).
 -- Saved data is checked on load and never trusted.
@@ -23,6 +24,10 @@ local Heals = {}
 ns.Heals = Heals
 
 local LEARN_CASTS = 3   -- samples from this many different casts teach a heal (Fingerprints.LEARN_CASTS)
+-- Two samples of one size within TWIN teach at TWIN_CASTS: a heal of a share of your health lands the same each cast
+-- (hunter's Exhilaration 87925, 87926, a cooldown with 4 casts in its log), where mastery spreads Chain Heal's
+-- 40872-133149. The luck test still holds.
+local TWIN_CASTS, TWIN = 2, 0.005
 local HIT_SHARE = 0.8   -- share of its counted casts that must have left a sample: a heal on yourself solo always lands
 local ALPHA = 0.01      -- learned when luck alone gives its samples this often or less (Learn.lua's value)
 -- A frame's length in seconds for the luck test, at 20 fps: the logs' fps= read 90-105, so the true chance is lower.
@@ -46,9 +51,16 @@ local function IsID(value) return IsNumber(value) and value > 0 and value % 1 ==
 local heals = {}
 local reads = 0
 
+-- Whether two samples are a twin: the same size within TWIN of the bigger.
+local function Twin(sizes)
+    local a, b = sizes[1], sizes[2]
+    return #sizes == 2 and math.abs(a - b) <= TWIN * math.max(a, b)
+end
+
 local function Learned(entry)
-    return not entry.pending and entry.hits >= LEARN_CASTS and entry.hits >= HIT_SHARE * entry.casts
-        and #entry.sizes >= LEARN_CASTS and ns.Learn.PoissonTail(entry.expected, entry.hits) <= ALPHA
+    local need = Twin(entry.sizes) and TWIN_CASTS or LEARN_CASTS
+    return not entry.pending and entry.hits >= need and entry.hits >= HIT_SHARE * entry.casts
+        and #entry.sizes >= need and ns.Learn.PoissonTail(entry.expected, entry.hits) <= ALPHA
 end
 
 function Heals.IsLearned(spellID)

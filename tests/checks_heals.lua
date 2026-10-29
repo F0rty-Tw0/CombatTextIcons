@@ -25,15 +25,25 @@ return function(T)
     do -- learning
         local ns = T.Boot()
         local H = ns.Heals
-        local heals, helps = Fight(CHAIN_HEAL, 2)
+        local heals, helps = Fight(CHAIN_HEAL, 2, function(k) return { 40000 + 1000 * k } end)
         H.Learn(heals, helps, { Row(CHAIN_HEAL) }, 100)
-        Check("heals: two casts with a heal on their stamp teach nothing yet", not H.IsLearned(CHAIN_HEAL))
+        Check("heals: two casts with heals of two sizes on their stamps teach nothing yet", not H.IsLearned(CHAIN_HEAL))
         heals, helps = Fight(CHAIN_HEAL, 1)
         H.Learn(heals, helps, { Row(CHAIN_HEAL) }, 100)
         Check("heals: a third cast in a later clear read learns the heal", H.IsLearned(CHAIN_HEAL) and H.AnyLearned())
         local entry = T.Store().heals[CHAIN_HEAL]
         Check("heals: the sample is the largest heal on the cast's stamp, not the proc beside it",
-            entry.casts == 3 and entry.hits == 3 and #entry.sizes == 3 and entry.sizes[1] == 40000)
+            entry.casts == 3 and entry.hits == 3 and #entry.sizes == 3 and entry.sizes[1] == 41000)
+
+        -- hunter's Exhilaration heals a share of your health: 87925, then 87926
+        local EXHILARATION = 109304
+        heals, helps = Fight(EXHILARATION, 2, function(k) return { 87924 + k } end)
+        H.Learn(heals, helps, { Row(EXHILARATION) }, 100)
+        Check("heals: two casts whose samples are one size (within 0.5 %) learn the heal", H.IsLearned(EXHILARATION))
+        heals, helps = Fight(RIPTIDE, 2, function(k) return { k == 1 and 87925 or 88500 } end) -- 0.65 % apart
+        H.Learn(heals, helps, { Row(RIPTIDE) }, 100)
+        Check("heals: two samples 0.65 % apart teach nothing yet", not H.IsLearned(RIPTIDE))
+        H.Forget()
 
         heals, helps = Fight(RIPTIDE, 4)
         H.Learn(heals, helps, { Row(CHAIN_HEAL) }, 100)
