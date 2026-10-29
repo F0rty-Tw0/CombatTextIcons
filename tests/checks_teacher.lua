@@ -1943,6 +1943,20 @@ return function(T)
             Check("candidates: a cast whose largest has no frame mate keeps the top-only rule: no row of another ID (5000)",
                 rig.ns.Fingerprints.Alias(Y) == nil)
 
+            -- Run shaman6 F1: Meteor 117588's crit on the target and its 4 mates met its own row exactly, and Ascendance
+            -- 114050, cast before it on the same plate, summed the same hits as an alias of that row: neither paired.
+            -- Z cast once with W on its stamp; the target's 1000 names both, its mates 1020 and 980 neither.
+            local BOTH = { { 32, 1000, "", nil, 60, { Candidate(W, 59.5), Candidate(Z, 60) } }, AREA[2], AREA[3] }
+            rig = Rig({})
+            ReadWith(rig, BOTH, { { Z, 3000 } })
+            F = rig.ns.Fingerprints
+            Check("candidates: a cast a hit names owns its row, so another cast's cand of the same hits (3000) is no alias "
+                .. "and Z learns from its one cast",
+                F.IsLearned(Z) and F.Alias(Z) == nil and F.Get(W) == nil and Find(rig.ns.Teacher.last, Z).verdict == "agree")
+            -- Run shaman6 F2: Meteor's 4 mates landed before its target's hit in their frame, so a chain drew the target only.
+            Check("candidates: an exact way's frame mates make Z an area spell, not a chain (its mates may come first)",
+                F.Get(Z) and F.Get(Z).pattern == "single" and F.Get(Z).area == true)
+
             -- Run shaman6 F2: Earthquake's cand met row 157348 of another ID from hits at 0.10, 0.79 and 1.29 s after
             -- its casts, then drew castless bursts as Earthquake. The same 9 hits 0.1 / 0.8 / 1.3 s after Z's casts.
             local LATE = {}

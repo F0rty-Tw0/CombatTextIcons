@@ -476,7 +476,8 @@ end
 -- to row 1259101 (789844 of 789850); the 1.4K hits of another spell in one of those frames are no mates.
 -- A group { castID, school, cand = { castID, sum, hits, castOf, mates, area, covered, casts } } pairs only with the
 -- cast's own row unless `area` (every counted cast had a mate; Pairs); `castOf[hit]` is the candidate that hit is
--- learned under, `mates[hit]` marks a mate (learned as a chain hop). Hits in `spent` are skipped.
+-- learned under, `mates[hit]` marks a mate (learned as a chain hop, or as the cast's area when the way met the cast's
+-- own row: Pass). Hits in `spent` are skipped.
 -- `all` = { castID, sum, hits, castOf } is every hit of the group, not only each cast's largest: Elemental Overload
 -- lands on the bolt's plate ~0.45x its size, and Lightning Bolt 188196's row holds both (ele log F3: 63230 + 28817 +
 -- 64483 + 26106 + 25821 = row 208457), so its cand stays under the row. It pairs only in short fights (SHORT_CASTS).
@@ -599,7 +600,7 @@ local function Pairs(group, way, row, owners)
     return Judge(way.sum, row.total, row.overkill) == "agree"
 end
 
--- The IDs that own a meter row this session and the cast IDs of this fight's groups.
+-- The IDs that own a meter row this session and the cast IDs of this fight's groups (the candidate passes add theirs).
 local function Owners(groups, rows)
     local owners = { rows = {}, casts = {} }
     for _, row in ipairs(rows) do owners.rows[row.spellID] = true end
@@ -647,14 +648,19 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
                 -- Run dk with every pair at one cast: Outbreak 77575's one-cast alias of row 317792 made that row
                 -- owned (Procs.lua Owned), so its proc never learned (-0.65 pt late).
                 local exact = row.spellID == group.castID and way ~= group.all
+                -- An exact way's frame mates are its cast's area (Fingerprints.SetArea), no chain hops: a chain draws
+                -- from its own plate's hit on, and run shaman6 F2's Meteor 117588 hit its 4 mates before its target in
+                -- one frame, so as a chain it drew 61504 of 371725.
+                local area = exact and way.mates ~= nil and next(way.mates) ~= nil
                 for _, hit in ipairs(way.hits) do
                     local cast = way.castOf and way.castOf[hit] or { castAt = hit.castAt, castSpell = hit.castSpell }
-                    local hops = way.mates and way.mates[hit] and 2 or 1
+                    local hops = way.mates and way.mates[hit] and not area and 2 or 1
                     Fingerprints.Add(group.castID, { school = hit.school, delay = hit.at - cast.castAt,
                         castAt = cast.castAt, hops = hops, spell = cast.castSpell, size = hit.size, exact = exact })
                 end
                 if row.spellID ~= group.castID then Fingerprints.SetAlias(row.spellID, group.castID) end
                 Fingerprints.SetPerCast(group.castID, OwnHitsPerCast(way))
+                if area then Fingerprints.SetArea(group.castID) end
                 learned[#learned + 1] = way
                 rewritten[position] = true
                 results[item.index] = { spellID = group.castID, meterID = row.spellID, tally = way.sum,
@@ -812,7 +818,8 @@ end
 -- bounds; then the DoT pass learns a cast's DoT from its school's streams, bounded by its own open row; then the
 -- stack pass (Stack.lua) learns a stacking DoT's ticks on its cast's plate under its own open row; last, the area
 -- pass (Area.lua) marks a spell learned before this read whose row's residual its hits on other plates explain.
--- A way the meter proved also teaches how many hits one cast landed on its plate (Fingerprints.SetPerCast).
+-- A way the meter proved also teaches how many hits one cast landed on its plate (Fingerprints.SetPerCast), and an
+-- exact way with frame mates that its casts hit the plates around their target (Fingerprints.SetArea).
 -- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so
 -- the DoT's draws were other spells' (a stale save's Nature DoT under Lava Burst 51505 drew Surging Totem's ticks).
 -- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
@@ -828,6 +835,10 @@ local function Learn(run, results, open, rows)
         for _, hit in ipairs(way.hits) do spent[hit] = true end
     end
     local candGroups, candSeen = CandidateGroups(run.unknown, spent, LoneRow(open)), { rows = seen.rows, groups = {} }
+    -- A cast a '?' hit names as a candidate is cast this fight too, so its row is its own (Owners): run shaman6 F1,
+    -- Meteor 117588's cand (its 112583 crit on the target and 4 mates of 56-58K) met its row 341245 exactly, and so
+    -- did Ascendance 114050's cand of the same hits as an alias, so neither paired (shaman5 F3 alike).
+    for _, group in ipairs(candGroups) do owners.casts[group.castID] = true end
     Pass(candGroups, open, owners, function(group) return group.cand end, candSeen, results, learned, rewritten)
     Pass(candGroups, open, owners, function(group) return group.all end, candSeen, results, learned, rewritten)
     Teacher.Yield()
