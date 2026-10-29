@@ -1525,6 +1525,47 @@ return function(T)
         ApplyDot(rig, 80, "nameplate5", { 9001 }, 3, 3)
         Check("spec 1/2: the next cast shows all 3 ticks with its icon (" .. rig.Drawn(9001) .. "/3)", rig.Drawn(9001) == 3)
     end
+    do -- a group or crowded fight learns nothing live: no DoT vote, no miss drop; learned spells still draw
+        -- One fight in `mode` ("solo", "group" or "crowded"), opened as Core opens it.
+        local function Fight(mode)
+            local rig = Rig()
+            rig.S.group = mode == "group"
+            rig.ns.Core.PLAYER_REGEN_DISABLED()
+            if mode == "crowded" then rig.ns.Teacher.fight.crowded = true end
+            return rig
+        end
+        for _, mode in ipairs({ "solo", "group", "crowded" }) do
+            local rig = Fight(mode)
+            for plate = 1, 4 do ApplyDot(rig, 20 * (plate - 1), "nameplate" .. plate, { 9001 }, 3, 4) end
+            local sigs = rig.Votes(9001) and #rig.Votes(9001).sigs or 0
+            if mode == "solo" then
+                Check("frozen fight: control, solo the 4th plate learns the DoT", rig.Learned(9001) ~= nil)
+            else
+                Check("frozen fight (" .. mode .. "): 4 plates of an unknown DoT give no vote and learn nothing",
+                    rig.Learned(9001) == nil and sigs == 0)
+            end
+
+            rig = Fight(mode)
+            rig.Seed(9001, 32, 3, "dot")
+            ApplyDot(rig, 0, "nameplate1", { 9001 }, 3, 3)
+            Check("frozen fight (" .. mode .. "): a learned DoT still draws its ticks (" .. rig.Drawn(9001) .. "/3)",
+                rig.Drawn(9001) == 3)
+            for _, t in ipairs({ 20, 40 }) do rig.Cast(t, 9001, "nameplate2") end
+            rig.S.now = 60
+            rig.ns.Tracker.Identify(C_NamePlate.GetNamePlateForUnit("nameplate2"), 32, 1000, "", 60) -- housekeeping
+            Check("frozen fight (" .. mode .. "): two tickless casts " .. (mode == "solo" and "drop" or "keep")
+                .. " the learned DoT", (rig.Learned(9001) == nil) == (mode == "solo"))
+
+            rig = Fight(mode)
+            for t0 = 0, 20, 20 do
+                rig.Channel(t0, 9002, "nameplate1")
+                for j = 1, 4 do rig.Hit(t0 + j, 800, 32) end
+                rig.Stop(t0 + 4)
+            end
+            Check("frozen fight (" .. mode .. "): a birth inside your own channel still votes: two channels learn it",
+                rig.Learned(9002) ~= nil and rig.Learned(9002).kind == "channel")
+        end
+    end
     do -- spec 5 flips: SW:P (9201) at t0 and DP (9202) at t0 + 1.7, both school 32, period 3, a fresh plate per round
         local rig = Rig()
         local swRound, dpRound, before

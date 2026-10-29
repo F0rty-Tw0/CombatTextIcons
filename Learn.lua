@@ -7,7 +7,8 @@
 -- (`physical`, see OnBirth). Sig and learned periods
 -- are haste-free bases. Learned spells are served to the Tracker like table
 -- rows. Two consecutive casts without a tick drop a spell again, as do the
--- teacher's meter reads (two unpaired reads in a row, or at once when over). Saved data is
+-- teacher's clear meter reads (two unpaired reads in a row, or at once when over). A group or crowded fight
+-- (Frozen) drops nothing and votes only inside your own channel. Saved data is
 -- checked on load and never trusted.
 
 local _, ns = ...
@@ -150,8 +151,17 @@ function Learn.Get(spellID)
     return { icon = spellID, school = entry.school, period = entry.period, hasted = true, mode = MODES[entry.kind] }
 end
 
+-- Whether the open fight is frozen: you are in a group, or the live crowd check found it crowded (Teacher.Seen). Its
+-- ticks may be strangers', so it votes (OnBirth) only inside your own channel and drops nothing (Missed); learned
+-- spells still draw.
+local function Frozen()
+    local fight = ns.Teacher and ns.Teacher.fight
+    return fight ~= nil and (fight.group == true or fight.crowded == true)
+end
+
+-- A learned spell's cast showed no tick: the MAX_MISSES-th in a row drops it, never in a frozen fight (Frozen).
 function Learn.Missed(spellID)
-    if not IsId(spellID) then return end
+    if not IsId(spellID) or Frozen() then return end
     local entry = learned[spellID]
     if not entry then return end
     entry.misses = entry.misses + 1
@@ -408,9 +418,13 @@ end
 -- 1.30 s sig with 4 votes against 0.82 expected (births of 1.0 to 1.6 s in F6, F7, F9, F11), while its casts owned 9
 -- physical births against 8.1 expected over all its sigs. It then drew 16 melee hits (89K) under its icon in F11-F12
 -- and its row stayed under the meter, so no read struck it. So a physical sig also needs the cast's physical tally
--- (all its physical births, kept across sigs) to beat luck.
+-- (all its physical births, kept across sigs) to beat luck. A frozen fight (Frozen) votes only for a birth inside
+-- your own channel (Streams' ChannelOwners: its sole owner is that channel).
 function Learn.OnBirth(key, stream, now)
     if stream.wide then return end
+    local owners = stream.owners
+    local ownChannel = #owners == 1 and stream.ownerKind and stream.ownerKind[owners[1]] == "channel"
+    if Frozen() and not ownChannel then return end
     if ns.Tracker.ExplainsHits(key, stream.school, stream.hits, stream.period) then return end
     local base = stream.period * (1 + (Learn.Haste() or 0) / 100)
     if base < PERIOD_MIN or base > PERIOD_MAX then return end -- not a tick rhythm; Init would drop the sig
@@ -463,7 +477,8 @@ function Learn.OnBirth(key, stream, now)
     for _, spellID in ipairs(won) do ns.Tracker.OnLearned(spellID, now) end
 end
 
--- One tick's base-period sample moves a learned base; a sample far from the base is ignored.
+-- One tick's base-period sample moves a learned base; a sample far from the base is ignored. A frozen fight (Frozen)
+-- nudges too: the samples come from ticks a learned DoT already drew (lock3's group fights: freezing them cost right).
 function Learn.Nudge(spellID, sample)
     if not IsId(spellID) or not IsId(sample) then return end
     local entry = learned[spellID]
