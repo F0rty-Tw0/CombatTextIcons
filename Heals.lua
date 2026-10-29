@@ -3,11 +3,13 @@
 -- as it checks damage: a HEAL line's amount is raw (overheal included) while the healing-done rows are effective,
 -- on every target. So a heal is learned from timing and size alone, and the rows serve only as the list of IDs that
 -- are your heals.
--- After a clear solo read (Teacher.lua) each of the fight's helpful casts that is a healing-done row, and is the
--- only helpful cast on its stamp, counts a cast; the largest heal on you on that stamp (normal scale) is its sample.
+-- After a clear solo read (Teacher.lua) each of the fight's helpful casts that is the only helpful cast on its stamp
+-- counts a cast; the largest heal on you on that stamp (normal scale) is its sample. A cast learns only once its ID
+-- was a healing-done row in some read: a fight that only overheals has no row (shamanheal's Healing Wave casts in
+-- its 3rd and 4th fights), and those casts still count toward the heal.
 -- The largest: your own procs share the cast's frame (shamanheal: Healing Wave stamps hold 4453-16134 next to
 -- 90650-231640). A cast is learned once LEARN_CASTS of its casts left a sample, at least HIT_SHARE of its counted
--- casts did, and luck alone (some heal on the cast's stamp by chance, FRAME) gives that many at most ALPHA often.
+-- casts did, its ID was a heal row, and luck alone (some heal on the cast's stamp by chance, FRAME) gives that many at most ALPHA often.
 -- Core's waiting heals ask Heals.Claim which of a frame's heals its helpful casts made.
 -- Kept apart from the damage stores: an ID can be both a damage and a heal row (Healing Rain 73921).
 -- Saved data is checked on load and never trusted.
@@ -23,7 +25,7 @@ local ALPHA = 0.01      -- learned when luck alone gives its samples this often 
 -- A frame's length in seconds for the luck test, at 20 fps: the logs' fps= read 90-105, so the true chance is lower.
 local FRAME = 0.05
 local SAMPLES = 16      -- sizes kept per heal, oldest dropped
-local CAP = 32          -- heals kept; the one seen least recently goes first
+local CAP = 32          -- heals kept; a pending one (no heal row yet) goes first, then the one seen least recently
 -- A heal fits a learned cast from PAD_LO of its smallest to PAD_HI of its biggest sample, as a direct hit's band
 -- (Casts.lua). Resto's mastery heals a hurt target for more, so one cast's heals vary: shamanheal's Chain Heal
 -- 40872-133149.
@@ -35,15 +37,15 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 local function IsCount(value) return IsNumber(value) and value >= 0 and value % 1 == 0 end
 local function IsID(value) return IsNumber(value) and value > 0 and value % 1 == 0 end
 
--- the spec store's `heals` = { [cast spell ID] = { casts, hits, expected, sizes = { size, ... }, seen } }: casts
--- counted, casts that left a sample, the samples luck alone would give, the kept sample sizes (normal scale), and
--- the read that last counted it (an ever-growing number)
+-- the spec store's `heals` = { [cast spell ID] = { casts, hits, expected, sizes = { size, ... }, seen, pending } }:
+-- casts counted, casts that left a sample, the samples luck alone would give, the kept sample sizes (normal scale),
+-- the read that last counted it (an ever-growing number), and true while its ID was never a healing-done row
 local heals = {}
 local reads = 0
 
 local function Learned(entry)
-    return entry.hits >= LEARN_CASTS and entry.hits >= HIT_SHARE * entry.casts and #entry.sizes >= LEARN_CASTS
-        and ns.Learn.PoissonTail(entry.expected, entry.hits) <= ALPHA
+    return not entry.pending and entry.hits >= LEARN_CASTS and entry.hits >= HIT_SHARE * entry.casts
+        and #entry.sizes >= LEARN_CASTS and ns.Learn.PoissonTail(entry.expected, entry.hits) <= ALPHA
 end
 
 function Heals.IsLearned(spellID)
@@ -89,12 +91,15 @@ function Heals.Claim(castIDs, waiting)
     return claims
 end
 
+-- Drops a pending cast (no heal row yet) before a heal, then the one seen least recently.
 local function Evict()
     local count, oldestID = 0, nil
     for spellID, entry in pairs(heals) do
         count = count + 1
-        if not oldestID or entry.seen < heals[oldestID].seen
-            or (entry.seen == heals[oldestID].seen and spellID < oldestID) then
+        local oldest = heals[oldestID]
+        if not oldest or (entry.pending and not oldest.pending)
+            or (not entry.pending == not oldest.pending and (entry.seen < oldest.seen
+                or (entry.seen == oldest.seen and spellID < oldestID))) then
             oldestID = spellID
         end
     end
@@ -102,14 +107,15 @@ local function Evict()
 end
 
 -- One counted cast of `spellID`: `size` is the largest heal on its stamp (nil: none), `chance` that of some heal
--- on its stamp by luck.
-local function CountCast(spellID, size, chance)
+-- on its stamp by luck, `row` whether its ID is one of this read's healing-done rows.
+local function CountCast(spellID, size, chance, row)
     local entry = heals[spellID]
     if not entry then
         Evict()
-        entry = { casts = 0, hits = 0, expected = 0, sizes = {}, seen = 0 }
+        entry = { casts = 0, hits = 0, expected = 0, sizes = {}, seen = 0, pending = true }
         heals[spellID] = entry
     end
+    if row then entry.pending = nil end
     entry.casts, entry.expected, entry.seen = entry.casts + 1, entry.expected + chance, reads
     if size then
         entry.hits = entry.hits + 1
@@ -139,9 +145,9 @@ function Heals.Learn(fightHeals, helps, rows, duration)
     local counted = {}
     for _, cast in ipairs(helps) do
         local spellID = frames[cast.at]
-        if spellID and own[spellID] then
+        if spellID then
             frames[cast.at] = nil -- one count per stamp
-            CountCast(spellID, largest[cast.at], chance)
+            CountCast(spellID, largest[cast.at], chance, own[spellID])
             counted[#counted + 1] = spellID
         end
     end
@@ -152,7 +158,7 @@ function Heals.Learn(fightHeals, helps, rows, duration)
         if entry and not said[spellID] then
             said[spellID] = true
             ns.Debug("TEACH healcast %d casts=%d hits=%d p=%.2g -> %s", spellID, entry.casts, entry.hits,
-                ns.Learn.PoissonTail(entry.expected, entry.hits), Learned(entry) and "learned" or "open")
+                ns.Learn.PoissonTail(entry.expected, entry.hits), Learned(entry) and "learned" or entry.pending and "no row" or "open")
         end
     end
 end
@@ -177,7 +183,8 @@ local function Valid(entry)
     end
     while #sizes > SAMPLES do table.remove(sizes, 1) end
 
-    return { casts = entry.casts, hits = entry.hits, expected = expected, sizes = sizes, seen = 0 }
+    return { casts = entry.casts, hits = entry.hits, expected = expected, sizes = sizes, seen = 0,
+        pending = entry.pending == true or nil }
 end
 
 function Heals.Init(charDB)

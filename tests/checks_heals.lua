@@ -38,6 +38,31 @@ return function(T)
         heals, helps = Fight(RIPTIDE, 4)
         H.Learn(heals, helps, { Row(CHAIN_HEAL) }, 100)
         Check("heals: a cast that is no healing-done row learns nothing", not H.IsLearned(RIPTIDE))
+        heals, helps = Fight(RIPTIDE, 1)
+        H.Learn(heals, helps, { Row(RIPTIDE) }, 100)
+        Check("heals: casts counted before their ID was a heal row learn once a later read lists it",
+            H.IsLearned(RIPTIDE) and T.Store().heals[RIPTIDE].casts == 5)
+
+        -- shamanheal: Healing Wave's 3rd and 4th fight casts only overheal (no row), its 6th fight lists it
+        ns = T.Boot()
+        H = ns.Heals
+        heals, helps = Fight(77472, 2)
+        H.Learn(heals, helps, {}, 100)
+        heals, helps = Fight(77472, 1)
+        H.Learn(heals, helps, { Row(77472) }, 100)
+        Check("heals: a fight with no heal row still counts its casts toward the heal", H.IsLearned(77472)
+            and T.Store().heals[77472].casts == 3 and T.Store().heals[77472].pending == nil)
+
+        -- the store is full (CAP 32): Chain Heal learned in read 1, 31 casts that never were a heal row in read 2
+        ns = T.Boot()
+        H = ns.Heals
+        heals, helps = Fight(CHAIN_HEAL, 3)
+        H.Learn(heals, helps, { Row(CHAIN_HEAL) }, 100)
+        helps = {}
+        for k = 1, 32 do helps[k] = { spellID = PROC + k, at = 10 * k } end
+        H.Learn({}, helps, {}, 400)
+        Check("heals: a full store drops a cast with no heal row before a learned heal seen longer ago",
+            H.IsLearned(CHAIN_HEAL) and T.Store().heals[PROC + 1] == nil and T.Store().heals[PROC + 32] ~= nil)
 
         ns = T.Boot()
         H = ns.Heals
@@ -94,6 +119,7 @@ return function(T)
                 [5394] = "junk",
                 [77472] = { casts = 3, hits = 3, expected = 0, sizes = { 40000, "big", -5, 0 / 0, 41000, 42000 } },
                 [0.5] = { casts = 3, hits = 3, expected = 0, sizes = { 40000, 41000, 42000 } },
+                [108280] = { casts = 3, hits = 3, expected = 0, sizes = { 40000, 41000, 42000 }, pending = true },
             } }
         end)
         local saved = T.Store().heals
@@ -102,6 +128,8 @@ return function(T)
             saved[RIPTIDE] == nil and saved[PROC] == nil and saved[5394] == nil and saved[0.5] == nil)
         Check("heals: a saved entry keeps only its positive finite sizes",
             saved[77472] and #saved[77472].sizes == 3 and ns.Heals.IsLearned(77472))
+        Check("heals: a saved cast whose ID never was a heal row loads still waiting for one",
+            saved[108280] and saved[108280].pending == true and not ns.Heals.IsLearned(108280))
     end
 
     -- Teacher wiring: a fight's heals on you and helpful casts reach Heals.Learn on a clear read only. Each fight
