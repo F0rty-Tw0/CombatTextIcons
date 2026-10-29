@@ -64,6 +64,7 @@ function Procs.Init(charDB)
             entry.rest = entry.rest == true or nil
             entry.floor = IsNumber(entry.floor) and entry.floor > 0 and entry.floor < entry.lo and entry.floor or nil
             entry.critSeen = entry.critSeen ~= false
+            entry.critOnly = entry.critOnly == true or nil
         else
             bad[#bad + 1] = id
         end
@@ -270,6 +271,24 @@ local function Distinct(groups)
     return kept
 end
 
+-- A proc that only ever crits has no normal for its crits to fit, and another spell's normal may claim them (shamanele
+-- F3: four crits, 43116-56732, summed to 285452's row 202282 exactly, and 43116 sat in normal 16764's crit window).
+-- So a school's crits are also walked and run on their own, as normals are; a group of two or more is one more group,
+-- its band their normal-scale size, critOnly: Name draws only its crits. A lone crit is no group: one hit that equals
+-- a row is too thin to learn a band from (1259101's 48447 did, then drew another spell's crits in shamanele F6).
+local function CritOnly(groups, school, crits)
+    table.sort(crits)
+    local own = Walk(school, crits)
+    local made = {}
+    for _, group in ipairs(own) do made[#made + 1] = group end
+    Ticking(made, own, {})
+    for _, group in ipairs(made) do
+        group.lo, group.hi = Streams.NormalAmount(group.lo, "CRITICAL"), Streams.NormalAmount(group.hi, "CRITICAL")
+        group.floor, group.critCount, group.critOnly = group.lo, group.count, true
+        if group.count >= 2 then groups[#groups + 1] = group end
+    end
+end
+
 -- Groups per school ascending. A crit adds to the one group it fits; a hit whose crit flag is not plain
 -- true or false is an orphan, like a crit that fits none or two. A hit of 0 or less joins no group.
 local function Groups(hits, ticks)
@@ -297,6 +316,7 @@ local function Groups(hits, ticks)
         for _, group in ipairs(walked) do groups[#groups + 1] = group end
         Ticking(groups, walked, bySchool[school].crits)
         bySchool[school].walked = walked
+        CritOnly(groups, school, bySchool[school].crits)
     end
     -- A learned DoT's drawn ticks were named by votes, not the meter: one more group per school sums them with its
     -- '?' groups (Wither 445468 learned castless proc 1287663's ticks from the opener's frame, run 20261025T194314Z).
@@ -360,6 +380,7 @@ local function Union(entry, group)
     entry.lo, entry.hi = math.min(entry.lo, group.lo), math.max(entry.hi, group.hi)
     SetFloor(entry, floor)
     entry.critSeen = entry.critSeen or group.critCount > 0
+    entry.critOnly = entry.critOnly and group.critOnly or nil
 end
 
 -- A counted pair for a candidate: one more exact fight, or a restart when the group is another proc's. An off-size
@@ -376,18 +397,26 @@ local function Grow(entry, group, sure)
         return " learned"
     end
     entry.unpaired = entry.unpaired + 1
-    if sameSchool and entry.streak > 0 and entry.unpaired < UNPAIRED_MAX then return " miss" end
+    if sameSchool and entry.streak > 0 and entry.unpaired < UNPAIRED_MAX and not sure then return " miss" end
     entry.school, entry.lo, entry.hi, entry.streak, entry.unpaired = group.school, group.lo, group.hi, 1, 0
-    entry.critSeen = group.critCount > 0
+    entry.critSeen, entry.critOnly = group.critCount > 0, group.critOnly
     SetFloor(entry, group.floor or group.lo)
+    if sure then
+        entry.learned = true
+
+        return " learned"
+    end
 
     return " restart"
 end
 
 -- The state x event table for one target; returns the log suffix of a change, nil when nothing changed.
+-- A crit-only group never widens a proc that has normals: its crits are halved to normal scale on a guess, and widening
+-- learned 1310088 (shaman3) with one moved its band off its hits until Unpaired dropped it.
 local function Step(entry, group, target, sure)
+    local crossed = group ~= nil and group.critOnly and not entry.critOnly
     if target.kind == "under" then
-        if not (group and entry.school == group.school) then return nil end
+        if not (group and entry.school == group.school) or crossed then return nil end
         if not Widens(entry, group) then
             if entry.critSeen or group.critCount == 0 then return nil end
             entry.critSeen = true
@@ -411,7 +440,7 @@ local function Step(entry, group, target, sure)
         return " reset"
     end
     if not entry.learned then return Grow(entry, group, sure) end
-    if not (entry.school == group.school and Overlaps(entry, group) and Widens(entry, group)) then return nil end
+    if crossed or not (entry.school == group.school and Overlaps(entry, group) and Widens(entry, group)) then return nil end
     Union(entry, group)
 
     return " widen"
@@ -428,7 +457,7 @@ local function Apply(target, group, sure)
     if not group then return nil end
     local learned = (group.rest == true or sure == true) and target.overkill == 0
     procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, streak = 1, learned = learned, unpaired = 0, seen = 0,
-        rest = group.rest, critSeen = group.critCount > 0 }
+        rest = group.rest, critSeen = group.critCount > 0, critOnly = group.critOnly }
     SetFloor(procs[target.id], group.floor or group.lo)
 
     return learned and " learned" or ""
@@ -734,6 +763,11 @@ end
 -- drew crits 10433 and 9814, its own (with its normals they sum to the meter's 50489), and 11941, which was not
 -- (2.25x); now only 10433 draws (9814 / 2 sits under the band: a '?', not a wrong icon).
 local function Big(entry, amount, lo, hi)
+    if entry.critOnly then
+        local size = Streams.NormalAmount(amount, "CRITICAL")
+
+        return size ~= nil and lo <= size and size <= hi
+    end
     if entry.critSeen ~= false then return lo * CRIT_LO <= amount and amount <= hi * CRIT_HI end
     local size = Streams.NormalAmount(amount, "CRITICAL")
 
@@ -750,7 +784,7 @@ function Procs.Name(school, amount, flagText)
     for id, entry in pairs(procs) do
         if entry.learned == true and not entry.period and entry.school == school then
             local lo, hi, floor = entry.lo * PAD_LO, entry.hi * PAD_HI, Floor(entry) * PAD_LO
-            local normal = lo <= amount and amount <= hi
+            local normal = not entry.critOnly and lo <= amount and amount <= hi
             local big = Big(entry, amount, lo, hi)
             if (crit ~= true and normal) or (crit ~= false and big) then
                 if found then return nil end

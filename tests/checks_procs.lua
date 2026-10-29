@@ -214,6 +214,47 @@ return function(T)
             .. " school's remainder pairs the row)", Is(procs[1], 106, 1000, 1800, 1, true) and procs[1].rest == true)
     end
 
+    -- A proc that only crits (shamanele F3: 285452's four crits, 43116-56732, summed to its row 202282) -------------------
+    do
+        local crits = { C(4, 43116), C(4, 45727), C(4, 56707), C(4, 56732), Stray(4) }
+        local procs = Once(crits, { { id = 285452, total = 202282 } })
+        Check("procs read crit-only: a school's crits with no normal walk and run on their own; the band is their"
+            .. " normal-scale size (21558-28366), critOnly", Is(procs[285452], 4, 21558, 28366, 1) and procs[285452].critOnly == true)
+        local decoy = { N(4, 16764), C(4, 43116), C(4, 45727), C(4, 56707), C(4, 56732), Stray(4) }
+        procs = Once(decoy, { { id = 285452, total = 202282 } })
+        Check("procs read crit-only: a crit another spell's normal claims (43116 in 16764's crit window) still sums with"
+            .. " the crits", Is(procs[285452], 4, 21558, 28366, 1) and procs[285452].critOnly == true)
+        procs = Once({ C(8, 48447), Stray(8) }, { { id = 1259101, total = 48447 } })
+        Check("procs read crit-only: one crit equal to a row is no group (too thin to learn a band from)", next(procs) == nil)
+        local critOnly = function(p) p[7] = Entry(4, 21558, 28366, 1); p[7].critOnly = true end
+        procs = Once({ N(4, 22000), N(4, 23000), Stray(4) }, { { id = 7, total = 45000 } }, critOnly)
+        Check("procs read crit-only: a group with normals that overlaps a crit-only candidate grows it and clears critOnly",
+            Is(procs[7], 4, 21558, 28366, 2) and procs[7].critOnly == nil)
+        -- shaman3 loo: a crit-only group widened learned 1310088 off its hits until Unpaired dropped it
+        local twoCrits = { C(4, 42000), C(4, 48000), Stray(4) } -- normal scale 21000-24000
+        local open, _, openLines = Once(twoCrits, { { id = 7, total = 90000 } }, Seed(7, 4, 18000, 22000, 3, true))
+        local under = { id = 7, total = 190000, tally = 100000, verdict = "under" } -- complement window [90000, 90000]
+        local complement, _, underLines = Once(twoCrits, { under }, Seed(7, 4, 18000, 22000, 3, true))
+        Check("procs read crit-only: a crit-only group widens no learned proc that has normals (open row or complement)",
+            Is(open[7], 4, 18000, 22000, 3, true) and Is(complement[7], 4, 18000, 22000, 3, true) and #openLines + #underLines == 0)
+
+        local ns = Load(function()
+            CombatTextIconsCharDB = { procs = {
+                [9] = { school = 4, lo = 21558, hi = 28366, streak = 3, learned = true, critOnly = true },
+                [10] = { school = 8, lo = 100, hi = 120, critOnly = "yes" },
+            } }
+        end)
+        local Procs = ns.Procs
+        Procs.Init(T.Store())
+        Check("procs load crit-only: a saved critOnly true is kept, anything else is dropped",
+            T.Store().procs[9].critOnly == true and T.Store().procs[10].critOnly == nil)
+        Check("procs name crit-only: draws a crit whose normal-scale size sits in the padded band (50000, unknown flag too)",
+            Procs.Name(4, 50000, "CRITICAL") == 9 and Procs.Name(4, 50000, nil) == 9)
+        Check("procs name crit-only: never a normal hit, even one of the band's size (25000)", Procs.Name(4, 25000, "") == nil)
+        Check("procs name crit-only: no crit past the padded band (80000 / 2 > 28366 x 1.15; 36000 / 2 < 21558 x 0.85)",
+            Procs.Name(4, 80000, "CRITICAL") == nil and Procs.Name(4, 36000, "CRITICAL") == nil)
+    end
+
     -- A ticking proc's cut-short last tick and its walk-split runs (runs 20261025T192458Z, 194821Z: Surging Totem 73921) ---
     do
         local procs, _, lines = Once({ N(8, 2315), N(8, 11592), N(8, 11720), N(8, 11802), N(8, 12117) }, { { id = 73921, total = 49546 } })
@@ -322,18 +363,18 @@ return function(T)
             and row.spellID == 7 and row.meterID == 7 and row.tally == 700 and row.meter == 700 and row.verdict == "agree"
             and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=330-370 streak=3 learned")
 
-        procs, world, lines = Once({ N(106, 340), N(106, 360) }, { { id = 7, total = 700 } }, Seed(7, 32, 339, 364, 2))
+        procs, world, lines = Once({ N(106, 340), N(106, 360), Stray(106) }, { { id = 7, total = 700 } }, Seed(7, 32, 339, 364, 2))
         Check("procs read state: candidate + other school -> restart (streak 1, the group's school and band)",
             Is(procs[7], 106, 340, 360, 1) and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=340-360 streak=1 restart")
 
         -- Malevolence 446285 hit 22498 in four lock2 fights and 18748 in F3: one off-size fight must not undo the streak
-        procs, world, lines = Once({ N(106, 5500) }, { { id = 7, total = 5500 } }, Seed(7, 106, 339, 364, 2))
+        procs, world, lines = Once({ N(106, 5500), Stray(106) }, { { id = 7, total = 5500 } }, Seed(7, 106, 339, 364, 2))
         Check("procs read state: candidate + same school but bands that do not overlap -> miss (streak and band kept, unpaired 1)",
             Is(procs[7], 106, 339, 364, 2) and procs[7].unpaired == 1
             and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=339-364 streak=2 miss")
 
         local missed = function(p) p[7] = Entry(106, 339, 364, 2); p[7].unpaired = 1 end
-        procs, world, lines = Once({ N(106, 5500) }, { { id = 7, total = 5500 } }, missed)
+        procs, world, lines = Once({ N(106, 5500), Stray(106) }, { { id = 7, total = 5500 } }, missed)
         Check("procs read state: a second off-size fight in a row -> restart (streak 1, the group's band, unpaired 0)",
             Is(procs[7], 106, 5500, 5500, 1) and procs[7].unpaired == 0
             and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=5500-5500 streak=1 restart")
@@ -343,9 +384,16 @@ return function(T)
             Is(procs[7], 106, 339, 364, 3, true) and procs[7].unpaired == 0
             and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=339-364 streak=3 learned")
 
-        procs, world, lines = Once({ N(106, 5500) }, { { id = 7, total = 5500 } }, Seed(7, 106, 339, 364, 0))
+        procs, world, lines = Once({ N(106, 5500), Stray(106) }, { { id = 7, total = 5500 } }, Seed(7, 106, 339, 364, 0))
         Check("procs read state: streak 0 + off-size match -> restart at once (nothing to keep)",
             Is(procs[7], 106, 5500, 5500, 1) and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=5500-5500 streak=1 restart")
+
+        -- shamanele F3 then F6: 447419's crits paired its row at 35858-36336, then at 21142-22683 with school 4 split whole;
+        -- the off-size miss kept the F3 band and nothing was learned
+        procs, world, lines = Once({ N(106, 5500) }, { { id = 7, total = 5500 } }, Seed(7, 106, 339, 364, 2))
+        Check("procs read state: candidate + off-size match that splits its school whole -> learned at the new band at once",
+            Is(procs[7], 106, 5500, 5500, 1, true) and world.results[1].verdict == "agree"
+            and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=5500-5500 streak=1 learned")
 
         procs, world, lines = Once({ N(106, 50) }, { { id = 7, total = 700 } }, Seed(7, 106, 339, 364, 2))
         Check("procs read state: candidate + open row with overkill 0 and no unique match -> streak 0, band kept",
