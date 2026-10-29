@@ -1384,8 +1384,11 @@ return function(T)
             Check("tick row: the row of a spell you cast is never taken", rig.ns.Fingerprints.Alias(TICKS) == nil)
 
             rig = Rig({}); Seed(rig, MISSILES)
-            Step(rig, { [MISSILES] = 48508 }, { Row(TICKS, 40000), Row(OTHER, 8508) })
-            Check("tick row: a row the tally overshoots is never taken", rig.ns.Fingerprints.Alias(TICKS) == nil)
+            last = Step(rig, { [MISSILES] = 48508, [WAND] = 30000 }, { Row(TICKS, 40000) }, ARCANE)
+            Check("tick row: a row the tally overshoots is never taken, though one other rowless tally fits it:"
+                .. " an unpaired strike, not an over",
+                rig.ns.Fingerprints.Alias(TICKS) == nil and Find(last, MISSILES).meterID == MISSILES
+                and Find(last, MISSILES).verdict == "unpaired" and Kept(rig, MISSILES))
 
             rig = Rig({}); Seed(rig, MISSILES)
             Step(rig, { [MISSILES] = 48508, [WAND] = 30000 }, { Row(TICKS, 161687) }, ARCANE)
