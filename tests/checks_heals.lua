@@ -675,4 +675,18 @@ return function(T)
         Check("heals core: the drawn hit reaches the fight with its stamp", ns.Teacher.fight.drawn[1].spellID == PROC_ID
             and ns.Teacher.fight.drawn[1].at == 50)
     end
+
+    do -- a learned train (Healing Tide Totem): its cast starts it, and a heal on its due tick is named
+        local rig = CoreRig(false)
+        rig.S.harmful[TIDE] = false
+        TrainRead(rig.ns.Heals, { TIDE })
+        TrainRead(rig.ns.Heals, { TIDE })
+        rig.ns.Core.PLAYER_REGEN_DISABLED()
+        rig.Cast(100, TIDE)
+        rig.Heal(101.5, 11700)
+        rig.Heal(102.2, 11700)
+        rig.Frame(102.3)
+        Check("heals core: a learned train's cast names the heal on its due tick; a heal between ticks draws '?'",
+            rig.draws[1] == "tex:108280" and rig.draws[2] == rig.ns.Meter.UNKNOWN_ICON and #rig.draws == 2)
+    end
 end

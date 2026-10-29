@@ -13,7 +13,8 @@
 -- unnamed heal on you decides the same way. A learned proc (Procs.lua) draws its own icon where
 -- the question mark would, while no read found the area crowded (Teacher.NotCrowded: a map no read decided yet
 -- counts). A learned direct heal (Heals.lua) names a heal on you in its
--- cast's frame, in a group too; so does a learned coupled heal in the frame of the hit it is a share of.
+-- cast's frame, in a group too; so does a learned coupled heal in the frame of the hit it is a share of, and a
+-- learned train (a HoT or totem a cast starts) on each tick due after that cast.
 -- Damage you take is always shown, without an icon.
 
 local ADDON, ns = ...
@@ -487,8 +488,8 @@ end
 local waiting, frameCasts = { heals = {} }, { ids = {} }
 local flushQueued = false -- a flush waits on C_Timer.After(0)
 
--- A heal on you no channel or HoT named is drawn: with the icon of its frame's helpful cast that claimed it
--- (Heals.Claim), else as any unexplained heal on you: the question mark solo while the area is clear, else hidden.
+-- A heal on you no channel or HoT named is drawn: with the icon of the spell that claimed it (Heals.Claim: its frame's
+-- helpful cast, a learned size or share, or the tick of a running train), else as any unexplained heal on you: the question mark solo while the area is clear, else hidden.
 local function DrawOwnHeal(heal, castID)
     local route = "HIDDEN"
     if castID then
@@ -511,9 +512,9 @@ function Core.FlushHeals(now)
     local heals = waiting.heals
     if #heals == 0 or (now and now <= waiting.at) then return end
     local casts = frameCasts.at == waiting.at and frameCasts.ids or {}
-    local hits = frameHits.at == waiting.at and frameHits.list or {}
+    local hits, at = frameHits.at == waiting.at and frameHits.list or {}, waiting.at
     waiting = { heals = {} }
-    local claims = Heals.Claim(casts, heals, hits)
+    local claims = Heals.Claim(casts, heals, hits, at)
     for index, heal in ipairs(heals) do DrawOwnHeal(heal, claims[index]) end
 end
 
@@ -529,8 +530,8 @@ end
 
 -- Your heal on yourself or a party member: the heal of a channel (Drain Life) whose
 -- damage tick landed in this same frame, or a learned HoT's tick. A heal on you that
--- nothing explains draws the question mark when solo and the area is clear (once a direct heal is learned it first
--- waits for its frame's casts, which may name it: waiting); every other
+-- nothing explains draws the question mark when solo and the area is clear (once any heal is learned it first
+-- waits for its frame's casts, hits and running trains, which may name it: waiting); every other
 -- unexplained heal stays hidden. Heals do not count toward the crowd check (overheal).
 function Core.Heal(unit, flagText, amount, school, now)
     Core.FlushHeals(now)
@@ -719,6 +720,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
                 frameCasts.ids[#frameCasts.ids + 1] = spellID
             end
             Teacher.Helped(spellID, now)
+            Heals.Cast(spellID, now)
         end
     end
     Tracker.OnCast(unit, spellID, now)
