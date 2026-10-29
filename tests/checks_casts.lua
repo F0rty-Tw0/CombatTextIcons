@@ -318,6 +318,37 @@ return function(T)
         Check("fingerprints: a later sample of another school is ignored",
             #F.Get(592).samples == before and F.Get(592).delayHi == 0.2)
 
+        -- exact (run druid2, Ravage 441591: one cast a fight, its hits met its own row): one cast's exact samples teach;
+        -- the school's earlier non-exact samples go, so they widen neither the window nor the band
+        local function Exact(school, delay, castAt, size)
+            return { school = school, delay = delay, castAt = castAt, hops = 1, size = size, exact = true }
+        end
+        F.Add(595, { school = 1, delay = 0.8, castAt = 1, hops = 1, size = 2270 })
+        F.Add(595, { school = 4, delay = 0.1, castAt = 2, hops = 1, size = 9000 })
+        Check("fingerprints exact: non-exact samples of 2 casts do not learn", not F.IsLearned(595))
+        F.Add(595, Exact(1, 0.05, 3, 57184))
+        local exact = F.Get(595)
+        Check("fingerprints exact: one exact sample learns; the school's non-exact sample goes, the other school's stays",
+            F.IsLearned(595) and exact.school == 1 and #exact.samples == 2 and exact.delayLo == 0.05
+            and exact.delayHi == 0.05 and select(1, F.Band(595)) == 57184)
+        F.Add(596, Exact(1, 0.05, 1, 57184))
+        F.Add(596, Exact(1, 0.07, 1, 50000))
+        Check("fingerprints exact: an exact learn's later samples of the same cast are kept",
+            F.IsLearned(596) and #F.Get(596).samples == 2 and F.Get(596).delayHi == 0.07)
+        for castAt = 1, 2 do F.Add(597, Sample(1, 0.8, castAt)) end
+        F.Add(597, Exact(1, 0.05, 3))
+        Check("fingerprints exact: a third cast learns by casts and keeps every sample",
+            F.IsLearned(597) and #F.Get(597).samples == 3 and F.Get(597).delayHi == 0.8)
+        do
+            local G = T.Boot().Fingerprints
+            local saved = { casts = { [598] = { learned = false, pattern = "single",
+                samples = { { school = 1, delay = 0.1, castAt = 1, exact = true }, { school = 1, delay = 0.1, castAt = 2, exact = 1 } } } } }
+            G.Init(saved)
+            local samples = G.Get(598).samples
+            Check("fingerprints exact: a saved exact flag loads, a non-true one loads as none",
+                samples[1].exact == true and samples[2].exact == nil)
+        end
+
         -- delay ring of 8 and samples of 16: new delays widen at once, old ones age out
         for index = 1, 8 do F.Add(593, Sample(2, 0.2, index)) end
         F.Add(593, Sample(2, 0.5, 9))

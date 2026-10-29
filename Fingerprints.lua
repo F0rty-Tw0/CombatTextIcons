@@ -2,7 +2,9 @@
 -- learned about each of your direct-hit spells: its school, how long after the
 -- cast its hit lands (a ring of recent delays), and whether it hits once or
 -- hops from plate to plate (chain). A spell is learned when 3 different casts
--- sharing a school each left a sample; after that its school is fixed and the
+-- sharing a school each left a sample, or when 1 cast left `exact` samples (the
+-- teacher summed its hits to the meter row of its own ID; the school's other samples
+-- then go); after that its school is fixed and the
 -- post-fight teacher (Teacher.lua) only counts fights it agreed with or
 -- overshot. Two overshoots in a row delete the entry. Samples keep the hit's normal-scale
 -- size (crits divided by CRIT_FACTOR); a claim needs a hit inside the padded band (Casts.lua).
@@ -25,6 +27,9 @@ local CAP = 64        -- entries kept; the least useful one goes first
 local SAMPLES = 16    -- samples kept per entry, oldest dropped (one steady fight can add 11: Void Blast + Mind Blast)
 local DELAYS = 8      -- delays kept per learned entry, oldest dropped
 local LEARN_CASTS = 3 -- samples from this many different casts, one school, teach a spell
+-- ... or `exact` samples from this many casts: the teacher paired their hits with the meter row of the cast's own ID.
+-- Run druid2: Ravage 441591 is cast once a fight; its hits summed to its own row in F5 and F7 and it never learned.
+local EXACT_CASTS = 1
 local STRIKES = 2     -- teacher overshoots in a row that delete an entry
 local PER_CAST_MAX = 4 -- own-plate hits one cast's record takes at most (SetPerCast)
 local PATTERNS = { single = true, chain = true, ground = true, stack = true } -- the patterns a saved entry may hold
@@ -132,21 +137,39 @@ local function NewEntry()
         lastSeen = 0 }
 end
 
--- Whether `school` has LEARN_CASTS samples from different casts among the kept ones.
+-- How `school` is learned among the kept samples: "casts" with samples from LEARN_CASTS different casts, else "exact"
+-- with exact samples from EXACT_CASTS different casts, else nil.
 local function SchoolLearned(entry, school)
-    local seen, distinct = {}, 0
+    local seen, seenExact, distinct, exact = {}, {}, 0, 0
     for _, sample in ipairs(entry.samples) do
         if sample.school == school and not seen[sample.castAt] then
             seen[sample.castAt] = true
             distinct = distinct + 1
         end
+        if sample.school == school and sample.exact and not seenExact[sample.castAt] then
+            seenExact[sample.castAt] = true
+            exact = exact + 1
+        end
     end
+    if distinct >= LEARN_CASTS then return "casts" end
+    if exact >= EXACT_CASTS then return "exact" end
 
-    return distinct >= LEARN_CASTS
+    return nil
 end
 
-local function MarkLearned(entry, school)
+-- An "exact" learn keeps only the school's exact samples: the others reached no LEARN_CASTS, so they prove nothing,
+-- and they would widen the window and the band. Run druid2: Ravage 441591's run-5 `all` way (every hit in its cast's
+-- windows, 2270 to 45028) left samples, its run-7 exact hit (57184) taught it, and with those samples kept it drew
+-- three 3.7K-10.6K hits 0.4-0.8 s after its run-9 cast, 4404 past its row.
+local function MarkLearned(entry, school, how)
     entry.learned, entry.school = true, school
+    if how == "exact" then
+        local kept = {}
+        for _, sample in ipairs(entry.samples) do
+            if sample.school ~= school or sample.exact then kept[#kept + 1] = sample end
+        end
+        entry.samples = kept
+    end
     entry.delays = {}
     for _, sample in ipairs(entry.samples) do
         if sample.school == school and not LaterTick(sample) then entry.delays[#entry.delays + 1] = sample.delay end
@@ -170,7 +193,7 @@ function Fingerprints.Add(spellID, sample)
     local spell = IsNumber(sample.spell) and sample.spell or nil
     local kept = { school = school, delay = delay, castAt = castAt, hops = hops, spell = spell,
         size = HitSize(sample.size), tick = Tick(sample.tick), period = Positive(sample.period),
-        life = Positive(sample.life), crit = Positive(sample.crit) }
+        life = Positive(sample.life), crit = Positive(sample.crit), exact = sample.exact == true or nil }
     entry.samples[#entry.samples + 1] = kept
     if #entry.samples > SAMPLES then table.remove(entry.samples, 1) end
     entry.lastSeen = castAt
@@ -181,8 +204,9 @@ function Fingerprints.Add(spellID, sample)
     if entry.learned then
         entry.delays[#entry.delays + 1] = delay
         if #entry.delays > DELAYS then table.remove(entry.delays, 1) end
-    elseif SchoolLearned(entry, school) then
-        MarkLearned(entry, school)
+    else
+        local how = SchoolLearned(entry, school)
+        if how then MarkLearned(entry, school, how) end
     end
     Refresh(entry)
 end
@@ -346,7 +370,7 @@ local function KeepSamples(list)
             local size = type(sample.size) == "number" and sample.size > 0 and sample.size or nil
             kept[#kept + 1] = { school = sample.school, delay = sample.delay, castAt = sample.castAt, hops = hops,
                 spell = spell, size = size, tick = Tick(sample.tick), period = Positive(sample.period),
-                life = Positive(sample.life), crit = Positive(sample.crit) }
+                life = Positive(sample.life), crit = Positive(sample.crit), exact = sample.exact == true or nil }
         end
     end
     while #kept > SAMPLES do table.remove(kept, 1) end
