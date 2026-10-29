@@ -648,6 +648,19 @@ function Casts.Candidates(plate, at, school)
     return list
 end
 
+-- Whether a tracker cast whose ticks explain a hit of `school` (Ticks) was cast at `plate` in [at - UNKNOWN_WAIT, at]:
+-- the casts Casts.Candidates leaves out. False when `plate` is nil.
+function Casts.TickerAt(plate, at, school)
+    if plate == nil then return false end
+    for _, entry in ipairs(log) do
+        if at - UNKNOWN_WAIT <= entry.at and entry.at <= at and entry.plate == plate and Ticks(entry, school) then
+            return true
+        end
+    end
+
+    return false
+end
+
 -- Forgets what was learned: the fingerprints (and their aliases).
 function Casts.Forget()
     ns.Fingerprints.Forget()

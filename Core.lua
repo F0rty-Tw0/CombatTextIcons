@@ -307,12 +307,15 @@ end
 
 -- Draws a loose hit (no stream took it) that pairs with the tick one learned rhythm period before it on the plate
 -- (Procs.NamePair), when no unlearned cast may have made it: a learned cast's own hit was claimed before (Casts.Claim).
--- `candidates` is Casts.Candidates for the hit. Returns whether it drew.
+-- Nor may a learned DoT's cast in the hit's window (Casts.TickerAt): an off-beat tick the tracker missed is the DoT's,
+-- and run mage F6 paired Arcane Missiles 5143's as the mislearned proc 153626. `candidates` is Casts.Candidates for the
+-- hit. Returns whether it drew.
 local function PairWound(plate, stream, school, amount, flagText, candidates, now)
     if stream or not Teacher.AreaClear() then return false end
     for _, cast in ipairs(candidates) do
         if not Fingerprints.IsLearned(cast.castID) then return false end
     end
+    if Casts.TickerAt(plate, now, school) then return false end
     local rhythmID = Procs.NamePair(Streams.Loose(plate, school), school, amount, flagText, now)
     if not rhythmID then return false end
 

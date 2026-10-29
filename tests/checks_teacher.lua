@@ -2295,6 +2295,16 @@ return function(T)
         rig.Cast(10.6, "nameplate1", 8092)
         Check("rhythm pair: an unlearned cast at the plate in the hit's window -> ?",
             rig.Hit(11, "nameplate1", 350, 106) == UNKNOWN)
+        -- run mage F6: Arcane Missiles 5143, once a learned DoT, left the cast list, so its off-beat ticks paired as
+        -- the mislearned rhythm proc 153626 (8312 -> 15198 wrong).
+        local MISSILES = 5143
+        rig = RhythmRig()
+        T.Store().learned = { [MISSILES] = { school = 106, period = 3, kind = "dot", misses = 0 } }
+        rig.ns.Learn.Init(T.Store())
+        rig.Hit(10, "nameplate1", 350, 106)
+        rig.Cast(10.6, "nameplate1", MISSILES)
+        Check("rhythm pair: a learned DoT's cast at the plate in the hit's window, of the hit's school -> ?",
+            rig.Hit(11, "nameplate1", 350, 106) == UNKNOWN and rig.ns.Teacher.fight.tally[X] == nil)
 
         rig = RhythmRig()
         rig.ns.Teacher.area = "crowded"
