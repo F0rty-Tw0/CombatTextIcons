@@ -55,26 +55,30 @@ local function BaseFits(castID, spell, hit)
 end
 
 -- Whether an unlearned base may take `hit` as a hit of `spell`: with two or more sized samples kept
--- (an exact sum left them), the hit needs their school and their padded size band, so co-hits in the
--- cast frame (Haunt 48181 beside a 1.6K tick, run 20261025T180045Z) are no pairs. Fewer: any hit.
+-- (an exact sum left them), the hit needs their school and no more than the padded top of their sizes, so a co-hit
+-- over twice their biggest in the cast frame is no pair. The samples set no floor: a small co-hit beside the cast's hit
+-- leaves its cast counted anyway (Window: Haunt 48181 beside a 1.6K tick, run 20261025T180045Z), and a spell's sizes
+-- on other mobs or from another summon say little about its smallest. Run shamanele F7: the pet's Fire Blast 57984 hit
+-- 36.8-39.8K on 5 casts' stamps after 2 samples of 57.7-58.7K (F1, F3); the padded floor (0.7 x 57728) left 0 of 5
+-- counted and its 303125 row '?'. Fewer samples: any hit.
 local function NewFits(castID, spell, hit)
     local entry = Fingerprints.Get(castID)
     if not entry then return true end
-    local low, high, school, sized
+    local high, school, sized
     for _, ofSpell in ipairs({ true, false }) do
-        low, high, school, sized = nil, nil, nil, 0
+        high, school, sized = nil, nil, 0
         for _, sample in ipairs(entry.samples) do
             if sample.size and (sample.spell == spell or not ofSpell) then
                 if school and sample.school ~= school then return true end
                 school, sized = sample.school, sized + 1
-                low, high = math.min(low or sample.size, sample.size), math.max(high or sample.size, sample.size)
+                high = math.max(high or sample.size, sample.size)
             end
         end
         if sized > 0 then break end
     end
     if sized < 2 then return true end
 
-    return hit.school == school and Casts.InSizes(low, high, hit.size)
+    return hit.school == school and Casts.InSizes(0, high, hit.size)
 end
 
 -- The considered hits' pairs by cast spell: { castAt, delay, hit }, plus each cast spell's casts

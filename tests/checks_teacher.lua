@@ -2760,6 +2760,17 @@ return function(T)
         end)
         Check("steady (n2): with 1 sized sample a like-sized co-hit in every frame still blocks every cast",
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "none")
+        -- Run shamanele F7: the pet's Fire Blast 57984 hit 36.8-39.8K on 5 casts' stamps after 2 samples of 57.7-58.7K
+        -- on other mobs (F1, F3). Here samples of 30-32K, then hits of 19-22K: two of the four lie under 0.7 x 30000.
+        rig, last = SteadyFight(Rotation(VARIED), { Row(MIND_BLAST, 92000) }, function(r)
+            for castAt, size in ipairs({ 30000, 32000 }) do
+                r.ns.Fingerprints.Add(MIND_BLAST, { school = 32, delay = 0.30, castAt = castAt, hops = 1, spell = MIND_BLAST,
+                    size = size })
+            end
+        end)
+        Check("steady (n3): 2 sized samples set no floor: hits under 0.7 of their smallest pair -> 8092 learns 4",
+            last.area == "clear" and Learned(last) == 4 and rig.ns.Fingerprints.IsLearned(MIND_BLAST)
+            and Outcome(MIND_BLAST) == "learned")
 
         rig, last = SteadyFight(blasts, { Row(MIND_BLAST, 79642) }, FarMindBlast,
             function(r) r.ns.Teacher.Drawn(MIND_BLAST, 79642) end)
