@@ -1,12 +1,12 @@
 -- Learn: the per-spec store of tick rhythms the addon learned itself.
 --
 -- A DoT or channel that Spells.lua does not know (it ships empty: every spell) is learned from Streams:
--- each stream birth (a ground patch's wide one aside) gives every spell cast just before it a vote (`votes`),
--- plus an expected count of the votes luck alone would give it. A spell is
+-- each stream birth (a ground patch's wide one aside) gives every spell cast just before it, or whose drawn direct hit
+-- landed just before it, a vote (`votes`), plus an expected count of the votes luck alone would give it. A spell is
 -- learned when its votes beat that luck (PoissonTail); a physical one also over all its physical births
 -- (`physical`, see OnBirth). Sig and learned periods
 -- are haste-free bases. Learned spells are served to the Tracker like table
--- rows. Two consecutive casts without a tick drop a spell again, as do the
+-- rows, with their biggest tick seen (Learn.Sized). Two consecutive casts without a tick drop a spell again, as do the
 -- teacher's clear meter reads (two unpaired reads in a row, or at once when over). A group or crowded fight
 -- (Frozen) drops nothing and votes only inside your own channel. Saved data is
 -- checked on load and never trusted: an old save's HoT is dropped (a HoT's ticks are a Heals.lua train's; the saves
@@ -142,6 +142,7 @@ function Learn.Init(db)
         entry.misses = 0
         local unpaired = entry.unpaired
         if type(unpaired) ~= "number" or unpaired < 0 or unpaired % 1 ~= 0 then entry.unpaired = 0 end
+        if type(entry.size) ~= "number" or not (entry.size > 0) then entry.size = nil end
     end
 end
 
@@ -150,7 +151,16 @@ function Learn.Get(spellID)
     local entry = learned[spellID]
     if not entry then return nil end
 
-    return { icon = spellID, school = entry.school, period = entry.period, hasted = true, mode = MODES[entry.kind] }
+    return { icon = spellID, school = entry.school, period = entry.period, hasted = true, mode = MODES[entry.kind],
+        size = entry.size }
+end
+
+-- A learned spell's instance ticked for `size` (normal scale): the spell keeps its biggest tick, which bounds the first
+-- tick of its next instance (Tracker's Oversized).
+function Learn.Sized(spellID, size)
+    if not IsId(spellID) or not IsId(size) or size <= 0 then return end
+    local entry = learned[spellID]
+    if entry then entry.size = math.max(entry.size or 0, size) end
 end
 
 -- Whether the open fight is frozen: you are in a group, or the live crowd check found it crowded (Teacher.Seen). Its
@@ -401,6 +411,12 @@ local function WindowCasts(key, stream)
                 order[#order + 1] = cast.castID
             end
             row.n = row.n + 1
+            -- A landing widens the moments luck can put in a birth window (OnBirth's `landed` votes) by its delay, up to
+            -- one more window: without it, run shaman4 start learned Lightning Bolt 188196 as a DoT from its landings,
+            -- wrong 0.1 -> 1.4 %. A same-frame landing adds none: one whole extra chance cost priest's leave-one-out 3.5.
+            if cast.landAt and cast.landAt <= stream.birth then
+                row.n = row.n + math.min(1, (cast.landAt - cast.at) / (CHANCE_RATE * stream.period))
+            end
             row.kind = stream.ownerKind[cast.castID] or cast.kind
         end
     end
@@ -450,15 +466,18 @@ function Learn.OnBirth(key, stream, now)
     end
 
     local voted = {}
-    for _, spellID in ipairs(stream.owners) do
-        local sig = sigs[spellID]
-        -- One cast votes once per sig: dense noise puts it in several births' owner windows.
-        local castAt = stream.ownerAt and stream.ownerAt[spellID]
-        if sig and not voted[spellID] and (castAt == nil or sig.lastCast ~= castAt) then
-            sig.votes = sig.votes + 1
-            sig.lastCast = castAt
-            voted[spellID] = sig
-            if physical then entries[spellID].physical.votes = entries[spellID].physical.votes + 1 end
+    -- The owners vote, and so do the casts whose direct hit landed in the birth window (Streams' Owners: `landed`).
+    for _, voters in ipairs({ stream.owners, stream.landed or {} }) do
+        for _, spellID in ipairs(voters) do
+            local sig = sigs[spellID]
+            -- One cast votes once per sig: dense noise puts it in several births' owner windows.
+            local castAt = stream.ownerAt and stream.ownerAt[spellID]
+            if sig and not voted[spellID] and (castAt == nil or sig.lastCast ~= castAt) then
+                sig.votes = sig.votes + 1
+                sig.lastCast = castAt
+                voted[spellID] = sig
+                if physical then entries[spellID].physical.votes = entries[spellID].physical.votes + 1 end
+            end
         end
     end
 

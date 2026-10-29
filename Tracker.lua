@@ -248,6 +248,22 @@ end
 
 -- Matching -------------------------------------------------------------------------
 
+-- Whether a hit is too big for the first tick of a learned DoT's instance: past AMOUNT_HIGH times the spell's biggest
+-- tick (Learn.Sized, kept with what was learned). A first tick has no tick of its own to agree with: run hunter F9, Black
+-- Arrow 466930 (ticks 1101-1103) took a 5909 hit 0.90 s after its cast's own hit, and its own first tick at +1.06 s went
+-- undrawn. The 5909 was not its: the row (83287) is exactly its two own hits, two splash hits and 29 ticks (13590 +
+-- 22650 + 9941 + 4851 + 32255). Kept per spell, not per session: in F4 a first tick took a 9924 crit, and the instance
+-- then drew 14 hits of 7.1-13.8K (127K, mostly 7.1-8.8K hits the size of 467718's) as ticks. The biggest tick, not the
+-- last: a ramping DoT's first tick is its smallest, and bounded by the last tick of a ramp just started on another plate,
+-- Agony 980 lost 11K of right on run lock3 (it ramps 1127 -> 3607). Only too big, for the same reason.
+local function Oversized(instance, amount, flagText)
+    local spell = instance.fromLearn and Learn.Get(instance.icon)
+    if not (spell and spell.size) then return false end
+    local normal = Streams.NormalAmount(amount, flagText)
+
+    return normal ~= nil and normal > AMOUNT_HIGH * spell.size
+end
+
 -- Which multiple of the period a tick at `now` lands on (1 or 2; 0 for the tick
 -- after a recast, at restartAt + period), or nil. Callers test `if multiple`;
 -- 0 still counts as a match. When `strict` (the fight turned crowded) a tick must lie within Streams.SIZE_GUARD of
@@ -265,6 +281,7 @@ local function Phase(instance, school, amount, flagText, now, strict)
     local restarted = instance.restartAt and math.abs(now - (instance.restartAt + instance.period)) <= tolerance
     if not instance.lastTick then
         if instance.channel then return 1 end
+        if Oversized(instance, amount, flagText) then return nil end
         if math.abs(now - (instance.castAt + instance.period)) <= tolerance then return 1 end
         if instance.landAt and math.abs(now - (instance.landAt + instance.period)) <= tolerance then return 1 end
         if restarted then return 0 end
@@ -471,6 +488,7 @@ local function Ticked(instance, multiple, amount, flagText, now, back)
         instance.ticks = (instance.ticks or 0) + 1
         instance.rising = lastAmount and instance.ticks <= RAMP_TICKS and RampStep(normal, lastAmount)
         instance.lastAmount = normal
+        if instance.fromLearn then Learn.Sized(instance.icon, normal) end
     end
     instance.deadline = now + 3 * instance.period
     if instance == channel then channelTickAt = now end

@@ -9,9 +9,11 @@
 --            then extended by later hits one or two periods on; it dies 2.5
 --            periods after its last hit;
 --   casts    the player's casts of the last 35 s, so a birth can name the casts
---            that landed in its birth window (its owners).
+--            that landed in its birth window (its owners), and those whose drawn
+--            direct hit did (`landed`, Streams.Landed).
 -- Core feeds unclaimed hits through Streams.Feed and Tracker logs casts through
--- Streams.LogCast; Streams reports births and casts to Learn.
+-- Streams.LogCast; Core marks a drawn direct hit through Streams.Landed; Streams
+-- reports births and casts to Learn.
 -- Every value from the game API may be secret: school, castID, amount and flag are
 -- checked before any comparison or use as a table key.
 
@@ -304,19 +306,31 @@ local function FindBirth(hits, new, now)
     return bestA, bestB, bestC
 end
 
--- Distinct castIDs of the plate's casts (dots and channels) inside the birth window, in cast order, with their kinds.
+-- Distinct castIDs of the plate's casts (dots and channels) inside the birth window, in cast order, with their kinds;
+-- then `landed`: the casts outside it whose direct hit on the plate (Streams.Landed) is inside, as a DoT their hit
+-- applies ticks one period after the hit. Run hunter F2: Black Arrow 466930 cast at 202639.430 hit at 202639.765 and
+-- first ticked at 202640.764 (1.0 s period), so the window of a birth there, [202639.564, 202640.264], missed the cast.
+-- Landed casts only vote (Learn.OnBirth); a learned DoT adopts only its owners' streams (Tracker's Fits): as owners,
+-- Black Arrow's landings gave it hunter F4's stream of 7.1-8.8K hits of 467718 (its ticks are 1.1K), 127K drawn.
 local function Owners(entry, birth, period)
-    local owners, ownerKind, ownerAt = {}, {}, {}
+    local owners, ownerKind, ownerAt, landed = {}, {}, {}, {}
+    local function Inside(at) return at >= birth - WINDOW_FROM * period and at <= birth - WINDOW_TO * period end
     for _, cast in ipairs(entry.casts) do
-        local inside = cast.at >= birth - WINDOW_FROM * period and cast.at <= birth - WINDOW_TO * period
-        if inside and not ownerKind[cast.castID] then
+        if Inside(cast.at) and not ownerKind[cast.castID] then
             owners[#owners + 1] = cast.castID
             ownerKind[cast.castID] = cast.kind
             ownerAt[cast.castID] = cast.at
         end
     end
+    for _, cast in ipairs(entry.casts) do
+        if cast.landAt and Inside(cast.landAt) and not ownerKind[cast.castID] then
+            landed[#landed + 1] = cast.castID
+            ownerKind[cast.castID] = cast.kind
+            ownerAt[cast.castID] = cast.at
+        end
+    end
 
-    return owners, ownerKind, ownerAt
+    return owners, ownerKind, ownerAt, landed
 end
 
 -- A birth whose hits all land inside the key's newest own channel, from its start to `now` with no stop between, is
@@ -474,8 +488,8 @@ function Streams.Feed(key, school, amount, flagText, now, shouldRecord)
         local amount = BirthAmount({ a, b, c, hit })
         local start, lead = Start(entry, school, a.at, period, amount)
         start = math.min(start, RampStart(entry, school, a.at, period, BirthAmount({ a })))
-        local owners, ownerKind, ownerAt = ChannelOwners(entry, a.at, now)
-        if not owners then owners, ownerKind, ownerAt = Owners(entry, start, period) end
+        local owners, ownerKind, ownerAt, landed = ChannelOwners(entry, a.at, now)
+        if not owners then owners, ownerKind, ownerAt, landed = Owners(entry, start, period) end
         local half = HalfTicks(hits, { a, b, c, hit }, period, amount)
         local ticks = half and { a, half[1], b, half[2], c, half[3], hit } or { a, b, c, hit }
         local times, older = {}, {}
@@ -485,7 +499,7 @@ function Streams.Feed(key, school, amount, flagText, now, shouldRecord)
             school = school, period = half and period / 2 or period, halved = half ~= nil, birth = a.at, lastAt = now,
             count = #ticks,
             lastAmount = BirthAmount(ticks),
-            hits = times, owners = owners, ownerKind = ownerKind, ownerAt = ownerAt, key = key,
+            hits = times, owners = owners, ownerKind = ownerKind, ownerAt = ownerAt, landed = landed or {}, key = key,
             -- the birth's frames but the newest (its other plates may land after this hit) each hit WIDE_PLATES
             -- plates: a ground patch's ticks, which Learn gives no votes (Learn.OnBirth)
             wide = Wide(school, older),
@@ -568,6 +582,20 @@ function Streams.LogCast(key, castID, kind, now)
         entry.casts[#entry.casts + 1] = channelCast
     end
     if not (swapped or removed) then ns.Learn.OnCast(castID, now) end
+end
+
+-- A learned cast fingerprint drew `castID`'s direct hit on `key` (Core): the key's newest dot cast of it lands `now`,
+-- once (Owners).
+function Streams.Landed(key, castID, now)
+    local entry = key ~= nil and state[key]
+    if not entry or not Plain(castID) then return end
+    for index = #entry.casts, 1, -1 do
+        local cast = entry.casts[index]
+        if cast.castID == castID and cast.kind == "dot" and cast.at <= now then
+            cast.landAt = cast.landAt or now
+            return
+        end
+    end
 end
 
 -- The player's channel stopped (CHANNEL_STOP): the newest channel owns no hit after `now`.

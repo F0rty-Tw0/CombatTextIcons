@@ -148,6 +148,60 @@ return function(T)
             late ~= "tex:" .. ARROW)
     end
 
+    do -- run hunter F2: Black Arrow 466930 hit 0.335 s after its cast and its DoT ticked first 1.0 s after that hit
+        local ARROW = 466930
+        local function Learned(casts)
+            local rig = Rig()
+            local ns = rig.ns
+            rig.S.haste = 0
+            for castAt = 1, 3 do ns.Fingerprints.Add(ARROW, { school = 32, delay = 0.335, castAt = castAt, hops = 1 }) end
+            for _, cast in ipairs(casts) do
+                rig.Cast(cast, ARROW, "nameplate1")
+                rig.Hit(cast + 0.335, "nameplate1", "WOUND", 13464, 32)
+                for tick = 1, 4 do rig.Hit(cast + 0.335 + tick, "nameplate1", "WOUND", 1093, 32) end
+            end
+
+            return ns.Learn.Get(ARROW)
+        end
+        local learned = Learned({ 10, 30, 50 })
+        Check("learn: a DoT whose ticks start one period after its cast's drawn direct hit votes for the cast and is learned",
+            learned and learned.school == 32 and math.abs(learned.period - 1) < 0.05)
+        -- A landing widens its cast's luck chance by its delay: run shaman4 start learned Lightning Bolt 188196 from them.
+        Check("learn: two landing votes stay within luck once each landing's delay widens its cast's chance",
+            Learned({ 10, 30 }) == nil)
+    end
+
+    do -- run hunter F9: Black Arrow 466930's first tick window took a 5909 hit 0.90 s after its cast's own hit
+        local ARROW = 466930
+        local function FirstTick(size)
+            local rig = Rig()
+            local ns = rig.ns
+            rig.S.haste = 0
+            T.Store().learned = { [ARROW] = { school = 32, period = 1.0, kind = "dot", misses = 0, size = size } }
+            ns.Learn.Init(T.Store())
+            local loaded = ns.Learn.Get(ARROW).size
+            for castAt = 1, 3 do ns.Fingerprints.Add(ARROW, { school = 32, delay = 0.25, castAt = castAt, hops = 1 }) end
+            rig.Cast(10, ARROW, "nameplate1")
+            rig.Hit(10.25, "nameplate1", "WOUND", 22650, 32, "CRITICAL")
+            local other = rig.Hit(11.15, "nameplate1", "WOUND", 5909, 32)
+            local tick = rig.Hit(11.31, "nameplate1", "WOUND", 1103, 32)
+            rig.Hit(12.31, "nameplate1", "WOUND", 1050, 32)
+
+            return other and other.texture, tick and tick.texture, T.Store().learned[ARROW].size, loaded
+        end
+        local other, tick, size = FirstTick(1101)
+        -- The kept size is the biggest tick: run lock3's Agony 980 lost 11K of right when a new instance's first tick was
+        -- bounded by the last tick of a ramp just started on another plate.
+        Check("tracker: a hit past 2.5x a learned DoT's biggest tick is no first tick; its own tick next is, and the biggest is kept",
+            other ~= "tex:" .. ARROW and tick == "tex:" .. ARROW and size == 1103)
+        local before = FirstTick(nil)
+        Check("tracker: with no tick size learned yet the first-tick window takes any hit of the school, as before",
+            before == "tex:" .. ARROW)
+        local _, _, _, junk = FirstTick("x")
+        local _, _, _, negative = FirstTick(-5)
+        Check("learn: a saved tick size that is no positive number is dropped on load", junk == nil and negative == nil)
+    end
+
     do
         local rig = Rig()
         Check("core: PLAYER_REGEN_DISABLED exists and runs",

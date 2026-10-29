@@ -382,6 +382,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
         Casts.Accept(record, plate, now)
         Tracker.OnDirectHit(plate, record.spellID, now) -- a learned DoT of the cast may tick from this hit on
+        Streams.Landed(plate, record.spellID, now) -- and an unlearned one's ticks name the cast from it (Owners)
         Drawn(record.base, amount) -- an override is tallied under the base spell's meter row
         Ledger.Add("damage", record.base, amount)
         return Display.Plate(plate, SpellTexture(record.spellID), text, flagText, school)
