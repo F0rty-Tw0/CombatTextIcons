@@ -530,7 +530,9 @@ end
 -- A cast's learned train, else nil. Its counted casts are those whose stamp's other helpful casts are all direct
 -- heals (shamanheal casts each totem with Chain Heal on its stamp: the totem's walks count once Chain Heal, cast alone
 -- too, has samples; Chain Heal's walks on those stamps never count). Learned when TRAIN_WALKS of its walks agree,
--- TRAIN_SHARE of its counted casts, it has a heal row and it is no direct heal itself.
+-- TRAIN_SHARE of its counted casts, it has a heal row and it is no direct heal itself. Its tick count is the agreeing
+-- walks' median: a walk can run on into the next cast's ticks or a foreign heal (synthetic Renew 139 walked 8, 9, 13
+-- and 16 ticks; the longest claimed a foreign heal two periods past its 8th tick).
 local function Judge(castID, entry)
     if not entry.row or Direct(castID) then return nil end
     local counted, walks = 0, {}
@@ -554,12 +556,14 @@ local function Judge(castID, entry)
         if not best or #group > #best then best = group end
     end
     if not best or #best < TRAIN_WALKS or #best < TRAIN_SHARE * counted then return nil end
-    local train = { row = entry.row, period = 0, low = math.huge, high = 0, ticks = 0 }
+    local train, ticks = { row = entry.row, period = 0, low = math.huge, high = 0 }, {}
     for _, walk in ipairs(best) do
         train.period = train.period + walk.period / #best
         train.low, train.high = math.min(train.low, walk.low), math.max(train.high, walk.high)
-        train.ticks = math.max(train.ticks, walk.ticks)
+        ticks[#ticks + 1] = walk.ticks
     end
+    table.sort(ticks)
+    train.ticks = ticks[math.ceil(#ticks / 2)]
     train.size = math.sqrt(train.low * train.high)
 
     return train

@@ -424,6 +424,23 @@ return function(T)
             next(H.Claim({}, { { size = 11400 } })) == nil and H.Claim({}, { { size = 11400 } }, nil, 205)[1] == TIDE)
     end
 
+    do -- trains: walks of 8, 8 and 16 ticks (one ran on into heals past its train) learn 8 ticks
+        local ns = T.Boot()
+        local H = ns.Heals
+        local function size(tick) return 12000 - 300 * ((tick - 1) % 8 + 1) end
+        TrainRead(H, { TIDE }, { size = size })
+        TrainRead(H, { TIDE }, { size = size, ticks = 16 })
+        TrainRead(H, { TIDE }, { size = size })
+        H.Cast(TIDE, 100)
+        local claimed = 0
+        for tick = 1, 8 do
+            if H.Claim({}, { { size = size(tick) } }, nil, 100 + 1.5 * tick)[1] == TIDE then claimed = claimed + 1 end
+        end
+        local ninth = H.Claim({}, { { size = 9400 } }, nil, 113.5)
+        Check("trains: the learned tick count is the walks' median; a heal a period past the 8th tick is no tick",
+            H.IsTrainLearned(TIDE) and claimed == 8 and next(ninth) == nil)
+    end
+
     do -- the saved store is checked, never trusted
         local ns = T.Boot(function()
             local walk = { with = {}, period = 1.5, size = 10500, low = 9600, high = 11700, ticks = 8 }
