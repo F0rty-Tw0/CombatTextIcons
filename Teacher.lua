@@ -641,11 +641,17 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
         for groupIndex, group in ipairs(groups) do
             local row, way = item.row, WayOf(group)
             if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Pairs(group, way, row, owners) then
+                -- A sum that met the cast's own row is exact and teaches from one cast (Fingerprints EXACT_CASTS);
+                -- an alias row's keeps LEARN_CASTS, and so does an `all` sum, which mixes sizes: in run shamanele
+                -- its one-cast pairs cost Lightning Bolt 188196 1.9 pt, in run druid2 it drew Ravage past its row.
+                -- Run dk with every pair at one cast: Outbreak 77575's one-cast alias of row 317792 made that row
+                -- owned (Procs.lua Owned), so its proc never learned (-0.65 pt late).
+                local exact = row.spellID == group.castID and way ~= group.all
                 for _, hit in ipairs(way.hits) do
                     local cast = way.castOf and way.castOf[hit] or { castAt = hit.castAt, castSpell = hit.castSpell }
                     local hops = way.mates and way.mates[hit] and 2 or 1
                     Fingerprints.Add(group.castID, { school = hit.school, delay = hit.at - cast.castAt,
-                        castAt = cast.castAt, hops = hops, spell = cast.castSpell, size = hit.size })
+                        castAt = cast.castAt, hops = hops, spell = cast.castSpell, size = hit.size, exact = exact })
                 end
                 if row.spellID ~= group.castID then Fingerprints.SetAlias(row.spellID, group.castID) end
                 Fingerprints.SetPerCast(group.castID, OwnHitsPerCast(way))

@@ -545,16 +545,18 @@ return function(T)
     do -- short fights add to learning (memory cti-short-fights)
         local rig = Rig({}, true)
         local F = rig.ns.Fingerprints
+        -- A one-cast kill whose hit meets Mind Blast's own row is an exact pair: it teaches at once (run druid2's
+        -- Ravage 441591, one cast a fight, never learned while this took 3 kills).
         ShortFight(rig, 100, 301, { { 19000 } }, 19000, 4000)
-        ShortFight(rig, 200, 302, { { 40000, "CRITICAL" } }, 40000, 6000)
         local entry = F.Get(MIND_BLAST)
-        Check("teacher short fights: two one-cast kills add sized samples (crit at normal scale) and strike nothing",
-            entry and not entry.learned and #entry.samples == 2 and entry.samples[1].size == 19000
-            and entry.samples[2].size == 20000 and entry.over == 0)
-        ShortFight(rig, 300, 303, { { 21000 } }, 21000, 3000)
         local low, high = F.Band(MIND_BLAST, MIND_BLAST)
-        Check("teacher short fights: the third kill teaches Mind Blast with band 19000-21000",
-            F.IsLearned(MIND_BLAST) and low == 19000 and high == 21000)
+        Check("teacher short fights: one one-cast kill meeting Mind Blast's own row teaches it (exact, band 19000)",
+            F.IsLearned(MIND_BLAST) and #entry.samples == 1 and entry.samples[1].exact and low == 19000 and high == 19000
+            and entry.over == 0)
+        local crit = ShortFight(rig, 200, 302, { { 40000, "CRITICAL" } }, 40000, 6000)
+        local later = ShortFight(rig, 300, 303, { { 21000 } }, 21000, 3000)
+        Check("teacher short fights: the next kills' crit (40000, 20000 at normal scale) and 21000 hit draw Mind Blast and agree",
+            crit[1] == "tex:8092" and later[1] == "tex:8092" and entry.fights == 2 and entry.over == 0)
         local drawn = ShortFight(rig, 400, 304, { { 900 }, { 22000 } }, 22900, 0)
         Check("teacher short fights: then a 900 tick in its window is not Mind Blast, the 22000 hit is",
             drawn[1] ~= "tex:8092" and drawn[2] == "tex:8092")
@@ -632,15 +634,19 @@ return function(T)
             pcall(rig.Fire)
         end
         SharedKill(100, 601, 19000, nil, 19000, 4000)
-        SharedKill(200, 602, 40000, "CRITICAL", 40000, 6000)
         local entry = F.Get(MIND_BLAST)
-        Check("teacher short fights, shared frame: two one-cast kills add sized samples at 0.2 s under Mind Blast, none for the other cast",
-            entry and not entry.learned and #entry.samples == 2 and entry.samples[2].size == 20000
+        Check("teacher short fights, shared frame: one one-cast kill meeting Mind Blast's own row teaches it (exact, 0.2 s), "
+            .. "the other cast nothing",
+            F.IsLearned(MIND_BLAST) and #entry.samples == 1 and entry.samples[1].exact
             and math.abs(entry.samples[1].delay - 0.2) < 1e-6 and entry.samples[1].spell == MIND_BLAST and F.Get(OTHER) == nil
             and entry.over == 0)
+        SharedKill(200, 602, 40000, "CRITICAL", 40000, 6000)
+        Check("teacher short fights, shared frame: the next kill's crit still has no sole cast; meeting the row, it adds a "
+            .. "sample at normal scale (20000)",
+            #entry.samples == 2 and entry.samples[2].size == 20000 and entry.over == 0)
         SharedKill(300, 603, 25000, nil, 20000, 5000)
         local low, high = F.Band(MIND_BLAST, MIND_BLAST)
-        Check("teacher short fights, shared frame: a killing blow (25000 on screen, meter 20000 + 5000 overkill) teaches Mind Blast",
+        Check("teacher short fights, shared frame: a killing blow (25000 on screen, meter 20000 + 5000 overkill) adds its sample (band 19000-25000)",
             F.IsLearned(MIND_BLAST) and low == 19000 and high == 25000 and F.Get(OTHER) == nil)
         local drawn = ShortFight(rig, 400, 604, { { 22000 } }, 22000, 0)
         Check("teacher short fights, shared frame: a later lone kill's hit draws Mind Blast and agrees",
@@ -1986,6 +1992,27 @@ return function(T)
             Check("candidates: a hit that is another row whole (700 = row Y) stays out of a short kill's every-hit sum "
                 .. "-> Z learned from its 6 hits",
                 last.learned[Z] == 6 and Find(last, Z).verdict == "agree" and #F.Get(Z).samples == 6)
+
+            -- Run druid2: Ravage 441591 is cast once a fight; its hit met its own row in F5 and F7, and it never learned
+            -- (LEARN_CASTS 3). An exact pair (a sum meeting the cast's own row) teaches from one cast.
+            rig = Rig({})
+            ReadWith(rig, { { 32, 1500, "", nil, 60.1, { Candidate(Z, 60) } } }, { { Z, 1500 } })
+            F = rig.ns.Fingerprints
+            Check("exact: one cast's hit meeting its own row teaches it, its sample marked exact",
+                F.IsLearned(Z) and F.Get(Z).samples[1].exact == true and Find(rig.ns.Teacher.last, Z).verdict == "agree")
+            rig = Rig({})
+            ReadWith(rig, { { 32, 1500, "", { spellID = Z, base = Z, at = 60 }, 60.1 } }, { { Y, 1500 } })
+            F = rig.ns.Fingerprints
+            Check("exact: one cast's hit meeting a row of another ID makes the alias but no exact sample: not learned",
+                F.Alias(Y) == Z and not F.IsLearned(Z) and F.Get(Z).samples[1].exact == nil)
+            -- Run druid2 F5: Ravage's every-hit sum (2270 to 45028 in its windows) met its row; with those samples it
+            -- later drew other hits, and shamanele's every-hit sums cost Lightning Bolt 188196 1.9 pt. An `all` sum mixes
+            -- sizes, so it is no exact pair: one cast's bolt and overload (1000 + 450) meet row 1450 and learn nothing yet.
+            rig = Rig({})
+            ReadWith(rig, Bolts({ 60 }, true), { { Z, 1450 } })
+            F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            Check("exact: one cast's every-hit sum meeting its own row adds 2 samples, none exact: not learned",
+                last.learned[Z] == 2 and #F.Get(Z).samples == 2 and not F.IsLearned(Z) and F.Get(Z).samples[1].exact == nil)
         end
 
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks
