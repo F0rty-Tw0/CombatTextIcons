@@ -1145,6 +1145,9 @@ end
 function Teacher.Unknown(plate, school, amount, now, cast, flagText, candidates)
     local fight = Teacher.fight
     if not (fight and plate ~= nil and IsNumber(school) and IsNumber(amount) and IsNumber(now)) then return end
+    -- a 0 hit teaches nothing: paladin logs one at each cast's stamp, and Steady learned size 0 from 29 of them, then
+    -- drew the 0 and left the real hit 0.23 s later '?'
+    if amount <= 0 then return end
 
     local entry = { school = school, amount = amount, at = now, plate = plate, crit = Procs.Crit(flagText),
         size = Streams.NormalAmount(amount, flagText), candidates = candidates }

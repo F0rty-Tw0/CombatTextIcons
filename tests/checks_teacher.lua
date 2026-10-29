@@ -497,8 +497,8 @@ return function(T)
         ns.Teacher.Unknown(rig.Plate("nameplate1"), 32, 40000, 10.3, cast)
         ns.Teacher.Unknown(rig.Plate("nameplate1"), 32, 0, 10.4, cast, "")
         local unknown = ns.Teacher.fight.unknown
-        Check("teacher size: a crit '?' hit keeps its normal-scale size; no flag keeps none; 0 stays 0 (Add drops it)",
-            unknown[1].size == 20000 and unknown[2].size == nil and unknown[3].size == 0)
+        Check("teacher size: a crit '?' hit keeps its normal-scale size; no flag keeps none; a 0 hit is not kept",
+            unknown[1].size == 20000 and unknown[2].size == nil and #unknown == 2)
     end
 
     -- Short real-mob fights: each kill takes one Mind Blast, the meter row carries overkill. Returns
