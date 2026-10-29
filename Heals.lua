@@ -8,8 +8,11 @@
 -- was a healing-done row in some read: a fight that only overheals has no row (shamanheal's Healing Wave casts in
 -- its 3rd and 4th fights), and those casts still count toward the heal.
 -- The largest: your own procs share the cast's frame (shamanheal: Healing Wave stamps hold 4453-16134 next to
--- 90650-231640). A cast is learned once LEARN_CASTS of its casts left a sample, at least HIT_SHARE of its counted
--- casts did, its ID was a heal row, and luck alone (some heal on the cast's stamp by chance, FRAME) gives that many at most ALPHA often.
+-- 90650-231640). A stamp two different helpful casts share counts for the one of them that already has samples
+-- (none when both or neither do), a sample only when its largest heal fits that cast's padded band: shamanheal's
+-- Chain Heal goes out on a totem's stamp in 13 of its 17 casts.
+-- A cast is learned once LEARN_CASTS of its casts left a sample, at least HIT_SHARE of its counted casts did, its ID
+-- was a heal row, and luck alone (some heal on the cast's stamp by chance, FRAME) gives that many at most ALPHA often.
 -- Core's waiting heals ask Heals.Claim which of a frame's heals its helpful casts made.
 -- Kept apart from the damage stores: an ID can be both a damage and a heal row (Healing Rain 73921).
 -- Saved data is checked on load and never trusted.
@@ -61,14 +64,27 @@ function Heals.AnyLearned()
     return false
 end
 
--- The smallest and biggest kept size of a learned heal, else nil.
-local function Band(spellID)
-    local entry = heals[spellID]
-    if not (entry and Learned(entry)) then return nil end
+-- The smallest and biggest kept size of an entry with samples, else nil.
+local function Range(entry)
+    if not (entry and #entry.sizes > 0) then return nil end
     local low, high = math.huge, 0
     for _, size in ipairs(entry.sizes) do low, high = math.min(low, size), math.max(high, size) end
 
     return low, high
+end
+
+-- Whether `size` sits inside the padded band of the entry's samples.
+local function Fits(entry, size)
+    local low, high = Range(entry)
+    return low ~= nil and size ~= nil and size >= PAD_LO * low and size <= PAD_HI * high
+end
+
+-- The smallest and biggest kept size of a learned heal, else nil.
+local function Band(spellID)
+    local entry = heals[spellID]
+    if not (entry and Learned(entry)) then return nil end
+
+    return Range(entry)
 end
 
 -- Which of one frame's waiting heals (each { size }) its helpful casts made: claims[index] = cast ID. Each learned
@@ -151,14 +167,33 @@ function Heals.Learn(fightHeals, helps, rows, duration)
             counted[#counted + 1] = spellID
         end
     end
+    -- a stamp two different casts share counts for the one with samples, a miss unless its band fits: counting only
+    -- the stamps that fit would pass the luck test on picked hits
+    local sharers = {} -- by shared stamp: its one cast with samples, or false when two have them
+    for _, cast in ipairs(helps) do
+        local at, spellID = cast.at, cast.spellID
+        if frames[at] == false and Range(heals[spellID]) then
+            local held = sharers[at]
+            if held == nil then sharers[at] = spellID elseif held ~= spellID then sharers[at] = false end
+        end
+    end
+    for _, cast in ipairs(helps) do
+        local at, spellID = cast.at, sharers[cast.at]
+        if spellID then
+            sharers[at] = nil -- one count per stamp
+            CountCast(spellID, Fits(heals[spellID], largest[at]) and largest[at] or nil, chance, own[spellID])
+            counted[#counted + 1] = spellID
+        end
+    end
     if not ns.Debug then return end
     local said = {}
     for _, spellID in ipairs(counted) do
         local entry = heals[spellID]
         if entry and not said[spellID] then
             said[spellID] = true
+            local verdict = Learned(entry) and "learned" or entry.pending and "no row" or "open"
             ns.Debug("TEACH healcast %d casts=%d hits=%d p=%.2g -> %s", spellID, entry.casts, entry.hits,
-                ns.Learn.PoissonTail(entry.expected, entry.hits), Learned(entry) and "learned" or entry.pending and "no row" or "open")
+                ns.Learn.PoissonTail(entry.expected, entry.hits), verdict)
         end
     end
 end

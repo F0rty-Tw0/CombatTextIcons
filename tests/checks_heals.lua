@@ -73,11 +73,39 @@ return function(T)
         H.Learn(heals, helps, { Row(RIPTIDE) }, 100)
         Check("heals: 3 samples of 6 counted casts are below the hit share: not learned", not H.IsLearned(RIPTIDE))
 
+        ns = T.Boot()
+        H = ns.Heals
         heals, helps = Fight(CHAIN_HEAL, 3)
         for k = 1, 3 do helps[#helps + 1] = { spellID = RIPTIDE, at = 10 * k } end
         H.Learn(heals, helps, { Row(CHAIN_HEAL), Row(RIPTIDE) }, 100)
-        Check("heals: a stamp with two different helpful casts counts for neither",
-            T.Store().heals[CHAIN_HEAL] == nil and T.Store().heals[RIPTIDE].casts == 6)
+        Check("heals: a stamp with two different helpful casts, neither with samples, counts for neither",
+            T.Store().heals[CHAIN_HEAL] == nil and T.Store().heals[RIPTIDE] == nil)
+
+        -- shamanheal: Chain Heal goes out on a healing totem's stamp (5394) in 13 of its 17 casts
+        local TOTEM = 5394
+        local rows = { Row(CHAIN_HEAL), Row(TOTEM) }
+        -- a read of Fight(spellID, casts, heal) with a totem cast on each of its stamps
+        local function TotemRead(H, spellID, casts, heal)
+            local heals, helps = Fight(spellID, casts, heal)
+            for k = 1, casts do helps[#helps + 1] = { spellID = TOTEM, at = 10 * k } end
+            H.Learn(heals, helps, rows, 100)
+        end
+        ns = T.Boot()
+        H = ns.Heals
+        heals, helps = Fight(CHAIN_HEAL, 1)
+        H.Learn(heals, helps, rows, 100)
+        TotemRead(H, CHAIN_HEAL, 2)
+        local entry = T.Store().heals[CHAIN_HEAL]
+        Check("heals: a stamp shared with a cast that has no samples counts for the one with samples",
+            H.IsLearned(CHAIN_HEAL) and entry.casts == 3 and entry.hits == 3 and T.Store().heals[TOTEM] == nil)
+        TotemRead(H, CHAIN_HEAL, 1, function() return { 200000 } end) -- past 2 x 40000
+        Check("heals: a shared stamp whose largest heal is past the band counts a cast with no sample",
+            entry.casts == 4 and entry.hits == 3 and #entry.sizes == 3)
+        heals, helps = Fight(TOTEM, 1)
+        H.Learn(heals, helps, rows, 100)
+        TotemRead(H, CHAIN_HEAL, 1)
+        Check("heals: a stamp shared by two casts that both have samples counts for neither",
+            entry.casts == 4 and T.Store().heals[TOTEM].casts == 1)
 
         ns = T.Boot()
         H = ns.Heals
