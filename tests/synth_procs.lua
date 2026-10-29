@@ -7,7 +7,10 @@
 -- A fight is FIGHT s on nameplate1 (the target) and up to three more plates; its meter rows are each true ID's sum.
 -- Sources (case.sources):
 --   cast   a harmful cast (id) every `every` s, its hit 0.4 s later on the target, sized in [low, high], a crit twice
---          that at `crit` chance
+--          that at `crit` chance; with `overload`, at that chance a second hit of the id `overloadAt` s after the first,
+--          0.45 of its size, crit on its own roll (shamanele's Lightning Bolt 188196 and its Elemental Overloads)
+--   pet    a pet's cast (id): `casts[fight]` CAST pet lines a fight, each with its hit on the target on the cast's
+--          stamp (shamanele's Fire Blast 57984), sized in [low, high] times `scale[fight]` (1 when unset)
 --   proc   a castless proc (id): `rate` times a fight at random, sized `size` x [1, 1 + spread], a crit twice that at
 --          `crit` chance (1: it only crits, as shamanele's 285452), on `plates` plates on one stamp at one size;
 --          `skip` = fights it does not fire in
@@ -36,6 +39,16 @@ local CASES = {
         { kind = "proc", id = 1259101, school = 8, size = 24000, spread = 0.7, crit = 1, rate = 1 },
         { kind = "proc", id = 447425, school = 8, size = 26000, spread = 0.1, crit = 1, rate = 4, skip = { 2, 5 } },
     } },
+    -- shamanele F3/F7: the pet's Fire Blast 57984 (school 4, on its cast's stamp) between Lightning Bolt 188196's hit and
+    -- its overloads; one pet cast in fights 1 and 3 at ~58K, six a fight from fight 5 at ~37K (0.64x), among a castless
+    -- proc's fire hits of many sizes (F7's '?' fire beside each pet cast)
+    { name = "bolt and overloads beside a pet", fights = 8, sources = {
+        { kind = "cast", id = 188196, school = 8, low = 50000, high = 56000, crit = 0.2, every = 1.2, overload = 0.6,
+            overloadAt = 0.35 },
+        { kind = "pet", id = 57984, school = 4, low = 57000, high = 59000, crit = 0.3,
+            casts = { 1, 0, 1, 0, 6, 6, 6, 6 }, scale = { 1, 1, 1, 1, 0.64, 0.64, 0.64, 0.64 } },
+        { kind = "proc", id = 285452, school = 4, size = 25000, spread = 1, crit = 0.15, rate = 40 },
+    } },
 }
 
 local function Stamp(t) return string.format("%.3f", t) end
@@ -58,6 +71,19 @@ local function FightEvents(case, fight, rand, t0)
                 local amount, crit = Sized(source.low, source.high, source.crit)
                 Add({ t = stamp, cast = source.id })
                 Add({ t = stamp + 0.4, id = source.id, school = source.school, amount = amount, crit = crit, plate = 1 })
+                if source.overload and rand() < source.overload then
+                    local size, oCrit = Sized(0.45 * source.low, 0.45 * source.high, source.crit)
+                    Add({ t = stamp + 0.4 + source.overloadAt, id = source.id, school = source.school, amount = size,
+                        crit = oCrit, plate = 1 })
+                end
+            end
+        elseif source.kind == "pet" then
+            local scale = source.scale and source.scale[fight] or 1
+            for _ = 1, source.casts[fight] or 0 do
+                local stamp = t0 + 1 + math.floor(rand() * (FIGHT - 2) * 1000) / 1000
+                local amount, crit = Sized(scale * source.low, scale * source.high, source.crit)
+                Add({ t = stamp, cast = source.id, pet = true })
+                Add({ t = stamp, id = source.id, school = source.school, amount = amount, crit = crit, plate = 1 })
             end
         elseif source.kind == "proc" and not skipped then
             for _ = 1, source.rate do
@@ -82,7 +108,8 @@ local function Generate(case, seed)
         local totals, sum = {}, 0
         for _, event in ipairs(FightEvents(case, fight, rand, t0)) do
             if event.cast then
-                lines[#lines + 1] = Stamp(event.t) .. " CAST player " .. event.cast .. " base=" .. event.cast .. "," .. event.cast
+                lines[#lines + 1] = Stamp(event.t) .. " CAST " .. (event.pet and "pet" or "player") .. " " .. event.cast
+                    .. " base=" .. event.cast .. "," .. event.cast
             else
                 lines[#lines + 1] = Stamp(event.t) .. " HIT nameplate" .. event.plate .. " school=" .. event.school .. " amount="
                     .. event.amount .. " flag=" .. (event.crit and "CRITICAL" or "") .. " fps=60 threat=3 target="
