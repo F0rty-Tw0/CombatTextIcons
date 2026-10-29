@@ -1303,9 +1303,10 @@ return function(T)
                 Find(last, TRIGGER).verdict == "agree" and Kept(rig, TRIGGER))
         end
 
-        do -- rule 2: no alias for a learned spell; it is struck instead
+        do -- rule 2: no alias for a learned spell to the row of a spell you cast; it is struck instead
             local rig = Rig({}); Seed(rig, TRIGGER)
             local F = rig.ns.Fingerprints
+            rig.ns.Learn.OnCast(VT, 5) -- Vampiric Touch is a cast of yours: its row is its own
             local last = Step(rig, { [TRIGGER] = 6000 }, { Row(VT, 6000) }) -- the row agrees with the trigger's tally
             Check("net rule 2: one learned tally and one agreeing row make no alias and no pairing",
                 F.Alias(VT) == nil and Find(last, TRIGGER).verdict == "unpaired" and Find(last, VT).verdict == "unpaired"
@@ -1321,6 +1322,7 @@ return function(T)
 
         do -- Review Focus 3: two missing tallies, one learned -> nothing aliases, the learned one is struck
             local rig = Rig({}); Seed(rig, TRIGGER)
+            rig.ns.Learn.OnCast(VT, 5)
             local last = Step(rig, { [TRIGGER] = 6000, [WAND] = 6000 }, { Row(VT, 6000) })
             Check("net rule 2: two missing tallies (learned X, unlearned Y) both agreeing with the row -> no alias",
                 rig.ns.Fingerprints.Alias(VT) == nil and Find(last, TRIGGER).verdict == "unpaired"
@@ -1328,6 +1330,67 @@ return function(T)
             Check("net rule 2: ... and the learned X is kept after one such read", Kept(rig, TRIGGER))
             Step(rig, { [TRIGGER] = 6000, [WAND] = 6000 }, { Row(VT, 6000) })
             Check("net rule 2: ... and struck again by the second, so it is dropped", not Kept(rig, TRIGGER))
+        end
+
+        do -- run mage: Arcane Missiles 5143, learned as a DoT by votes, drew its ticks; the meter files them as 7268
+            local MISSILES, TICKS, OTHER = 5143, 7268, 210833
+            -- One clear read: `tally` drawn, `unknown` = { { school, amount }, ... } '?' hits on a plate, and the rest of
+            -- the rows' damage seen undrawn.
+            local function Step(rig, tally, rows, unknown)
+                local Teacher = rig.ns.Teacher
+                nextSession = nextSession + 1
+                local seen, total = 0, 0
+                for _, row in ipairs(rows) do total = total + row.totalAmount end
+                rig.S.sessions = { Session(nextSession, rows) }
+                Teacher.Start(10)
+                for id, amount in pairs(tally) do
+                    Teacher.Drawn(id, amount)
+                    seen = seen + amount
+                end
+                for _, hit in ipairs(unknown or {}) do
+                    Teacher.Unknown(rig.Plate("nameplate1"), hit[1], hit[2], 12)
+                    seen = seen + hit[2]
+                end
+                Teacher.Seen(math.max(seen, total))
+                Teacher.Finish(20)
+                assert(pcall(rig.Fire))
+                return Teacher.last
+            end
+            local ARCANE = { { 32, 113000 } } -- the ticks on the plates the DoT never drew: '?' of its school
+            local rig = Rig({}); Seed(rig, MISSILES)
+            local F = rig.ns.Fingerprints
+            local last = Step(rig, { [MISSILES] = 48508 }, { Row(TICKS, 161687), Row(OTHER, 14263) }, ARCANE)
+            local entry = Find(last, MISSILES)
+            Check("tick row: a learned DoT drawn with no row takes the one open row it fits that no cast of yours has",
+                F.Alias(TICKS) == MISSILES and entry and entry.meterID == TICKS and entry.verdict == "under"
+                and Find(last, OTHER).verdict == "unpaired")
+            Step(rig, { [MISSILES] = 24885 }, { Row(TICKS, 133301) })
+            Step(rig, { [MISSILES] = 30000 }, { Row(TICKS, 130004) })
+            Check("tick row: ... so its later reads pair through the alias and strike nothing", Kept(rig, MISSILES))
+
+            rig = Rig({}); Seed(rig, MISSILES)
+            last = Step(rig, { [MISSILES] = 48508 }, { Row(TICKS, 161687), Row(OTHER, 50000) }, ARCANE)
+            Check("tick row: two open rows it fits -> no alias, an unpaired strike",
+                rig.ns.Fingerprints.Alias(TICKS) == nil and Find(last, MISSILES).verdict == "unpaired")
+
+            rig = Rig({}); Seed(rig, MISSILES)
+            Step(rig, { [MISSILES] = 48508 }, { Row(TICKS, 161687) }, { { 1, 113000 } })
+            Check("tick row: a row its school's hits cannot fill is never taken (a pet's melee row)",
+                rig.ns.Fingerprints.Alias(TICKS) == nil)
+
+            rig = Rig({}); Seed(rig, MISSILES)
+            rig.ns.Learn.OnCast(TICKS, 5)
+            Step(rig, { [MISSILES] = 48508 }, { Row(TICKS, 161687) }, ARCANE)
+            Check("tick row: the row of a spell you cast is never taken", rig.ns.Fingerprints.Alias(TICKS) == nil)
+
+            rig = Rig({}); Seed(rig, MISSILES)
+            Step(rig, { [MISSILES] = 48508 }, { Row(TICKS, 40000), Row(OTHER, 8508) })
+            Check("tick row: a row the tally overshoots is never taken", rig.ns.Fingerprints.Alias(TICKS) == nil)
+
+            rig = Rig({}); Seed(rig, MISSILES)
+            Step(rig, { [MISSILES] = 48508, [WAND] = 30000 }, { Row(TICKS, 161687) }, ARCANE)
+            Check("tick row: another drawn spell with no row fits it too -> no alias",
+                rig.ns.Fingerprints.Alias(TICKS) == nil)
         end
 
         do -- a group, crowded or short read is frozen: it judges for the Ledger, changes no learned state

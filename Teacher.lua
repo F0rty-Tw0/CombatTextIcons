@@ -249,12 +249,42 @@ local function Apply(entry, castID, row, frozen)
     end
 end
 
+-- Whether `spellID` is a spell you cast: cast this fight (`fight.cast`), or known to the DoT store (learned, or voting).
+local function YourCast(spellID, fight)
+    return fight.cast[spellID] or ns.Learn.Get(spellID) ~= nil or ns.Learn.Votes(spellID) ~= nil
+end
+
+-- The place in `open` of the one row the learned DoT `castID`'s tally may be filed under (Verdicts), else nil. The
+-- tally does not overshoot it, and no other drawn spell with no row (`missing`) fits it too. It is no row Procs tracks,
+-- of a spell you cast (YourCast) or aliased already. Its school can fill it: the row is at most the tally plus the '?'
+-- hits of the DoT's school plus the fight's unseen damage, capped at DOT_FIT of the row (the DoT pass's bound), so a
+-- pet's melee row is no home for a Shadow DoT's ticks. `fight` = { cast, unknown = { [school] = '?' sum }, unseen }.
+local function TickRow(castID, tally, missing, open, fight)
+    local school, found = ns.Learn.Get(castID).school, nil
+    for position, item in ipairs(open) do
+        local row = item.row
+        local tol = math.max(1, row.total / 100)
+        local room = tally[castID] + (fight.unknown[school] or 0) + math.min(fight.unseen, DOT_FIT * row.total) + tol
+        local fits = 0
+        for _, spellID in ipairs(missing) do
+            if Judge(tally[spellID], row.total, row.overkill) ~= "over" then fits = fits + 1 end
+        end
+        if fits == 1 and Judge(tally[castID], row.total, row.overkill) ~= "over" and row.total <= room
+            and not Procs.Has(row.spellID) and not Fingerprints.Alias(row.spellID) and not YourCast(row.spellID, fight) then
+            if found then return nil end
+            found = position
+        end
+    end
+
+    return found
+end
+
 -- Pairs the tally with the meter rows and applies the verdicts. Order: same spell ID; a saved
 -- alias (meter row ID -> cast spell); a new alias when exactly one tally and exactly one
--- agreeing row are left. Rows with no tally stay "unpaired" and are returned in `open`, with
--- their place in `results`, for the learning pass. A `frozen` read (see Apply) pairs a new alias for its own
--- verdicts but saves none.
-local function Verdicts(tally, rows, frozen)
+-- agreeing row are left; a learned DoT's tally with the one row its ticks may be filed under (TickRow). Rows with
+-- no tally stay "unpaired" and are returned in `open`, with their place in `results`, for the learning pass. A
+-- `frozen` read (see Apply) pairs a new alias for its own verdicts but saves none. `fight` is what TickRow reads.
+local function Verdicts(tally, rows, frozen, fight)
     local results, open, paired = {}, {}, {}
     for _, row in ipairs(rows) do
         local drawn = tally[row.spellID]
@@ -317,6 +347,35 @@ local function Verdicts(tally, rows, frozen)
             table.remove(open, match)
             missing = {}
         end
+    end
+
+    -- A learned DoT drawn with no row of its own: its ticks are filed under another ID when exactly one open row can
+    -- hold them (TickRow). Run mage F2: Arcane Missiles 5143 (learned as a DoT by votes) drew 48508 of its ticks, and
+    -- row 7268 held 161687 with 7268 never cast; with no row, two unpaired reads dropped it and its 73393 drawn was
+    -- wrong. A trigger that drew the ticks of a DoT you cast (Tentacle Slam 1227280 drawing Vampiric Touch 34914)
+    -- still gets no alias: that row is the DoT's own.
+    local claims = {}
+    for _, spellID in ipairs(missing) do
+        if ns.Learn.Get(spellID) and not Procs.Get(spellID) and tally[spellID] > 0 then
+            local position = TickRow(spellID, tally, missing, open, fight)
+            if position then claims[position] = spellID end
+        end
+    end
+    local taken = {}
+    for position = #open, 1, -1 do
+        local castID = claims[position]
+        if castID then
+            local row, index = open[position].row, open[position].index
+            if not frozen then Fingerprints.SetAlias(row.spellID, castID) end
+            local entry = { spellID = castID, meterID = row.spellID, tally = tally[castID], meter = row.total }
+            results[index] = entry
+            Apply(entry, castID, row, frozen)
+            table.remove(open, position)
+            taken[castID] = true
+        end
+    end
+    for position = #missing, 1, -1 do
+        if taken[missing[position]] then table.remove(missing, position) end
     end
 
     for _, spellID in ipairs(missing) do
@@ -1016,7 +1075,10 @@ local function Judging(run, sessionID, rows, reason)
     -- the healing-done rows, only a list of your heals' IDs (Heals.lua): for a clear read's Heals.Learn and the probe
     local healRows, healReason
     if area == "clear" or ns.Debug then healRows, healReason = ReadRows(sessionID, Meter.HEALING_DONE) end
-    local results, open = Verdicts(run.tally, rows, frozen)
+    local fight = { cast = {}, unknown = {}, unseen = math.max(0, total - run.seen) }
+    for _, item in ipairs(run.casts or {}) do fight.cast[item.spellID], fight.cast[item.base] = true, true end
+    for _, hit in ipairs(run.unknown) do fight.unknown[hit.school] = (fight.unknown[hit.school] or 0) + hit.amount end
+    local results, open = Verdicts(run.tally, rows, frozen, fight)
     if not frozen then SafetyNet(results) end
     -- a fight that ends while this judging waits clears Teacher.last: this one keeps its own until Done
     local last = { session = sessionID, rows = results, learned = {} }
