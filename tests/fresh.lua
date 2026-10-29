@@ -30,6 +30,7 @@ local FRESH = {
     { log = "lock4", class = "warlock", holdout = true },    -- 2026-10-29, affliction, dummies/world/dungeon
     { log = "hunter2", class = "hunter", holdout = true },   -- 2026-10-29, beast mastery, dummies/world/dungeon
     { log = "paladin2", class = "paladin", holdout = true }, -- 2026-10-29, retribution, dummies/world/dungeon
+    { log = "priest4", class = "priest", holdout = true },   -- 2026-10-29, shadow, dummies/world/dungeon
 }
 local STEP = 0.05 -- the smallest move of a percentage that counts
 local LATE = 4    -- "late" scores a log's fights from this one on: what a player sees once learning had a chance
