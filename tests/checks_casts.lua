@@ -121,6 +121,33 @@ return function(T)
             Run(true, 0.9) == "tex:" .. DOT)
     end
 
+    do -- run hunter F12: Black Arrow 466930 (learned DoT, 1.0 s) hit 0.25 s after its cast and ticked first at +1.29 s
+        local ARROW = 466930
+        local function FirstTick(fingerprinted, at)
+            local rig = Rig()
+            local ns = rig.ns
+            rig.S.haste = 0
+            T.Store().learned = { [ARROW] = { school = 32, period = 1.0, kind = "dot", misses = 0 } }
+            ns.Learn.Init(T.Store())
+            if fingerprinted then
+                for castAt = 1, 3 do ns.Fingerprints.Add(ARROW, { school = 32, delay = 0.25, castAt = castAt, hops = 1 }) end
+            end
+            rig.Cast(10, ARROW, "nameplate1")
+            local direct = rig.Hit(10.25, "nameplate1", "WOUND", 12000, 32)
+            local tick = rig.Hit(at, "nameplate1", "WOUND", 1100, 32)
+
+            return direct and direct.texture, tick and tick.texture
+        end
+        local direct, tick = FirstTick(true, 11.29)
+        Check("tracker: a learned DoT's first tick is also due one period after its cast's drawn direct hit (+1.29 s)",
+            direct == "tex:" .. ARROW and tick == "tex:" .. ARROW)
+        local _, early = FirstTick(true, 11.0)
+        Check("tracker: the cast's own first-tick window stays (+1.0 s after a hit at +0.25 s)", early == "tex:" .. ARROW)
+        local _, late = FirstTick(false, 11.29)
+        Check("tracker: with no drawn direct hit the first tick is due one period after the cast only (+1.29 s: not drawn)",
+            late ~= "tex:" .. ARROW)
+    end
+
     do
         local rig = Rig()
         Check("core: PLAYER_REGEN_DISABLED exists and runs",

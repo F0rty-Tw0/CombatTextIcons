@@ -3,7 +3,8 @@
 --
 -- A cast of a spell Learn.lua learned (or of a Spells.lua row; that table ships empty) creates an expectation:
 --   target   an instance on the target's plate; its first tick is due one
---            period after the cast, later ticks one (or two) periods after
+--            period after the cast (or after the cast's own direct hit,
+--            Tracker.OnDirectHit), later ticks one (or two) periods after
 --            the last matched tick;
 --   spread   a 20 s window; plates the meter saw the player hit inside it are
 --            "armed", and the first tick of a spread school on an armed plate
@@ -265,6 +266,7 @@ local function Phase(instance, school, amount, flagText, now, strict)
     if not instance.lastTick then
         if instance.channel then return 1 end
         if math.abs(now - (instance.castAt + instance.period)) <= tolerance then return 1 end
+        if instance.landAt and math.abs(now - (instance.landAt + instance.period)) <= tolerance then return 1 end
         if restarted then return 0 end
         if RhythmPeriod(instance, now) then return 1 end
         return nil
@@ -678,6 +680,21 @@ function Tracker.OnMiss(plate, now)
         if instance.learned and not instance.lastTick and now - instance.castAt <= MISS_WINDOW then
             instance.missed = true
         end
+    end
+end
+
+-- A learned cast fingerprint drew `castID`'s own direct hit on `plate` (Core): a learned DoT instance of that cast still
+-- waiting for its first tick, cast at most half a period before the hit, may tick from the hit on, so its first tick
+-- is also due one period after it (`landAt`, Phase). The cast's own window stays: run hunter F12, Black Arrow 466930
+-- (period 1.0 s) hit 0.14-0.34 s after its casts and ticked first at +1.13 to +1.29 s, past the cast's window; moving
+-- the window to the hit instead lost 8 % of the right it drew in that log (the cast's window drew other hits of its row).
+function Tracker.OnDirectHit(plate, castID, now)
+    if not Plain(castID) then return end
+    local instance = FindInstance(plate, castID)
+    if not instance or not instance.learned or instance.channel or instance.lastTick then return end
+    if now > instance.castAt and now - instance.castAt <= RHYTHM_EARLY * instance.period then
+        instance.landAt = now
+        instance.deadline = math.max(instance.deadline, now + instance.period + FIRST_TICK_SLACK)
     end
 end
 
