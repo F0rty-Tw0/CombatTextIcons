@@ -27,6 +27,7 @@ local FRESH = {
     { log = "shaman6", class = "shaman", holdout = true },
     { log = "shamanresto", class = "shaman", holdout = true },
     { log = "shamanele", class = "shaman", holdout = true }, -- 2026-10-29, elemental spec
+    { log = "lock4", class = "warlock", holdout = true },    -- 2026-10-29, affliction, dummies/world/dungeon
 }
 local STEP = 0.05 -- the smallest move of a percentage that counts
 local LATE = 4    -- "late" scores a log's fights from this one on: what a player sees once learning had a chance
