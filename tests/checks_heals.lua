@@ -301,6 +301,147 @@ return function(T)
             and saved[OTHER] == nil and saved[5394] == nil and saved[0.5] == nil and saved[1064] == nil)
     end
 
+    -- Trains: a read of one cast of each of `casts` (IDs on one stamp) at t = 10 and its train's `ticks` ticks (8)
+    -- every 1.5 s from the cast, sized 12000 - 300 x tick (`size(tick)` when given). opts: `rows` (default: each
+    -- cast's), `before` (the train also ticked 1.5 s before the cast), `direct` (a heal of that size on the cast's
+    -- stamp), `filler` (a heal of 11000 every 0.5 s all fight long).
+    local TIDE, TOTEM = 108280, 5394
+    local function TrainRead(H, casts, opts)
+        opts = opts or {}
+        local heals, helps, rows = {}, {}, opts.rows
+        if not rows then
+            rows = {}
+            for index, spellID in ipairs(casts) do rows[index] = Row(spellID) end
+        end
+        for _, spellID in ipairs(casts) do helps[#helps + 1] = { spellID = spellID, at = 10 } end
+        if opts.direct then heals[#heals + 1] = { size = opts.direct, amount = opts.direct, at = 10 } end
+        if opts.before then heals[#heals + 1] = { size = 12300, amount = 12300, at = 8.5 } end
+        for tick = 1, opts.ticks or 8 do
+            local size = opts.size and opts.size(tick) or 12000 - 300 * tick
+            heals[#heals + 1] = { size = size, amount = size, at = 10 + 1.5 * tick }
+        end
+        if opts.filler then
+            for t = 0.25, 100, 0.5 do heals[#heals + 1] = { size = 11000, amount = 11000, at = t } end
+            table.sort(heals, function(a, b) return a.at < b.at end)
+        end
+        H.Learn(heals, helps, rows, 100)
+    end
+
+    do -- trains: learning
+        local ns = T.Boot()
+        local H = ns.Heals
+        TrainRead(H, { TIDE })
+        Check("trains: one cast's walk teaches nothing yet", not H.IsTrainLearned(TIDE) and not H.AnyLearned())
+        TrainRead(H, { TIDE })
+        Check("trains: a second cast whose ticks walk the same train teaches it", H.IsTrainLearned(TIDE)
+            and H.AnyLearned() and #T.Store().healTrains[TIDE].walks == 2)
+
+        ns = T.Boot()
+        H = ns.Heals
+        TrainRead(H, { TIDE }, { rows = {} })
+        TrainRead(H, { TIDE }, { rows = {} })
+        Check("trains: a cast that is no healing-done row learns no train", not H.IsTrainLearned(TIDE))
+        TrainRead(H, { TIDE }, { ticks = 4 })
+        Check("trains: walks counted before the cast's ID was a heal row teach once a read lists it; a walk under 5 "
+            .. "ticks is none", H.IsTrainLearned(TIDE) and T.Store().healTrains[TIDE].row == TIDE
+            and T.Store().healTrains[TIDE].walks[3].period == nil)
+        TrainRead(H, { TIDE }, { ticks = 4 })
+        Check("trains: 2 walks of 4 counted casts are below the train share", not H.IsTrainLearned(TIDE))
+
+        ns = T.Boot()
+        H = ns.Heals
+        TrainRead(H, { TIDE }, { before = true })
+        TrainRead(H, { TIDE }, { before = true })
+        Check("trains: ticks that ran a period before the cast are no train of it", not H.IsTrainLearned(TIDE))
+
+        -- paladin: Word of Glory starts a 720 rune train under the rune's ID (1287665)
+        ns = T.Boot()
+        H = ns.Heals
+        TrainRead(H, { 85673 }, { size = function(tick) return tick % 2 == 0 and 721 or 720 end })
+        TrainRead(H, { 85673 }, { size = function(tick) return tick % 2 == 0 and 721 or 720 end })
+        Check("trains: ticks all of one size (a castless proc's) are no cast's train", not H.IsTrainLearned(85673))
+
+        ns = T.Boot()
+        H = ns.Heals
+        TrainRead(H, { TIDE }, { filler = true })
+        TrainRead(H, { TIDE }, { filler = true })
+        Check("trains: a walk luck explains (heals of its size every 0.5 s) is no train", not H.IsTrainLearned(TIDE))
+
+        ns = T.Boot()
+        H = ns.Heals
+        TrainRead(H, { TIDE }, { direct = 60000 })
+        TrainRead(H, { TIDE }, { direct = 60000 })
+        Check("trains: a cast with heals on its own stamps is a direct heal, no train's cast",
+            not H.IsTrainLearned(TIDE) and T.Store().heals[TIDE].hits == 2)
+
+        -- shamanheal: each totem goes out on a Chain Heal's stamp; Chain Heal also goes out alone
+        ns = T.Boot()
+        H = ns.Heals
+        TrainRead(H, { TOTEM, CHAIN_HEAL })
+        TrainRead(H, { TOTEM, CHAIN_HEAL })
+        Check("trains: walks on a stamp shared with a cast that has no samples count for neither",
+            not H.IsTrainLearned(TOTEM) and not H.IsTrainLearned(CHAIN_HEAL))
+        local heals, helps = Fight(CHAIN_HEAL, 1)
+        H.Learn(heals, helps, { Row(CHAIN_HEAL) }, 100)
+        Check("trains: once the stamps' other cast has samples (a direct heal), the walks count for the totem",
+            H.IsTrainLearned(TOTEM) and not H.IsTrainLearned(CHAIN_HEAL))
+
+        -- shamanheal: Stormstream Totem casts as 1267068 (base 5394); its ticks draw under 5394, a heal row
+        ns = T.Boot(function(S) S.baseSpells[1267068] = TOTEM end)
+        H = ns.Heals
+        TrainRead(H, { 1267068 }, { rows = { Row(TOTEM) } })
+        TrainRead(H, { 1267068 }, { rows = { Row(TOTEM) } })
+        H.Cast(1267068, 100)
+        Check("trains: a cast that is no heal row trains under its base's row",
+            H.IsTrainLearned(1267068) and H.Claim({}, { { size = 11700 } }, nil, 101.5)[1] == TOTEM)
+        H.Forget()
+        Check("trains: /cti forget drops the trains", not H.IsTrainLearned(1267068)
+            and next(T.Store().healTrains or {}) == nil and not H.AnyLearned())
+    end
+
+    do -- trains: the claim of a running train's ticks (learned: 9600-11700 every 1.5 s, 8 ticks)
+        local ns = T.Boot()
+        local H = ns.Heals
+        TrainRead(H, { TIDE })
+        TrainRead(H, { TIDE })
+        H.Cast(TIDE, 100)
+        local early = H.Claim({}, { { size = 11700 } }, nil, 100.5)
+        local first = H.Claim({}, { { size = 5000 }, { size = 11700 } }, nil, 101.55)
+        local second = H.Claim({}, { { size = 11400 } }, nil, 103.05)
+        Check("trains: a running train names the heal in its band on each due tick, nothing between ticks",
+            next(early) == nil and first[1] == nil and first[2] == TIDE and second[1] == TIDE)
+        local off = H.Claim({}, { { size = 7000 } }, nil, 104.55) -- in the band, past STEP of 11400
+        local late = H.Claim({}, { { size = 11000 } }, nil, 107.7)
+        Check("trains: a heal off its last tick's size is no tick; two missed ticks end the train",
+            next(off) == nil and next(late) == nil)
+        H.Cast(TIDE, 200)
+        local again = H.Claim({}, { { size = 11700 } }, nil, 201.5)
+        H.Cast(TIDE, 202)
+        local oldPhase = H.Claim({}, { { size = 11700 } }, nil, 203)
+        Check("trains: a later cast starts the train again; a recast while it runs restarts it from the recast",
+            again[1] == TIDE and next(oldPhase) == nil and H.Claim({}, { { size = 11700 } }, nil, 203.5)[1] == TIDE)
+        Check("trains: a claim with no frame stamp leaves the trains out",
+            next(H.Claim({}, { { size = 11400 } })) == nil and H.Claim({}, { { size = 11400 } }, nil, 205)[1] == TIDE)
+    end
+
+    do -- the saved store is checked, never trusted
+        local ns = T.Boot(function()
+            local walk = { with = {}, period = 1.5, size = 10500, low = 9600, high = 11700, ticks = 8 }
+            CombatTextIconsCharDB = { healTrains = {
+                [TIDE] = { row = TIDE, walks = { walk, walk } },
+                [TOTEM] = { row = 0.5, walks = { walk, walk } },
+                [CHAIN_HEAL] = "junk",
+                [77472] = { row = 77472, walks = { walk, { with = { "x", CHAIN_HEAL } },
+                    { with = {}, period = 1.5, size = 5, low = 9, high = 10, ticks = 8 } } },
+            } }
+        end)
+        local saved = T.Store().healTrains
+        Check("trains: a valid saved train loads learned", ns.Heals.IsTrainLearned(TIDE))
+        Check("trains: saved trains with a bad row or junk are dropped", saved[TOTEM] == nil and saved[CHAIN_HEAL] == nil)
+        Check("trains: a saved train keeps its valid walks, each with only valid IDs", #saved[77472].walks == 2
+            and saved[77472].walks[2].with[1] == CHAIN_HEAL and #saved[77472].walks[2].with == 1)
+    end
+
     do -- the saved store is checked, never trusted
         local ns = T.Boot(function()
             CombatTextIconsCharDB = { heals = {

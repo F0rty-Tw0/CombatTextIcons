@@ -27,7 +27,15 @@
 -- hit drawn under that ID in its frame is that ID's, unless another learned ID's k fits a hit of the frame too. A
 -- heal under another ID than its hit's is not learned: lock's Drain Life heals log under 1272114, a row the
 -- player's raw cannot sum (it heals the pet too), and each read lists the same three rows.
--- Core's waiting heals ask Heals.Claim which of a frame's heals a learned size, coupled hit or helpful cast made.
+-- Core's waiting heals ask Heals.Claim which of a frame's heals a learned size, coupled hit, helpful cast or running
+-- train made.
+-- Trains: a HoT or totem a helpful cast starts heals you in ticks phase-locked to that cast (Stormstream 1267068
+-- under Healing Stream Totem 5394, Healing Tide 108280: a first tick PERIOD_LO-PERIOD_HI after the cast, then one
+-- each period, SLACK either side, each within STEP of the last). A clear read's cast walks its ticks; a walk is none
+-- when a tick of its size ran a period before the cast, when its ticks are all one size (a castless proc's: paladin's
+-- Word of Glory starts a 720 rune train under the rune's ID 1287665), or when luck gives it more than WALK_ALPHA
+-- often. TRAIN_WALKS agreeing walks, TRAIN_SHARE of the cast's counted casts, learn it under the cast's heal row
+-- (else its base's); then each cast starts the train, and its due ticks are that row's.
 -- Kept apart from the damage stores: an ID can be both a damage and a heal row (Healing Rain 73921).
 -- Saved data is checked on load and never trusted.
 
@@ -61,6 +69,20 @@ local SIZE_CAP = 32     -- sizes kept; the one seen least recently goes first
 local COUPLE_TOL, COUPLE_PAIRS = 1, 3
 local COUPLE_READS = 2  -- reads of one k teach it
 local COUPLE_CAP = 32   -- couples kept; the one seen least recently goes first
+-- Trains: a cast's ticks on you every period from the cast, the first a period after it (shamanheal: Healing Tide
+-- Totem 108280 ticks 28-37K every 1.7 s, 6 ticks; Stormstream Totem 1267068 12-18K every 1.5 s, 12 ticks). A tick is
+-- due SLACK either side of the cast's stamp plus whole periods (the period re-measured at each tick); a tick heals
+-- within STEP of the last (resto's mastery heals a hurt target for more, so the ticks drift as you fill up).
+local SLACK, STEP = 0.15, 1.35
+local PERIOD_LO, PERIOD_HI = 0.8, 3.5
+local MISSES = 2        -- missed ticks in a row end a train
+local TRAIN_TICKS = 5   -- a walk of fewer ticks is no train
+local WALK_ALPHA = 0.01 -- a walk luck alone gives this often or less is a train
+-- Walks agree on one train within PERIOD_TOL s and their middle sizes within AGREE x; TRAIN_WALKS agreeing walks,
+-- TRAIN_SHARE of the cast's counted casts, teach it.
+local PERIOD_TOL, AGREE = 0.1, 2
+local TRAIN_WALKS, TRAIN_SHARE = 2, 0.6
+local TRAIN_CAP = 32    -- casts kept; the one seen least recently goes first
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -78,6 +100,15 @@ local sizes = {}
 -- the spec store's `healCouples` = { [spell ID] = { lo, hi, reads, seen } }: the span of k its reads agreed on, the
 -- reads in a row that sampled it, and the read that last did
 local couples = {}
+-- the spec store's `healTrains` = { [cast spell ID] = { row, walks = { walk, ... }, seen } }: the heal row its ticks
+-- draw under (its own ID, else its base's; nil until one was a heal row), its newest SAMPLES counted casts, each
+-- { with = the other helpful casts on its stamp, and when it walked a train: period, size (the middle tick), low,
+-- high, ticks }, and the read that last counted it
+local trains = {}
+local ready = {} -- by cast ID: its learned train { row, period, size, low, high, ticks } (Judge), rebuilt per read
+-- the trains running now: { castID, at = the cast's stamp, last = its last tick's, k = that tick's slot, misses,
+-- size = that tick's size }
+local live = {}
 local reads = 0
 
 -- Whether two samples are a twin: the same size within TWIN of the bigger.
@@ -126,7 +157,7 @@ local function CoupleRow(amount, hits)
     return found
 end
 
--- Whether any heal, size or couple is learned: only then do Core's heals on you wait for their frame.
+-- Whether any heal, size, couple or train is learned: only then do Core's heals on you wait for their frame.
 function Heals.AnyLearned()
     for _, entry in pairs(heals) do
         if Learned(entry) then return true end
@@ -137,7 +168,11 @@ function Heals.AnyLearned()
     for _, entry in pairs(couples) do
         if entry.reads >= COUPLE_READS then return true end
     end
-    return false
+    return next(ready) ~= nil
+end
+
+function Heals.IsTrainLearned(spellID)
+    return IsID(spellID) and ready[spellID] ~= nil
 end
 
 -- The smallest and biggest kept size of an entry with samples, else nil.
@@ -163,11 +198,66 @@ local function Band(spellID)
     return Range(entry)
 end
 
--- Which of one frame's waiting heals (each { size, amount }) a learned size, its drawn hits (`hits`, each { spellID,
--- amount }; nil: none) or its helpful casts made: claims[index] = spell ID. A heal of a learned size is its row's
--- first, then one a learned k makes from a drawn hit is that hit's; then each learned cast, in cast order, takes the
--- largest heal inside its padded band that nothing took before.
-function Heals.Claim(castIDs, waiting, hits)
+-- Whether two sizes are within STEP of each other.
+local function Near(a, b)
+    return a <= STEP * b and b <= STEP * a
+end
+
+-- How far `size` is from `to`, as a ratio either way.
+local function Off(size, to)
+    return math.abs(math.log(size / to))
+end
+
+-- Your helpful cast of `spellID` at `now`: its learned train starts; a recast restarts it.
+function Heals.Cast(spellID, now)
+    if not (IsID(spellID) and IsNumber(now) and ready[spellID]) then return end
+    for index = #live, 1, -1 do
+        if live[index].castID == spellID then table.remove(live, index) end
+    end
+    live[#live + 1] = { castID = spellID, at = now, last = now, k = 0, misses = 0 }
+end
+
+-- Each running train whose tick is due at `at` (SLACK either side) takes the heal nothing took before inside its
+-- padded band and within STEP of its last tick, the nearest that tick's size (the first: the band's middle). A train
+-- past its due tick counts a miss; MISSES in a row, or its learned ticks counted, end it.
+local function ClaimTicks(waiting, claims, at)
+    local kept = {}
+    for _, run in ipairs(live) do
+        local train = ready[run.castID]
+        local running, due = train ~= nil, nil
+        while running do
+            local period = run.k > 0 and (run.last - run.at) / run.k or train.period
+            due = run.last + period * (1 + run.misses)
+            if at <= due + SLACK then break end
+            run.misses = run.misses + 1
+            running = run.misses < MISSES and run.k + run.misses < train.ticks
+        end
+        if running and at >= due - SLACK then
+            local to, best = run.size or train.size, nil
+            for index, heal in ipairs(waiting) do
+                local size = heal.size
+                if not claims[index] and size and size >= PAD_LO * train.low and size <= STEP * train.high
+                    and (not run.size or Near(size, run.size)) and (not best or Off(size, to) < Off(waiting[best].size, to)) then
+                    best = index
+                end
+            end
+            if best then
+                claims[best] = train.row
+                run.k, run.misses, run.last, run.size = run.k + 1 + run.misses, 0, at, waiting[best].size
+                running = run.k < train.ticks
+            end
+        end
+        if running then kept[#kept + 1] = run end
+    end
+    live = kept
+end
+
+-- Which of one frame's waiting heals (each { size, amount }) at `at` (nil: no train is due) a learned size, its drawn
+-- hits (`hits`, each { spellID, amount }; nil: none), its helpful casts or a running train made: claims[index] = spell
+-- ID. A heal of a learned size is its row's first, then one a learned k makes from a drawn hit is that hit's; then
+-- each learned cast, in cast order, takes the largest heal inside its padded band that nothing took before; then each
+-- running train due in the frame takes its tick (ClaimTicks).
+function Heals.Claim(castIDs, waiting, hits, at)
     local claims = {}
     for index, heal in ipairs(waiting) do claims[index] = SizeRow(heal.size) or CoupleRow(heal.amount, hits or {}) end
     for _, castID in ipairs(castIDs) do
@@ -182,6 +272,7 @@ function Heals.Claim(castIDs, waiting, hits)
         end
         if best then claims[best] = castID end
     end
+    if IsNumber(at) then ClaimTicks(waiting, claims, at) end
 
     return claims
 end
@@ -358,6 +449,173 @@ local function LearnCouples(fightHeals, drawn, own)
     end
 end
 
+-- The index of the first heal of `sorted` (by time) at `at` or later.
+local function From(sorted, at)
+    local lo, hi = 1, #sorted + 1
+    while lo < hi do
+        local mid = math.floor((lo + hi) / 2)
+        if sorted[mid].at < at then lo = mid + 1 else hi = mid end
+    end
+    return lo
+end
+
+-- The heal of `sorted` due SLACK either side of `due` within STEP of `size`, the nearest that size; nil when none.
+local function TickAt(sorted, due, size)
+    local best
+    for index = From(sorted, due - 2 * SLACK), #sorted do
+        local heal = sorted[index]
+        if heal.at > due + 2 * SLACK then break end
+        if math.abs(heal.at - due) <= SLACK and Near(heal.size, size)
+            and (not best or Off(heal.size, size) < Off(best.size, size)) then
+            best = heal
+        end
+    end
+    return best
+end
+
+-- The walk of a cast at `at` from its first tick `first` (a period after the cast): { period, size (the middle
+-- tick), low, high, ticks }. Nil when a tick of its size was due a period before the cast (a train already running:
+-- a rune's, a totem cast before), or when its ticks are all one size: a castless proc's (Fixed sizes), and paladin's
+-- Word of Glory starts a 720 rune train under the rune's ID (1287665).
+local function WalkFrom(sorted, at, first)
+    local period = first.at - at
+    if TickAt(sorted, at - period, first.size) then return nil end
+    local sizes, last, k, misses = { first.size }, first, 1, 0
+    while misses < MISSES do
+        local tick = TickAt(sorted, last.at + (last.at - at) / k * (1 + misses), last.size)
+        if tick then
+            sizes[#sizes + 1] = tick.size
+            k, misses, last = k + 1 + misses, 0, tick
+        else
+            misses = misses + 1
+        end
+    end
+    table.sort(sizes)
+    if sizes[#sizes] - sizes[1] <= 2 * SIZE_TOL then return nil end
+
+    return { period = (last.at - at) / k, size = sizes[math.ceil(#sizes / 2)], low = sizes[1], high = sizes[#sizes],
+        ticks = #sizes }
+end
+
+-- A cast's longest walk of TRAIN_TICKS or more that luck alone gives WALK_ALPHA often at most, else nil. Luck: any of
+-- the heals a period range after the cast may be the first tick, then each later tick is a heal of its size inside
+-- its 2 x SLACK window, at the fight's rate of heals that size.
+local function Walk(sorted, at, duration)
+    local best, firsts = nil, 0
+    for index = From(sorted, at), #sorted do
+        local heal = sorted[index]
+        local period = heal.at - at
+        if period > PERIOD_HI then break end
+        if period >= PERIOD_LO then
+            firsts = firsts + 1
+            local walk = WalkFrom(sorted, at, heal)
+            if walk and walk.ticks >= TRAIN_TICKS and (not best or walk.ticks > best.ticks) then best = walk end
+        end
+    end
+    if not best then return nil end
+    local near = 0
+    for _, heal in ipairs(sorted) do
+        if Near(heal.size, best.size) then near = near + 1 end
+    end
+    local chance = 1 - math.exp(-near / duration * 2 * SLACK)
+
+    return firsts * chance ^ (best.ticks - 1) <= WALK_ALPHA and best or nil
+end
+
+-- Whether a heal cast has samples on its own stamps: a direct heal, no train's cast.
+local function Direct(spellID)
+    return Range(heals[spellID]) ~= nil
+end
+
+-- A cast's learned train, else nil. Its counted casts are those whose stamp's other helpful casts are all direct
+-- heals (shamanheal casts each totem with Chain Heal on its stamp: the totem's walks count once Chain Heal, cast alone
+-- too, has samples; Chain Heal's walks on those stamps never count). Learned when TRAIN_WALKS of its walks agree,
+-- TRAIN_SHARE of its counted casts, it has a heal row and it is no direct heal itself.
+local function Judge(castID, entry)
+    if not entry.row or Direct(castID) then return nil end
+    local counted, walks = 0, {}
+    for _, walk in ipairs(entry.walks) do
+        local alone = true
+        for _, other in ipairs(walk.with) do alone = alone and Direct(other) end
+        if alone then
+            counted = counted + 1
+            if walk.period then walks[#walks + 1] = walk end
+        end
+    end
+    local best
+    for _, center in ipairs(walks) do
+        local group = {}
+        for _, walk in ipairs(walks) do
+            if math.abs(walk.period - center.period) <= PERIOD_TOL
+                and math.max(walk.size, center.size) <= AGREE * math.min(walk.size, center.size) then
+                group[#group + 1] = walk
+            end
+        end
+        if not best or #group > #best then best = group end
+    end
+    if not best or #best < TRAIN_WALKS or #best < TRAIN_SHARE * counted then return nil end
+    local train = { row = entry.row, period = 0, low = math.huge, high = 0, ticks = 0 }
+    for _, walk in ipairs(best) do
+        train.period = train.period + walk.period / #best
+        train.low, train.high = math.min(train.low, walk.low), math.max(train.high, walk.high)
+        train.ticks = math.max(train.ticks, walk.ticks)
+    end
+    train.size = math.sqrt(train.low * train.high)
+
+    return train
+end
+
+local function Ready()
+    ready = {}
+    for castID, entry in pairs(trains) do ready[castID] = Judge(castID, entry) end
+end
+
+-- Each helpful cast of a clear read counts its stamp's walk (one per stamp, nil: none) with the stamp's other casts.
+-- Returns the cast IDs counted.
+local function LearnTrains(fightHeals, helps, own, duration)
+    local sorted = {}
+    for _, heal in ipairs(fightHeals) do
+        if IsNumber(heal.size) and heal.size > 0 and IsNumber(heal.at) then sorted[#sorted + 1] = heal end
+    end
+    table.sort(sorted, function(a, b) return a.at < b.at end)
+    local stamps, order = {}, {} -- by stamp: its helpful cast IDs, each once; the stamps in cast order
+    for _, cast in ipairs(helps) do
+        local ids = stamps[cast.at]
+        if not ids then
+            ids = {}
+            stamps[cast.at], order[#order + 1] = ids, cast.at
+        end
+        local listed = false
+        for _, spellID in ipairs(ids) do listed = listed or spellID == cast.spellID end
+        if not listed then ids[#ids + 1] = cast.spellID end
+    end
+    local counted = {}
+    for _, at in ipairs(order) do
+        local walk = Walk(sorted, at, duration) or {}
+        for _, castID in ipairs(stamps[at]) do
+            local entry = trains[castID]
+            if not entry then
+                EvictOldest(trains, TRAIN_CAP)
+                entry = { walks = {} }
+                trains[castID] = entry
+            end
+            local base = ns.Casts.Base(castID)
+            entry.row = entry.row or (own[castID] and castID) or (own[base] and base) or nil
+            local with = {}
+            for _, other in ipairs(stamps[at]) do
+                if other ~= castID then with[#with + 1] = other end
+            end
+            table.insert(entry.walks, { with = with, period = walk.period, size = walk.size, low = walk.low,
+                high = walk.high, ticks = walk.ticks })
+            if #entry.walks > SAMPLES then table.remove(entry.walks, 1) end
+            entry.seen = reads
+            counted[#counted + 1] = castID
+        end
+    end
+
+    return counted
+end
+
 -- A clear solo read: the fight's heals on you ({ size, amount, at }), its helpful casts ({ spellID, at }), the
 -- session's healing-done `rows`, the fight's `duration` in seconds and its drawn hits (`drawn`, each { spellID,
 -- amount, at }; nil: none).
@@ -407,7 +665,20 @@ function Heals.Learn(fightHeals, helps, rows, duration, drawn)
             counted[#counted + 1] = spellID
         end
     end
+    local walked = LearnTrains(fightHeals, helps, own, duration)
+    Ready()
     if not ns.Debug then return end
+    local told = {}
+    for _, castID in ipairs(walked) do
+        local entry = trains[castID]
+        if entry and not told[castID] then
+            told[castID] = true
+            local walk = entry.walks[#entry.walks]
+            ns.Debug("TEACH healtrain %d row=%s period=%s ticks=%s -> %s", castID, tostring(entry.row),
+                walk.period and string.format("%.2f", walk.period) or "none", tostring(walk.ticks),
+                ready[castID] and "learned" or "open")
+        end
+    end
     local said = {}
     for _, spellID in ipairs(counted) do
         local entry = heals[spellID]
@@ -424,6 +695,8 @@ function Heals.Forget()
     for spellID in pairs(heals) do heals[spellID] = nil end
     for spellID in pairs(sizes) do sizes[spellID] = nil end
     for spellID in pairs(couples) do couples[spellID] = nil end
+    for spellID in pairs(trains) do trains[spellID] = nil end
+    ready, live = {}, {}
 end
 
 -- Keeps each saved entry of a spell ID with whole counts (hits no more than casts), a finite expected count from 0
@@ -465,6 +738,38 @@ local function ValidCouple(entry)
     return { lo = entry.lo, hi = entry.hi, reads = entry.reads, seen = 0 }
 end
 
+local function Positive(value)
+    return IsNumber(value) and value > 0 and value < math.huge
+end
+
+-- Keeps a saved counted cast with a list of the other casts' IDs (junk IDs dropped) and, when it walked, positive
+-- finite sizes low <= size <= high, a positive period and a whole tick count; drops the rest.
+local function ValidWalk(walk)
+    if type(walk) ~= "table" or type(walk.with) ~= "table" then return nil end
+    local with = {}
+    for _, spellID in ipairs(walk.with) do
+        if IsID(spellID) then with[#with + 1] = spellID end
+    end
+    if walk.period == nil then return { with = with } end
+    if not (Positive(walk.period) and Positive(walk.size) and Positive(walk.low) and Positive(walk.high)
+        and walk.low <= walk.size and walk.size <= walk.high and IsCount(walk.ticks) and walk.ticks > 0) then
+        return nil
+    end
+
+    return { with = with, period = walk.period, size = walk.size, low = walk.low, high = walk.high, ticks = walk.ticks }
+end
+
+-- Keeps a saved train with a valid row (or none yet) and its valid counted casts (the newest SAMPLES); drops the rest.
+local function ValidTrain(entry)
+    if type(entry) ~= "table" or type(entry.walks) ~= "table" then return nil end
+    if entry.row ~= nil and not IsID(entry.row) then return nil end
+    local walks = {}
+    for _, walk in ipairs(entry.walks) do walks[#walks + 1] = ValidWalk(walk) end
+    while #walks > SAMPLES do table.remove(walks, 1) end
+
+    return { row = entry.row, walks = walks, seen = 0 }
+end
+
 -- The saved entries of `saved` (a table, else none) whose spell ID is valid and `valid` keeps.
 local function Kept(saved, valid)
     local kept = {}
@@ -478,6 +783,7 @@ end
 
 function Heals.Init(charDB)
     heals, sizes, reads = Kept(charDB.heals, Valid), Kept(charDB.healSizes, ValidSize), 0
-    couples = Kept(charDB.healCouples, ValidCouple)
-    charDB.heals, charDB.healSizes, charDB.healCouples = heals, sizes, couples
+    couples, trains, live = Kept(charDB.healCouples, ValidCouple), Kept(charDB.healTrains, ValidTrain), {}
+    charDB.heals, charDB.healSizes, charDB.healCouples, charDB.healTrains = heals, sizes, couples, trains
+    Ready()
 end
