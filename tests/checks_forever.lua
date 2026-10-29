@@ -54,27 +54,27 @@ return function(T)
     do
         local rig = Rig()
         local Streams = rig.ns.Streams
-        Streams.Feed("k", 32, 31, "", "enemy", 0)
-        Streams.Feed("k", 32, 47, "CRITICAL", "enemy", 3)
-        Streams.Feed("k", 32, 31, "", "enemy", 6)
-        Streams.Feed("k", 32, 31, "", "enemy", 9)
+        Streams.Feed("k", 32, 31, "", 0)
+        Streams.Feed("k", 32, 47, "CRITICAL", 3)
+        Streams.Feed("k", 32, 31, "", 6)
+        Streams.Feed("k", 32, 31, "", 9)
         Check("forever: 31, 47 CRITICAL, 31, 31 at 3 s gaps form one stream (crit x1.5)", #Streams.Live("k", 9) == 1)
         Check("forever: NormalAmount(45, CRITICAL) = 30", Streams.NormalAmount(45, "CRITICAL") == 30)
 
         local Retail = T.Boot().Streams
-        Retail.Feed("r", 32, 31, "", "enemy", 0)
-        Retail.Feed("r", 32, 62, "CRITICAL", "enemy", 3)
-        Retail.Feed("r", 32, 31, "", "enemy", 6)
-        Retail.Feed("r", 32, 31, "", "enemy", 9)
-        Retail.Feed("x", 32, 31, "", "enemy", 0)
-        Retail.Feed("x", 32, 47, "CRITICAL", "enemy", 3)
-        Retail.Feed("x", 32, 31, "", "enemy", 6)
-        Retail.Feed("x", 32, 31, "", "enemy", 9)
+        Retail.Feed("r", 32, 31, "", 0)
+        Retail.Feed("r", 32, 62, "CRITICAL", 3)
+        Retail.Feed("r", 32, 31, "", 6)
+        Retail.Feed("r", 32, 31, "", 9)
+        Retail.Feed("x", 32, 31, "", 0)
+        Retail.Feed("x", 32, 47, "CRITICAL", 3)
+        Retail.Feed("x", 32, 31, "", 6)
+        Retail.Feed("x", 32, 31, "", 9)
         Check("retail: crits stay x2 (31, 62 CRITICAL, 31, 31 pair; 31, 47 CRITICAL, 31, 31 do not)",
             #Retail.Live("r", 9) == 1 and #Retail.Live("x", 9) == 0 and Retail.NormalAmount(62, "CRITICAL") == 31)
 
         local function Chain(streams, key, hits)
-            for index, hit in ipairs(hits) do streams.Feed(key, 32, hit[1], hit[2] or "", "enemy", (index - 1) * 3) end
+            for index, hit in ipairs(hits) do streams.Feed(key, 32, hit[1], hit[2] or "", (index - 1) * 3) end
             return streams.Live(key, (#hits - 1) * 3)
         end
         local C = "CRITICAL"

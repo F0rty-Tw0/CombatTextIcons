@@ -17,8 +17,8 @@ return function(T)
         local rig = { ns = ns, births = {}, casts = {} }
         ns.Learn.OnBirth = function(key, stream, now) rig.births[#rig.births + 1] = { key = key, stream = stream, now = now } end
         ns.Learn.OnCast = function(castID) rig.casts[#rig.casts + 1] = castID end
-        function rig.Hit(key, t, amount, school, flag, kind)
-            ns.Streams.Feed(key, school or 32, amount or 1000, flag or "", kind or "enemy", t)
+        function rig.Hit(key, t, amount, school, flag)
+            ns.Streams.Feed(key, school or 32, amount or 1000, flag or "", t)
         end
         return rig
     end
@@ -81,7 +81,7 @@ return function(T)
         local function Fed(rig, key, times, amount, record, flag)
             local last
             for _, t in ipairs(times) do
-                last = rig.ns.Streams.Feed(key, 32, amount, flag or "", "enemy", t, record)
+                last = rig.ns.Streams.Feed(key, 32, amount, flag or "", t, record)
             end
             return last
         end
@@ -89,16 +89,16 @@ return function(T)
         local Streams = rig.ns.Streams
         local fight = Streams.NewFight()
         local early = {}
-        for _, t in ipairs({ 0, 2, 4 }) do early[#early + 1] = Streams.Feed("a", 32, 1000, "", "enemy", t, true) end
-        local stream = Streams.Feed("a", 32, 1000, "", "enemy", 6, true)
+        for _, t in ipairs({ 0, 2, 4 }) do early[#early + 1] = Streams.Feed("a", 32, 1000, "", t, true) end
+        local stream = Streams.Feed("a", 32, 1000, "", 6, true)
         local rec = fight[stream]
         Check("streams: record: hits 1-3 return nil, the 4th returns the stream", #early == 0 and stream == Streams.Live("a", 6)[1])
         Check("streams: record: a birth notes all 4 hits (sum 4000, n 4, lo 1000, hi 1000, school 32)",
             rec and rec.sum == 4000 and rec.n == 4 and rec.lo == 1000 and rec.hi == 1000 and rec.school == 32)
-        local extended = Streams.Feed("a", 32, 1100, "", "enemy", 8, true)
+        local extended = Streams.Feed("a", 32, 1100, "", 8, true)
         Check("streams: record: an extension returns the same stream and grows sum, n and hi",
             extended == stream and rec.sum == 5100 and rec.n == 5 and rec.lo == 1000 and rec.hi == 1100)
-        Streams.Feed("a", 32, 2400, "CRITICAL", "enemy", 10, true)
+        Streams.Feed("a", 32, 2400, "CRITICAL", 10, true)
         Check("streams: record: a crit adds to sum and n but not to lo or hi",
             rec.sum == 7500 and rec.n == 6 and rec.lo == 1000 and rec.hi == 1100)
 
@@ -107,7 +107,7 @@ return function(T)
         local function Led(key, lead)
             rig = Rig(); Streams = rig.ns.Streams
             fight = Streams.NewFight()
-            Streams.Feed(key, 32, lead, "", "enemy", 0, true)
+            Streams.Feed(key, 32, lead, "", 0, true)
             local born = Fed(rig, key, { 2, 4, 6, 8 }, 13502, true)
 
             return born and fight[born]
@@ -136,20 +136,15 @@ return function(T)
         local old = Streams.NewFight()
         stream = Fed(rig, "d", { 0, 2, 4, 6 }, 1000, true)
         local new = Streams.NewFight()
-        Streams.Feed("d", 32, 900, "", "enemy", 8, true)
+        Streams.Feed("d", 32, 900, "", 8, true)
         Check("streams: record: a second NewFight gives the next extension a fresh record; the old table is unchanged",
             new ~= old and new[stream] and new[stream].sum == 900 and new[stream].n == 1
             and old[stream].sum == 4000 and old[stream].n == 4)
 
         rig = Rig(); Streams = rig.ns.Streams
         fight = Streams.NewFight()
-        for _, t in ipairs({ 0, 2, 4, 6, 8 }) do Streams.Feed("u1", 32, 1000, "", "heal", t) end
-        Check("streams: record: a heal stream records nothing", next(fight) == nil and #Streams.Live("u1", 8) == 1)
-
-        rig = Rig(); Streams = rig.ns.Streams
-        fight = Streams.NewFight()
         local amounts = { Secret(1000), Secret(1000), 1000, 1000 }
-        ok = pcall(function() for i, t in ipairs({ 0, 2, 4, 6 }) do stream = Streams.Feed("e", 32, amounts[i], "", "enemy", t, true) end end)
+        ok = pcall(function() for i, t in ipairs({ 0, 2, 4, 6 }) do stream = Streams.Feed("e", 32, amounts[i], "", t, true) end end)
         rec = stream and fight[stream]
         Check("streams: record: secret hits form a stream and only the plain ones are noted (sum 2000, n 2, lo 1000, hi 1000)",
             ok and rec and rec.sum == 2000 and rec.n == 2 and rec.lo == 1000 and rec.hi == 1000)
@@ -195,9 +190,6 @@ return function(T)
         local stream = Streams.Live("c", 8.05)[1]
         Check("streams: a fitting hit extends (count 5, lastAt 8.05, period 0.8*2 + 0.2*2.05 = 2.01)",
             stream.count == 5 and stream.lastAt == 8.05 and math.abs(stream.period - 2.01) < 1e-9)
-        rig.Hit("h", 0, 1000, 2, "", "heal"); rig.Hit("h", 2, 5000, 2, "", "heal"); rig.Hit("h", 4, 200, 2, "", "heal")
-        rig.Hit("h", 6, 3000, 2, "", "heal")
-        Check("streams: heals skip the size guard (overheal)", #Streams.Live("h", 6) == 1)
         local ok = pcall(function()
             rig.Hit("s", 0, Secret(1000)); rig.Hit("s", 2, Secret(1000)); rig.Hit("s", 4, 1000, 32, Secret("CRITICAL")); rig.Hit("s", 6, 1000)
         end)
@@ -318,13 +310,6 @@ return function(T)
         Check("owners: distinct casts inside [birth - 1.2 P, birth - 0.5 P], cast order, with their kinds",
             stream and table.concat(stream.owners, ",") == "9005,9001,9006"
             and stream.ownerKind[9005] == "dot" and stream.ownerKind[9006] == "channel")
-        Streams.LogCast("p", 9101, "hot", 7.8); Streams.LogCast("p", 9102, "dot", 8.0)
-        Streams.LogCast("q", 9101, "hot", 7.8); Streams.LogCast("q", 9102, "dot", 8.0)
-        for _, t in ipairs({ 10, 12, 14, 16 }) do
-            rig.Hit("p", t); rig.Hit("q", t, 1000, 2, "", "heal")
-        end
-        Check("owners: a plate stream takes dot / channel entries, a heal-unit stream hot entries",
-            table.concat(Streams.Live("p", 16)[1].owners, ",") == "9102" and table.concat(Streams.Live("q", 16)[1].owners, ",") == "9101")
 
         -- Run 20261025T181738Z: Haunt's +21 % stepped Wither's opener ticks past SIZE_GUARD one period after Haunt's cast.
         local function Stepped(key, early, earlyCount)
@@ -343,10 +328,10 @@ return function(T)
         local fight = Streams.NewFight()
         Streams.LogCast("r1", 980, "dot", 100); Streams.LogCast("r1", 48181, "dot", 108.5)
         for n, size in ipairs({ 1000, 1400, 1960, 2744 }) do
-            Streams.Feed("r1", 32, size, "", "enemy", 100 + 2 * n, true)
+            Streams.Feed("r1", 32, size, "", 100 + 2 * n, true)
         end
         local ramped
-        for _, t in ipairs({ 110, 112, 114, 116 }) do ramped = Streams.Feed("r1", 32, 3842, "", "enemy", t, true) end
+        for _, t in ipairs({ 110, 112, 114, 116 }) do ramped = Streams.Feed("r1", 32, 3842, "", t, true) end
         Check("owners: a birth on a ramp's flat ticks (x1.4 a tick, 1000 -> 3842) takes the owners of the ramp's first"
             .. " tick (980, not 48181); of the ramp only the step-sized lead tick 2744 joins its record (n 5)",
             ramped and table.concat(ramped.owners, ",") == "980" and fight[ramped] and fight[ramped].n == 5)
@@ -442,8 +427,8 @@ return function(T)
         rig.S.haste = 0
         ns.Tracker.OnLearned = function(id, now) rig.learnedCalls[#rig.learnedCalls + 1] = { id, now } end
         function rig.Cast(key, t, id, kind) ns.Streams.LogCast(key, id, kind or "dot", t) end
-        function rig.Hit(key, t, amount, school, flag, kind)
-            ns.Streams.Feed(key, school, amount or 2800, flag or "", kind or "enemy", t)
+        function rig.Hit(key, t, amount, school, flag)
+            ns.Streams.Feed(key, school, amount or 2800, flag or "", t)
         end
         function rig.Sig(id, number) local v = ns.Learn.Votes(id); return v and v.sigs[number or 1] end
         -- Trial: the next fresh key and time slot, one cast at t, then 4 hits one period apart (birth at t + period, found at t + 4 * period)
@@ -453,7 +438,7 @@ return function(T)
             key = key or ("t" .. trials)
             local t = 100 * trials
             rig.Cast(key, t, id, kind)
-            for step = 1, 4 do rig.Hit(key, t + step * period, 1000, school, "", kind == "hot" and "heal" or "enemy") end
+            for step = 1, 4 do rig.Hit(key, t + step * period, 1000, school, "") end
         end
         return rig
     end
@@ -585,9 +570,7 @@ return function(T)
         rig.Trial(1, 9402, 1)
         Check("votes: school 1 is learned at 3 votes (p = 0.0008)", Learn.Get(9402) ~= nil)
         rig.Trial(32, 9403, 1, "channel"); rig.Trial(32, 9403, 1, "channel")
-        rig.Trial(32, 9404, 1, "hot", "player"); rig.Trial(32, 9404, 1, "hot", "party1")
-        Check("votes: kinds carry over (channel -> mode channel, hot -> mode hot)",
-            Learn.Get(9403) and Learn.Get(9403).mode == "channel" and Learn.Get(9404) and Learn.Get(9404).mode == "hot")
+        Check("votes: kinds carry over (channel -> mode channel)", Learn.Get(9403) and Learn.Get(9403).mode == "channel")
 
         local hasted = Fresh()
         hasted.S.haste = 25
@@ -666,7 +649,7 @@ return function(T)
         ns.Streams.LogCast(K, 9501, "dot", 0)
         -- Two strangers, same school and period 0.6, different sizes: the one cast sits in both owner windows.
         for _, hit in ipairs({ { 0.45, 1000 }, { 0.50, 5000 }, { 1.05, 1000 }, { 1.10, 5000 }, { 1.65, 1000 }, { 1.70, 5000 }, { 2.25, 1000 }, { 2.30, 5000 } }) do
-            ns.Streams.Feed(K, 8, hit[2], "", "enemy", hit[1])
+            ns.Streams.Feed(K, 8, hit[2], "", hit[1])
         end
         local votes = ns.Learn.Votes(9501)
         local sig = votes and votes.sigs[1]
@@ -790,7 +773,7 @@ return function(T)
                 out.strangers = out.strangers + strangers
                 for _, e in ipairs(events) do
                     if e.cast then ns.Streams.LogCast(KEY, e.cast, "dot", e.t)
-                    else ns.Streams.Feed(KEY, e.school, e.amount, e.flag, "enemy", e.t) end
+                    else ns.Streams.Feed(KEY, e.school, e.amount, e.flag, e.t) end
                 end
                 local count = 0
                 for _ in pairs(T.Store().learned) do count = count + 1 end

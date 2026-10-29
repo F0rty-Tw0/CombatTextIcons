@@ -1280,14 +1280,6 @@ return function(T)
             Check("net: undrawn, cast this fight, no row: one strike keeps it", Kept(rig, FS_TWIN))
             Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
             Check("net: ... and the second such read drops it", not Kept(rig, FS_TWIN))
-
-            rig = Rig({})
-            T.Store().learned[FS_TWIN] = { school = 2, period = 3, kind = "hot", misses = 0 }
-            rig.ns.Learn.Init(T.Store())
-            Cast(rig, FS_TWIN, 15)
-            Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
-            Step(rig, { [WAND] = 50 }, { Row(WAND, 50) })
-            Check("net: a hot has no damage row, so two such reads keep it", Kept(rig, FS_TWIN))
         end
 
         do -- the meter may list one spell in two rows: they are one row (sum of total and overkill)
@@ -1595,14 +1587,6 @@ return function(T)
             Check("net votes: ... and its next cast and rhythm is the second vote and learns it", rig.ns.Learn.Get(WITHER) ~= nil)
 
             rig = Rig({}); Votes(rig)
-            local sigs = T.Store().votes[WITHER].sigs
-            sigs[2] = { kind = "hot", school = 2, period = 3.0, votes = 1, expected = 0.1 }
-            Fight(rig, 10, false, { Row(WITHER_ROW, 5000) })
-            local left = rig.ns.Learn.Votes(WITHER).sigs
-            Check("net votes: a hot sig survives the read (heals have no damage row); the dot sig goes",
-                #left == 1 and left[1].kind == "hot")
-
-            rig = Rig({}); Votes(rig)
             Fight(rig, 10, false, { Row(WITHER_ROW, 5000) })
             rig.S.sessions = { Session(nextSession + 1, { Row(WITHER_ROW, 5000) }) }
             nextSession = nextSession + 1
@@ -1690,7 +1674,7 @@ return function(T)
             rig.S.sessions = { Session(1, { Row(X, 1053) }) }
             rig.ns.Teacher.Start(10)
             local record = rig.ns.Teacher.fight.streams
-            for _, at in ipairs({ 0, 2, 4, 6 }) do rig.ns.Streams.Feed("k", 32, 1000, "", "enemy", at, true) end
+            for _, at in ipairs({ 0, 2, 4, 6 }) do rig.ns.Streams.Feed("k", 32, 1000, "", at, true) end
             local count = 0
             for _ in pairs(record or {}) do count = count + 1 end
             Check("procs wiring: Start gives the fight a streams table that a recorded stream lands in", type(record) == "table" and count == 1)

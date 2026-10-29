@@ -246,12 +246,6 @@ local function UnknownTexture()
     return Meter.UNKNOWN_ICON
 end
 
--- The icon for a Tracker answer: the question mark when the tracker cannot tell which spell.
-local function TrackerTexture(spellID)
-    if spellID == Tracker.UNKNOWN then return UnknownTexture() end
-    return SpellTexture(spellID)
-end
-
 -- The event frame: its handlers are the Core functions below.
 local events = CreateFrame("Frame")
 
@@ -410,7 +404,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     -- in the proc's frame (Surging Totem's ~12K hits learned Lava Burst as a DoT, run 20261025T182530Z).
     local stream
     if not Procs.Name(school, amount, flagText) then
-        stream = Streams.Feed(plate, school, amount, flagText, "enemy", now, solo)
+        stream = Streams.Feed(plate, school, amount, flagText, now, solo)
         -- A learned DoT spread to a plate it was never cast on takes the stream there (Tracker.AdoptSpread).
         if stream and solo and not crowded then Tracker.AdoptSpread(plate, stream, now) end
     end
@@ -482,7 +476,7 @@ end
 
 -- Heals and damage taken (drawn over the player) -------------------------------------
 
--- Once a heal is learned (Heals.AnyLearned), a heal on you that no channel or HoT named waits for the end of
+-- Once a heal is learned (Heals.AnyLearned), a heal on you that no channel named waits for the end of
 -- its frame (Core.FlushHeals): it lands before its own cast's UNIT_SPELLCAST_SUCCEEDED in that frame (shamanheal:
 -- the heal of each of 17 Chain Heal 1064 casts is logged on the cast's stamp, the line before the CAST line), so only
 -- then does the frame know its casts; its drawn hits (frameHits) come with them.
@@ -491,7 +485,7 @@ end
 local waiting, frameCasts = { heals = {} }, { ids = {} }
 local flushQueued = false -- a flush waits on C_Timer.After(0)
 
--- A heal on you no channel or HoT named is drawn: with the icon of the spell that claimed it (Heals.Claim: its frame's
+-- A heal on you no channel named is drawn: with the icon of the spell that claimed it (Heals.Claim: its frame's
 -- helpful cast, a learned size or share, or the tick of a running train), else as any unexplained heal on you: the question mark solo while the area is clear, else hidden.
 local function DrawOwnHeal(heal, castID)
     local route = "HIDDEN"
@@ -531,48 +525,35 @@ local function QueueFlush()
     end)
 end
 
--- Your heal on yourself or a party member: the heal of a channel (Drain Life) whose
--- damage tick landed in this same frame, or a learned HoT's tick. A heal on you that
--- nothing explains draws the question mark when solo and the area is clear (once any heal is learned it first
--- waits for its frame's casts, hits and running trains, which may name it: waiting); every other
--- unexplained heal stays hidden. Heals do not count toward the crowd check (overheal).
+-- A heal on you or a party member. On you: the heal of a channel (Drain Life) whose damage tick landed in this same
+-- frame; else once any heal is learned it waits for its frame's casts, hits and running trains, which may name it
+-- (waiting); a heal on you nothing names draws the question mark when solo and the area is clear. A heal on a party
+-- member stays hidden. A HoT's ticks are a learned train's (Heals.lua): the tick tracker's own HoT instances took
+-- like-timed heals of any size and outlived the HoT (synthetic: foreign heals and a 720 rune drawn under Renew 139,
+-- 4.6 % of the case's heals; the real heal logs: no heal named that way). Heals do not count toward the crowd check
+-- (overheal).
 function Core.Heal(unit, flagText, amount, school, now)
     Core.FlushHeals(now)
     if ns.Debug then
         ns.Debug("HEAL %s school=%s amount=%s flag=%s", unit, ShowValue(school), ShowValue(amount), ShowValue(flagText))
     end
     if unit == "player" then Teacher.Healed(amount, flagText, now) end
-    local route, key = "HIDDEN", nil -- key: the Ledger key of the drawn heal
-    local texture -- nil on the '?' route when '?' icons are off: the route decides whether it draws
-    if unit == "player" then
-        local spellID = Tracker.ChannelHeal(now)
-        if spellID then texture, route, key = SpellTexture(spellID), "channel", spellID end
-    end
-    if texture == nil then
-        local spellID = Tracker.IdentifyHeal(unit, school, amount, flagText, now)
-        if spellID then
-            texture = TrackerTexture(spellID)
-            route = spellID == Tracker.UNKNOWN and "unknown" or "tracker " .. ShowValue(spellID)
-            key = spellID == Tracker.UNKNOWN and UnknownKey(school) or spellID
-        end
-    end
-    if texture ~= nil or route == "unknown" then
-        Ledger.Add("heal", key, amount)
+    local spellID = unit == "player" and Tracker.ChannelHeal(now) or nil
+    local texture = spellID and SpellTexture(spellID) or nil
+    if texture ~= nil then
+        Ledger.Add("heal", spellID, amount)
         Display.Player("heal", texture, amount, flagText)
-    else
-        Streams.Feed(unit, school, amount, flagText, "heal", now)
-        if unit == "player" then
-            local heal = { flagText = flagText, amount = amount, school = school,
-                size = Streams.NormalAmount(amount, flagText) }
-            if not Heals.AnyLearned() then return DrawOwnHeal(heal) end
-            waiting.at = now
-            waiting.heals[#waiting.heals + 1] = heal
-            QueueFlush()
-            return
-        end
-        route = "HIDDEN"
+        if ns.Debug then ns.Debug("  -> channel") end
+    elseif unit == "player" then
+        local heal = { flagText = flagText, amount = amount, school = school,
+            size = Streams.NormalAmount(amount, flagText) }
+        if not Heals.AnyLearned() then return DrawOwnHeal(heal) end
+        waiting.at = now
+        waiting.heals[#waiting.heals + 1] = heal
+        QueueFlush()
+    elseif ns.Debug then
+        ns.Debug("  -> HIDDEN")
     end
-    if ns.Debug then ns.Debug("  -> %s", route) end
 end
 
 -- Damage you take is always shown, as a number: no icon.

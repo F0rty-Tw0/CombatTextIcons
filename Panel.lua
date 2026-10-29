@@ -37,7 +37,7 @@ local KINDS = { target = "dot", channel = "channel", area = "area", spread = "sp
 -- fingerprint pattern -> row kind
 local PATTERNS = { single = "direct", chain = "chain", ground = "ground", stack = "stack" }
 -- row kind -> how a learned row knows the spell, shown after "Knows it"
-local HOW = { dot = "tick rhythm", hot = "tick rhythm", channel = "channel", direct = "hit", stack = "stacking DoT",
+local HOW = { dot = "tick rhythm", channel = "channel", direct = "hit", stack = "stacking DoT",
     ground = "ground", chain = "chain", proc = "proc", area = "area", spread = "spread" }
 local CHECKS = { agree = "matches", over = "drew too much", under = "drew less" } -- meter verdict -> Meter check
 
@@ -250,7 +250,7 @@ function Panel.Rows(fight)
         local drewDamage, drewHeal = damage[key], heal[key]
         if drewDamage then Add("damage", key, info, drewDamage) end
         if drewHeal then Add("heal", key, info, drewHeal) end
-        if not drewDamage and not drewHeal then Add(info.kind == "hot" and "heal" or "damage", key, info, nil) end
+        if not drewDamage and not drewHeal then Add("damage", key, info, nil) end
     end
     for key, total in pairs(damage) do
         if not known[key] then Add("damage", key, Unattributed(key), total) end

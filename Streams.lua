@@ -1,7 +1,7 @@
 -- Periodic hits no tracked spell claimed, grouped into streams, plus the log of
 -- the player's own casts that Learn.lua matches streams against.
 --
--- Per key (a plate frame, or a unit token for heals):
+-- Per key (a plate frame; a unit token holds only the helpful casts logged on it):
 --   loose    the unclaimed hits of each school that extended no stream, kept for
 --            20 s (at most 64);
 --   streams  a stream is born from 4 hits of one school with 3 agreeing gaps,
@@ -224,10 +224,10 @@ end
 
 -- The live stream of `school` that `now` extends, and by how many periods (1 or 2);
 -- the smallest timing error wins.
-local function FindExtension(entry, school, size, crit, heal, now)
+local function FindExtension(entry, school, size, crit, now)
     local best, bestMultiple, bestError
     for _, stream in ipairs(entry.streams) do
-        if stream.school == school and (heal or Agree(size, crit, stream.lastAmount, false)) then
+        if stream.school == school and Agree(size, crit, stream.lastAmount, false) then
             for multiple = 1, 2 do
                 local err = math.abs(now - (stream.lastAt + multiple * stream.period))
                 if err <= Streams.Slack(stream.period) and (not bestError or err < bestError) then
@@ -241,10 +241,8 @@ local function FindExtension(entry, school, size, crit, heal, now)
 end
 
 -- Size guard over a birth's hits ({ amount, crit }): `hit` agrees with x and, when given, y and z.
--- Each hit is checked against every later one, so all pairs of the four face it (spec 3.2). Heals
--- skip the guard (overheal).
-local function AgreesWithAll(heal, hit, x, y, z)
-    if heal then return true end
+-- Each hit is checked against every later one, so all pairs of the four face it (spec 3.2).
+local function AgreesWithAll(hit, x, y, z)
     if not Agree(hit.amount, hit.crit, x.amount, x.crit) then return false end
     if y and not Agree(hit.amount, hit.crit, y.amount, y.crit) then return false end
 
@@ -260,7 +258,7 @@ end
 -- For the hit c = hits[third] and the period `gap`: the best loose hits (a, b) before it, as
 -- indexes, and their timing error. b and a each sit one gap before the next within the slack;
 -- each walk goes back from the newer hit and stops once the gap is too long. No gap is under GAP_MIN.
-local function BestPair(hits, third, gap, new, heal)
+local function BestPair(hits, third, gap, new)
     local c, slack = hits[third], Streams.Slack(gap)
     local low = math.max(gap - slack, GAP_MIN)
     local bestA, bestB, bestError
@@ -268,12 +266,12 @@ local function BestPair(hits, third, gap, new, heal)
         local b = hits[second]
         local bGap = c.at - b.at
         if bGap > gap + slack then break end
-        if bGap >= low and AgreesWithAll(heal, b, c, new) then
+        if bGap >= low and AgreesWithAll(b, c, new) then
             for first = second - 1, 1, -1 do
                 local a = hits[first]
                 local aGap = b.at - a.at
                 if aGap > gap + slack then break end
-                if aGap >= low and AgreesWithAll(heal, a, b, c, new) then
+                if aGap >= low and AgreesWithAll(a, b, c, new) then
                     local err = math.abs(bGap - gap) + math.abs(aGap - gap)
                     if Better(err, a.at, bestError, bestA and hits[bestA].at) then
                         bestA, bestB, bestError = first, second, err
@@ -289,13 +287,13 @@ end
 -- The loose hits (a, b, c) of `school` that the new hit completes, as indexes into `hits` (oldest
 -- first): g = now - c is a period and BestPair finds a and b. The smallest timing error wins, a tie
 -- goes to the latest a. The walk back from the newest hit stops once g is out of range.
-local function FindBirth(hits, new, heal, now)
+local function FindBirth(hits, new, now)
     local bestA, bestB, bestC, bestError
     for third = #hits, 1, -1 do
         local gap = now - hits[third].at
         if gap > PERIOD_MAX then break end
-        if gap >= GAP_MIN and AgreesWithAll(heal, hits[third], new) then
-            local first, second, err = BestPair(hits, third, gap, new, heal)
+        if gap >= GAP_MIN and AgreesWithAll(hits[third], new) then
+            local first, second, err = BestPair(hits, third, gap, new)
             if first and Better(err, hits[first].at, bestError, bestA and hits[bestA].at) then
                 bestA, bestB, bestC, bestError = first, second, third, err
             end
@@ -305,14 +303,12 @@ local function FindBirth(hits, new, heal, now)
     return bestA, bestB, bestC
 end
 
--- Distinct castIDs of the key's casts inside the birth window, in cast order, with
--- their kinds. A plate stream's owners are dots and channels, a heal unit's are hots.
-local function Owners(entry, birth, period, heal)
+-- Distinct castIDs of the plate's casts (dots and channels) inside the birth window, in cast order, with their kinds.
+local function Owners(entry, birth, period)
     local owners, ownerKind, ownerAt = {}, {}, {}
     for _, cast in ipairs(entry.casts) do
-        local own = heal and cast.kind == "hot" or not heal and cast.kind ~= "hot"
         local inside = cast.at >= birth - WINDOW_FROM * period and cast.at <= birth - WINDOW_TO * period
-        if own and inside and not ownerKind[cast.castID] then
+        if inside and not ownerKind[cast.castID] then
             owners[#owners + 1] = cast.castID
             ownerKind[cast.castID] = cast.kind
             ownerAt[cast.castID] = cast.at
@@ -420,19 +416,18 @@ end
 
 -- Public -----------------------------------------------------------------------------
 
--- An unclaimed hit. `kind` is "enemy" (plate) or "heal" (unit token). Only `shouldRecord` adds the hit to the
--- current fight's records. Returns the stream the hit extended or created, else nil.
-function Streams.Feed(key, school, amount, flagText, kind, now, shouldRecord)
+-- An unclaimed hit on a plate. Only `shouldRecord` adds the hit to the current fight's records. Returns the stream the
+-- hit extended or created, else nil.
+function Streams.Feed(key, school, amount, flagText, now, shouldRecord)
     if key == nil or not Plain(school) or type(school) ~= "number" then return end
     local entry = State(key)
     PruneCasts(entry, now)
     PruneLoose(entry, now)
     PruneDead(entry, now)
     local size, crit = Size(amount, flagText)
-    local heal = kind == "heal"   -- overheal makes heal sizes meaningless
-    if not heal then NoteFrame(key, school, now) end
+    NoteFrame(key, school, now)
 
-    local stream, multiple = FindExtension(entry, school, size, crit, heal, now)
+    local stream, multiple = FindExtension(entry, school, size, crit, now)
     if stream then
         stream.period = BLEND * stream.period + (1 - BLEND) * ((now - stream.lastAt) / multiple)
         stream.lastAt = now
@@ -446,26 +441,22 @@ function Streams.Feed(key, school, amount, flagText, kind, now, shouldRecord)
     local hit = { at = now, amount = size, crit = crit }
     local hits = entry.loose[school] or {}
     entry.loose[school] = hits
-    local first, second, third = FindBirth(hits, hit, heal, now)
+    local first, second, third = FindBirth(hits, hit, now)
     if first then
         local a, b, c = hits[first], hits[second], hits[third]
         local period = (now - a.at) / 3
         local amount = BirthAmount({ a, b, c, hit })
-        local start, lead = a.at, {}
-        if not heal then
-            start, lead = Start(entry, school, a.at, period, amount)
-            start = math.min(start, RampStart(entry, school, a.at, period, BirthAmount({ a })))
-        end
-        local owners, ownerKind, ownerAt
-        if not heal then owners, ownerKind, ownerAt = ChannelOwners(entry, a.at, now) end
-        if not owners then owners, ownerKind, ownerAt = Owners(entry, start, period, heal) end
+        local start, lead = Start(entry, school, a.at, period, amount)
+        start = math.min(start, RampStart(entry, school, a.at, period, BirthAmount({ a })))
+        local owners, ownerKind, ownerAt = ChannelOwners(entry, a.at, now)
+        if not owners then owners, ownerKind, ownerAt = Owners(entry, start, period) end
         stream = {
             school = school, period = period, birth = a.at, lastAt = now, count = 4,
             lastAmount = BirthAmount({ a, b, c, hit }),
             hits = { a.at, b.at, c.at, now }, owners = owners, ownerKind = ownerKind, ownerAt = ownerAt, key = key,
             -- the birth's first three frames (the newest one's other plates may land after this hit) each hit
             -- WIDE_PLATES plates: a ground patch's ticks, which Learn gives no votes (Learn.OnBirth)
-            wide = not heal and Wide(school, { a.at, b.at, c.at }),
+            wide = Wide(school, { a.at, b.at, c.at }),
             -- instance: set by Tracker when a live instance adopts the stream
         }
         table.remove(hits, third)

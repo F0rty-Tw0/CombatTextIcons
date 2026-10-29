@@ -1,5 +1,5 @@
 -- Unit checks for learned spells: the Forever gate, the Learn store, the feed
--- into streams, the cast log, learned DoT / channel / HoT instances and the heal path. Called by
+-- into streams, the cast log, learned DoT / channel instances and the heal path. Called by
 -- tests/checks.lua with the same T table (see its header).
 
 return function(T)
@@ -69,8 +69,12 @@ return function(T)
         local entry = Learn.Get(589)
         Check("learn: Get serves a learned entry", entry and entry.icon == 589 and entry.school == 32 and entry.period == 3.0
             and entry.mode == "target" and entry.duration == nil)
-        SeedLearned(4, 32, 1.0, "channel"); SeedLearned(5, 8, 3.0, "hot")
-        Check("learn: channel and hot map to their modes", Learn.Get(4).mode == "channel" and Learn.Get(5).mode == "hot")
+        SeedLearned(4, 32, 1.0, "channel"); SeedLearned(5, 8, 3.0, "dot")
+        Check("learn: channel maps to its mode", Learn.Get(4).mode == "channel")
+        SeedLearned(6, 2, 3.0, "hot")
+        Learn.Init(db)
+        Check("learn: an old save's HoT is dropped on load (a HoT's ticks are a Heals.lua train's)",
+            Learn.Get(6) == nil and db.learned[6] == nil and Learn.Get(4) ~= nil and Learn.Get(5) ~= nil)
 
         db.votes[589] = { casts = 2, sigs = { { kind = "dot", school = 32, period = 3, votes = 1, expected = 0.1 } } }
         Learn.Missed(589)
@@ -86,7 +90,7 @@ return function(T)
 
         local list = Learn.List()
         Check("learn: List is sorted learned entries", #list == 2 and list[1].spellID == 4 and list[2].spellID == 5
-            and list[2].school == 8 and list[2].period == 3.0 and list[2].kind == "hot")
+            and list[2].school == 8 and list[2].period == 3.0 and list[2].kind == "dot")
 
         Check("learn: IsKnownIcon sees table keys, icons and spread icons",
             Learn.IsKnownIcon(172) and Learn.IsKnownIcon(146739) and Learn.IsKnownIcon(1253171) and not Learn.IsKnownIcon(31))
@@ -222,7 +226,6 @@ return function(T)
         S.plates.nameplate1, S.haste, S.target = P, 0, "nameplate1"
         SeedLearned(9001, 32, 3.0, "dot")
         SeedLearned(9002, 32, 1.0, "channel")
-        SeedLearned(9003, 32, 3.0, "hot")
         SeedLearned(980, 32, 5.0, "dot") -- a Forever-style collision with a retail table key
 
         Tracker.OnCast("player", 9001, 100)
@@ -241,9 +244,6 @@ return function(T)
         Check("lookup: learned channel gone after the stop", Tracker.Identify(P, 32, 500, "", 303.0) == nil)
         Tracker.OnChannelStart(9002, 400)
         Check("lookup: learned channel lives until the stop (default 10 s), first tick late", Tracker.Identify(P, 32, 500, "", 409.0) == 9002)
-
-        Check("lookup: learned HoT is not a plate instance", pcall(Tracker.OnCast, "player", 9003, 500)
-            and not Tracker.QualifiesByPhase(P, 32, 1000, "", 503.0))
     end
 
     -- A learned DoT's own hit in its cast frame (runs 20261025T192458Z, 194821Z: Flame Shock's initial damage was '?') ----
@@ -328,9 +328,9 @@ return function(T)
         local function Key(unit) return unit:find("^nameplate") and C_NamePlate.GetNamePlateForUnit(unit) or unit end
         rig.fed = {}
         local feed = ns.Streams.Feed
-        ns.Streams.Feed = function(key, school, amount, flagText, kind, now)
-            rig.fed[#rig.fed + 1] = { key = key, school = school, amount = amount, flag = flagText, kind = kind, now = now }
-            return feed(key, school, amount, flagText, kind, now)
+        ns.Streams.Feed = function(key, school, amount, flagText, now)
+            rig.fed[#rig.fed + 1] = { key = key, school = school, amount = amount, flag = flagText, now = now }
+            return feed(key, school, amount, flagText, now)
         end
         function rig.Fed() return rig.fed end
         function rig.Streams(unit) return ns.Streams.Live(Key(unit or "nameplate1"), S.now) end
@@ -349,7 +349,7 @@ return function(T)
         local rig = Rig()
         for _, t in ipairs({ 0, 2, 4, 6 }) do rig.Hit(t, 1000, 32) end
         Check("feed: four unclaimed periodic hits are fed and form one stream",
-            #rig.Fed() == 4 and rig.Fed()[1].kind == "enemy" and #rig.Streams() == 1)
+            #rig.Fed() == 4 and #rig.Streams() == 1)
 
         -- guards (green before and after): claimed hits never reach the feed
         rig = Rig(true)
@@ -366,16 +366,15 @@ return function(T)
         for _, t in ipairs({ 3, 5, 7 }) do rig.Hit(t, 1500, 36) end
         Check("feed: ticks claimed by a spread are never fed", rig.Drawn(445474) == 3 and #rig.Fed() == 0)
 
-        -- heals: kind "heal", size guard skipped (overheal), never when claimed
+        -- heals: a HoT's ticks are a Heals.lua train's, so no heal feeds a stream (one learned as a HoT drew foreign heals)
         rig = Rig()
-        for k, amount in ipairs({ 800, 200, 0, 500 }) do rig.Heal(3 * k, "party2", amount) end
-        Check("feed: unclaimed heals are fed as kind heal; amounts 800 / 200 / 0 / 500 still form a stream",
-            #rig.Fed() == 4 and rig.Fed()[1].kind == "heal" and rig.Fed()[1].key == "party2" and #rig.Streams("party2") == 1)
-        rig = Rig()
-        rig.Seed(139, 2, 3.0, "hot")
         rig.S.harmful[139], rig.S.helpful[139] = false, true
         rig.Cast(100, 139, "party2")
-        Check("feed: a learned HoT tick is shown and never fed", rig.Heal(103, "party2", 800) == "tex:139" and #rig.Fed() == 0)
+        for k = 1, 4 do rig.Heal(100 + 3 * k, "party2", 800) end
+        rig.Cast(120, 139, "player")
+        for k = 1, 4 do rig.Heal(120 + 3 * k, "player", 800) end
+        Check("feed: periodic heals after a helpful cast are never fed (on a party member or on you)",
+            #rig.Fed() == 0 and #rig.Streams("party2") == 0 and #rig.Streams("player") == 0)
 
         -- Core boundary of the size guard (old spec 6): amount and flag reach Feed in the right slots
         for _, row in ipairs({
@@ -622,39 +621,19 @@ return function(T)
             At(events, t0 + 12, function() rig.Cast(t0 + 12, 139, unit) end)
             for j = 1, 6 do At(events, t0 + 2.5 * j, function() rig.Heal(t0 + 2.5 * j, unit, 800) end) end
         end
-        At(events, 14.1, function()   -- births at t0 + 10: 10, 14, 18, ...
-            Check("hot: two units -> 2 votes, expected 0.292, not learned (p 0.0351)",
-                Sig(rig, 139) and Sig(rig, 139).votes == 2 and Near(Sig(rig, 139).expected, 0.2917, 0.004) and not rig.Learned(139))
-        end)
-        -- no check after the 3rd unit: p 0.0101 is just above ALPHA
         Play(events)
-        Check("hot: the fourth unit learns it as a hot, period 2.5 (p 0.0030)", rig.Learned(139) and rig.Learned(139).kind == "hot"
-            and rig.Learned(139).school == 2 and Near(rig.Learned(139).period, 2.5, 0.05))
-        rig = Rig()
-        rig.S.harmful[139], rig.S.helpful[139] = false, true
-        rig.Cast(0, 139, "party2")
-        for j = 1, 4 do rig.Heal(2.5 * j, "party3", 800) end
-        Check("hot: a foreign HoT stream on another unit gets no votes and no expected",
-            #rig.Streams("party3") == 1 and rig.Votes(139).casts == 1 and #rig.Votes(139).sigs == 0)
+        Check("hot: its ticks on five units learn nothing here: a HoT's ticks are a Heals.lua train's",
+            rig.Learned(139) == nil and #rig.Votes(139).sigs == 0 and rig.Votes(139).casts == 10)
 
-        -- rowless: a read found the cast with no meter row (Learn.RowsRead), so its dot rhythms stop voting; a hot still votes
-        for _, row in ipairs({ { "dot", false }, { "dot", true }, { "hot", true } }) do
-            local kind, rowless = row[1], row[2]
+        -- rowless: a read found the cast with no meter row (Learn.RowsRead), so its rhythms stop voting
+        for _, rowless in ipairs({ false, true }) do
             rig = Rig()
-            if kind == "hot" then
-                rig.S.harmful[139], rig.S.helpful[139] = false, true
-                rig.Cast(0, 139, "party2")
-                rig.Votes(139).rowless = rowless or nil
-                for j = 1, 4 do rig.Heal(2.5 * j, "party2", 800) end
-            else
-                rig.Cast(0, 205180)
-                rig.Votes(205180).rowless = rowless or nil
-                for k = 1, 5 do rig.Hit(k * 1.69, 1000, 32) end
-            end
-            local id = kind == "hot" and 139 or 205180
-            local votes = Sig(rig, id) and Sig(rig, id).votes or 0
-            Check("rowless: a " .. kind .. " cast" .. (rowless and " a read found no row for" or " with a row") .. " gets "
-                .. (rowless and kind == "dot" and "no vote" or "its vote"), votes == (rowless and kind == "dot" and 0 or 1))
+            rig.Cast(0, 205180)
+            rig.Votes(205180).rowless = rowless or nil
+            for k = 1, 5 do rig.Hit(k * 1.69, 1000, 32) end
+            local votes = Sig(rig, 205180) and Sig(rig, 205180).votes or 0
+            Check("rowless: a dot cast" .. (rowless and " a read found no row for gets no vote" or " with a row gets its vote"),
+                votes == (rowless and 0 or 1))
         end
 
         -- physical: school 1 needs 3 votes, the school-32 control learns at 2 (p 0.0063); P 1.0, plates at 0 / 20 / 40
@@ -1034,19 +1013,15 @@ return function(T)
             #rig.Fed() == 0 and rig.Votes(9013).casts == 1 and #rig.Votes(9013).sigs == 0)
     end
 
-    -- HoT cast log and learned HoT instances ----------------------------------------------
+    -- Helpful casts' log (the heal unit) ----------------------------------------------------
     do
-        local RENEW, FLASH, HOLY = 139, 2061, 2
+        local RENEW, FLASH = 139, 2061
         local function Fresh()
             local ns, S = T.Boot(), T.State()
             for _, id in ipairs({ RENEW, FLASH }) do S.harmful[id], S.helpful[id] = false, true end
             return ns, S
         end
         local function Log(ns, key) return ns.Streams.CastLog(key) end
-        local function Learned(ns, S)
-            T.Store().learned[RENEW] = { school = HOLY, period = 3, kind = "hot", misses = 0 }
-            ns.Learn.Init(T.Store())
-        end
 
         do -- heal unit
             local ns, S = Fresh()
@@ -1072,15 +1047,11 @@ return function(T)
             UnitExists = realExists
         end
 
-        do -- a friendly target outside the party: no log entry, no learned HoT instance
+        do -- a friendly target outside the party: no log entry
             local ns, S = Fresh()
             S.target, S.attackable.raid7 = "raid7", false
             ns.Tracker.OnCast("player", FLASH, 100)
             Check("hot: friendly raid target -> no cast-log entry", #ns.Streams.CastLog("player") == 0)
-            Learned(ns, S)
-            ns.Tracker.OnCast("player", RENEW, 200)
-            Check("hot: friendly raid target -> no learned HoT instance",
-                not ns.Tracker.QualifiesByPhase("player", HOLY, 800, "", 203.0))
         end
 
         do -- cast log
@@ -1113,55 +1084,11 @@ return function(T)
                 pcall(ns.Tracker.OnCast, "player", RENEW, 100) and #Log(ns, "party2") == 0)
         end
 
-        do -- known / learned casts are logged but cannot vote
-            local ns, S = Fresh()
-            Learned(ns, S)
-            S.target = "party2"
-            ns.Tracker.OnCast("player", FLASH, 100)
-            ns.Tracker.OnCast("player", RENEW, 100) -- learned, same frame as an unknown one
-            Check("hot: learned and unknown casts in one frame are both logged (unknown first)",
-                #Log(ns, "party2") == 2 and ns.Learn.Votes(RENEW) == nil)
-            ns.Tracker.Reset()
-            ns.Tracker.OnCast("player", RENEW, 200)
-            ns.Tracker.OnCast("player", FLASH, 200)
-            Check("hot: learned and unknown casts in one frame are both logged (learned first)",
-                #Log(ns, "party2") == 2 and ns.Learn.Votes(RENEW) == nil)
-            ns.Tracker.Reset()
-            ns.Tracker.OnCast("player", RENEW, 300)
-            Check("hot: a learned cast is logged and gets no vote", #Log(ns, "party2") == 1 and ns.Learn.Votes(RENEW) == nil)
-        end
-
-        do -- learned HoT instance on the heal unit
-            local ns, S = Fresh()
-            Learned(ns, S)
-            S.target = "party2"
-            ns.Tracker.OnCast("player", RENEW, 300)
-            local Q = ns.Tracker.QualifiesByPhase
-            Check("hot: first tick at castAt + period on party2", Q("party2", HOLY, 800, "", 303.0) and not Q("party2", HOLY, 800, "", 301.5))
-            Check("hot: not on another unit or school", not Q("party1", HOLY, 800, "", 303.0) and not Q("party2", 4, 800, "", 303.0))
-            Check("hot: instance ticks identify with the learned icon", ns.Tracker.Identify("party2", HOLY, 800, "", 303.0) == RENEW)
-            ns.Tracker.OnCast("player", RENEW, 304) -- recast keeps the instance, sets restartAt
-            Check("hot: recast: kept phase fits", Q("party2", HOLY, 800, "", 306.0))
-            Check("hot: recast: restart phase fits", Q("party2", HOLY, 800, "", 307.0))
-            Check("hot: recast: off both phases does not", not Q("party2", HOLY, 800, "", 304.5))
-            ns.Tracker.Reset()
-            Check("hot: Reset clears HoT instances and the cast log", not Q("party2", HOLY, 800, "", 306.0) and #Log(ns, "party2") == 0)
-        end
-
-        do -- a HoT never counts misses
-            local ns, S = Fresh()
-            Learned(ns, S)
-            S.target = "party2"
-            ns.Tracker.OnCast("player", RENEW, 100)
-            ns.Tracker.OnCast("player", RENEW, 120)
-            ns.Tracker.QualifiesByPhase("party2", HOLY, 800, "", 140)
-            Check("hot: learned HoT casts whose ticks never come are not misses", ns.Learn.Get(RENEW) ~= nil)
-        end
     end
 
     -- Heal path ---------------------------------------------------------------------------
     do
-        local RENEW, FLASH, HOLY, HEALING = 139, 2061, 2, 2
+        local RENEW, FLASH, HOLY = 139, 2061, 2
         local function Fresh(spells)
             local ns, S = T.Boot(nil, spells), T.State()
             for _, id in ipairs({ RENEW, FLASH }) do S.harmful[id], S.helpful[id] = false, true end
@@ -1178,79 +1105,11 @@ return function(T)
                 return api.shown
             end
             function api.Log(key) return ns.Streams.CastLog(key) end
-            function api.Cycle(t, target, tickUnit, amounts, castID)  -- cast, then ticks 3 s apart
-                api.Cast(t, castID or RENEW, target)
-                local out = {}
-                for k, amount in ipairs(amounts) do out[k] = api.Heal(t + 3 * k, tickUnit, amount) end
-                return out
-            end
             return api
         end
-        local function Preload(api)
-            T.Store().learned[RENEW] = { school = HOLY, period = 3, kind = "hot", misses = 0 }
-            api.ns.Learn.Init(T.Store())
-        end
 
-        do -- Renew on party2: logged there only; a learned Renew shows every tick of the next cast
+        do -- a roster change drops party logs, keeps the player's
             local api = Fresh()
-            Preload(api)
-            local third = api.Cycle(300, "party2", "party2", { 800, 800, 800 })
-            Check("hot: Renew is logged on party2 only", #api.Log("party2") == 1 and #api.Log("party1") == 0 and #api.Log("player") == 0)
-            Check("hot: third cast: every tick shown with the Renew icon, first included",
-                third[1] and third[2] and third[3] and third[1].kind == "heal" and third[1].texture == "tex:" .. RENEW
-                and third[3].texture == "tex:" .. RENEW)
-        end
-
-        do -- no group target: logged on player, player heals show every tick
-            local api = Fresh()
-            Preload(api)
-            local ticks = api.Cycle(200, nil, "player", { 800, 800, 800 })
-            Check("hot: no group target -> logged on player", #api.Log("player") == 1 and #api.Log("party2") == 0)
-            Check("hot: player heals: every tick shown with the Renew icon, first included",
-                ticks[1] and ticks[2] and ticks[3] and ticks[1].texture == "tex:" .. RENEW and ticks[3].texture == "tex:" .. RENEW)
-        end
-
-        do -- learned HoT tick sizes swing with overheal: a 0 or small first tick keeps the rest
-            local api = Fresh()
-            Preload(api)
-            local ticks = api.Cycle(100, "party2", "party2", { 0, 800, 800 })
-            Check("hot: ticks 0 / 800 / 800 -> both 800 ticks shown with the Renew icon", ticks[2] and ticks[3]
-                and ticks[2].texture == "tex:" .. RENEW and ticks[3].texture == "tex:" .. RENEW)
-            api = Fresh()
-            Preload(api)
-            ticks = api.Cycle(100, "party2", "party2", { 200, 800, 800 })
-            Check("hot: ticks 200 / 800 / 800 -> both 800 ticks shown with the Renew icon", ticks[2] and ticks[3]
-                and ticks[2].texture == "tex:" .. RENEW and ticks[3].texture == "tex:" .. RENEW)
-        end
-
-        do -- a roster change drops the unit's cast log and stream
-            local api = Fresh()
-            api.Cast(100, RENEW, "party2")
-            for k = 1, 4 do api.Heal(100 + 3 * k, "party2", 800) end
-            Check("hot: four unexplained heals after a cast form a stream on party2",
-                #api.Log("party2") == 1 and #api.ns.Streams.Live("party2", api.S.now) == 1)
-            api.ns.Core.GROUP_ROSTER_UPDATE()
-            Check("hot: a roster change drops the party2 log and streams",
-                #api.Log("party2") == 0 and #api.ns.Streams.Live("party2", api.S.now) == 0)
-        end
-
-        do -- no meter heal in the frame: the tick is shown (single mode, spec A)
-            local api = Fresh()
-            Preload(api)
-            api.Cast(100, RENEW, "party2")
-            local control = api.Heal(103.0, "party2", 800)
-            Check("hot: control: the tick without a meter heal is shown", control and control.texture == "tex:" .. RENEW)
-        end
-
-        do -- roster change drops party logs and instances, keeps player
-            local api = Fresh()
-            Preload(api)
-            api.Cast(100, RENEW, "party2")
-            api.Cast(100.5, RENEW, nil)
-            api.ns.Core.GROUP_ROSTER_UPDATE()
-            Check("hot: roster change drops the party2 instance", api.Heal(103, "party2", 800) == nil)
-            Check("hot: roster change keeps the player instance", (api.Heal(103.5, "player", 800) or {}).texture == "tex:" .. RENEW)
-            api = Fresh()
             api.Cast(100, RENEW, "party2")
             api.Cast(101, FLASH, nil)
             api.ns.Core.GROUP_ROSTER_UPDATE()
@@ -1263,11 +1122,10 @@ return function(T)
             local api = Fresh(true)
             api.Cast(100, 5740, "nameplate1")
             local plate = C_NamePlate.GetNamePlateForUnit("nameplate1")
-            Check("hot: fire-school heal during Rain of Fire hidden", api.Heal(101, "player", 500, nil, 4) == nil
-                and select(2, pcall(api.ns.Tracker.IdentifyHeal, "player", 4, 500, "", 101.5)) == nil)
+            Check("hot: fire-school heal during Rain of Fire hidden", api.Heal(101, "player", 500, nil, 4) == nil)
             Check("hot: Rain of Fire still ticks on plates", api.ns.Tracker.Identify(plate, 4, 900, "", 102) == 42223)
-            Check("hot: secret heal values give nil without error",
-                select(2, pcall(api.ns.Tracker.IdentifyHeal, "party2", Secret(2), Secret(5), Secret(""), 103)) == nil)
+            local ok = pcall(api.Heal, 103, "party2", Secret(5), nil, Secret(2))
+            Check("hot: secret heal values on a party member draw nothing, without error", ok and api.shown == nil)
             Check("core: Core.Heal exported", type(api.ns.Core.Heal) == "function")
         end
     end
@@ -1378,18 +1236,6 @@ return function(T)
         local ok, answer = pcall(rig.ns.Tracker.Identify, P, 32, 1000, "", 103.2)
         Check("unknown: two secret textures -> UNKNOWN, no error", ok and answer == rig.ns.Tracker.UNKNOWN)
     end
-    do -- two learned HoTs both due: the player column draws the question mark
-        local rig = Rig()
-        for _, id in ipairs({ 139, 2061 }) do rig.S.harmful[id], rig.S.helpful[id] = false, true end
-        rig.Seed(139, 2, 3, "hot"); rig.Seed(2061, 2, 3, "hot")
-        local drawn
-        rig.ns.Display.Player = function(_, texture) drawn = texture end
-        rig.Cast(100, 139, "party2"); rig.Cast(100.5, 2061, "party2")
-        rig.S.now, rig.S.pending = 103.2, {}
-        rig.ns.Core.UNIT_COMBAT("party2", "HEAL", "", 800, 2)
-        Check("heal: two learned HoTs fit -> UNKNOWN_ICON", drawn ~= nil and drawn == rig.ns.Meter.UNKNOWN_ICON)
-    end
-
     -- Adoption and OnLearned (Task 3.3)
     local function AdoptionRig() -- unknown twins 9101 / 9102 (school 12, period 1.7) form a stream, then both become learned
         local rig = Rig()
@@ -1505,18 +1351,6 @@ return function(T)
         Check("spread: a spread tick's 1.6 s gap leaves the learned 1.7 s base alone (" .. period .. ")", period == 1.7)
         Check("spread: grouped, the castless stream is not adopted", Spread(true) == nil)
         Check("spread: two learned DoTs fit the stream, neither adopts it", Spread(false, true) == nil)
-    end
-    do -- OnLearned on a heal unit: a Renew-like HoT (school 2, period 2.5) on party2
-        local rig = Rig()
-        rig.S.harmful[9701], rig.S.helpful[9701] = false, true
-        local shown
-        rig.ns.Display.Player = function(_, texture) shown = texture end
-        local function Heal(t) rig.S.now, rig.S.pending, shown = t, {}, nil; rig.ns.Core.UNIT_COMBAT("party2", "HEAL", "", 800, 2); return shown end
-        rig.Cast(0, 9701, "party2")
-        Heal(2.5); Heal(5.0); Heal(7.5); Heal(10.0)              -- the fourth heal creates the stream on "party2"
-        rig.Seed(9701, 2, 2.5, "hot")
-        rig.ns.Tracker.OnLearned(9701, 10.1)
-        Check("onlearned: HoT stream on party2 -> the next heal (12.5) is shown", Heal(12.5) == "tex:9701")
     end
     do -- spec 1/2 replacement, the shown part: unknown school-32 DoT (period 3), learned after 4 fresh plates
         local rig = Rig()

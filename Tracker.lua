@@ -9,8 +9,7 @@
 --            "armed", and the first tick of a spread school on an armed plate
 --            creates an instance there;
 --   area     a window in which any plate's tick of that school matches;
---   channel  an instance on the target's plate until the channel stops;
---   hot      an instance on the heal unit (player or group member), like target.
+--   channel  an instance on the target's plate until the channel stops.
 -- A tick is attributed only when exactly one expectation fits it. Spells learned in one
 -- burst of casts (a macro, a talent that casts two) share one instance. A learned spell
 -- that owns a running Streams stream (a cast during it, or learning it) adopts it; solo, a learned DoT spread to a
@@ -25,7 +24,7 @@ local ADDON, ns = ...
 
 local Tracker = {}
 ns.Tracker = Tracker
-Tracker.UNKNOWN = {} -- answer of Identify / IdentifyHeal: yours, but which spell is not known
+Tracker.UNKNOWN = {} -- answer of Identify: yours, but which spell is not known
 
 local Spells = ns.Spells
 local Learn = ns.Learn
@@ -203,7 +202,9 @@ local function IsAutoRepeat(castID)
     return ok and Plain(repeating) and repeating == true
 end
 
--- Logs a harmful cast as a dot on the target plate, a helpful one as a hot on the heal unit.
+-- Logs a harmful cast as a dot on the target plate, a helpful one as a hot on the heal unit. No heal feeds a stream
+-- (a HoT's ticks are a Heals.lua train's), so a hot entry votes for nothing: it only shows a cast of yours
+-- (Streams.CastBefore) and counts the spell's casts (Learn.OnCast).
 local function LogCast(castID, now, harmful, helpful)
     if IsAutoRepeat(castID) then return end
     if Plain(harmful) and harmful then
@@ -248,8 +249,7 @@ end
 
 -- Which multiple of the period a tick at `now` lands on (1 or 2; 0 for the tick
 -- after a recast, at restartAt + period), or nil. Callers test `if multiple`;
--- 0 still counts as a match. HoT ticks skip the amount test: partial overheal
--- makes their sizes unreliable. When `strict` (the fight turned crowded) a tick must lie within Streams.SIZE_GUARD of
+-- 0 still counts as a match. When `strict` (the fight turned crowded) a tick must lie within Streams.SIZE_GUARD of
 -- the last one: strangers' same-school hits fill every window there (run lock3 F3: Agony 980 matched hits 0.47-2.5x
 -- the tick before, 0.7-0.9 s apart; old run druid F7: a learned Primal Wrath 285381 drew bleed ticks alternating 0.45x
 -- and 2.1x, every one an orphan of the strict truth), and within half the usual tolerance of its time: a crowd's
@@ -273,7 +273,7 @@ local function Phase(instance, school, amount, flagText, now, strict)
         if math.abs(now - (instance.lastTick + multiple * instance.period)) <= tolerance then
             local normal = Streams.NormalAmount(amount, flagText)
             local last = instance.lastAmount
-            local tested = not instance.hot and normal and last and last > 0
+            local tested = normal and last and last > 0
             local low, high = AMOUNT_LOW, AMOUNT_HIGH
             if strict then
                 low, high = 1 - Streams.SIZE_GUARD, 1 / (1 - Streams.SIZE_GUARD)
@@ -461,8 +461,7 @@ local function Ticked(instance, multiple, amount, flagText, now, back)
         -- shadow-steady F2 a Devouring Plague 335467 instance drew hits 0.44-2.3x the one before, and going back
         -- from those cost priest 0.9 % right on the old board.
         local like = lastAmount and LikeSized(normal, lastAmount)
-        local kept = (instance.steady or instance.rising and normal < lastAmount) and not instance.hot
-            and not instance.channel
+        local kept = (instance.steady or instance.rising and normal < lastAmount) and not instance.channel
         if lastTick and multiple >= 1 and not like and kept then
             instance.back = { tick = lastTick, amount = lastAmount, period = period, rising = instance.rising }
         end
@@ -480,10 +479,10 @@ end
 -- A learned spell cast in the same burst as a learned instance of the same kind,
 -- school and base period (a macro, one button casting two) joins that instance:
 -- one set of ticks, not two competing ones. Returns whether it joined.
-local function MergeBurst(key, castID, spell, hot, now)
+local function MergeBurst(key, castID, spell, now)
     local base = BasePeriod(spell.period, spell.hasted)
     for _, instance in ipairs(instances[key] or NONE) do
-        if instance.icons and not instance.channel and instance.hot == hot and instance.school == spell.school
+        if instance.icons and not instance.channel and instance.school == spell.school
             and math.abs(now - instance.castAt) <= CAST_BURST and Learn.PeriodsAgree(instance.base, base) then
             instance.icons[#instance.icons + 1] = castID
             return true
@@ -542,11 +541,9 @@ end
 -- lastTick, so a refresh or a dead target never counts as a miss; its first matched
 -- tick still counts as a hit (`hitDue`).
 local function AdoptInstance(key, castID, spell, stream, castAt, now)
-    local hot = spell.mode == "hot"
     local instance = { castID = castID, icon = spell.icon, school = spell.school, period = stream.period,
         base = BasePeriod(spell.period, spell.hasted), castAt = castAt, deadline = now + 3 * stream.period,
-        lastTick = stream.lastAt, lastAmount = stream.lastAmount, learned = not hot, hot = hot,
-        fromLearn = true, icons = { castID }, stream = stream, hitDue = true }
+        lastTick = stream.lastAt, lastAmount = stream.lastAmount, learned = true, fromLearn = true, icons = { castID }, stream = stream, hitDue = true }
     stream.instance = instance
     AddInstance(key, instance)
 end
@@ -581,14 +578,11 @@ function Tracker.OnCast(unit, castID, now)
     local learned = Spells[castID] == nil
     local spell = Spells[castID] or Learn.Get(castID)
     if not spell then return end
-    if spell.mode == "target" or spell.mode == "hot" then
-        local hot = spell.mode == "hot"
-        -- A HoT's key is the heal unit's token, a DoT's the target plate.
-        local key
-        if hot then key = Tracker.HealUnit() else key = TargetPlate() end
+    if spell.mode == "target" then
+        local key = TargetPlate()
         if not key then return end
         -- A learned DoT's own hit lands in its cast frame (Flame Shock's initial damage): Identify gives it that hit
-        if learned and not hot and not (directs[key] and directs[key].at == now) then
+        if learned and not (directs[key] and directs[key].at == now) then
             directs[key] = { at = now, school = spell.school, icon = spell.icon }
         end
         local instance = FindInstance(key, castID)
@@ -599,16 +593,14 @@ function Tracker.OnCast(unit, castID, now)
         elseif instance then
             -- Refresh of a table spell: the running tick timer is kept.
             instance.deadline = math.max(instance.deadline, now + spell.duration + instance.period)
-        elseif learned and (MergeBurst(key, castID, spell, hot, now) or JoinStream(key, castID, spell, now)) then
+        elseif learned and (MergeBurst(key, castID, spell, now) or JoinStream(key, castID, spell, now)) then
             return
         else
             local period = InstancePeriod(spell, learned)
             local lastLoose = loose[key] and loose[key][spell.school]
-            -- A HoT never counts misses.
             AddInstance(key, { castID = castID, icon = spell.icon, school = spell.school, period = period,
                 base = BasePeriod(spell.period, spell.hasted), castAt = now, deadline = now + period + FIRST_TICK_SLACK,
-                busy = lastLoose ~= nil and now - lastLoose <= RHYTHM_BUSY, learned = learned and not hot, hot = hot,
-                fromLearn = learned, icons = learned and { castID } or nil })
+                busy = lastLoose ~= nil and now - lastLoose <= RHYTHM_BUSY, learned = learned, fromLearn = learned, icons = learned and { castID } or nil })
         end
     elseif spell.mode == "spread" then
         -- A recast while the window is open restarts it (one window per spell).
@@ -742,24 +734,6 @@ function Tracker.Identify(plate, school, amount, flagText, now, strict)
     return Pick(found)
 end
 
--- The HoT tick spell ID behind a heal on `unit` (a group token), when exactly one
--- instance there fits; Tracker.UNKNOWN when several fit or a burst's textures differ;
--- else nil. Only that unit's instances count: never areas or spreads, which belong
--- to enemy plates.
-function Tracker.IdentifyHeal(unit, school, amount, flagText, now)
-    Housekeeping(now)
-    if not Plain(school) then return nil end
-    local found = InstanceCandidates(unit, school, amount, flagText, now)
-    if #found ~= 1 then
-        Remember(unit, school, now)
-        if #found >= 2 then return Pick(found) end
-        return nil
-    end
-    local match = found[1]
-    Ticked(match.instance, match.multiple, amount, flagText, now)
-    return Pick(found)
-end
-
 -- The group changed: party tokens point at other people now. The player stays.
 function Tracker.OnRosterChanged()
     for index = 1, 4 do
@@ -864,16 +838,12 @@ end
 -- its next CHANNEL_START.
 function Tracker.OnLearned(spellID, now)
     local spell = Learn.Get(spellID)
-    if not spell or (spell.mode ~= "target" and spell.mode ~= "hot") then return end
-    local hot = spell.mode == "hot"
+    if not spell or spell.mode ~= "target" then return end
     for _, key in ipairs(Streams.Keys()) do
-        -- unit tokens are strings, plates are frames
-        if (type(key) == "string") == hot then
-            for _, stream in ipairs(Streams.Live(key, now)) do
-                if Fits(stream, spellID, spell) then
-                    local alive = AliveInstance(stream)
-                    if alive then AddIcon(alive, spellID, true) else AdoptInstance(key, spellID, spell, stream, stream.birth, now) end
-                end
+        for _, stream in ipairs(Streams.Live(key, now)) do
+            if Fits(stream, spellID, spell) then
+                local alive = AliveInstance(stream)
+                if alive then AddIcon(alive, spellID, true) else AdoptInstance(key, spellID, spell, stream, stream.birth, now) end
             end
         end
     end

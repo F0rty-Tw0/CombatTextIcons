@@ -1,6 +1,6 @@
 -- Learn: the per-spec store of tick rhythms the addon learned itself.
 --
--- A DoT, channel or HoT that Spells.lua does not know (it ships empty: every spell) is learned from Streams:
+-- A DoT or channel that Spells.lua does not know (it ships empty: every spell) is learned from Streams:
 -- each stream birth (a ground patch's wide one aside) gives every spell cast just before it a vote (`votes`),
 -- plus an expected count of the votes luck alone would give it. A spell is
 -- learned when its votes beat that luck (PoissonTail); a physical one also over all its physical births
@@ -9,7 +9,8 @@
 -- rows. Two consecutive casts without a tick drop a spell again, as do the
 -- teacher's clear meter reads (two unpaired reads in a row, or at once when over). A group or crowded fight
 -- (Frozen) drops nothing and votes only inside your own channel. Saved data is
--- checked on load and never trusted.
+-- checked on load and never trusted: an old save's HoT is dropped (a HoT's ticks are a Heals.lua train's; the saves
+-- tests/score/shaman4.start and lock2.start learned Ghost Wolf 2645 and Burning Rush 111400 as HoTs).
 
 local _, ns = ...
 
@@ -27,7 +28,7 @@ if ns.IsForever then ns.Spells = {} end
 local PERIOD_MIN, PERIOD_MAX = 0.5, 10 -- seconds; anything outside is not a tick rhythm
 local MAX_MISSES = 2                   -- consecutive tickless casts that drop a learned spell
 local UNPAIRED_MAX = 2                  -- consecutive clear reads without the spell's ticks that drop it
-local MODES = { dot = "target", channel = "channel", hot = "hot" } -- kind -> Tracker mode
+local MODES = { dot = "target", channel = "channel" } -- kind -> Tracker mode
 local SIG_AGREE = 0.25                 -- a vote sig and a new base period may differ by this share
 local RATE_WINDOW = 12                 -- seconds of cast log counted towards luck
 local ALPHA = 0.01                     -- learned when luck alone gives these votes less often than this
@@ -321,9 +322,9 @@ function Learn.OnCast(castID, now)
     entry.lastCast = now
 end
 
--- A DoT learned under a cast with no meter row of its own is always struck by the net later, so a read drops the non-hot
--- sigs of every spell cast since `since` that the meter has no row for (heals have no damage row, so hot sigs stay) and
--- stops its dot and channel votes, in this fight too, until a read lists its row.
+-- A DoT learned under a cast with no meter row of its own is always struck by the net later, so a read drops the sigs
+-- of every spell cast since `since` that the meter has no row for and stops its votes, in this fight too, until a read
+-- lists its row.
 -- A learned dot or channel cast since `since` that drew nothing (`tally`, the fight's drawn totals) and has no row is
 -- struck as unpaired too: the net only judges drawn spells, and twins cast in one frame tie on every tick, so neither
 -- draws (Flame Shock 188389 and its rowless twin 470411 kept Flame Shock '?' for all 4 fights of run shaman4).
@@ -339,7 +340,7 @@ function Learn.RowsRead(rows, since, tally, frozen)
     end
     for spellID, entry in pairs(learned) do
         local cast, drawn = castAt[spellID], tally and tally[spellID]
-        if not frozen and entry.kind ~= "hot" and type(cast) == "number" and cast >= since and not listed[spellID]
+        if not frozen and type(cast) == "number" and cast >= since and not listed[spellID]
             and not drawn then
             Learn.Unpaired(spellID)
         end
@@ -347,11 +348,7 @@ function Learn.RowsRead(rows, since, tally, frozen)
     for spellID, entry in pairs(votes) do
         local cast = entry.lastCast
         if type(cast) == "number" and cast >= since and not listed[spellID] and not learned[spellID] then
-            local kept = {}
-            for _, sig in ipairs(entry.sigs) do
-                if sig.kind == "hot" then kept[#kept + 1] = sig end
-            end
-            entry.sigs = kept
+            entry.sigs = {}
             entry.rowless = true
         end
     end
@@ -394,7 +391,7 @@ local function WindowCasts(key, stream)
     local rows, order = {}, {}
     for _, cast in ipairs(ns.Streams.CastLog(key)) do
         local inside = cast.at >= stream.birth - RATE_WINDOW and cast.at <= stream.birth
-        local rowless = cast.kind ~= "hot" and votes[cast.castID] and votes[cast.castID].rowless -- RowsRead
+        local rowless = votes[cast.castID] and votes[cast.castID].rowless -- RowsRead
         if inside and not rowless and CanVote(cast.castID) then
             local row = rows[cast.castID]
             if not row then

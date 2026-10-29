@@ -57,14 +57,6 @@ return function(T)
         Check("meter off: damage taken still shows, without an icon",
             taken and taken.kind == "taken" and taken.texture == nil and taken.text == 4500)
 
-        T.Store().learned[RENEW] = { school = 2, period = 3, kind = "hot", misses = 0 }
-        ns.Learn.Init(T.Store())
-        rig.Cast(200, RENEW, nil)
-        local heals = {}
-        for k = 1, 3 do heals[k] = rig.Hit(200 + 3 * k, "player", "HEAL", 800, 2) end
-        Check("meter off: a learned HoT still draws every tick over the player", heals[1] and heals[2] and heals[3]
-            and heals[1].kind == "heal" and heals[1].texture == "tex:" .. RENEW and heals[3].texture == "tex:" .. RENEW)
-
         local ok = pcall(function()
             rig.Hit(300, "player", "HEAL", 800, 2) -- a heal nothing explains
             rig.Hit(301, "nameplate1", "MISS", nil, 32)

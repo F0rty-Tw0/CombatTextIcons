@@ -496,14 +496,14 @@ return function(T)
     local CORRUPTION_TICK, IMMOLATE_TICK, WITHER_TICK = 146739, 157736, 445474
     local LIGHTNING, LAVA_BURST, PAIN, RENEW = 188196, 51505, 594, 774
 
-    -- A booted addon whose character table holds: learned dot 594 (also a learned fingerprint) and hot 774, votes for
+    -- A booted addon whose character table holds: learned dot 594 (also a learned fingerprint), votes for
     -- 8092 (two sigs) and 8093 (three sigs tied on votes), fingerprints 188196 (learned) and 51505 (1 cast of 3). `spells` loads the fixture table as ns.Spells.
     local function RowsRig(spells)
         local function Sample(castAt) return { school = 4, delay = 0.25, castAt = castAt, hops = 1 } end
         local ns = T.Boot(function(S)
             S.spellNames = { [348] = "Immolate", [172] = "Corruption", [445468] = "Wither" }
             CombatTextIconsCharDB = {
-                learned = { [PAIN] = { school = 32, period = 2, kind = "dot" }, [RENEW] = { school = 2, period = 3, kind = "hot" } },
+                learned = { [PAIN] = { school = 32, period = 2, kind = "dot" } },
                 votes = {
                     [8092] = { casts = 6, sigs = {
                         { kind = "dot", school = 32, period = 3, votes = 1, expected = 0.2 },
@@ -662,9 +662,6 @@ return function(T)
         Check("rows: damage sections come before heal sections", IndexOf(rows, 1253171) < IndexOf(rows, 4242))
         local idle = ns.Panel.Rows(nil)
         Check("rows: nil fight", #idle > 0 and Find(idle, PAIN) ~= nil and Find(idle, PAIN).drawn == 0 and Find(idle, PAIN).hits == 0)
-        Check("rows: hot kind with no totals sits in the heal section", FindIn(idle, "heal", RENEW) ~= nil
-            and FindIn(idle, "damage", RENEW) == nil and FindIn(idle, "damage", DRAIN_LIFE) ~= nil
-            and FindIn(idle, "heal", DRAIN_LIFE) == nil)
     end)
 
     -- The plain view's words: status (+ why), This fight's share and the Meter check, per learn state.
@@ -692,7 +689,6 @@ return function(T)
             return row and (row.status .. " | " .. row.why .. " | " .. row.tone)
         end
         Check("status: a learned DoT reads 'Knows it' by tick rhythm", Words(PAIN) == "Knows it | tick rhythm | ok")
-        Check("status: a learned HoT reads 'Knows it' by tick rhythm", Words(RENEW) == "Knows it | tick rhythm | ok")
         Check("status: a fingerprint's strike is a warning", Words(LIGHTNING) == "Knows it, 1 warning | hit | warn")
         Check("status: a learned proc reads 'Knows it' by proc", Words(X) == "Knows it | proc | ok")
         Check("status: casts 1 of 3 reads 'Learning: 2 more casts'",
@@ -716,7 +712,6 @@ return function(T)
 
         for _, sig in ipairs(ns.Learn.Votes(8092).sigs) do sig.votes = 1 end
         ns.Learn.Missed(PAIN)
-        ns.Learn.Unpaired(RENEW)
         ns.Procs.Unpaired(X)
         local lava = ns.Fingerprints.Get(LAVA_BURST).samples
         lava[#lava + 1] = { school = 4, delay = 0.25, castAt = 2, hops = 1 }
@@ -726,7 +721,6 @@ return function(T)
         Check("status: casts 2 of 3 reads 'Learning: 1 more cast'",
             Words(LAVA_BURST) == "Learning: 1 more cast |  | warn")
         Check("status: a DoT's tickless cast is a warning", Words(PAIN) == "Knows it, 1 warning | tick rhythm | warn")
-        Check("status: a HoT's unpaired read is a warning", Words(RENEW) == "Knows it, 1 warning | tick rhythm | warn")
         Check("status: a proc's unpaired read is a warning", Words(X) == "Knows it, 1 warning | proc | warn")
         ns.Learn.Unpaired(PAIN)
         Check("status: a miss and an unpaired read are 2 warnings",
@@ -738,8 +732,7 @@ return function(T)
             stale.status == "Knows it, 2 warnings" and stale.group == "learned")
         local listed = {}
         for _, entry in ipairs(ns.Learn.List()) do listed[entry.spellID] = entry end
-        Check("Learn.List exposes misses and unpaired", listed[PAIN].misses == 1 and listed[PAIN].unpaired == 1
-            and listed[RENEW].misses == 0 and listed[RENEW].unpaired == 1)
+        Check("Learn.List exposes misses and unpaired", listed[PAIN].misses == 1 and listed[PAIN].unpaired == 1)
         local procs = {}
         for _, entry in ipairs(ns.Procs.List()) do procs[entry.spellID] = entry end
         Check("Procs.List exposes unpaired", procs[X].unpaired == 1 and procs[900001].unpaired == 0)
