@@ -1006,6 +1006,22 @@ do -- Phase 3: records and Claim
         end
         return WithProc(12) == "learned" and WithProc(32) == "ambiguous"
     end)
+    -- Run shamanele F3: the pet's Fire Blast 57984 (unlearned, one school-4 sample from F1's exact sum) cast 0.31 s
+    -- before a Lightning Bolt 188196 overload (school 8) turned it into '?'.
+    Scenario("claim: a cast whose unlearned samples all show another school spoils no sure hit; one of the hit's school does", function()
+        local function WithSamples(...)
+            local schools = { ... }
+            return AfterOther(function(n)
+                for index, school in ipairs(schools) do
+                    n.Fingerprints.Add(OTHER, { school = school, delay = 0, castAt = index, size = 58000 })
+                end
+            end)
+        end
+        return WithSamples(4) == "learned" and WithSamples(4, 4) == "learned" and WithSamples(4, 32) == "ambiguous"
+            and WithSamples(32) == "ambiguous" and AfterOther(function(n)
+                n.Fingerprints.Add(OTHER, { school = 4, delay = 0, castAt = 1, size = 58000 })
+            end, 10.2, 14000) == "ambiguous"
+    end)
     Scenario("claim: two learned records that both fit are 'ambiguous' with no record", function()
         local ns, S = Rig(function(n) Wand(n) Learn3(n, 585, 4, 0.2) end)
         Cast(ns, S, WAND, 10, "nameplate1")

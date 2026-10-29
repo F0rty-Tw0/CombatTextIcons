@@ -413,12 +413,19 @@ end
 -- Whether the logged cast `entry` cannot have made a hit of `school`, on what the meter taught: its base's row is a
 -- learned proc of another school (Flame Shock's school-12 hits, cast after a Lava Burst), or the meter showed the
 -- cast rowless (Learn.Rowless) and its base is no own row (Totemic Projection 108287 after a Lava Burst, run shaman4
--- fight 2).
+-- fight 2), or its unlearned fingerprint's samples (exact sums) are all of another school: run shamanele F3, the pet's
+-- Fire Blast 57984 (one school-4 sample from F1) cast 0.31 s before a Lightning Bolt 188196 overload of school 8.
 local function Harmless(entry, school)
     local proc = Procs.Get(entry.base)
     if proc then return proc.school ~= school end
+    if Learn.Rowless(entry.spellID) and not ownRows[entry.base] then return true end
+    local fp = Fingerprints.Get(entry.base)
+    local samples = fp and fp.samples or {}
+    for _, sample in ipairs(samples) do
+        if sample.school == school then return false end
+    end
 
-    return Learn.Rowless(entry.spellID) and not ownRows[entry.base]
+    return #samples > 0
 end
 
 -- A harmful non-tracker cast on `plate` within UNKNOWN_WAIT, after `since`, that no fingerprint
