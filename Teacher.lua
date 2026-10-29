@@ -447,6 +447,23 @@ local function Groups(unknown)
     return list
 end
 
+-- Whether `hit` alone is the whole of an open row (total, up to its overkill) that is neither `castID`'s nor aliased
+-- to it: a one-hit row's hit, not the cast's. Run shaman5 F9: 40935 (row 157348) and 25142 (row 1310088) landed in
+-- Lightning Bolt 188196's windows, and every hit there summed 291200 against its row's 225123, the rest exactly.
+local function LoneRow(open)
+    return function(hit, castID)
+        for _, item in ipairs(open) do
+            local row = item.row
+            if row.spellID ~= castID and Fingerprints.Alias(row.spellID) ~= castID
+                and hit.amount >= row.total and hit.amount <= row.total + row.overkill then
+                return true
+            end
+        end
+
+        return false
+    end
+end
+
 -- Groups each base's '?' hits by school through their candidates (Casts.Candidates), not the sole
 -- cast: a hit whose frame also holds another spell's cast has no sole cast, so its own cast's group misses it
 -- (run lock F1: both Haunt 48181 hits shared a frame with Darkglare or Unstable Affliction, and the two summed
@@ -463,7 +480,8 @@ end
 -- `all` = { castID, sum, hits, castOf } is every hit of the group, not only each cast's largest: Elemental Overload
 -- lands on the bolt's plate ~0.45x its size, and Lightning Bolt 188196's row holds both (ele log F3: 63230 + 28817 +
 -- 64483 + 26106 + 25821 = row 208457), so its cand stays under the row. It pairs only in short fights (SHORT_CASTS).
-local function CandidateGroups(unknown, spent)
+-- `all` leaves out each hit `Lone(hit, castID)` names the whole of another row.
+local function CandidateGroups(unknown, spent, Lone)
     local byKey, list = {}, {}
     for _, hit in ipairs(unknown) do
         local newest = {}
@@ -485,9 +503,11 @@ local function CandidateGroups(unknown, spent)
                 byKey[key] = group
                 list[#list + 1] = group
             end
-            group.all.sum = group.all.sum + hit.amount
-            group.all.hits[#group.all.hits + 1] = hit
-            group.all.castOf[hit] = candidate
+            if not Lone(hit, castID) then
+                group.all.sum = group.all.sum + hit.amount
+                group.all.hits[#group.all.hits + 1] = hit
+                group.all.castOf[hit] = candidate
+            end
             local top = group.topOf[candidate.castAt]
             if not top or hit.amount > top.amount then
                 group.topOf[candidate.castAt] = hit
@@ -801,7 +821,7 @@ local function Learn(run, results, open, rows)
     for _, way in ipairs(learned) do
         for _, hit in ipairs(way.hits) do spent[hit] = true end
     end
-    local candGroups, candSeen = CandidateGroups(run.unknown, spent), { rows = seen.rows, groups = {} }
+    local candGroups, candSeen = CandidateGroups(run.unknown, spent, LoneRow(open)), { rows = seen.rows, groups = {} }
     Pass(candGroups, open, owners, function(group) return group.cand end, candSeen, results, learned, rewritten)
     Pass(candGroups, open, owners, function(group) return group.all end, candSeen, results, learned, rewritten)
     Teacher.Yield()

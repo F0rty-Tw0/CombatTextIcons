@@ -1990,6 +1990,18 @@ return function(T)
             Check("candidates: with 4 casts every hit's sum (5800) stays out for the steady pass -> "
                 .. "Z learns its 4 bolts",
                 last.learned[Z] == 4 and #F.Get(Z).samples == 4 and F.Get(Z).samples[4].size == 1000)
+
+            -- Run shaman5 F9: two lone '?' hits in Lightning Bolt's windows were each another row whole (40935 = row
+            -- 157348, 25142 = row 1310088); every hit summed 291200 against the bolt's 225123. A 700 hit in the second
+            -- cast's window is row Y's whole: the bolts and overloads still meet row 4350.
+            local lone = Bolts({ 60, 65, 70 }, true)
+            lone[#lone + 1] = { 32, 700, "", nil, 65.9, { Candidate(Z, 65) } }
+            rig = Rig({})
+            ReadWith(rig, lone, { { Z, 4350 }, { Y, 700 } })
+            F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            Check("candidates: a hit that is another row whole (700 = row Y) stays out of a short kill's every-hit sum "
+                .. "-> Z learned from its 6 hits",
+                last.learned[Z] == 6 and Find(last, Z).verdict == "agree" and #F.Get(Z).samples == 6)
         end
 
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks
