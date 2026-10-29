@@ -12,8 +12,9 @@
 --           [low, high]; `with` = another helpful cast on the same stamp (a totem going out with Chain Heal)
 --   fixed   a castless proc (id) of one size, `crit` its crit chance (a crit is twice the size); `on` = a cast
 --           source's ID: it lands on that cast's stamp, else at random
---   train   ticks of `size` (jitter `spread`) every `period` s, `ticks` of them after each cast of `cast` (nil:
---           castless, starting at random)
+--   train   ticks of `size` (jitter `spread`) every `period` s (each tick `late` s late at most), `ticks` of them
+--           after each cast of `cast` (nil: castless, starting at random); `after` = a cast that starts the train
+--           without being its spell (a proc of the cast under another ID: drawn under that cast, it is wrong)
 --   leech   `ratio` of each of your hits, on the hit's stamp (`id` DAMAGE_ID: the damage spell heals, a drain)
 --   foreign another player's heals on you (unit player) or on a party member (`unit`): never a row
 -- Scored per heal: right (drawn under its true ID or its cast's), wrong (drawn under another ID, or a foreign heal
@@ -59,6 +60,28 @@ local CASES = {
         { kind = "leech", id = DAMAGE_ID, ratio = 7 },
         { kind = "foreign", size = { 20000, 60000 }, rate = 3 },
     } },
+    -- A HoT's ticks after its own cast, beside a castless rune train, a fixed proc and foreign heals on you
+    { name = "hot after its cast", fights = 8, pressure = 0.04, sources = {
+        { kind = "train", id = 139, cast = 139, size = 9000, spread = 0.1, crit = 0.1, period = 1.5, late = 0.05,
+            ticks = 8, rate = 2 },
+        { kind = "train", id = 1287665, size = 720, period = 1, ticks = 10, rate = 1 },
+        { kind = "fixed", id = 1287908, size = 5763, crit = 0.3, rate = 2 },
+        { kind = "foreign", size = { 5000, 40000 }, rate = 6 },
+    } },
+    -- shamanheal: each totem goes out on a Chain Heal's stamp, and Chain Heal also goes out alone
+    { name = "totem beside chain heal", fights = 8, pressure = 0.06, sources = {
+        { kind = "cast", id = 1064, low = 40000, high = 130000, rate = 2 },
+        { kind = "cast", id = 1064, low = 40000, high = 130000, rate = 1, with = 5394 },
+        { kind = "train", id = 5394, cast = 5394, size = 14000, spread = 0.1, crit = 0.1, period = 1.5, late = 0.05,
+            ticks = 12 },
+        { kind = "foreign", size = { 5000, 30000 }, rate = 4 },
+    } },
+    -- paladin: Word of Glory starts a 720 rune train under the rune's ID, which also runs with no cast
+    { name = "proc train on a cast", fights = 8, pressure = 0.04, sources = {
+        { kind = "cast", id = 85673, low = 70000, high = 90000, crit = 0.2, rate = 3 },
+        { kind = "train", id = 1287665, after = 85673, size = 720, period = 1, late = 0.02, ticks = 8 },
+        { kind = "train", id = 1287665, size = 720, period = 1, ticks = 8, rate = 1 },
+    } },
 }
 
 local function Stamp(t) return string.format("%.3f", t) end
@@ -99,8 +122,8 @@ local function FightEvents(case, rand, t0)
                 end
             end
         elseif source.kind == "train" then
-            local starts = source.cast and castStamps[source.cast] or {}
-            if not source.cast then for _ = 1, source.rate do starts[#starts + 1] = At() end end
+            local starts = castStamps[source.cast or source.after] or {}
+            if not (source.cast or source.after) then for _ = 1, source.rate do starts[#starts + 1] = At() end end
             if source.cast and #starts == 0 then
                 for _ = 1, source.rate or 1 do
                     local t = At()
@@ -112,8 +135,9 @@ local function FightEvents(case, rand, t0)
                 for tick = 1, source.ticks do
                     local crit = rand() < (source.crit or 0)
                     local size = math.floor(source.size * (1 + (source.spread or 0) * (2 * rand() - 1)))
-                    Add({ t = start + tick * source.period, id = source.id, unit = "player", raw = crit and 2 * size or size,
-                        crit = crit })
+                    local late = source.late and rand() * source.late or 0
+                    Add({ t = start + tick * source.period + late, id = source.id, unit = "player",
+                        raw = crit and 2 * size or size, crit = crit })
                 end
             end
         elseif source.kind == "leech" then
@@ -178,6 +202,7 @@ local function CaseIDs(case)
     for _, source in ipairs(case.sources) do
         if source.kind == "cast" then helpful[#helpful + 1] = source.id end
         if source.with then helpful[#helpful + 1] = source.with end
+        if source.kind == "train" and source.cast then helpful[#helpful + 1] = source.cast end
         if source.id then
             accepts[source.id] = { [source.id] = true }
             if source.cast then accepts[source.id][source.cast] = true end
@@ -207,8 +232,7 @@ local function Score(case, seed)
             byID[key] = stat
             local named = NamedID(heal.shown)
             local field = named and ((id and accepts[id][named]) and "right" or "wrong")
-                or heal.shown and "unknown" or "hidden"
-            for _, into in ipairs({ total, stat }) do
+                or heal.shown and "unknown" or "hidden"            for _, into in ipairs({ total, stat }) do
                 into.raw, into[field] = into.raw + amount, into[field] + amount
             end
         end
