@@ -20,7 +20,14 @@
 -- overheal and healed only you in that fight (druid's Frenzied Regeneration row 217748 = 4 x 54437). Checked per row,
 -- never assumed per fight: a healer's fight overheals, so its rows match no sum (shamanheal). SIZE_READS reads of
 -- one size teach it; then each heal on you of that size is the row's, cast or not, unless two learned rows share it.
--- Core's waiting heals ask Heals.Claim which of a frame's heals a learned size or its helpful casts made.
+-- Coupled heals: a spell that heals you a fixed share k of each of its hits, on the hit's stamp (Devouring Plague
+-- 335467 heals 0.3 x its hit, priest3; Drain Life 234153 heals 7 x its tick, lock3). When a clear read's hits drawn
+-- under an ID that is also one of its heal rows share one k with the heals on you on their stamps (the raw amounts:
+-- a crit hit heals twice), that k is a sample; COUPLE_READS reads of one k teach it, and a heal on you that is k x a
+-- hit drawn under that ID in its frame is that ID's, unless another learned ID's k fits a hit of the frame too. A
+-- heal under another ID than its hit's is not learned: lock's Drain Life heals log under 1272114, a row the
+-- player's raw cannot sum (it heals the pet too), and each read lists the same three rows.
+-- Core's waiting heals ask Heals.Claim which of a frame's heals a learned size, coupled hit or helpful cast made.
 -- Kept apart from the damage stores: an ID can be both a damage and a heal row (Healing Rain 73921).
 -- Saved data is checked on load and never trusted.
 
@@ -49,6 +56,11 @@ local PAD_LO, PAD_HI = 0.7, 2
 local SIZE_TOL, SUM_TOL = 1, 1
 local SIZE_READS = 2    -- reads whose row matched one size teach it
 local SIZE_CAP = 32     -- sizes kept; the one seen least recently goes first
+-- A coupled heal is k x its hit within COUPLE_TOL (the game rounds: 0.3 x 2391 heals 717). COUPLE_PAIRS heals of one k
+-- in a read sample it: priest3's clear fights hold 1 to 9 heals next to a hit drawn 335467.
+local COUPLE_TOL, COUPLE_PAIRS = 1, 3
+local COUPLE_READS = 2  -- reads of one k teach it
+local COUPLE_CAP = 32   -- couples kept; the one seen least recently goes first
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -63,6 +75,9 @@ local heals = {}
 -- the spec store's `healSizes` = { [heal row ID] = { size, reads, seen } }: the size its last matching read gave
 -- (normal scale), the reads in a row that matched it, and the read that last matched it
 local sizes = {}
+-- the spec store's `healCouples` = { [spell ID] = { lo, hi, reads, seen } }: the span of k its reads agreed on, the
+-- reads in a row that sampled it, and the read that last did
+local couples = {}
 local reads = 0
 
 -- Whether two samples are a twin: the same size within TWIN of the bigger.
@@ -95,13 +110,32 @@ local function SizeRow(size)
     return found
 end
 
--- Whether any heal or size is learned: only then do Core's heals on you wait for their frame.
+-- The ID whose learned k makes a heal of `amount` (raw) from one of `hits` ({ spellID, amount }, the frame's drawn
+-- hits), nil when none does or two IDs do.
+local function CoupleRow(amount, hits)
+    if not IsNumber(amount) then return nil end
+    local found
+    for _, hit in ipairs(hits) do
+        local entry, hitAmount = couples[hit.spellID], hit.amount
+        if entry and entry.reads >= COUPLE_READS and IsNumber(hitAmount) and hitAmount > 0
+            and amount >= entry.lo * hitAmount - COUPLE_TOL and amount <= entry.hi * hitAmount + COUPLE_TOL then
+            if found and found ~= hit.spellID then return nil end
+            found = hit.spellID
+        end
+    end
+    return found
+end
+
+-- Whether any heal, size or couple is learned: only then do Core's heals on you wait for their frame.
 function Heals.AnyLearned()
     for _, entry in pairs(heals) do
         if Learned(entry) then return true end
     end
     for _, entry in pairs(sizes) do
         if entry.reads >= SIZE_READS then return true end
+    end
+    for _, entry in pairs(couples) do
+        if entry.reads >= COUPLE_READS then return true end
     end
     return false
 end
@@ -129,12 +163,13 @@ local function Band(spellID)
     return Range(entry)
 end
 
--- Which of one frame's waiting heals (each { size }) a learned size or its helpful casts made: claims[index] = spell
--- ID. A heal of a learned size is its row's first; then each learned cast, in cast order, takes the largest heal
--- inside its padded band that nothing took before.
-function Heals.Claim(castIDs, waiting)
+-- Which of one frame's waiting heals (each { size, amount }) a learned size, its drawn hits (`hits`, each { spellID,
+-- amount }; nil: none) or its helpful casts made: claims[index] = spell ID. A heal of a learned size is its row's
+-- first, then one a learned k makes from a drawn hit is that hit's; then each learned cast, in cast order, takes the
+-- largest heal inside its padded band that nothing took before.
+function Heals.Claim(castIDs, waiting, hits)
     local claims = {}
-    for index, heal in ipairs(waiting) do claims[index] = SizeRow(heal.size) end
+    for index, heal in ipairs(waiting) do claims[index] = SizeRow(heal.size) or CoupleRow(heal.amount, hits or {}) end
     for _, castID in ipairs(castIDs) do
         local low, high = Band(castID)
         local best
@@ -209,17 +244,17 @@ local function SizeRuns(fightHeals)
     return kept
 end
 
--- Drops the size seen least recently once SIZE_CAP are kept.
-local function EvictSize()
+-- Drops the entry of `entries` seen least recently once `cap` are kept.
+local function EvictOldest(entries, cap)
     local count, oldestID = 0, nil
-    for spellID, entry in pairs(sizes) do
+    for spellID, entry in pairs(entries) do
         count = count + 1
-        local oldest = sizes[oldestID]
+        local oldest = entries[oldestID]
         if not oldest or entry.seen < oldest.seen or (entry.seen == oldest.seen and spellID < oldestID) then
             oldestID = spellID
         end
     end
-    if count >= SIZE_CAP then sizes[oldestID] = nil end
+    if count >= cap then entries[oldestID] = nil end
 end
 
 -- One read's sample of `spellID`'s size: the same size as its last adds a read, another starts over.
@@ -228,7 +263,7 @@ local function SampleSize(spellID, size)
     if entry and math.abs(entry.size - size) <= SIZE_TOL then
         entry.reads = entry.reads + 1
     else
-        if not entry then EvictSize() end
+        if not entry then EvictOldest(sizes, SIZE_CAP) end
         entry = { reads = 1 }
         sizes[spellID] = entry
     end
@@ -261,14 +296,78 @@ local function LearnSizes(fightHeals, rows)
     end
 end
 
+-- The k most of `list` ({ heal, hit } amounts) share: the span [lo, hi] inside the band of every one of them (heal
+-- +- COUPLE_TOL over hit), and how many they are.
+local function SharedShare(list)
+    local edges = {}
+    for _, pair in ipairs(list) do
+        edges[#edges + 1] = { at = (pair.heal - COUPLE_TOL) / pair.hit, step = 1 }
+        edges[#edges + 1] = { at = (pair.heal + COUPLE_TOL) / pair.hit, step = -1 }
+    end
+    table.sort(edges, function(a, b) return a.at < b.at or (a.at == b.at and a.step > b.step) end)
+    local count, best, lo, hi = 0, 0, nil, nil
+    for index, edge in ipairs(edges) do
+        count = count + edge.step
+        if edge.step == 1 and count > best then best, lo, hi = count, edge.at, edges[index + 1].at end
+    end
+
+    return best, lo, hi
+end
+
+-- One read's sample of `spellID`'s k span: a span that meets its last adds a read and keeps their overlap, another
+-- starts over.
+local function SampleCouple(spellID, lo, hi, count)
+    local entry = couples[spellID]
+    if entry and lo <= entry.hi and hi >= entry.lo then
+        entry.lo, entry.hi, entry.reads = math.max(lo, entry.lo), math.min(hi, entry.hi), entry.reads + 1
+    else
+        if not entry then EvictOldest(couples, COUPLE_CAP) end
+        entry = { lo = lo, hi = hi, reads = 1 }
+        couples[spellID] = entry
+    end
+    entry.seen = reads
+    if ns.Debug then
+        ns.Debug("TEACH healcouple %d k=%.4f-%.4f pairs=%d reads=%d -> %s", spellID, entry.lo, entry.hi, count,
+            entry.reads, entry.reads >= COUPLE_READS and "learned" or "open")
+    end
+end
+
+-- Each ID of a clear read's drawn hits (`drawn`, each { spellID, amount, at }) that is also one of its heal rows
+-- (`own`): when COUPLE_PAIRS of the heals on you on its hits' stamps share one k, that k is a sample.
+local function LearnCouples(fightHeals, drawn, own)
+    local healsAt = {} -- by stamp: the raw amounts of the heals on you
+    for _, heal in ipairs(fightHeals) do
+        if IsNumber(heal.amount) and heal.amount > 0 then
+            healsAt[heal.at] = healsAt[heal.at] or {}
+            table.insert(healsAt[heal.at], heal.amount)
+        end
+    end
+    local byID = {} -- by hit ID: its { heal, hit } pairs
+    for _, hit in ipairs(drawn) do
+        local spellID, amount = hit.spellID, hit.amount
+        if own[spellID] and IsNumber(amount) and amount > 0 then
+            for _, heal in ipairs(healsAt[hit.at] or {}) do
+                byID[spellID] = byID[spellID] or {}
+                table.insert(byID[spellID], { heal = heal, hit = amount })
+            end
+        end
+    end
+    for spellID, list in pairs(byID) do
+        local count, lo, hi = SharedShare(list)
+        if count >= COUPLE_PAIRS then SampleCouple(spellID, lo, hi, count) end
+    end
+end
+
 -- A clear solo read: the fight's heals on you ({ size, amount, at }), its helpful casts ({ spellID, at }), the
--- session's healing-done `rows` and the fight's `duration` in seconds.
-function Heals.Learn(fightHeals, helps, rows, duration)
+-- session's healing-done `rows`, the fight's `duration` in seconds and its drawn hits (`drawn`, each { spellID,
+-- amount, at }; nil: none).
+function Heals.Learn(fightHeals, helps, rows, duration, drawn)
     if not (IsNumber(duration) and duration > 0) then return end
     reads = reads + 1
     LearnSizes(fightHeals, rows)
     local own = {}
     for _, row in ipairs(rows) do own[row.spellID] = true end
+    LearnCouples(fightHeals, drawn or {}, own)
     -- by stamp: the largest heal no learned size names (a cast's own heal, not the proc on its stamp)
     local largest, stamped, stamps = {}, {}, 0
     for _, heal in ipairs(fightHeals) do
@@ -324,6 +423,7 @@ end
 function Heals.Forget()
     for spellID in pairs(heals) do heals[spellID] = nil end
     for spellID in pairs(sizes) do sizes[spellID] = nil end
+    for spellID in pairs(couples) do couples[spellID] = nil end
 end
 
 -- Keeps each saved entry of a spell ID with whole counts (hits no more than casts), a finite expected count from 0
@@ -356,6 +456,15 @@ local function ValidSize(entry)
     return { size = entry.size, reads = entry.reads, seen = 0 }
 end
 
+-- Keeps a saved couple with a finite span 0 < lo <= hi and a whole count of reads from 1; drops the rest.
+local function ValidCouple(entry)
+    if type(entry) ~= "table" or not (IsNumber(entry.lo) and IsNumber(entry.hi)) then return nil end
+    if not (entry.lo > 0 and entry.lo <= entry.hi and entry.hi < math.huge) then return nil end
+    if not (IsCount(entry.reads) and entry.reads >= 1) then return nil end
+
+    return { lo = entry.lo, hi = entry.hi, reads = entry.reads, seen = 0 }
+end
+
 -- The saved entries of `saved` (a table, else none) whose spell ID is valid and `valid` keeps.
 local function Kept(saved, valid)
     local kept = {}
@@ -369,5 +478,6 @@ end
 
 function Heals.Init(charDB)
     heals, sizes, reads = Kept(charDB.heals, Valid), Kept(charDB.healSizes, ValidSize), 0
-    charDB.heals, charDB.healSizes = heals, sizes
+    couples = Kept(charDB.healCouples, ValidCouple)
+    charDB.heals, charDB.healSizes, charDB.healCouples = heals, sizes, couples
 end

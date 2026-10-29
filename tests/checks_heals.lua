@@ -215,6 +215,92 @@ return function(T)
             saved[ORDER] == nil and saved[CHAIN_HEAL] == nil and saved[0.5] == nil and saved[5394] == nil)
     end
 
+    do -- coupled heals: a drawn hit's ID that is a heal row and heals you one share k of the hit on its stamp
+        local DRAIN, PLAGUE, OTHER = 234153, 335467, 1287908
+        local function Rows(...)
+            local rows = {}
+            for index, id in ipairs({ ... }) do rows[index] = Row(id) end
+            return rows
+        end
+        local function CoupleOf(spellID) return (T.Store().healCouples or {})[spellID] or {} end
+        -- lock3: Drain Life ticks of `ticks` sizes, each healing you 7 x the tick on its stamp (a crit tick heals
+        -- twice), beside a 5000 heal on every stamp; `share` overrides 7. Returns heals, drawn.
+        local function DrainRead(ticks, share)
+            local heals, drawn = {}, {}
+            for k, tick in ipairs(ticks) do
+                local at = 10 * k
+                drawn[#drawn + 1] = { spellID = DRAIN, amount = tick, at = at }
+                heals[#heals + 1] = { size = 5000, amount = 5000, at = at }
+                heals[#heals + 1] = { size = (share or 7) * tick, amount = (share or 7) * tick, at = at }
+            end
+            return heals, drawn
+        end
+        local ns = T.Boot()
+        local H = ns.Heals
+        local heals, drawn = DrainRead({ 1413, 2827, 1414 })
+        H.Learn(heals, {}, Rows(DRAIN), 100, drawn)
+        Check("couples: one read of three heals at 7 x their hits teaches nothing yet",
+            CoupleOf(DRAIN).reads == 1 and not H.AnyLearned())
+        heals, drawn = DrainRead({ 1281, 2562, 1281 })
+        H.Learn(heals, {}, Rows(DRAIN, OTHER), 100, drawn)
+        local entry = CoupleOf(DRAIN)
+        Check("couples: a second read of the same k learns it, its span inside both reads' shares",
+            entry.reads == 2 and H.AnyLearned() and entry.lo <= 7 and entry.hi >= 7 and entry.hi - entry.lo < 0.001)
+        local hits = { { spellID = DRAIN, amount = 1413 } }
+        local claims = H.Claim({}, { { size = 9891, amount = 9891 }, { size = 9900, amount = 9900 },
+            { size = 5000, amount = 5000 } }, hits)
+        Check("couples: a heal of k x a frame's drawn hit is that hit's; another amount is not",
+            claims[1] == DRAIN and claims[2] == nil and claims[3] == nil)
+        Check("couples: a frame with no drawn hit of the ID claims nothing",
+            next(H.Claim({}, { { size = 9891, amount = 9891 } }, { { spellID = OTHER, amount = 1413 } })) == nil
+            and next(H.Claim({}, { { size = 9891, amount = 9891 } })) == nil)
+
+        -- Devouring Plague's 0.3: its hit of 33320 and Drain Life's tick of 1428 both make a 9996 heal
+        for _ = 1, 2 do
+            heals, drawn = DrainRead({ 33310, 7490, 6670 }, 0.3)
+            for _, hit in ipairs(drawn) do hit.spellID = PLAGUE end
+            H.Learn(heals, {}, Rows(PLAGUE), 100, drawn)
+        end
+        claims = H.Claim({}, { { size = 9996, amount = 9996 }, { size = 9891, amount = 9891 } },
+            { { spellID = PLAGUE, amount = 33320 }, { spellID = DRAIN, amount = 1428 }, { spellID = DRAIN, amount = 1413 } })
+        Check("couples: a heal two learned IDs' k both fit is neither's; one only Drain Life's k fits is its",
+            claims[1] == nil and claims[2] == DRAIN)
+        for _ = 1, 2 do H.Learn({ { size = 9891, amount = 9891, at = 5 } }, {}, { { spellID = OTHER, total = 9891,
+            overkill = 0 } }, 100) end
+        Check("couples: a learned size claims before a couple", H.Claim({}, { { size = 9891, amount = 9891 } },
+            { { spellID = DRAIN, amount = 1413 } })[1] == OTHER)
+
+        heals, drawn = DrainRead({ 1413, 1500, 1600 }, 5)
+        H.Learn(heals, {}, Rows(DRAIN), 100, drawn)
+        Check("couples: a read of another k starts the ID over, unlearned",
+            CoupleOf(DRAIN).reads == 1 and CoupleOf(DRAIN).lo > 4.99)
+        H.Forget()
+        Check("couples: /cti forget drops the couples", next(T.Store().healCouples or {}) == nil and not H.AnyLearned())
+
+        heals, drawn = DrainRead({ 1413, 2827, 1414 })
+        H.Learn(heals, {}, Rows(OTHER), 100, drawn)
+        Check("couples: a hit ID that is no heal row of the read samples nothing", CoupleOf(DRAIN).reads == nil)
+        heals, drawn = DrainRead({ 1413, 2827 })
+        H.Learn(heals, {}, Rows(DRAIN), 100, drawn)
+        Check("couples: two heals at one k sample nothing", CoupleOf(DRAIN).reads == nil)
+        heals, drawn = DrainRead({ 1413, 2827, 1414 })
+        heals[4].amount = 9000 -- the 2nd stamp's heal is no 7 x 2827
+        H.Learn(heals, {}, Rows(DRAIN), 100, drawn)
+        Check("couples: a heal off its share leaves two of one k: nothing", CoupleOf(DRAIN).reads == nil)
+
+        -- the saved couples are checked, never trusted
+        ns = T.Boot(function()
+            CombatTextIconsCharDB = { healCouples = { [DRAIN] = { lo = 6.9999, hi = 7.0001, reads = 2 },
+                [PLAGUE] = { lo = 0.31, hi = 0.29, reads = 2 }, [OTHER] = { lo = 0, hi = 1, reads = 2 },
+                [5394] = { lo = 1, hi = 1, reads = 0 }, [0.5] = { lo = 1, hi = 1, reads = 2 }, [1064] = "junk" } }
+        end)
+        local saved = T.Store().healCouples or {}
+        Check("couples: a valid saved couple loads learned", ns.Heals.Claim({}, { { size = 9891, amount = 9891 } },
+            { { spellID = DRAIN, amount = 1413 } })[1] == DRAIN)
+        Check("couples: saved couples with a bad span, read count or ID, or junk, are dropped", saved[PLAGUE] == nil
+            and saved[OTHER] == nil and saved[5394] == nil and saved[0.5] == nil and saved[1064] == nil)
+    end
+
     do -- the saved store is checked, never trusted
         local ns = T.Boot(function()
             CombatTextIconsCharDB = { heals = {
@@ -398,4 +484,5 @@ return function(T)
         Check("heals core: with no heal learned a heal on you draws '?' in its own call, as before",
             rig.draws[1] == rig.ns.Meter.UNKNOWN_ICON and #rig.S.timers == 0)
     end
+
 end
