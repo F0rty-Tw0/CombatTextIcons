@@ -1,12 +1,14 @@
--- Unit checks for the learned direct heals (Heals.lua): learning from a clear read's heals and helpful casts, the
--- claim of a frame's heals, the saved store's checks. Called by tests/checks.lua with the same T table.
--- Every scenario boots its own rig; a Boot replaces the global stubs.
+-- Unit checks for the learned direct heals and fixed sizes (Heals.lua): learning from a clear read's heals, helpful
+-- casts and rows, the claim of a frame's heals, the saved store's checks. Called by tests/checks.lua with the same T
+-- table. Every scenario boots its own rig; a Boot replaces the global stubs.
 
 return function(T)
     local Check = T.Check
     local CHAIN_HEAL, RIPTIDE, PROC = 1064, 61295, 999001
 
     local function Row(spellID) return { spellID = spellID, total = 1, overkill = 0 } end
+    -- The saved size entry of `spellID`, {} when none: a store with no sizes fails a check, not the whole file.
+    local function SizeOf(spellID) return (T.Store().healSizes or {})[spellID] or {} end
 
     -- A fight of `casts` helpful casts of `spellID`, one per 10 s from t = 10; `heal(k)` is the k-th cast's
     -- heals on its stamp ({ size, ... }), after a 5000 proc on every stamp (shamanheal's Healing Wave frames log
@@ -148,6 +150,71 @@ return function(T)
             and next(T.Store().heals) == nil)
     end
 
+    do -- fixed sizes: a row equal to the sum of the fight's heals of one size teaches that size
+        local RUNE, ORDER = 1287908, 1260079
+        local function Sized(spellID, total) return { spellID = spellID, total = total, overkill = 0 } end
+        -- priest3 F9: Rune of Self-Mending heals 5763, 5763 and a 11526 crit (5763 at normal scale) beside a 40000
+        local function RuneHeals()
+            return { { size = 5763, amount = 5763, at = 10 }, { size = 5763.5, amount = 11527, at = 20 },
+                { size = 5763, amount = 5763, at = 30 }, { size = 40000, amount = 40000, at = 40 } }
+        end
+        local ns = T.Boot()
+        local H = ns.Heals
+        H.Learn(RuneHeals(), {}, { Sized(RUNE, 23053), Sized(CHAIN_HEAL, 39000) }, 100)
+        Check("sizes: one read whose row is one size's sum teaches nothing yet",
+            not H.AnyLearned() and SizeOf(RUNE).reads == 1 and SizeOf(CHAIN_HEAL).size == nil)
+        H.Learn(RuneHeals(), {}, { Sized(RUNE, 23054) }, 100)
+        Check("sizes: a second read of that size learns it", H.AnyLearned() and SizeOf(RUNE).reads == 2)
+        local claims = H.Claim({}, { { size = 5763 }, { size = 5764 }, { size = 5766 }, { size = nil } })
+        Check("sizes: a heal of the learned size is its row's with no cast; another size or none is not",
+            claims[1] == RUNE and claims[2] == RUNE and claims[3] == nil and claims[4] == nil)
+
+        H.Learn(RuneHeals(), {}, { Sized(ORDER, 23053), Sized(RUNE, 23053) }, 100)
+        Check("sizes: two rows equal to one size's sum sample neither", SizeOf(ORDER).size == nil
+            and SizeOf(RUNE).reads == 2)
+        H.Learn(RuneHeals(), {}, { Sized(RUNE, 20000) }, 100)
+        Check("sizes: a row that is no size's sum (it overhealed) samples nothing",
+            SizeOf(RUNE).reads == 2)
+
+        -- 1263002 and Rune of Self-Mending both 11527 in one store
+        H.Learn({ { size = 11527, amount = 11527, at = 10 } }, {}, { Sized(1263002, 11527) }, 100)
+        H.Learn({ { size = 11527, amount = 11527, at = 10 } }, {}, { Sized(1263002, 11527) }, 100)
+        Check("sizes: a second row learns its own size", H.Claim({}, { { size = 11527 } })[1] == 1263002)
+        for _ = 1, 2 do
+            H.Learn({ { size = 11526, amount = 11526, at = 10 } }, {}, { Sized(ORDER, 11526) }, 100)
+        end
+        Check("sizes: a size two learned rows share names neither", next(H.Claim({}, { { size = 11527 } })) == nil)
+        H.Learn({ { size = 6046, amount = 6046, at = 10 } }, {}, { Sized(ORDER, 6046) }, 100)
+        Check("sizes: a read of another size starts the row over, unlearned",
+            SizeOf(ORDER).reads == 1 and SizeOf(ORDER).size == 6046
+            and H.Claim({}, { { size = 11527 } })[1] == 1263002)
+
+        -- a learned size claims before a cast, and is no cast's sample: paladin's Word of Glory stamps hold a proc
+        ns = T.Boot()
+        H = ns.Heals
+        for _ = 1, 2 do H.Learn({ { size = 50000, amount = 50000, at = 5 } }, {}, { Sized(ORDER, 50000) }, 100) end
+        local heals, helps = Fight(CHAIN_HEAL, 3)
+        for k = 1, 3 do heals[#heals + 1] = { size = 50000, amount = 50000, at = 10 * k } end
+        H.Learn(heals, helps, { Sized(CHAIN_HEAL, 1) }, 100)
+        Check("sizes: a cast's sample is the largest heal on its stamp that no learned size names",
+            T.Store().heals[CHAIN_HEAL].sizes[1] == 40000 and H.IsLearned(CHAIN_HEAL))
+        claims = H.Claim({ CHAIN_HEAL }, { { size = 50000 }, { size = 40000 } })
+        Check("sizes: a heal of a learned size goes to its row; the cast takes the next in its band",
+            claims[1] == ORDER and claims[2] == CHAIN_HEAL)
+        H.Forget()
+        Check("sizes: /cti forget drops the learned sizes", not H.AnyLearned() and next(T.Store().healSizes or {}) == nil)
+
+        -- the saved sizes are checked, never trusted
+        ns = T.Boot(function()
+            CombatTextIconsCharDB = { healSizes = { [RUNE] = { size = 5763, reads = 2 }, [ORDER] = { size = -1, reads = 2 },
+                [CHAIN_HEAL] = { size = 40000, reads = 0.5 }, [0.5] = { size = 5763, reads = 2 }, [5394] = "junk" } }
+        end)
+        local saved = T.Store().healSizes or {}
+        Check("sizes: a valid saved size loads learned", ns.Heals.Claim({}, { { size = 5763 } })[1] == RUNE)
+        Check("sizes: saved sizes with a bad size, read count or ID, or junk, are dropped",
+            saved[ORDER] == nil and saved[CHAIN_HEAL] == nil and saved[0.5] == nil and saved[5394] == nil)
+    end
+
     do -- the saved store is checked, never trusted
         local ns = T.Boot(function()
             CombatTextIconsCharDB = { heals = {
@@ -231,6 +298,24 @@ return function(T)
         FireAll(S)
         Check("heals: a carried fight's heals and casts join the next fight's read", ns.Heals.IsLearned(CHAIN_HEAL)
             and T.Store().heals[CHAIN_HEAL].casts == 3)
+
+        -- two clear reads whose Rune of Self-Mending row is its heals' amounts summed: 5763 + a 11527 crit
+        ns = T.Boot()
+        ns.Teacher.area = "clear"
+        S = T.State()
+        for _ = 1, 2 do
+            local session = Session({})
+            session.healRows = { { spellID = 1287908, totalAmount = 17290, overkillAmount = 0 } }
+            S.sessions = { session }
+            ns.Teacher.Start(1)
+            ns.Teacher.Seen(53)
+            ns.Teacher.Healed(5763, "", 10)
+            ns.Teacher.Healed(11527, "CRITICAL", 20)
+            ns.Teacher.Finish(100)
+            FireAll(S)
+        end
+        Check("heals: the fight's heal amounts reach the teacher, and a row of one size's sum learns it",
+            SizeOf(1287908).reads == 2 and ns.Heals.AnyLearned())
     end
 
     -- Core wiring: once Chain Heal is learned (saved: 40000-42000, padded 28000-84000), a heal on you waits for its

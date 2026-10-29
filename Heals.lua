@@ -14,7 +14,13 @@
 -- A cast is learned once LEARN_CASTS of its casts left a sample (TWIN_CASTS of one size), at least HIT_SHARE of its
 -- counted casts did, its ID was a heal row, and luck alone (some heal on the cast's stamp by chance, FRAME) gives
 -- that many at most ALPHA often.
--- Core's waiting heals ask Heals.Claim which of a frame's heals its helpful casts made.
+-- Fixed sizes: a castless proc that heals one size each time (Rune of Self-Mending 5763, its crit 11526; Holy
+-- Retributor's Order 21535) has no cast to tie it, but its row tells its size: when a row equals the summed amount
+-- of the fight's heals on you of one size (crits at normal scale), that size is the row's, a row that did not
+-- overheal and healed only you in that fight (druid's Frenzied Regeneration row 217748 = 4 x 54437). Checked per row,
+-- never assumed per fight: a healer's fight overheals, so its rows match no sum (shamanheal). SIZE_READS reads of
+-- one size teach it; then each heal on you of that size is the row's, cast or not, unless two learned rows share it.
+-- Core's waiting heals ask Heals.Claim which of a frame's heals a learned size or its helpful casts made.
 -- Kept apart from the damage stores: an ID can be both a damage and a heal row (Healing Rain 73921).
 -- Saved data is checked on load and never trusted.
 
@@ -38,6 +44,11 @@ local CAP = 32          -- heals kept; a pending one (no heal row yet) goes firs
 -- (Casts.lua). Resto's mastery heals a hurt target for more, so one cast's heals vary: shamanheal's Chain Heal
 -- 40872-133149.
 local PAD_LO, PAD_HI = 0.7, 2
+-- A fixed heal's sizes at normal scale agree within SIZE_TOL: the game rounds (Rune of Self-Mending 11526, 11527 and
+-- a crit's half, 5763.5). A row matches a size's sum within SUM_TOL (the meter's own rounding).
+local SIZE_TOL, SUM_TOL = 1, 1
+local SIZE_READS = 2    -- reads whose row matched one size teach it
+local SIZE_CAP = 32     -- sizes kept; the one seen least recently goes first
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -49,6 +60,9 @@ local function IsID(value) return IsNumber(value) and value > 0 and value % 1 ==
 -- casts counted, casts that left a sample, the samples luck alone would give, the kept sample sizes (normal scale),
 -- the read that last counted it (an ever-growing number), and true while its ID was never a healing-done row
 local heals = {}
+-- the spec store's `healSizes` = { [heal row ID] = { size, reads, seen } }: the size its last matching read gave
+-- (normal scale), the reads in a row that matched it, and the read that last matched it
+local sizes = {}
 local reads = 0
 
 -- Whether two samples are a twin: the same size within TWIN of the bigger.
@@ -68,10 +82,26 @@ function Heals.IsLearned(spellID)
     return entry and Learned(entry) or false
 end
 
--- Whether any heal is learned: only then do Core's heals on you wait for their frame's casts.
+-- The row whose learned size `size` is, nil when none is or two are (two rows sharing a size name neither).
+local function SizeRow(size)
+    if size == nil then return nil end
+    local found
+    for spellID, entry in pairs(sizes) do
+        if entry.reads >= SIZE_READS and math.abs(size - entry.size) <= SIZE_TOL then
+            if found then return nil end
+            found = spellID
+        end
+    end
+    return found
+end
+
+-- Whether any heal or size is learned: only then do Core's heals on you wait for their frame.
 function Heals.AnyLearned()
     for _, entry in pairs(heals) do
         if Learned(entry) then return true end
+    end
+    for _, entry in pairs(sizes) do
+        if entry.reads >= SIZE_READS then return true end
     end
     return false
 end
@@ -99,10 +129,12 @@ local function Band(spellID)
     return Range(entry)
 end
 
--- Which of one frame's waiting heals (each { size }) its helpful casts made: claims[index] = cast ID. Each learned
--- cast, in cast order, takes the largest heal inside its padded band that no cast took before.
+-- Which of one frame's waiting heals (each { size }) a learned size or its helpful casts made: claims[index] = spell
+-- ID. A heal of a learned size is its row's first; then each learned cast, in cast order, takes the largest heal
+-- inside its padded band that nothing took before.
 function Heals.Claim(castIDs, waiting)
     local claims = {}
+    for index, heal in ipairs(waiting) do claims[index] = SizeRow(heal.size) end
     for _, castID in ipairs(castIDs) do
         local low, high = Band(castID)
         local best
@@ -152,17 +184,96 @@ local function CountCast(spellID, size, chance, row)
     end
 end
 
--- A clear solo read: the fight's heals on you ({ size, at }), its helpful casts ({ spellID, at }), the session's
--- healing-done `rows` and the fight's `duration` in seconds.
+-- The fight's heals on you in runs of one size: sorted by size, a run grows while the next size is within SIZE_TOL
+-- of its last. Returns { { size = its middle, sum = its amounts summed }, ... } of the runs spanning SIZE_TOL at most.
+local function SizeRuns(fightHeals)
+    local sorted = {}
+    for _, heal in ipairs(fightHeals) do
+        if IsNumber(heal.amount) then sorted[#sorted + 1] = heal end
+    end
+    table.sort(sorted, function(a, b) return a.size < b.size end)
+    local runs, run = {}, nil
+    for _, heal in ipairs(sorted) do
+        if run and heal.size - run.last <= SIZE_TOL then
+            run.last, run.sum = heal.size, run.sum + heal.amount
+        else
+            run = { first = heal.size, last = heal.size, sum = heal.amount }
+            runs[#runs + 1] = run
+        end
+    end
+    local kept = {}
+    for _, each in ipairs(runs) do
+        if each.last - each.first <= SIZE_TOL then kept[#kept + 1] = { size = (each.first + each.last) / 2, sum = each.sum } end
+    end
+
+    return kept
+end
+
+-- Drops the size seen least recently once SIZE_CAP are kept.
+local function EvictSize()
+    local count, oldestID = 0, nil
+    for spellID, entry in pairs(sizes) do
+        count = count + 1
+        local oldest = sizes[oldestID]
+        if not oldest or entry.seen < oldest.seen or (entry.seen == oldest.seen and spellID < oldestID) then
+            oldestID = spellID
+        end
+    end
+    if count >= SIZE_CAP then sizes[oldestID] = nil end
+end
+
+-- One read's sample of `spellID`'s size: the same size as its last adds a read, another starts over.
+local function SampleSize(spellID, size)
+    local entry = sizes[spellID]
+    if entry and math.abs(entry.size - size) <= SIZE_TOL then
+        entry.reads = entry.reads + 1
+    else
+        if not entry then EvictSize() end
+        entry = { reads = 1 }
+        sizes[spellID] = entry
+    end
+    entry.size, entry.seen = size, reads
+    if ns.Debug then
+        ns.Debug("TEACH healsize %d size=%.1f reads=%d -> %s", spellID, size, entry.reads,
+            entry.reads >= SIZE_READS and "learned" or "open")
+    end
+end
+
+-- Each of a clear read's heal rows that equals the sum of exactly one run of the fight's heals on you (SizeRuns),
+-- a run no other row equals, samples that run's size for the row.
+local function LearnSizes(fightHeals, rows)
+    local runs = SizeRuns(fightHeals)
+    local matches = {} -- by run index: the rows equal to its sum
+    for _, row in ipairs(rows) do
+        local total, found = row.total, nil
+        if IsID(row.spellID) and IsNumber(total) and total > 0 then
+            for index, run in ipairs(runs) do
+                if math.abs(run.sum - total) <= SUM_TOL then found = found == nil and index or false end
+            end
+        end
+        if found then
+            matches[found] = matches[found] or {}
+            table.insert(matches[found], row.spellID)
+        end
+    end
+    for index, rowIDs in pairs(matches) do
+        if #rowIDs == 1 then SampleSize(rowIDs[1], runs[index].size) end
+    end
+end
+
+-- A clear solo read: the fight's heals on you ({ size, amount, at }), its helpful casts ({ spellID, at }), the
+-- session's healing-done `rows` and the fight's `duration` in seconds.
 function Heals.Learn(fightHeals, helps, rows, duration)
     if not (IsNumber(duration) and duration > 0) then return end
     reads = reads + 1
+    LearnSizes(fightHeals, rows)
     local own = {}
     for _, row in ipairs(rows) do own[row.spellID] = true end
-    local largest, stamps = {}, 0 -- by stamp: the largest heal
+    -- by stamp: the largest heal no learned size names (a cast's own heal, not the proc on its stamp)
+    local largest, stamped, stamps = {}, {}, 0
     for _, heal in ipairs(fightHeals) do
-        if not largest[heal.at] then stamps = stamps + 1 end
-        largest[heal.at] = math.max(largest[heal.at] or 0, heal.size)
+        if not stamped[heal.at] then stamped[heal.at], stamps = true, stamps + 1 end
+        if not SizeRow(heal.size) then largest[heal.at] = math.max(largest[heal.at] or 0, heal.size) end
     end
     local chance = math.min(1, stamps * FRAME / duration)
     local frames = {} -- by stamp: its one helpful cast's ID, or false when two differ
@@ -212,6 +323,7 @@ end
 
 function Heals.Forget()
     for spellID in pairs(heals) do heals[spellID] = nil end
+    for spellID in pairs(sizes) do sizes[spellID] = nil end
 end
 
 -- Keeps each saved entry of a spell ID with whole counts (hits no more than casts), a finite expected count from 0
@@ -234,13 +346,28 @@ local function Valid(entry)
         pending = entry.pending == true or nil }
 end
 
-function Heals.Init(charDB)
-    local kept = {}
-    if type(charDB.heals) == "table" then
-        for spellID, entry in pairs(charDB.heals) do
-            if IsID(spellID) then kept[spellID] = Valid(entry) end
-        end
+-- Keeps a saved size entry with a positive finite size and a whole count of reads from 1; drops the rest.
+local function ValidSize(entry)
+    if type(entry) ~= "table" or not (IsNumber(entry.size) and entry.size > 0 and entry.size < math.huge) then
+        return nil
     end
-    heals, reads = kept, 0
-    charDB.heals = kept
+    if not (IsCount(entry.reads) and entry.reads >= 1) then return nil end
+
+    return { size = entry.size, reads = entry.reads, seen = 0 }
+end
+
+-- The saved entries of `saved` (a table, else none) whose spell ID is valid and `valid` keeps.
+local function Kept(saved, valid)
+    local kept = {}
+    if type(saved) ~= "table" then return kept end
+    for spellID, entry in pairs(saved) do
+        if IsID(spellID) then kept[spellID] = valid(entry) end
+    end
+
+    return kept
+end
+
+function Heals.Init(charDB)
+    heals, sizes, reads = Kept(charDB.heals, Valid), Kept(charDB.healSizes, ValidSize), 0
+    charDB.heals, charDB.healSizes = heals, sizes
 end

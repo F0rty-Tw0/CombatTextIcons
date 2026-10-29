@@ -68,7 +68,7 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 -- the open fight: { at, tally = { [spellID] = sum }, unknown = { entry, ... }, ticks = { tick, ... },
 --   casts = { { spellID, base, at, plate }, ... }, streams = { [stream] = record }, seen = sum, live = this fight's
 --   own seen (no carried fight's), crowded = the live crowd check fired, carried = seconds of fights carried in,
---   duration = seconds in combat (set at Finish), group, heals = { { size, at }, ... } on you, helps = { { spellID,
+--   duration = seconds in combat (set at Finish), group, heals = { { size, amount, at }, ... } on you, helps = { { spellID,
 --   at }, ... } your helpful casts (for Heals.Learn) }
 Teacher.fight = nil
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
@@ -1089,12 +1089,13 @@ function Teacher.Cast(spellID, base, now, plate)
     fight.casts[#fight.casts + 1] = { spellID = spellID, base = base, at = now, plate = plate }
 end
 
--- A heal of `amount` (`flagText` its crit flag) landed on you, drawn or not: Heals.Learn takes the largest per stamp.
+-- A heal of `amount` (`flagText` its crit flag) landed on you, drawn or not: Heals.Learn takes the largest per stamp
+-- and sums the amounts of each size.
 function Teacher.Healed(amount, flagText, now)
     local fight = Teacher.fight
     local size = Streams.NormalAmount(amount, flagText)
     if not (fight and size and IsNumber(now)) then return end
-    fight.heals[#fight.heals + 1] = { size = size, at = now }
+    fight.heals[#fight.heals + 1] = { size = size, amount = amount, at = now }
 end
 
 -- A helpful cast of yours, for Heals.Learn.
