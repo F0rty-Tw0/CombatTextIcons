@@ -508,4 +508,30 @@ return function(T)
             rig.draws[1] == rig.ns.Meter.UNKNOWN_ICON and #rig.S.timers == 0)
     end
 
+    do -- a saved couple (a proc of ID 777 heals you 7 x its hit): its hit drawn in a frame names that frame's heal
+        local PROC_ID = 777
+        local draws = {}
+        local ns = T.Boot(function()
+            CombatTextIconsCharDB = { healCouples = { [PROC_ID] = { lo = 7, hi = 7, reads = 2 } } }
+        end)
+        local S = T.State()
+        ns.Teacher.area = "clear"
+        S.plates.nameplate1, S.target = T.Plate("nameplate1"), "nameplate1"
+        ns.Procs.Name = function(_, amount) return amount == 1413 and PROC_ID or nil end
+        ns.Display.Plate = function() end
+        ns.Display.Player = function(kind, texture) if kind == "heal" then draws[#draws + 1] = texture end end
+        ns.Core.PLAYER_REGEN_DISABLED()
+        S.now = 50
+        ns.Core.UNIT_COMBAT("nameplate1", "WOUND", "", 1413, 32)
+        ns.Core.UNIT_COMBAT("player", "HEAL", "", 9891, 1)
+        ns.Core.UNIT_COMBAT("player", "HEAL", "", 5000, 1)
+        S.now = 51
+        ns.Core.UNIT_COMBAT("player", "HEAL", "", 9891, 1)
+        ns.Core.FlushHeals()
+        Check("heals core: a heal of the learned share of its frame's drawn hit is named; others and a later frame's "
+            .. "are '?'", draws[1] == "tex:777" and draws[2] == ns.Meter.UNKNOWN_ICON
+            and draws[3] == ns.Meter.UNKNOWN_ICON and #draws == 3)
+        Check("heals core: the drawn hit reaches the fight with its stamp", ns.Teacher.fight.drawn[1].spellID == PROC_ID
+            and ns.Teacher.fight.drawn[1].at == 50)
+    end
 end

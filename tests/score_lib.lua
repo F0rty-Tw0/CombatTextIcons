@@ -68,12 +68,12 @@ local function Setup(class, bases, tallies, records)
         local record = { draws = {}, casts = {} }
         records[#records + 1] = record
         local drawn = ns.Teacher.Drawn
-        ns.Teacher.Drawn = function(spellID, amount)
+        ns.Teacher.Drawn = function(spellID, amount, ...)
             if type(spellID) == "number" and type(amount) == "number" then
                 tally[spellID] = (tally[spellID] or 0) + amount
                 record.draws[#record.draws + 1] = { id = spellID, amount = amount, t = GetTime() }
             end
-            return drawn(spellID, amount)
+            return drawn(spellID, amount, ...)
         end
         local succeeded = ns.Core.UNIT_SPELLCAST_SUCCEEDED
         ns.Core.UNIT_SPELLCAST_SUCCEEDED = function(unit, castGUID, spellID, ...)

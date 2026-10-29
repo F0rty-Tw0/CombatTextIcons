@@ -14,7 +14,7 @@
 --           source's ID: it lands on that cast's stamp, else at random
 --   train   ticks of `size` (jitter `spread`) every `period` s, `ticks` of them after each cast of `cast` (nil:
 --           castless, starting at random)
---   leech   `ratio` of each of your hits, on the hit's stamp
+--   leech   `ratio` of each of your hits, on the hit's stamp (`id` DAMAGE_ID: the damage spell heals, a drain)
 --   foreign another player's heals on you (unit player) or on a party member (`unit`): never a row
 -- Scored per heal: right (drawn under its true ID or its cast's), wrong (drawn under another ID, or a foreign heal
 -- named at all), '?', hidden. Shares of each case's raw.
@@ -53,6 +53,11 @@ local CASES = {
     { name = "leech", fights = 8, pressure = 0.04, sources = {
         { kind = "leech", id = 143924, ratio = 0.06 },
         { kind = "foreign", unit = "party1", size = { 20000, 60000 }, rate = 4 },
+    } },
+    -- Drain Life (lock3: 234153 heals 7 x each tick under its own ID) beside a foreign heal on you
+    { name = "drain", fights = 8, pressure = 0.04, sources = {
+        { kind = "leech", id = DAMAGE_ID, ratio = 7 },
+        { kind = "foreign", size = { 20000, 60000 }, rate = 3 },
     } },
 }
 

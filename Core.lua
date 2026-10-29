@@ -12,7 +12,7 @@
 -- the last fight's meter read showed only your hits), else it stays hidden. An
 -- unnamed heal on you decides the same way. A learned proc (Procs.lua) draws its own icon where
 -- the question mark would, while the area is clear. A learned direct heal (Heals.lua) names a heal on you in its
--- cast's frame, in a group too.
+-- cast's frame, in a group too; so does a learned coupled heal in the frame of the hit it is a share of.
 -- Damage you take is always shown, without an icon.
 
 local ADDON, ns = ...
@@ -253,6 +253,18 @@ end
 -- The event frame: its handlers are the Core functions below.
 local events = CreateFrame("Frame")
 
+-- frameHits = { at = a frame's stamp, list = the hits drawn with an icon on it, each { spellID, amount } }: a heal on
+-- you in that frame may be a learned share of one (Heals.Claim)
+local frameHits = { list = {} }
+
+-- A hit was drawn with this spell's icon: the teacher tallies it, and the frame keeps it for its heals.
+local function Drawn(spellID, amount)
+    local now = GetTime()
+    Teacher.Drawn(spellID, amount, now)
+    if frameHits.at ~= now then frameHits = { at = now, list = {} } end
+    frameHits.list[#frameHits.list + 1] = { spellID = spellID, amount = amount }
+end
+
 -- Why a solo unexplained hit or heal stays hidden when the area is not clear: no meter to
 -- check it against, or the area is crowded.
 local function HiddenRoute()
@@ -265,7 +277,7 @@ local function ProcWound(plate, school, amount, flagText)
     local procID = Teacher.AreaClear() and Procs.Name(school, amount, flagText)
     if not procID then return false end
     if ns.Debug then ns.Debug("  -> proc %s", ShowValue(procID)) end
-    Teacher.Drawn(procID, amount)
+    Drawn(procID, amount)
     Ledger.Add("damage", procID, amount)
     Display.Plate(plate, SpellTexture(procID), HitText(flagText, amount), flagText, school)
 
@@ -275,7 +287,7 @@ end
 -- Draws a hit with a learned rhythm proc's icon and tallies it; returns true.
 local function DrawRhythm(plate, rhythmID, school, amount, flagText)
     if ns.Debug then ns.Debug("  -> rhythm %s", ShowValue(rhythmID)) end
-    Teacher.Drawn(rhythmID, amount)
+    Drawn(rhythmID, amount)
     Ledger.Add("damage", rhythmID, amount)
     Display.Plate(plate, SpellTexture(rhythmID), HitText(flagText, amount), flagText, school)
 
@@ -353,7 +365,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     end
     if named then
         if ns.Debug then ns.Debug("  -> tracker %s", ShowValue(spellID)) end
-        Teacher.Drawn(spellID, amount)
+        Drawn(spellID, amount)
         if Learn.Get(spellID) then Teacher.Ticked(school, amount, flagText) end
         Ledger.Add("damage", spellID, amount)
         return Display.Plate(plate, SpellTexture(spellID), text, flagText, school)
@@ -365,7 +377,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
         Casts.Accept(record, plate, now)
-        Teacher.Drawn(record.base, amount) -- an override is tallied under the base spell's meter row
+        Drawn(record.base, amount) -- an override is tallied under the base spell's meter row
         Ledger.Add("damage", record.base, amount)
         return Display.Plate(plate, SpellTexture(record.spellID), text, flagText, school)
     end
@@ -406,7 +418,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         and Casts.StackTick(plate, school, now, Streams.NormalAmount(amount, flagText), flagText)
     if stack then
         if ns.Debug then ns.Debug("  -> stack %s", ShowValue(stack.spellID)) end
-        Teacher.Drawn(stack.base, amount)
+        Drawn(stack.base, amount)
         Ledger.Add("damage", stack.base, amount)
         return Display.Plate(plate, SpellTexture(stack.spellID), text, flagText, school)
     end
@@ -460,10 +472,10 @@ end
 
 -- Heals and damage taken (drawn over the player) -------------------------------------
 
--- Once a direct heal is learned (Heals.AnyLearned), a heal on you that no channel or HoT named waits for the end of
+-- Once a heal is learned (Heals.AnyLearned), a heal on you that no channel or HoT named waits for the end of
 -- its frame (Core.FlushHeals): it lands before its own cast's UNIT_SPELLCAST_SUCCEEDED in that frame (shamanheal:
 -- the heal of each of 17 Chain Heal 1064 casts is logged on the cast's stamp, the line before the CAST line), so only
--- then does the frame know its casts.
+-- then does the frame know its casts; its drawn hits (frameHits) come with them.
 -- waiting = { at = the frame's stamp, heals = { { flagText, amount, school, size }, ... } }; frameCasts = { at, ids =
 -- your helpful casts on that stamp, in cast order, each once (seen) }.
 local waiting, frameCasts = { heals = {} }, { ids = {} }
@@ -493,8 +505,9 @@ function Core.FlushHeals(now)
     local heals = waiting.heals
     if #heals == 0 or (now and now <= waiting.at) then return end
     local casts = frameCasts.at == waiting.at and frameCasts.ids or {}
+    local hits = frameHits.at == waiting.at and frameHits.list or {}
     waiting = { heals = {} }
-    local claims = Heals.Claim(casts, heals)
+    local claims = Heals.Claim(casts, heals, hits)
     for index, heal in ipairs(heals) do DrawOwnHeal(heal, claims[index]) end
 end
 
