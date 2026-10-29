@@ -19,6 +19,7 @@ Steady.lua
 Ground.lua
 Chain.lua
 Stack.lua
+Area.lua
 Teacher.lua
 Display.lua
 Progress.lua

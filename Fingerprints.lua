@@ -12,6 +12,8 @@
 -- `crit`, its walk's crits' size over its normal ticks' (the median is the entry's `crit`). A stack spell's samples
 -- (Stack.lua) carry its `period` and a stack's `life` (tick 0: a cast that started a series, whose delays give the
 -- window; tick 1: the others); they make the pattern "stack" with the medians.
+-- A meter-proven way may teach `perCast` (hits one cast lands on its plate, SetPerCast) and the area pass `area` (its
+-- casts also hit the plates around their target, SetArea, Area.lua); Casts.lua reads both.
 -- Saved data is checked on load and never trusted.
 
 local _, ns = ...
@@ -24,6 +26,7 @@ local SAMPLES = 16    -- samples kept per entry, oldest dropped (one steady figh
 local DELAYS = 8      -- delays kept per learned entry, oldest dropped
 local LEARN_CASTS = 3 -- samples from this many different casts, one school, teach a spell
 local STRIKES = 2     -- teacher overshoots in a row that delete an entry
+local PER_CAST_MAX = 4 -- own-plate hits one cast's record takes at most (SetPerCast)
 local PATTERNS = { single = true, chain = true, ground = true, stack = true } -- the patterns a saved entry may hold
 
 Fingerprints.LEARN_CASTS = LEARN_CASTS -- the panel shows "casts n of LEARN_CASTS"
@@ -277,6 +280,21 @@ function Fingerprints.Over(spellID)
     if entry.strikes >= STRIKES then casts[spellID] = nil end
 end
 
+-- A way the meter proved (Teacher's exact sums) held `count` hits of one cast on its plate: the entry's records take
+-- that many from now on (Casts.lua), the most any proof showed, at most PER_CAST_MAX. Lightning Bolt 188196's row holds
+-- the bolt and its Elemental Overloads on the bolt's plate (ele log F3: 63230 + 28817 + 64483 + 26106 + 25821 = 208457).
+function Fingerprints.SetPerCast(spellID, count)
+    local entry = Fingerprints.Get(spellID)
+    if not (entry and IsNumber(count) and count >= 2) then return end
+    entry.perCast = math.min(PER_CAST_MAX, math.max(entry.perCast or 1, math.floor(count)))
+end
+
+-- The meter showed a cast's row holding its hits on the plates around its target (Area.lua): its records take them.
+function Fingerprints.SetArea(spellID)
+    local entry = Fingerprints.Get(spellID)
+    if entry then entry.area = true end
+end
+
 function Fingerprints.SetAlias(meterID, castID)
     if IsNumber(meterID) and IsNumber(castID) then aliases[meterID] = castID end
 end
@@ -352,7 +370,10 @@ local function Repair(entry)
     entry.samples = KeepSamples(type(entry.samples) == "table" and entry.samples or {})
     entry.fights, entry.over = CountOrZero(entry.fights), CountOrZero(entry.over)
     entry.strikes, entry.lastSeen = CountOrZero(entry.strikes), CountOrZero(entry.lastSeen)
-    Refresh(entry)
+    local perCast = entry.perCast
+    entry.perCast = type(perCast) == "number" and perCast >= 2 and perCast <= PER_CAST_MAX and perCast % 1 == 0
+        and perCast or nil
+    entry.area = entry.area == true or nil    Refresh(entry)
 end
 
 function Fingerprints.Init(charDB)

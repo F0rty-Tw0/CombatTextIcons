@@ -87,6 +87,7 @@ local RECORD_MAX = 20   -- open records at most; the oldest is dropped
 local records = {}      -- oldest first: { spellID, base, at, plate, hops, plates, last, seen, settled }
 local SPLASH = 0.5      -- a cast's splash lands on other plates at most this long after its own hit (Splash)
 local QUIET = 1.5       -- and only when no unclaimed hit like it landed on another plate this long before that hit
+Casts.SPLASH = SPLASH   -- the area pass (Area.lua) reads other plates' hits this far past the window's top
 local wounds = {}       -- the hits Claim was asked about lately, oldest first: { plate, school, size, at, claimed }
 local STACK_MAX = 40    -- learned stack casts kept at most (StackTick)
 local stackCasts = {}   -- the learned stack spells' casts with a plate, oldest first: { spellID, base, at, plate }
@@ -162,7 +163,8 @@ end
 -- The fingerprint (its base's) a record still waits on, or nil when the record is dead: its
 -- fingerprint is gone or unlearned, or `now` is past its window (a chain record
 -- that took a hop lives CHAIN_GAP past its last hop, if that is later; a ground record lives its learned ticks; any
--- other record that saw its own hit and drew a Splash lives SPLASH past that hit, if that is later, for its rest).
+-- other record that saw its own hit and drew a Splash lives SPLASH past that hit, if that is later, for its rest; an
+-- area base's record lives SPLASH past its window top, for its hits on other plates (Area.lua)).
 -- Run shaman5 fight 5: Lava Burst 51505 cast 200320.733 (window top 0.28 s, so dead at 0.61 s) saw its target hit at
 -- 0.21 s and drew a splash crit at 0.558 s; its other 3 (75714-77461) landed at 0.656 s and stayed '?'. One that drew
 -- no splash keeps its window: hunter fight 9's Bite 17253 (row 19221, its target hits only) would take Beast Cleave's
@@ -191,6 +193,7 @@ local function Live(record, now)
     if fp.pattern ~= "chain" and record.seen and Splashed(record) then
         limit = math.max(limit, record.at + record.seen[1] + SPLASH)
     end
+    if fp.area then limit = math.max(limit, record.at + high + SPLASH) end
     if now <= limit then return fp end
 end
 
@@ -328,6 +331,17 @@ local function Splash(record, plate, school, now, size)
     return true
 end
 
+-- Whether a hit on `plate`, another plate than the cast's, is an area spell's (Area.lua: the meter showed its row
+-- holding such hits): a plate the record has not hit yet, SLACK below its window to SPLASH past its top. The caller
+-- checked the school and the padded band.
+local function AreaHit(record, fp, plate, now)
+    if not fp.area or record.plates[plate] then return false end
+    local low, high = RecordWindow(record)
+    local age = now - record.at
+
+    return age >= low - SLACK and age <= high + SPLASH
+end
+
 -- Does `record` still wait for a hit of `school` on `plate` at `now`? "in": its first hit
 -- lands on the cast's plate inside its delay window (RecordWindow), or a chain's later hit lands on a
 -- new plate within CHAIN_GAP of the one before (CHAIN_MAX in all), in a later frame no smaller than its learned sizes
@@ -338,7 +352,9 @@ end
 -- late slot after an ambiguous hit, run 20261025T180045Z). An early first hit, up to WATCH under the
 -- window, fits the same weak way when `size` is inside the learned sizes, unpadded: Lava Burst learned
 -- at 0.50-0.60 s in a first fight landed at 0.37-0.44 s in every later one. A hit on another plate fits a
--- non-chain record the same weak way when it is the cast's Splash. Else false.
+-- non-chain record the same weak way when it is the cast's Splash, or its AreaHit. A non-chain record that took its
+-- hit takes "in" more on its plate inside its window up to its learned hits per cast (Fingerprints.SetPerCast).
+-- Else false.
 local function Fits(record, fp, plate, school, now, size, crit)
     if school ~= fp.school then return false end
     if fp.pattern == "ground" then
@@ -353,7 +369,7 @@ local function Fits(record, fp, plate, school, now, size, crit)
         return anchors and "in"
     end
     if plate ~= record.plate and fp.pattern ~= "chain" then
-        return Splash(record, plate, school, now, size) and "late"
+        return (Splash(record, plate, school, now, size) or AreaHit(record, fp, plate, now)) and "late"
     end
     if record.hops == 0 then
         local age = now - record.at
@@ -365,6 +381,12 @@ local function Fits(record, fp, plate, school, now, size, crit)
         if age <= high + SLACK then return "in" end
 
         return not record.seen and age <= LATE * high + SLACK and "late"
+    end
+    if fp.pattern ~= "chain" then
+        local low, high = RecordWindow(record)
+        local age = now - record.at
+        return plate == record.plate and record.hops < (fp.perCast or 1) and age >= low - SLACK
+            and age <= high + SLACK and "in"
     end
     return fp.pattern == "chain" and not record.plates[plate] and now - record.last <= CHAIN_GAP
         and record.hops < CHAIN_MAX and HopSize(record, size, now) and "in"

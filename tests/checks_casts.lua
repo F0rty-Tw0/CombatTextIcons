@@ -410,6 +410,22 @@ return function(T)
         Check("fingerprints: garbage entries are pruned on login, the valid one stays with its range recomputed",
             Count(loaded.casts) == 1 and loaded.casts[591] and loaded.casts[591].delayLo == 0.1 and loaded.casts[591].delayHi == 0.2)
         Check("fingerprints: only number -> number aliases survive", Count(loaded.castAliases) == 1 and loaded.castAliases[76] == 5019)
+        local taught = T.Boot(function()
+            CombatTextIconsCharDB = { casts = {
+                [591] = Copy({ perCast = 2, area = true }),
+                [592] = Copy({ perCast = 9, area = "yes" }), -- past PER_CAST_MAX, area not true
+                [593] = Copy({ perCast = 1.5 }),             -- not a whole count
+            } }
+        end).Fingerprints
+        local kept = T.Store().casts
+        Check("fingerprints: a saved perCast 2-4 and area true load, other values load as none",
+            kept[591].perCast == 2 and kept[591].area == true and kept[592].perCast == nil and kept[592].area == nil
+            and kept[593].perCast == nil)
+        taught.SetPerCast(591, 3); taught.SetPerCast(591, 2)
+        local most = kept[591].perCast
+        taught.SetPerCast(591, 9); taught.SetPerCast(593, 1)
+        Check("fingerprints: SetPerCast keeps the most hits a cast any proof showed, at most 4; 1 teaches nothing",
+            most == 3 and kept[591].perCast == 4 and kept[593].perCast == nil)
         T.Boot(function() CombatTextIconsCharDB = { casts = "x", castAliases = 5 } end)
         Check("fingerprints: non-table casts / castAliases are replaced by empty tables",
             type(T.Store().casts) == "table" and type(T.Store().castAliases) == "table")
@@ -616,6 +632,64 @@ do -- Phase 3: records and Claim
                 and Last({ own, { 30.4, 20000, "nameplate2" }, { 30.6, 20000, "nameplate3" } }) == MB
                 and Last({ own, { 30.6, 20000, "nameplate3" } }) ~= MB
                 and Last({ own, { 30.4, 20000, "nameplate2" }, { 30.75, 20000, "nameplate3" } }) ~= MB
+        end)
+    -- ele log F3: Lightning Bolt 188196's proven way held a bolt and its overloads on each cast's plate (perCast);
+    -- shaman6 F2: Lava Burst 51505's row held its hits on 4 other plates in its own hit's frame, which Splash never
+    -- takes (Area.lua taught area). Mind Blast here: window 0.17-0.23 s, band 18000-25000 (padded 12600-50000).
+    Scenario("per cast and area: a taught cast takes more own-plate hits in its window, other plates' from its window",
+        function()
+            local function Last(hits, teach)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                MindBlast(ns)
+                if teach then teach(ns.Fingerprints) end
+                local drawn
+                ns.Display.Plate = function(_, texture) drawn = texture end
+                S.now, S.target = 30, "nameplate1"
+                ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 8092)
+                for _, hit in ipairs(hits) do
+                    S.now, drawn = hit[1], nil
+                    ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 32)
+                end
+                return drawn
+            end
+            local function Twice(F) F.SetPerCast(8092, 2) end
+            local function Around(F) F.SetArea(8092) end
+            local MB, own = "tex:8092", { 30.2, 21000, "nameplate1" }
+            local twice = { own, { 30.22, 20000, "nameplate1" } }
+            local frame = { own, { 30.2, 20000, "nameplate2" } }
+            return Last(twice) ~= MB and Last(twice, Twice) == MB
+                and Last({ own, { 30.21, 20000, "nameplate1" }, { 30.22, 20000, "nameplate1" } }, Twice) ~= MB
+                and Last({ own, { 30.4, 20000, "nameplate1" } }, Twice) ~= MB
+                and Last(frame) ~= MB and Last(frame, Around) == MB
+                and Last({ { 30.15, 20000, "nameplate2" } }) ~= MB and Last({ { 30.15, 20000, "nameplate2" } }, Around) == MB
+                -- an area record lives SPLASH past its window top (30.73), past LATE times it (30.51); 13000 is no Splash
+                and Last({ own, { 30.6, 13000, "nameplate2" } }, Around) == MB
+                and Last({ own, { 30.8, 20000, "nameplate2" } }, Around) ~= MB
+                and Last({ own, { 30.2, 12000, "nameplate2" } }, Around) ~= MB
+        end)
+    -- The area pass (Area.lua): Mind Blast cast at plate p1 drew its 21000 hit; '?' Shadow hits on other plates
+    -- 0.2 s after the cast sum against the row's residual (total + overkill + 1 % - 21000).
+    Scenario("area pass: other plates' hits that fit the residual and explain half of it teach area, else nothing",
+        function()
+            local function Try(total, hits)
+                local ns = Rig(MindBlast)
+                local unknown = {}
+                for _, hit in ipairs(hits) do
+                    unknown[#unknown + 1] = { at = 30.2, plate = hit[2], school = hit[3] or 32, size = hit[1], amount = hit[1] }
+                end
+                local run = { casts = { { at = 30, base = 8092, spellID = 8092, plate = "p1" } }, tally = { [8092] = 21000 },
+                    unknown = unknown }
+                local ways = ns.Area.Learn(run, { { spellID = 8092, total = total, overkill = 0 } }, {})
+                return #ways == 1 and ways[1].sum or 0, ns.Fingerprints.Get(8092).area == true
+            end
+            local sum, area = Try(60000, { { 19000, "p2" }, { 20000, "p3" } })    -- room 39600
+            local overSum, over = Try(50000, { { 19000, "p2" }, { 20000, "p3" } }) -- room 29500
+            local _, small = Try(140000, { { 19000, "p2" }, { 20000, "p3" } })    -- room 120400: under half
+            local _, lone = Try(40000, { { 19000, "p2" } })                        -- one hit
+            local _, own = Try(60000, { { 19000, "p1" }, { 20000, "p1" } })        -- the cast's own plate
+            local _, school = Try(60000, { { 19000, "p2", 4 }, { 20000, "p3", 4 } }) -- another school
+            return sum == 39000 and area and overSum == 0 and not over and not small and not lone and not own and not school
         end)
     -- shaman5 fight 1: Earthquake 462620 learned as ground (Ground.lua) ticks on every plate in its patch, first
     -- ~1.02 s after the cast, then every ~0.98 s; three 16.5K crits of another spell on one plate (200335.220, 8.2K

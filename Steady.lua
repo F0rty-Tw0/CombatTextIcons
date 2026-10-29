@@ -201,6 +201,7 @@ local function RowOf(castID, rows)
         end
     end
 end
+Steady.RowOf = RowOf -- the area pass (Area.lua) bounds by the same row
 
 -- Whether the counted hits of `castID` fit its row: total + overkill + Judge's tolerance, less what
 -- was drawn under it this fight. A learned DoT of the cast in another school than the hits drew by votes, not by the
