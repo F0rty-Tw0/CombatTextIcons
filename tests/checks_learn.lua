@@ -110,7 +110,7 @@ return function(T)
                     [100] = { school = 32, period = 3, kind = "dot" },
                     [101] = { school = 0, period = 3, kind = "dot" },
                     [102] = { school = 32.5, period = 3, kind = "dot" },
-                    [103] = { school = 32, period = 0.4, kind = "dot" },
+                    [103] = { school = 32, period = 0.15, kind = "dot" },
                     [104] = { school = 32, period = 10.5, kind = "dot" },
                     [105] = { school = 32, period = 3, kind = "aura" },
                     [106] = "junk",

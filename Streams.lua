@@ -4,7 +4,8 @@
 -- Per key (a plate frame; a unit token holds only the helpful casts logged on it):
 --   loose    the unclaimed hits of each school that extended no stream, kept for
 --            20 s (at most 64);
---   streams  a stream is born from 4 hits of one school with 3 agreeing gaps,
+--   streams  a stream is born from 4 hits of one school with 3 agreeing gaps
+--            (7 at half the period when each gap holds a middle hit, see HalfTicks),
 --            then extended by later hits one or two periods on; it dies 2.5
 --            periods after its last hit;
 --   casts    the player's casts of the last 35 s, so a birth can name the casts
@@ -403,6 +404,31 @@ local function RampStart(entry, school, birth, period, amount)
     return walked >= 2 and not cut and at or birth
 end
 
+-- A rhythm under GAP_MIN pairs only every other tick: run mage F1, Arcane Missiles 7268 landed every ~0.3 s on its
+-- target and was born at 0.53 and 0.62 s, so the Tracker named every other missile (32.6 pp of the late meter as '?').
+-- So a birth at `period` under twice GAP_MIN whose three gaps each hold a loose hit at their middle, within the half
+-- period's slack and agreeing with the birth's size `amount`, is a stream at half the period. Returns those three
+-- hits, oldest first, else nil.
+local function HalfTicks(hits, ticks, period, amount)
+    if period / 2 >= GAP_MIN then return nil end
+    local slack, found = Streams.Slack(period / 2), {}
+    for index = 2, #ticks do
+        local due = (ticks[index - 1].at + ticks[index].at) / 2
+        local best
+        for _, hit in ipairs(hits) do
+            local err = math.abs(hit.at - due)
+            if err <= slack and Agree(hit.amount, hit.crit, amount, false)
+                and (not best or err < math.abs(best.at - due)) then
+                best = hit
+            end
+        end
+        if not best then return nil end
+        found[#found + 1] = best
+    end
+
+    return found
+end
+
 -- Drops the stream with the oldest last hit while the key holds too many.
 local function CapStreams(entry)
     while #entry.streams > STREAMS_MAX do
@@ -450,21 +476,32 @@ function Streams.Feed(key, school, amount, flagText, now, shouldRecord)
         start = math.min(start, RampStart(entry, school, a.at, period, BirthAmount({ a })))
         local owners, ownerKind, ownerAt = ChannelOwners(entry, a.at, now)
         if not owners then owners, ownerKind, ownerAt = Owners(entry, start, period) end
+        local half = HalfTicks(hits, { a, b, c, hit }, period, amount)
+        local ticks = half and { a, half[1], b, half[2], c, half[3], hit } or { a, b, c, hit }
+        local times, older = {}, {}
+        for _, h in ipairs(ticks) do times[#times + 1] = h.at end
+        for index = 1, #times - 1 do older[index] = times[index] end
         stream = {
-            school = school, period = period, birth = a.at, lastAt = now, count = 4,
-            lastAmount = BirthAmount({ a, b, c, hit }),
-            hits = { a.at, b.at, c.at, now }, owners = owners, ownerKind = ownerKind, ownerAt = ownerAt, key = key,
-            -- the birth's first three frames (the newest one's other plates may land after this hit) each hit
-            -- WIDE_PLATES plates: a ground patch's ticks, which Learn gives no votes (Learn.OnBirth)
-            wide = Wide(school, { a.at, b.at, c.at }),
+            school = school, period = half and period / 2 or period, halved = half ~= nil, birth = a.at, lastAt = now,
+            count = #ticks,
+            lastAmount = BirthAmount(ticks),
+            hits = times, owners = owners, ownerKind = ownerKind, ownerAt = ownerAt, key = key,
+            -- the birth's frames but the newest (its other plates may land after this hit) each hit WIDE_PLATES
+            -- plates: a ground patch's ticks, which Learn gives no votes (Learn.OnBirth)
+            wide = Wide(school, older),
             -- instance: set by Tracker when a live instance adopts the stream
         }
         table.remove(hits, third)
         table.remove(hits, second)
         table.remove(hits, first)
+        if half then
+            entry.loose[school] = Filter(entry.loose[school], function(h)
+                return h ~= half[1] and h ~= half[2] and h ~= half[3]
+            end)
+        end
         entry.streams[#entry.streams + 1] = stream
         CapStreams(entry)
-        for _, h in ipairs({ a, b, c, hit }) do Note(stream, h.amount, h.crit, shouldRecord) end
+        for _, h in ipairs(ticks) do Note(stream, h.amount, h.crit, shouldRecord) end
         -- The lead ticks are the stream's own first ticks: the record counts them (one is enough for the sum; the
         -- owners move only on two) and the loose list gives them up (Darkglare 205231's first beam, run lock2 F3).
         if #lead > 0 then

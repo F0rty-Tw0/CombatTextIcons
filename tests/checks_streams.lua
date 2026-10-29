@@ -63,6 +63,24 @@ return function(T)
             jit ~= nil and math.abs(jit.period - 0.5047) < 0.001 and jit.birth == 0)
         rig.Hit("u", 0); rig.Hit("u", 0.45); rig.Hit("u", 0.81); rig.Hit("u", 1.26) -- gaps 0.45 / 0.36 / 0.45
         Check("streams: a gap under PERIOD_MIN less its slack forms nothing", #Streams.Live("u", 1.26) == 0)
+        -- run mage: Arcane Missiles 7268 landed every ~0.3 s (gaps 0.34 / 0.25 alternating) and was born at every other
+        -- missile, 0.53-0.62 s
+        rig = Rig(); Streams = rig.ns.Streams
+        local missiles = { 0, 0.34, 0.59, 0.93, 1.18, 1.52, 1.77 }
+        for _, t in ipairs(missiles) do rig.Hit("m", t) end
+        local fast = Streams.Live("m", 1.77)[1]
+        Check("streams: a rhythm under 0.4 s is born at its 7th hit at half the paired period, holding all 7 hits",
+            #Streams.Live("m", 1.77) == 1 and fast and math.abs(fast.period - 1.77 / 6) < 1e-9 and fast.halved
+            and fast.count == 7 and #fast.hits == 7 and fast.hits[2] == 0.34 and fast.hits[6] == 1.52 and #rig.births == 1)
+        rig.Hit("m", 2.11)
+        Check("streams: a halved stream extends one short tick on", fast.count == 8 and fast.lastAt == 2.11)
+        rig = Rig(); Streams = rig.ns.Streams
+        for _, t in ipairs({ 0, 0.6, 1.2, 1.8 }) do rig.Hit("e", t) end
+        for index, t in ipairs({ 0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8 }) do rig.Hit("o", t, index == 2 and 2000 or 1000) end
+        local even, odd = Streams.Live("e", 1.8)[1], Streams.Live("o", 1.8)[1]
+        Check("streams: a birth with no hit, or an unlike-sized one, in the middle of a gap keeps its period",
+            even and math.abs(even.period - 0.6) < 1e-9 and not even.halved and even.count == 4
+            and odd and math.abs(odd.period - 0.6) < 1e-9 and not odd.halved and odd.count == 4)
 
         -- several sets fit: the smaller timing error wins; a tie goes to the latest a
         rig = Rig(); Streams = rig.ns.Streams
@@ -571,6 +589,15 @@ return function(T)
         Check("votes: school 1 is learned at 3 votes (p = 0.0008)", Learn.Get(9402) ~= nil)
         rig.Trial(32, 9403, 1, "channel"); rig.Trial(32, 9403, 1, "channel")
         Check("votes: kinds carry over (channel -> mode channel)", Learn.Get(9403) and Learn.Get(9403).mode == "channel")
+        -- a halved birth (Streams' HalfTicks) votes its ticks' period: run mage, Arcane Missiles 5143 learned 0.55 s
+        -- from every other missile and the Tracker named every other one
+        for trial = 1, 2 do
+            local key, t = "half" .. trial, 1000 * trial
+            rig.Cast(key, t - 0.05, 9404, "channel")
+            for step = 1, 7 do rig.Hit(key, t + 0.3 * step, 1000, 64) end
+        end
+        Check("votes: a 0.3 s rhythm, born from every other hit, is learned at 0.3 s",
+            Learn.Get(9404) ~= nil and Near(Learn.Get(9404).period, 0.3, 1e-6))
 
         local hasted = Fresh()
         hasted.S.haste = 25

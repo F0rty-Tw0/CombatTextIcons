@@ -26,6 +26,7 @@ ns.IsForever = type(interface) == "number" and interface >= 16000 and interface 
 if ns.IsForever then ns.Spells = {} end
 
 local PERIOD_MIN, PERIOD_MAX = 0.5, 10 -- seconds; anything outside is not a tick rhythm
+local HALF_MIN = PERIOD_MIN / 2        -- a halved birth's ticks (Streams' HalfTicks) may come this fast
 local MAX_MISSES = 2                   -- consecutive tickless casts that drop a learned spell
 local UNPAIRED_MAX = 2                  -- consecutive clear reads without the spell's ticks that drop it
 local MODES = { dot = "target", channel = "channel" } -- kind -> Tracker mode
@@ -66,7 +67,7 @@ local function ValidEntry(entry)
     if type(entry) ~= "table" then return false end
     local school, period = entry.school, entry.period
     if type(school) ~= "number" or school <= 0 or school % 1 ~= 0 then return false end
-    if type(period) ~= "number" or period < PERIOD_MIN or period > PERIOD_MAX then return false end
+    if type(period) ~= "number" or period < HALF_MIN or period > PERIOD_MAX then return false end
 
     return MODES[entry.kind] ~= nil
 end
@@ -424,7 +425,8 @@ function Learn.OnBirth(key, stream, now)
     if Frozen() and not ownChannel then return end
     if ns.Tracker.ExplainsHits(key, stream.school, stream.hits, stream.period) then return end
     local base = stream.period * (1 + (Learn.Haste() or 0) / 100)
-    if base < PERIOD_MIN or base > PERIOD_MAX then return end -- not a tick rhythm; Init would drop the sig
+    local paired = stream.halved and 2 * base or base -- a halved birth was paired at twice its ticks' period
+    if paired < PERIOD_MIN or base > PERIOD_MAX then return end -- not a tick rhythm; Init would drop the sig
 
     local physical = stream.school == 1
     local rows, order = WindowCasts(key, stream)
