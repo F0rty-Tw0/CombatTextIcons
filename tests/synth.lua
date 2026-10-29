@@ -326,8 +326,61 @@ local function AreaCasts(low, high)
     end
 end
 
-local FABRICATES = { doublecast = Doublecast, aoe = AreaCasts(0.05, 0.12), ["aoe-spread"] = AreaCasts(0.3, 0.6) }
-S.FABRICATE_CASES = { "doublecast", "aoe", "aoe-spread" }
+-- Multi-part rows: one cast's meter row holds hits its cast window can't see. Every cast is spell C, its first HIT on
+-- nameplate1 0.4 s after it.
+local MULTI = {
+    DOT_FIRST = 1.5, DOT_STEP = 2, DOT_TICKS = 4,      -- dot-tail: ticks from 1.5 s, 2 s apart
+    AREA_SINGLE = 2,                                    -- area-plates: single-plate fights first, then more plates
+    OVERLOAD_SIZE = 0.45, OVERLOAD_LOW = 0.09, OVERLOAD_HIGH = 0.32, -- overload: size of the bolt, delay after the bolt
+}
+
+-- A cast every 10-14 s (school 32): its hit, then DOT_TICKS ticks of a third of it from DOT_FIRST s, DOT_STEP s apart.
+local function DotTail(rand, start, events)
+    local c = start
+    while c + 0.4 + MULTI.DOT_FIRST + (MULTI.DOT_TICKS - 1) * MULTI.DOT_STEP < start + WINDOW do
+        AddCast(events, c, SPELL_C)
+        AddHit(events, c + 0.4, 1, 32, Amount(rand, 9000), SPELL_C)
+        for tick = 0, MULTI.DOT_TICKS - 1 do
+            AddHit(events, c + 0.4 + MULTI.DOT_FIRST + tick * MULTI.DOT_STEP, 1, 32, Amount(rand, 3000), SPELL_C)
+        end
+        c = c + Uniform(rand, 10, 14)
+    end
+end
+
+-- A cast every 1.5-2.5 s (school 4) with its hit on nameplate1; from fight AREA_SINGLE + 1 on, 2-4 more hits of the
+-- same size on nameplate2.. in the same frame (an instant AoE: no later frame for Casts' Splash).
+local function AreaPlates(rand, start, events, fight)
+    local c = start
+    while c + 0.4 < start + WINDOW do
+        AddCast(events, c, SPELL_C)
+        AddHit(events, c + 0.4, 1, 4, Amount(rand, 6000), SPELL_C)
+        local count = fight > MULTI.AREA_SINGLE and 3 + math.floor(rand() * 3) or 1
+        for plate = 2, count do AddHit(events, c + 0.4, plate, 4, Amount(rand, 6000), SPELL_C) end
+        c = c + Uniform(rand, 1.5, 2.5)
+    end
+end
+
+-- 6-15 casts 2.5-3.5 s apart (school 8): the bolt's hit, and on about half the casts an OVERLOAD_SIZE hit
+-- OVERLOAD_LOW-OVERLOAD_HIGH s after it on the same plate.
+local function Overload(rand, start, events)
+    local c = start
+    for _ = 1, 6 + math.floor(rand() * 10) do
+        AddCast(events, c, SPELL_C)
+        local bolt = Amount(rand, 10000)
+        AddHit(events, c + 0.4, 1, 8, bolt, SPELL_C)
+        if rand() < 0.5 then
+            local after = Uniform(rand, MULTI.OVERLOAD_LOW, MULTI.OVERLOAD_HIGH)
+            AddHit(events, c + 0.4 + after, 1, 8, Amount(rand, bolt * MULTI.OVERLOAD_SIZE), SPELL_C)
+        end
+        c = c + Uniform(rand, 2.5, 3.5)
+    end
+end
+
+local FABRICATES = {
+    doublecast = Doublecast, aoe = AreaCasts(0.05, 0.12), ["aoe-spread"] = AreaCasts(0.3, 0.6),
+    ["dot-tail"] = DotTail, ["area-plates"] = AreaPlates, overload = Overload,
+}
+S.FABRICATE_CASES = { "doublecast", "aoe", "aoe-spread", "dot-tail", "area-plates", "overload" }
 
 -- S.FIGHTS fights of `case`, each ending in a TEACH clean and one true row per spell. Same seed, same lines.
 function S.Fabricate(case, seed)
@@ -336,9 +389,9 @@ function S.Fabricate(case, seed)
 
     local rand, units, start = S.Seeded(seed), {}, 100
     local function Push(t, line) units[#units + 1] = { t = t, lines = { line }, index = #units + 1 } end
-    for _ = 1, S.FIGHTS do
+    for fight = 1, S.FIGHTS do
         local events = {}
-        body(rand, start, events)
+        body(rand, start, events, fight)
 
         local totals, spells, sum, last = {}, {}, 0, 0
         for _, event in ipairs(events) do
@@ -459,6 +512,50 @@ local function CheckArea(label, casts, hits, low, high)
                 assert(hop >= low - TOLERANCE and hop <= high + TOLERANCE, label .. "hop " .. hop .. " outside " .. low .. "-" .. high)
             end
         end
+    end
+end
+
+-- The multi-part cases: every cast is spell C, its HITs (up to the next cast) start on nameplate1 0.4 s after it, and
+-- the rest have the case's shape (MULTI).
+local function CheckMulti(label, case, casts, hits)
+    local perFight = {}
+    for index, cast in ipairs(casts) do
+        assert(cast.id == SPELL_C, label .. "every cast is spell " .. SPELL_C)
+        perFight[cast.fight] = (perFight[cast.fight] or 0) + 1
+        local nextAt = casts[index + 1] and casts[index + 1].at or #hits
+        local group = {}
+        for i = cast.at + 1, nextAt do group[#group + 1] = hits[i] end
+        local first = group[1]
+        assert(first and first.plate == "nameplate1" and math.abs(first.t - cast.t - 0.4) <= TOLERANCE,
+            label .. "the first HIT is on nameplate1 0.4 s after the cast")
+        if case == "dot-tail" then
+            assert(#group == 1 + MULTI.DOT_TICKS, label .. "a hit and " .. MULTI.DOT_TICKS .. " ticks, got " .. #group)
+            for tick = 2, #group do
+                local at = group[tick].t - first.t
+                local expect = MULTI.DOT_FIRST + (tick - 2) * MULTI.DOT_STEP
+                assert(group[tick].plate == "nameplate1" and math.abs(at - expect) <= TOLERANCE, label .. "tick at " .. at)
+            end
+        elseif case == "area-plates" then
+            local single = cast.fight <= MULTI.AREA_SINGLE
+            assert(single and #group == 1 or not single and #group >= 3 and #group <= 5, label .. "fight " .. cast.fight .. " HITs per cast " .. #group)
+            local plates = {}
+            for _, hit in ipairs(group) do
+                assert(not plates[hit.plate] and math.abs(hit.t - first.t) <= TOLERANCE, label .. "one HIT per plate, all in one frame")
+                plates[hit.plate] = true
+            end
+        else
+            assert(#group <= 2, label .. "a bolt and at most one overload, got " .. #group)
+            local over = group[2]
+            if over then
+                local after, size = over.t - first.t, over.amount / first.amount
+                assert(over.plate == "nameplate1" and after >= MULTI.OVERLOAD_LOW - TOLERANCE and after <= MULTI.OVERLOAD_HIGH + TOLERANCE,
+                    label .. "overload " .. after .. " s after the bolt")
+                assert(size >= 0.8 * MULTI.OVERLOAD_SIZE and size <= 1.2 * MULTI.OVERLOAD_SIZE, label .. "overload size " .. size)
+            end
+        end
+    end
+    if case == "overload" then
+        for fight, count in pairs(perFight) do assert(count >= 6 and count <= 15, label .. "fight " .. fight .. " casts " .. count) end
     end
 end
 
@@ -666,9 +763,10 @@ do -- start-up asserts: Fabricate
                 local spell = SPELL_OF[case] and SPELL_OF[case][tonumber(school)] or SPELL_C
                 totals[spell] = (totals[spell] or 0) + tonumber(amount)
                 sum = sum + tonumber(amount)
-                hits[#hits + 1] = { t = t, plate = plate, target = line:match("target=(%a+)$"), school = tonumber(school), spell = spell }
+                hits[#hits + 1] = { t = t, plate = plate, target = line:match("target=(%a+)$"), school = tonumber(school),
+                    spell = spell, amount = tonumber(amount) }
             elseif cast then
-                casts[#casts + 1] = { t = t, id = tonumber(cast), at = #hits }
+                casts[#casts + 1] = { t = t, id = tonumber(cast), at = #hits, fight = cleans + 1 }
             elseif clean then
                 cleans = cleans + 1
                 local seen, meter = line:match(PATTERN.CLEAN)
@@ -694,6 +792,8 @@ do -- start-up asserts: Fabricate
 
         if case == "doublecast" then
             CheckDoublecast(label, casts, hits)
+        elseif not HOP[case] then
+            CheckMulti(label, case, casts, hits)
         else
             CheckArea(label, casts, hits, HOP[case][1], HOP[case][2])
         end
