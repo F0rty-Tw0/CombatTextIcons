@@ -162,9 +162,9 @@ if OPTIONS["--rows"] then
         Out(score.label .. ": rows by lost damage ('?' + wrong), share of the log's meter")
         for index = 1, math.min(10, #ids) do
             local stat = score.byRow[ids[index]]
-            Out(string.format("  %8d  lost %5.1f%%  meter %5.1f%%  right %5.1f%%  wrong %5.1f%%", ids[index],
+            Out(string.format("  %8d  lost %5.1f%%  meter %5.1f%%  right %5.1f%%  wrong %5.1f%%  over %5.2f%%", ids[index],
                 Pct(stat.unknown + stat.wrong, score.meter), Pct(stat.meter, score.meter), Pct(stat.right, score.meter),
-                Pct(stat.wrong, score.meter)))
+                Pct(stat.wrong, score.meter), Pct(stat.over, score.meter)))
         end
     end
 end

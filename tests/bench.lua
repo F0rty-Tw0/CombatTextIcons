@@ -351,7 +351,7 @@ local function RunShuffle()
             rights[seed], wrongs[seed] = Pct(score.right, score.meter), Pct(score.wrong, score.meter)
             pooled.right, pooled.wrong, pooled.unknown = pooled.right + score.right / K, pooled.wrong + score.wrong / K,
                 pooled.unknown + score.unknown / K
-            pooled.orphan = pooled.orphan + score.orphan / K
+            pooled.orphan, pooled.over = pooled.orphan + score.orphan / K, pooled.over + score.over / K
             pooled.fights, pooled.meter = score.fights, score.meter
         end
         local right, maxWrong = Spread(rights), math.max(table.unpack(wrongs))

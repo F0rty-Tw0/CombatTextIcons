@@ -7,7 +7,9 @@
 -- icon (Teacher.Drawn amounts, paired to rows by ID or by the replay's own alias). Per row:
 --   o = the drawn amount no cast of the row could explain (strict, below)   T' = T - o
 --   right = min(T', M)   '?' = M - right   wrong = o + T' beyond M * 1.05; a drawn ID with no row is wrong in full.
--- Each is a share of the summed M. right + '?' = 100 %; wrong is extra; `strict` is the summed o over M (inside wrong).
+-- Each is a share of the summed M. right + '?' = 100 %; wrong is extra; `strict` is the summed o over M (inside wrong);
+-- `over` is wrong with no slack: o + T' beyond M, plus the rowless IDs (wrong <= over; a misdraw into a row the replay
+-- under-drew still hides from both).
 -- Strict: a hit drawn under a row in tests/score_truth.lua with no cast of that row within its life before it (and at
 -- least one player cast in the fight) is an orphan. Rows not in the table are never checked. Blind spot: two spells
 -- that swap icons inside each other's cast window still score right. Hidden hits (crowded) draw nothing: '?'.
@@ -75,9 +77,10 @@ if OPTIONS["--rows"] then
         Out(score.label .. ": rows by lost damage ('?' + wrong), share of the class's meter")
         for index = 1, math.min(12, #ids) do
             local stat = score.byRow[ids[index]]
-            Out(string.format("  %8d  lost %5.1f%%  meter %5.1f%%  right %5.1f%%  ? %5.1f%%  wrong %5.1f%%", ids[index],
-                Pct(stat.unknown + stat.wrong, score.meter), Pct(stat.meter, score.meter), Pct(stat.right, score.meter),
-                Pct(stat.unknown, score.meter), Pct(stat.wrong, score.meter)))
+            Out(string.format("  %8d  lost %5.1f%%  meter %5.1f%%  right %5.1f%%  ? %5.1f%%  wrong %5.1f%%  over %5.2f%%",
+                ids[index], Pct(stat.unknown + stat.wrong, score.meter), Pct(stat.meter, score.meter),
+                Pct(stat.right, score.meter), Pct(stat.unknown, score.meter), Pct(stat.wrong, score.meter),
+                Pct(stat.over, score.meter)))
         end
     end
 end

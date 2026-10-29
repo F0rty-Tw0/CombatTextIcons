@@ -109,10 +109,14 @@ local function Orphans(record, truth, meter, toRow)
     return orphan
 end
 
+local function NewStat() return { meter = 0, right = 0, unknown = 0, wrong = 0, orphan = 0, over = 0 } end
+
 -- Scores one fight into `into` (and its per-row table). rows: the log's meter rows; tally: drawn amount per ID;
 -- last: the replay's Teacher read, whose rows name the aliases it paired (drawn ID -> meter row ID); record: the
 -- fight's draws and player casts (nil = no strict check); truth: the strict rows (default TRUTH). An orphan amount
--- leaves its row's drawn total and counts as wrong.
+-- leaves its row's drawn total and counts as wrong. `over` is wrong with no slack: orphans, every drawn amount past
+-- its row, and drawn IDs with no row. wrong forgives up to 5 % past a row, so a misdraw into a row the replay under-drew
+-- scores right and stays invisible there; over shows the part past the row that wrong forgives (2026-10-29 architect).
 local function ScoreFight(rows, tally, last, into, record, truth)
     local meter, toRow = {}, {}
     for _, row in ipairs(rows) do meter[row.spellID] = (meter[row.spellID] or 0) + row.totalAmount end
@@ -126,37 +130,42 @@ local function ScoreFight(rows, tally, last, into, record, truth)
         if rowID then
             drawn[rowID] = (drawn[rowID] or 0) + amount
         else
-            into.wrong = into.wrong + amount
-            local stat = into.byRow[id] or { meter = 0, right = 0, unknown = 0, wrong = 0, orphan = 0 }
-            stat.wrong = stat.wrong + amount
+            into.wrong, into.over = into.wrong + amount, into.over + amount
+            local stat = into.byRow[id] or NewStat()
+            stat.wrong, stat.over = stat.wrong + amount, stat.over + amount
             into.byRow[id] = stat
         end
     end
     for id, m in pairs(meter) do
         local o = orphan[id] or 0
         local t = (drawn[id] or 0) - o
-        local right, wrong = math.min(t, m), o + math.max(0, t - m * SLACK)
+        local right, wrong, over = math.min(t, m), o + math.max(0, t - m * SLACK), o + math.max(0, t - m)
         into.meter, into.right, into.unknown, into.wrong = into.meter + m, into.right + right, into.unknown + m - right,
             into.wrong + wrong
-        into.orphan = into.orphan + o
-        local stat = into.byRow[id] or { meter = 0, right = 0, unknown = 0, wrong = 0, orphan = 0 }
+        into.orphan, into.over = into.orphan + o, into.over + over
+        local stat = into.byRow[id] or NewStat()
         stat.meter, stat.right, stat.unknown, stat.wrong = stat.meter + m, stat.right + right, stat.unknown + m - right,
             stat.wrong + wrong
-        stat.orphan = stat.orphan + o
+        stat.orphan, stat.over = stat.orphan + o, stat.over + over
         into.byRow[id] = stat
     end
     into.fights = into.fights + 1
 end
 
 local function NewScore(label)
-    return { label = label, fights = 0, meter = 0, right = 0, unknown = 0, wrong = 0, orphan = 0, byRow = {} }
+    return { label = label, fights = 0, meter = 0, right = 0, unknown = 0, wrong = 0, orphan = 0, over = 0, byRow = {} }
 end
 
-do -- self-check: A over by 20 (15 beyond slack), C drawn with no row, D an alias of B
+do -- self-check: A over by 20 (15 beyond slack), C drawn with no row, D an alias of B; over: A's 20 + C's 10
     local check = NewScore("check")
     ScoreFight({ { spellID = 1, totalAmount = 100 }, { spellID = 2, totalAmount = 50 } }, { [1] = 120, [3] = 10, [4] = 40 },
         { rows = { { spellID = 4, meterID = 2 } } }, check)
     assert(check.meter == 150 and check.right == 140 and check.unknown == 10 and check.wrong == 25, "ScoreFight self-check")
+    assert(check.over == 30 and check.byRow[1].over == 20 and check.byRow[3].over == 10 and check.byRow[2].over == 0,
+        "ScoreFight self-check: over counts every drawn amount past its row (no slack) and a rowless ID in full")
+    local within = NewScore("within")
+    ScoreFight({ { spellID = 1, totalAmount = 100 } }, { [1] = 104 }, nil, within)
+    assert(within.wrong == 0 and within.over == 4, "ScoreFight self-check: 4 % past a row is no wrong but is over")
 end
 
 do -- self-check, strict: row 10 (cast 10 or 11, life 3) drawn 60 of its 100 at t = 100; row 20 is not in the table
@@ -180,6 +189,7 @@ do -- self-check, strict: row 10 (cast 10 or 11, life 3) drawn 60 of its 100 at 
     local moved, row = Strict({ Draw(10, 100) }, other)
     assert(moved.right == 0 and moved.wrong == 60 and moved.unknown == 200 and moved.orphan == 60 and row.orphan == 60,
         "strict: an orphan draw moves from right to wrong and '?' grows by the same amount")
+    assert(moved.over == 60 and row.over == 60, "strict: an orphan draw is over in full")
     assert(Strict({ Draw(10, 103) }, { [10] = { 100 } }).orphan == 0, "strict: a draw exactly life after the cast is kept")
     assert(Strict({ Draw(10, 103.02) }, { [10] = { 100 } }).orphan == 60, "strict: a draw life + 0.02 after the cast is an orphan")
     assert(Strict({ Draw(10, 100) }, { [11] = { 100.005 } }).orphan == 0, "strict: a cast on the same stamp after the draw counts")
@@ -196,9 +206,9 @@ end
 local function Add(into, score)
     into.fights, into.meter, into.right, into.unknown, into.wrong = into.fights + score.fights,
         into.meter + score.meter, into.right + score.right, into.unknown + score.unknown, into.wrong + score.wrong
-    into.orphan = into.orphan + score.orphan
+    into.orphan, into.over = into.orphan + score.orphan, into.over + score.over
     for id, stat in pairs(score.byRow) do
-        local to = into.byRow[id] or { meter = 0, right = 0, unknown = 0, wrong = 0, orphan = 0 }
+        local to = into.byRow[id] or NewStat()
         for key, value in pairs(stat) do to[key] = to[key] + value end
         into.byRow[id] = to
     end
@@ -206,11 +216,12 @@ end
 
 local function Out(text) io.write(text, "\n") end -- the stubbed API replaces print
 local function Pct(part, whole) return whole > 0 and 100 * part / whole or 0 end
--- bench.lua's flake parser reads the label and shares back; `strict` (orphan / meter) follows `?`, then a suffix as is.
+-- bench.lua's flake parser reads the label and shares back; `strict` (orphan / meter) follows `?`, then `over` (wrong
+-- with no slack / meter), then a suffix as is.
 local function Line(score, suffix)
-    Out(string.format("  %-26s %3d %10d  right %5.1f%%  wrong %5.1f%%  ? %5.1f%%  strict %5.2f%%", score.label, score.fights,
-        score.meter, Pct(score.right, score.meter), Pct(score.wrong, score.meter), Pct(score.unknown, score.meter),
-        Pct(score.orphan, score.meter)) .. (suffix or ""))
+    Out(string.format("  %-26s %3d %10d  right %5.1f%%  wrong %5.1f%%  ? %5.1f%%  strict %5.2f%%  over %5.2f%%", score.label,
+        score.fights, score.meter, Pct(score.right, score.meter), Pct(score.wrong, score.meter), Pct(score.unknown, score.meter),
+        Pct(score.orphan, score.meter), Pct(score.over, score.meter)) .. (suffix or ""))
 end
 
 local function ClassLabel(class, holdout) return class .. (holdout and " (hold-out)" or "") end
