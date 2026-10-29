@@ -470,15 +470,16 @@ return function(T)
             Count(loaded.aliasFills) == 1 and loaded.aliasFills[76] == true)
         local taught = T.Boot(function()
             CombatTextIconsCharDB = { casts = {
-                [591] = Copy({ perCast = 2, area = true }),
-                [592] = Copy({ perCast = 9, area = "yes" }), -- past PER_CAST_MAX, area not true
-                [593] = Copy({ perCast = 1.5 }),             -- not a whole count
+                [591] = Copy({ perCast = 2, area = true, areaLow = true }),
+                [592] = Copy({ perCast = 9, area = "yes", areaLow = true }), -- past PER_CAST_MAX, area not true
+                [593] = Copy({ perCast = 1.5, areaLow = true }),             -- not a whole count, no area
             } }
         end).Fingerprints
         local kept = T.Store().casts
-        Check("fingerprints: a saved perCast 2-4 and area true load, other values load as none",
-            kept[591].perCast == 2 and kept[591].area == true and kept[592].perCast == nil and kept[592].area == nil
-            and kept[593].perCast == nil)
+        Check("fingerprints: a saved perCast 2-4, area true and its areaLow true load, other values load as none",
+            kept[591].perCast == 2 and kept[591].area == true and kept[591].areaLow == true and kept[592].perCast == nil
+            and kept[592].area == nil and kept[592].areaLow == nil and kept[593].perCast == nil
+            and kept[593].areaLow == nil)
         taught.SetPerCast(591, 3); taught.SetPerCast(591, 2)
         local most = kept[591].perCast
         taught.SetPerCast(591, 9); taught.SetPerCast(593, 1)
@@ -738,6 +739,7 @@ do -- Phase 3: records and Claim
             end
             local function Twice(F) F.SetPerCast(8092, 2) end
             local function Around(F) F.SetArea(8092) end
+            local function AroundLow(F) F.SetArea(8092, true) end
             local MB, own = "tex:8092", { 30.2, 21000, "nameplate1" }
             local twice = { own, { 30.22, 20000, "nameplate1" } }
             local frame = { own, { 30.2, 20000, "nameplate2" } }
@@ -750,22 +752,35 @@ do -- Phase 3: records and Claim
                 -- Splash
                 and Last({ own, { 30.6, 13000, "nameplate2" } }, Around) == MB
                 and Last({ own, { 30.8, 20000, "nameplate2" } }, Around) ~= MB
+                -- run paladin2: Hammer of Light 427453's splash hit the other plates at 0.55-0.63 of its learned
+                -- smallest, under the padded band; another plate's hit fits a record the lower floor marked area
+                -- from AREA_LO (0.4) of it (7200), its own plate keeps the padded band (12600); run paladin: Blessed
+                -- Hammer 53600, marked in the padded band, keeps it on other plates too
+                and Last({ own, { 30.2, 12000, "nameplate2" } }) ~= MB
                 and Last({ own, { 30.2, 12000, "nameplate2" } }, Around) ~= MB
+                and Last({ own, { 30.2, 12000, "nameplate2" } }, AroundLow) == MB
+                and Last({ own, { 30.2, 7000, "nameplate2" } }, AroundLow) ~= MB
+                and Last({ { 30.2, 12000, "nameplate1" } }, AroundLow) ~= MB
         end)
     -- The area pass (Area.lua): Mind Blast cast at plate p1 drew its 21000 hit; '?' Shadow hits on other plates
-    -- 0.2 s after the cast sum against the row's residual (total + overkill + 1 % - 21000).
+    -- 0.2 s after the cast (or at hit[4]) sum against the row's residual (total + overkill + 1 % - 21000). `other`: a
+    -- row of another spell the fight drew nothing under.
     Scenario("area pass: other plates' hits that fit the residual and explain half of it teach area, else nothing",
         function()
-            local function Try(total, hits)
+            local function Try(total, hits, other)
                 local ns = Rig(MindBlast)
                 local unknown = {}
                 for _, hit in ipairs(hits) do
-                    unknown[#unknown + 1] = { at = 30.2, plate = hit[2], school = hit[3] or 32, size = hit[1], amount = hit[1] }
+                    unknown[#unknown + 1] = { at = hit[4] or 30.2, plate = hit[2], school = hit[3] or 32, size = hit[1],
+                        amount = hit[1] }
                 end
                 local run = { casts = { { at = 30, base = 8092, spellID = 8092, plate = "p1" } }, tally = { [8092] = 21000 },
                     unknown = unknown }
-                local ways = ns.Area.Learn(run, { { spellID = 8092, total = total, overkill = 0 } }, {})
-                return #ways == 1 and ways[1].sum or 0, ns.Fingerprints.Get(8092).area == true
+                local rows = { { spellID = 8092, total = total, overkill = 0 } }
+                if other then rows[2] = { spellID = 22568, total = other, overkill = 0 } end
+                local ways = ns.Area.Learn(run, rows, {})
+                local fp = ns.Fingerprints.Get(8092)
+                return #ways == 1 and ways[1].sum or 0, fp.area == true, fp.areaLow == true
             end
             local sum, area = Try(60000, { { 19000, "p2" }, { 20000, "p3" } })    -- room 39600
             local overSum, over = Try(50000, { { 19000, "p2" }, { 20000, "p3" } }) -- room 29500
@@ -773,7 +788,22 @@ do -- Phase 3: records and Claim
             local _, lone = Try(40000, { { 19000, "p2" } })                        -- one hit
             local _, own = Try(60000, { { 19000, "p1" }, { 20000, "p1" } })        -- the cast's own plate
             local _, school = Try(60000, { { 19000, "p2", 4 }, { 20000, "p3", 4 } }) -- another school
+            local _, apart, apartLow = Try(60000, { { 19000, "p2", 32, 30.2 }, { 20000, "p3", 32, 30.25 } })
+            -- run paladin2: Hammer of Light 427453's splashes at 0.55-0.63 of its smallest; the floor is AREA_LO (7200)
+            local splashSum, splash, splashLow = Try(45000, { { 11000, "p2" }, { 10000, "p3" } }) -- room 24450
+            local _, tiny = Try(45000, { { 7000, "p2" }, { 7000, "p3" } })
+            -- run priest4 F2: under PAD_LO the hits must share frames on other plates (Devouring Plague 335467's
+            -- lone ones); run druid F10: nor may they sum to another row the fight drew nothing under (Ravage
+            -- 441591's splash is Ferocious Bite 22568's)
+            local _, alone = Try(45000, { { 11000, "p2", 32, 30.2 }, { 10000, "p3", 32, 30.25 } })
+            local _, owned = Try(45000, { { 11000, "p2" }, { 10000, "p3" } }, 21000)
+            local _, notOwned = Try(45000, { { 11000, "p2" }, { 10000, "p3" } }, 30000)
+            -- only when the padded band's hits do not fit: druid2 F1's Swipe 106785 fit with them, a smaller hit of
+            -- another spell pushed the sum past the room
+            local mixedSum = Try(60000, { { 19000, "p2" }, { 20000, "p3" }, { 8000, "p4" } }) -- room 39600
             return sum == 39000 and area and overSum == 0 and not over and not small and not lone and not own and not school
+                and apart and not apartLow and splashSum == 21000 and splash and splashLow and not tiny
+                and not alone and not owned and notOwned and mixedSum == 39000
         end)
     -- shaman5 fight 1: Earthquake 462620 learned as ground (Ground.lua) ticks on every plate in its patch, first
     -- ~1.02 s after the cast, then every ~0.98 s; three 16.5K crits of another spell on one plate (200335.220, 8.2K

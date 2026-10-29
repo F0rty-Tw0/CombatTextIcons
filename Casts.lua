@@ -97,6 +97,14 @@ local function LateTop(high)
     return math.max(SEEN_LIFE * high, math.min(LATE * high, high + LATE_REACH))
 end
 local PAD_LO, PAD_HI = 0.7, 2 -- a sized hit fits a cast's band from 0.7 of its smallest to twice its biggest learned size
+-- An area spell's hit on another plate than its cast's (Area.lua, AreaHit) fits from AREA_LO of its smallest when only
+-- the hits from there showed it area (Fingerprints' areaLow): an AoE's splash is often a share of its target hit. Run
+-- paladin2: Hammer of Light 427453 learned at 45377-46266 on its target hit 25-29K (0.55-0.63) on the other plates
+-- 0.59-0.60 s after its cast, under PAD_LO; with this floor its right rose 5.5 -> 6.8 % of the log's meter. Not for one
+-- the padded band showed: run paladin's Blessed Hammer 53600 (area from F4) then took 1228-1262 hits on other plates
+-- (F6, F7) where its 2552-2594 ones came after.
+local AREA_LO = 0.4
+Casts.AREA_LO = AREA_LO -- the area pass (Area.lua) falls back to this floor for other plates' hits
 local SHRINK = 0.5      -- an unlearned cast's hits may shrink to this share of its samples (SampledAt)
 local RECORD_MAX = 20   -- open records at most; the oldest is dropped
 local records = {}      -- oldest first: { spellID, base, at, plate, hops, plates, last, seen, settled }
@@ -348,7 +356,7 @@ end
 
 -- Whether a hit on `plate`, another plate than the cast's, is an area spell's (Area.lua: the meter showed its row
 -- holding such hits): a plate the record has not hit yet, SLACK below its window to SPLASH past its top. The caller
--- checked the school and the padded band.
+-- checked the school and the band (from AREA_LO of the smallest size for an areaLow base).
 local function AreaHit(record, fp, plate, now)
     if not fp.area or record.plates[plate] then return false end
     local low, high = RecordWindow(record)
@@ -489,20 +497,22 @@ end
 
 -- Does a hit of normal-scale `size` fit the learned size band (padded) of `castSpell` under `base`? A
 -- Shadow DoT tick (0.9-6K) is not Mind Blast (18-25K) though it lands in its window. No size (nil, 0)
--- or no band (unlearned, or saved before sizes were kept) fits.
-function Casts.InBand(base, castSpell, size)
+-- or no band (unlearned, or saved before sizes were kept) fits. `floor` (optional, default PAD_LO) is the share of the
+-- smallest size the band starts at (AREA_LO for an areaLow spell's other plates).
+function Casts.InBand(base, castSpell, size, floor)
     if not (IsNumber(size) and size > 0) then return true end
     local low, high = Fingerprints.Band(base, castSpell)
     if not low then return true end
 
-    return Casts.InSizes(low, high, size)
+    return Casts.InSizes(low, high, size, floor)
 end
 
--- Whether normal-scale `size` (nil or 0: any) fits the padded band of sizes `low`-`high`.
-function Casts.InSizes(low, high, size)
+-- Whether normal-scale `size` (nil or 0: any) fits the padded band of sizes `low`-`high`, from `floor` (default
+-- PAD_LO) of `low`.
+function Casts.InSizes(low, high, size, floor)
     if not (IsNumber(size) and size > 0) then return true end
 
-    return size >= PAD_LO * low and size <= PAD_HI * high
+    return size >= (floor or PAD_LO) * low and size <= PAD_HI * high
 end
 
 -- Whether a hit at `now` of normal-scale `size` fits `record` on its learned evidence alone: inside the
@@ -547,7 +557,8 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
     for _, record in ipairs(records) do
         Settle(record, now)
         local fp = Live(record, now)
-        local inBand = fp and Casts.InBand(record.base, record.spellID, size)
+        local floor = fp and fp.areaLow and plate ~= record.plate and AREA_LO or nil
+        local inBand = fp and Casts.InBand(record.base, record.spellID, size, floor)
         local fit = inBand and Fits(record, fp, plate, school, now, size, crit)
         local ground = fp and fp.pattern == "ground"
         local crowdFit = ground and NearSizes(record, GroundSize(fp, size, crit))
