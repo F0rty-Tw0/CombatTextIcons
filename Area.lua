@@ -1,7 +1,8 @@
 -- Combat Text Icons: area pass. A learned direct-hit spell draws one hit per cast on its target's plate, while its
 -- meter row may also hold the same cast's hits on the plates around it: an AoE's other targets. The row's residual
 -- (its total, overkill and Judge's tolerance, less what was drawn under it this fight) bounds them. Per base learned
--- before this read (single pattern) that drew this fight, the '?' hits of its school inside its padded size band on
+-- before this read (single pattern) that drew this fight, or learned at it by the steady pass alone (its counted hits
+-- stand for the drawn: Area.Learn), the '?' hits of its school inside its padded size band on
 -- another plate than its cast's, AREA_SLACK below its learned window to Casts.SPLASH past its top after its newest
 -- cast, are summed. When the sum fits the residual and explains at least SHARE of it, with MIN_HITS hits or more,
 -- the base is marked area (Fingerprints.SetArea): its records then take such hits on other plates (Casts.lua).
@@ -104,12 +105,22 @@ local function OtherRowSum(way, own, rows, tally)
     return false
 end
 
--- The area pass of one read. `learned` holds the ways this read learned (their hits are spent, their bases skipped).
+-- The area pass of one read. `learned` holds the ways this read learned (their hits are spent, their bases skipped),
+-- but a base only the steady pass learned (way.steady) is tried too, its way's sum counted as drawn under its row: run
+-- paladin F3, Steady learned Hammer of Light 427453's target hits at the read, and its splash (26119 + 27007, one
+-- frame on 2 other plates, room 56073) taught areaLow then, so F8 drew its 22023 splash beside its 40397 target hit.
+-- Such a base drew nothing yet, so its hits are held as the lower floor's are (Framed, OtherRowSum): run shaman5 F1,
+-- the Fire Elemental's 57984 (learned at 0 s) had 3 lone 37K hits on one other plate in its padded band, its pet's
+-- other target, and marked area they made Lava Burst 51505's splash crits in F5 ambiguous.
 -- Returns the ways it marked area { castID, sum, hits }.
 function Area.Learn(run, rows, learned)
-    local spent, learnedNow = {}, {}
+    local spent, learnedNow, steady = {}, {}, {}
     for _, way in ipairs(learned) do
-        learnedNow[way.castID] = true
+        if way.steady then
+            steady[way.castID] = (steady[way.castID] or 0) + way.sum
+        else
+            learnedNow[way.castID] = true
+        end
         for _, hit in ipairs(way.hits) do spent[hit] = true end
     end
     local castsOf, order = {}, {}
@@ -124,7 +135,7 @@ function Area.Learn(run, rows, learned)
 
     local ways = {}
     for _, castID in ipairs(order) do
-        local fp, drawn = Fingerprints.Get(castID), run.tally[castID] or 0
+        local fp, drawn = Fingerprints.Get(castID), (run.tally[castID] or 0) + (steady[castID] or 0)
         local row = ns.Steady.RowOf(castID, rows)
         if fp and fp.learned and fp.pattern == "single" and fp.delayHi and not fp.area and not learnedNow[castID]
             and drawn > 0 and row then
@@ -133,8 +144,9 @@ function Area.Learn(run, rows, learned)
             local way = Gather(run, castID, fp, castsOf[castID], spent)
             local low = not Explains(way)
             if low then way = Gather(run, castID, fp, castsOf[castID], spent, Casts.AREA_LO) end
+            local held = low or steady[castID] ~= nil
             local fits = Explains(way)
-                and not (low and (not Explains(Framed(way)) or OtherRowSum(way, row, rows, run.tally)))
+                and not (held and (not Explains(Framed(way)) or OtherRowSum(way, row, rows, run.tally)))
             if fits then
                 Fingerprints.SetArea(castID, low)
                 ways[#ways + 1] = way

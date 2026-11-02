@@ -828,7 +828,8 @@ end
 -- open row, before the DoT pass: a proven chain is direct hits, so they leave the school's '?' sum the DoT pass
 -- bounds; then the DoT pass learns a cast's DoT from its school's streams, bounded by its own open row; then the
 -- stack pass (Stack.lua) learns a stacking DoT's ticks on its cast's plate under its own open row; last, the area
--- pass (Area.lua) marks a spell learned before this read whose row's residual its hits on other plates explain.
+-- pass (Area.lua) marks a spell learned before this read, or by the steady pass alone at it, whose row's residual its
+-- hits on other plates explain.
 -- A way the meter proved also teaches how many hits one cast landed on its plate (Fingerprints.SetPerCast), and an
 -- exact way with frame mates that its casts hit the plates around their target (Fingerprints.SetArea).
 -- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so

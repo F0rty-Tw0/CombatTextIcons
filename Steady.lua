@@ -419,7 +419,8 @@ local function Report(results)
 end
 
 -- The steady pass of one read. `learned` holds the ways the exact-sum passes learned; their hits
--- are spent and their bases skipped. Adds the samples and returns the new ways { castID, sum, hits }.
+-- are spent and their bases skipped. Adds the samples and returns the new ways { castID, sum, hits, steady = true }
+-- (the area pass, Area.lua, tells them by `steady`).
 function Steady.Learn(run, rows, learned)
     local spent, learnedNow = {}, {}
     for _, way in ipairs(learned) do
@@ -444,7 +445,7 @@ function Steady.Learn(run, rows, learned)
     for castID in pairs(bases) do castIDs[#castIDs + 1] = castID end
     table.sort(castIDs)
     for _, castID in ipairs(castIDs) do
-        local way = { castID = castID, sum = 0, hits = {} }
+        local way = { castID = castID, sum = 0, hits = {}, steady = true }
         if bases[castID].other then Fingerprints.SetAlias(bases[castID].other.spellID, castID) end
         for _, result in ipairs(bases[castID].results) do
             for _, pair in ipairs(result.counted) do

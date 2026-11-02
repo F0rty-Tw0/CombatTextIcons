@@ -877,6 +877,35 @@ do -- Phase 3: records and Claim
                 and apart and not apartLow and splashSum == 21000 and splash and splashLow and not tiny
                 and not alone and not owned and notOwned and mixedSum == 39000
         end)
+    -- The area pass also tries a base the steady pass learned at this read (way.steady): it drew nothing yet, so its
+    -- counted 21000 hit stands for the drawn. Run paladin F3: Hammer of Light 427453's target hits taught it at the read
+    -- and its splash (26119 + 27007, one frame on 2 other plates) marked it areaLow then. Its hits must share frames on
+    -- other plates in the padded band too (run shaman5 F1: the Fire Elemental's 57984 had 3 lone hits on its pet's
+    -- target); a base another pass learned at this read stays skipped.
+    Scenario("area pass: a base the steady pass learned at this read is tried, on hits that share frames only",
+        function()
+            local function Try(total, hits, byOther)
+                local ns = Rig(MindBlast)
+                local own = { at = 30.2, plate = "p1", school = 32, size = 21000, amount = 21000 }
+                local unknown = { own }
+                for _, hit in ipairs(hits) do
+                    unknown[#unknown + 1] = { at = hit[3] or 30.2, plate = hit[2], school = 32, size = hit[1],
+                        amount = hit[1] }
+                end
+                local run = { casts = { { at = 30, base = 8092, spellID = 8092, plate = "p1" } }, tally = {},
+                    unknown = unknown }
+                local learned = { { castID = 8092, sum = 21000, hits = { own }, steady = not byOther or nil } }
+                local ways = ns.Area.Learn(run, { { spellID = 8092, total = total, overkill = 0 } }, learned)
+                local fp = ns.Fingerprints.Get(8092)
+                return #ways == 1 and ways[1].sum or 0, fp.area == true, fp.areaLow == true
+            end
+            local sum, area, areaLow = Try(60000, { { 19000, "p2" }, { 20000, "p3" } })  -- room 39600
+            local lowSum, low, lowLow = Try(45000, { { 11000, "p2" }, { 10000, "p3" } }) -- room 24450, under PAD_LO
+            local _, lone = Try(60000, { { 19000, "p2" }, { 20000, "p3", 30.25 } })
+            local _, other = Try(60000, { { 19000, "p2" }, { 20000, "p3" } }, true)
+            return sum == 39000 and area and not areaLow and lowSum == 21000 and low and lowLow and not lone
+                and not other
+        end)
     -- shaman5 fight 1: Earthquake 462620 learned as ground (Ground.lua) ticks on every plate in its patch, first
     -- ~1.02 s after the cast, then every ~0.98 s; three 16.5K crits of another spell on one plate (200335.220, 8.2K
     -- halved) landed in a cast's first-tick window ahead of its real tick. Learned here: first tick 1.0 s, period 1.0,
