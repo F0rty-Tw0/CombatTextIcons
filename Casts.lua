@@ -311,6 +311,14 @@ local function NearSizes(record, size)
     return small ~= nil and IsNumber(size) and size >= guard * small and size * guard <= big
 end
 
+-- Whether normal-scale `size` fits the record's cast spell only through the padded band: it has learned sizes, and the
+-- size lies past Streams.SIZE_GUARD of them (not NearSizes). No size (nil, 0) is never padded.
+local function Padded(record, size)
+    local small = Fingerprints.Band(record.base, record.spellID)
+
+    return small ~= nil and IsNumber(size) and size > 0 and not NearSizes(record, size)
+end
+
 -- A ground hit's size on its normal ticks' scale: a crit's normal-scale size over the learned crit scale (Ground.lua).
 -- Shaman5 fight 3: Earthquake's crits (23.5-25.9K) were ~3x its normals, so no halved crit lay near the learned sizes;
 -- a crit that came first in its tick's frame (200330.735, 200337.391, 200345.940) stayed '?'.
@@ -549,11 +557,16 @@ end
 -- same when the cast's row alias rests on a filled sum (Fingerprints.Filled): its sizes were learned beside a guess,
 -- and the padded band takes a crit of another spell's hit twice their size (run hunter F15: 467718 learned at 5816-7345
 -- drew a 28534 crit, 14267 halved, 0.105 s after its cast: a 392060 hit, its 28591 twin in the same frame).
+-- A record that holds the hit only through the padded band (Padded) yields to one that fits it near its learned sizes,
+-- in its window or late, and does not see it (Watch): the hit is the other spell's. Run hunter2 F13: Auto Shot 467718
+-- (learned at 6545-7825, window 0.0-0.59 s) and Black Arrow 466930 (12156-14589, 0.28-0.37 s) cast in one frame;
+-- Black Arrow's 15204 landed at 0.556 s, inside the shot's window at 1.94x its top, and drew as the shot (row over by
+-- 7314), while the shot's own 7890 at 0.666 s found its record spent and went by as '?'.
 function Casts.Claim(plate, school, now, size, strict, flagText)
     if not (Plain(plate) and Plain(school) and Plain(now)) then return nil end
-    local found, fits, late, lateFits = nil, 0, nil, 0
     local crit = Plain(flagText) and flagText == "CRITICAL"
     local continued = {} -- ground bases an older record of took this hit as a tick after one seen (oldest first)
+    local fitting, watched, sized = {}, {}, false -- fitting: { record, fit, padded } oldest first; watched: { record, fp }
     for _, record in ipairs(records) do
         Settle(record, now)
         local fp = Live(record, now)
@@ -580,12 +593,25 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
             if record.tickAt and tick > record.tick then record.latticeAt = now end
             record.tick, record.tickAt = tick, now
         elseif fp then
-            Watch(record, fp, plate, school, now, size)
+            watched[#watched + 1] = { record = record, fp = fp }
         end
-        if fit == "in" then
-            found, fits = Count(found, fits, record)
-        elseif fit == "late" then
-            late, lateFits = Count(late, lateFits, record)
+        if fit then
+            local padded = Padded(record, ground and GroundSize(fp, size, crit) or size)
+            fitting[#fitting + 1] = { record = record, fit = fit, padded = padded }
+            sized = sized or not padded
+        end
+    end
+    -- sized: a record fits the hit near its learned sizes, so the padded ones neither fit nor see it
+    for _, entry in ipairs(watched) do
+        if not (sized and Padded(entry.record, size)) then Watch(entry.record, entry.fp, plate, school, now, size) end
+    end
+    local found, fits, late, lateFits = nil, 0, nil, 0
+    for _, entry in ipairs(fitting) do
+        local kept = not (sized and entry.padded)
+        if kept and entry.fit == "in" then
+            found, fits = Count(found, fits, entry.record)
+        elseif kept and entry.fit == "late" then
+            late, lateFits = Count(late, lateFits, entry.record)
         end
     end
     wounds[#wounds + 1] = { plate = plate, school = school, size = size, at = now }

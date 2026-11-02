@@ -667,6 +667,24 @@ do -- Phase 3: records and Claim
         return ns.Casts.Claim(Plate("nameplate1"), 32, 60.2, 12599) == nil
             and ns.Casts.Claim(Plate("nameplate1"), 32, 60.2, 12600) == "learned"
     end)
+    -- Run hunter2 F13: Auto Shot 467718 (learned at 6545-7825, 0.0-0.592 s) and Black Arrow 466930 (12156-14589,
+    -- 0.282-0.370 s) cast in one frame. Black Arrow's 15204 at 0.556 s sat in the shot's window at 1.94x its top and drew
+    -- as the shot; the shot's own 7890 at 0.666 s found its record spent and went by as '?'.
+    Scenario("band: a hit near one cast's sizes (late) beats another's padded band (in); the padded one does not see it",
+        function()
+            local SHOT, ARROW = 467718, 466930
+            local ns, S = Rig(function(n)
+                LearnSized(n, SHOT, SHOT, { 6545, 7200, 7825 }, { 0.0, 0.3, 0.592 })
+                LearnSized(n, ARROW, ARROW, { 12156, 13000, 14589 }, { 0.282, 0.33, 0.370 })
+            end)
+            local p1 = Plate("nameplate1")
+            Cast(ns, S, SHOT, 10, "nameplate1"); Cast(ns, S, ARROW, 10, "nameplate1")
+            local kind, record, late = ns.Casts.Claim(p1, 32, 10.556, 15204)
+            if record then ns.Casts.Accept(record, p1, 10.556) end
+            local shotKind, shot = ns.Casts.Claim(p1, 32, 10.666, 7890)
+            return kind == "learned" and record.spellID == ARROW and late == true and shotKind == "learned"
+                and shot.spellID == SHOT
+        end)
     Scenario("band: no size, a 0 size or no band claims on time alone", function()
         local ns, S = Rig(function(n) MindBlast(n); Wand(n) end)
         Cast(ns, S, 8092, 40, "nameplate1")
