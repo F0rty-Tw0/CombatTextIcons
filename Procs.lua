@@ -449,11 +449,25 @@ end
 -- Apply(target, group): creates a candidate or steps the existing entry; returns the log suffix of a change.
 -- A school's remainder that equals an open row exactly (overkill 0) is learned at once: its spell is often cast once
 -- a fight (Wither 445468), so waiting LEARN_STREAK fights lost F1-F3 of every warlock run. Inside an overkill window
--- it stays a candidate.
+-- it stays a candidate. A learned rhythm entry is never stepped. A sure pair (its school split whole into exact sums)
+-- settles a rhythm candidate's row, since the pair takes the row (taken) and the rhythm pass never sees it: the fight
+-- would teach neither (run shaman2: 73921's F1 rhythm candidate blocked its F2 group, which summed to the row exactly,
+-- 449019, and the row waited to F3). A group of the candidate's school whose band meets its band is the same proc seen
+-- by size: the candidate is learned as a rhythm, which names a hit only in a stream of its period. Run hunter2: Auto
+-- Shot 75 (school 32, p 2.62) learned by size in F4 drew four row-less school-32 hits of its size in F5 (8223 x3,
+-- 16444 crit; 41113 over) and the safety net dropped it. A group with another band or school replaces the candidate
+-- with a size proc. A pair that is not sure leaves the candidate: priest4's Shadow Word: Pain 589 grew a size
+-- candidate to learned from three such pairs and drew wrong.
 local function Apply(target, group, sure)
     local entry = procs[target.id]
-    if entry and entry.period then return nil end
-    if entry then return Step(entry, group, target, sure) end
+    if entry and entry.period and (entry.learned or not sure) then return nil end
+    if entry and entry.period and entry.school == group.school and Overlaps(entry, group) then
+        entry.lo, entry.hi = math.min(entry.lo, group.lo), math.max(entry.hi, group.hi)
+        entry.learned, entry.unpaired = true, 0
+
+        return " learned"
+    end
+    if entry and not entry.period then return Step(entry, group, target, sure) end
     if not group then return nil end
     local learned = (group.rest == true or sure == true) and target.overkill == 0
     procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, streak = 1, learned = learned, unpaired = 0, seen = 0,

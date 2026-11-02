@@ -756,10 +756,25 @@ return function(T)
         Check("procs rhythm read: a size group that fits a rhythm entry's row leaves it unchanged and logs no TEACH proc",
             entry.lo == 1000 and entry.hi == 1100 and entry.learned == true and entry.streak == 1 and not taught
             and world.results[1].verdict == "unpaired")
-        local candidate = Once({ N(32, 950), N(32, 1050) }, { { id = 5, total = 2000 } },
+        -- run shaman2: 73921's F1 rhythm candidate blocked its F2 group, exact to the row (449019), and the size pass's
+        -- taken kept the rhythm pass off the row: the fight taught neither
+        local candidate, candidateWorld, _, candidateNs = Once({ N(32, 950), N(32, 1050) }, { { id = 5, total = 2000 } },
             function(store) store[5] = Rhythm(32, 1000, 1100, 1, false) end)
-        Check("procs rhythm read: a rhythm candidate is not stepped by a size group either",
-            candidate[5].lo == 1000 and candidate[5].hi == 1100 and candidate[5].streak == 1)
+        Check("procs rhythm read: a rhythm candidate whose band a sure pair's group meets is learned as a rhythm ('agree')",
+            Is(candidate[5], 32, 950, 1100, 1, true) and candidate[5].period == 1
+            and candidateWorld.results[1].verdict == "agree" and candidateWorld.results[1].tally == 2000)
+        -- run hunter2: Auto Shot 75 learned by size from such a pair drew row-less school-32 hits of its size the next fight
+        Check("procs rhythm read: a rhythm learned from a sure pair does not name a lone school-32 hit of 1050 by size",
+            candidateNs.Procs.Name(32, 1050, "") == nil)
+        local other, otherWorld = Once({ N(32, 950), N(32, 1050) }, { { id = 5, total = 2000 } },
+            function(store) store[5] = Rhythm(32, 3000, 3300, 1, false) end)
+        Check("procs rhythm read: a rhythm candidate whose band a sure pair's group misses gives way to a learned size proc",
+            Is(other[5], 32, 950, 1050, 1, true) and other[5].period == nil and otherWorld.results[1].verdict == "agree")
+        local counted = Once({ N(32, 950), N(32, 1050), Stray(32) }, { { id = 5, total = 2000 } },
+            function(store) store[5] = Rhythm(32, 1000, 1100, 1, false) end)
+        Check("procs rhythm read: a rhythm candidate whose row a pair that is not sure takes is left as it is",
+            counted[5].period == 1 and counted[5].lo == 1000 and counted[5].hi == 1100 and counted[5].streak == 1
+            and counted[5].learned == false)
     end
     do
         local procs = Once({ N(32, 500), N(32, 500) }, { { id = 1, total = 1500, tally = 500, verdict = "under" }, { id = 2, total = 1000 } },
