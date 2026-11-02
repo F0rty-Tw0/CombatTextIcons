@@ -683,6 +683,53 @@ return function(T)
             present == 127 and capped.Votes(20000) and capped.Votes(20000).casts == 1 and capped.Votes(10001).casts == 5)
     end
 
+    -- A landed vote keeps its sig (run hunter2 F2: Black Arrow 466930's 1.0 s DoT sig, 1 landed vote at 0.09 expected,
+    -- went twice for pet-melee sigs of 1 vote at 0.31-0.47, and the DoT learned in F9 instead of F5) ----------------
+    do
+        -- A cast at t whose direct hit lands at t + 0.25 P + 0.2, then 4 Shadow ticks one period P apart: the cast is
+        -- outside the birth window [birth - 1.2 P, birth - 0.5 P] and the landing inside, so it votes as `landed` only.
+        local function Landing(rig, key, t, id, period)
+            local land = t + 0.25 * period + 0.2
+            rig.Cast(key, t, id)
+            rig.ns.Streams.Landed(key, id, land)
+            for step = 1, 4 do rig.Hit(key, land + step * period, 1000, 32) end
+        end
+        local function SigAt(rig, id, school, period)
+            for _, sig in ipairs(rig.ns.Learn.Votes(id).sigs) do
+                if sig.school == school and Near(sig.period, period, 1e-6) then return sig end
+            end
+        end
+        local rig = Fresh()
+        Landing(rig, "land", 50, 9701, 1) -- 1 landed vote, 0.096 expected
+        for _, period in ipairs({ 2, 3, 4.2, 6 }) do rig.Trial(1, 9701, period) end -- 1 owner vote each, 0.117-0.35 expected
+        local landed = SigAt(rig, 9701, 32, 1)
+        Check("evict: a full entry's new owner sig drops the weakest unlanded sig (s1 2.0 s), never the 1-vote 0.096"
+            .. " sig whose vote came from its cast's landed hit",
+            #rig.ns.Learn.Votes(9701).sigs == 4 and landed ~= nil and landed.landed == true and landed.votes == 1
+            and SigAt(rig, 9701, 1, 2) == nil and SigAt(rig, 9701, 1, 6) ~= nil)
+
+        local full = Fresh()
+        for index, period in ipairs({ 1, 1.5, 2.5, 4 }) do Landing(full, "full" .. index, 10 * index, 9702, period) end
+        local before = {}
+        for _, sig in ipairs(full.ns.Learn.Votes(9702).sigs) do before[#before + 1] = sig.landed == true and sig.expected end
+        full.Trial(1, 9702, 6)
+        local entry, same = full.ns.Learn.Votes(9702), #before == 4
+        for index, sig in ipairs(entry.sigs) do same = same and before[index] == sig.expected end
+        local untouched = same and #entry.sigs == 4 and entry.physical.expected == 0
+        Landing(full, "late", 200, 9702, 6)
+        Check("evict: an owner birth into 4 landed sigs makes no sig and adds no expected; a landed birth still makes one",
+            untouched and #entry.sigs == 4 and SigAt(full, 9702, 32, 6) ~= nil)
+
+        local saved = Fresh(function()
+            CombatTextIconsCharDB = { learned = {}, votes = { [9703] = { casts = 1, sigs = {
+                { kind = "dot", school = 32, period = 1, votes = 2, expected = 0.1, landed = true },
+                { kind = "dot", school = 32, period = 2, votes = 1, expected = 0.1, landed = "yes" } } } } }
+        end).ns.Learn
+        local sigs = saved.Votes(9703).sigs
+        Check("evict: a saved landed mark loads only as true; any other value is dropped",
+            #sigs == 2 and sigs[1].landed == true and sigs[2].landed == nil)
+    end
+
     -- One cast, one vote ----------------------------------------------------------------------
     do
         local ns = T.Boot(function(S) S.group = true end)

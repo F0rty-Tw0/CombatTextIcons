@@ -93,7 +93,10 @@ local function PruneVoteEntry(entry)
     entry.lastCast = nil -- a cast time is this session's clock; it is not kept across a load
     local kept = {}
     for _, sig in ipairs(entry.sigs) do
-        if ValidSig(sig) then kept[#kept + 1] = sig end
+        if ValidSig(sig) then
+            sig.landed = sig.landed == true or nil -- a landed mark shields the sig in FindSig: only true counts
+            kept[#kept + 1] = sig
+        end
     end
     table.sort(kept, function(a, b) return a.votes > b.votes end)
     while #kept > SIGS_MAX do kept[#kept] = nil end
@@ -372,9 +375,12 @@ function Learn.Rowless(spellID)
     return type(entry) == "table" and entry.rowless == true
 end
 
--- The sig of `entry` closest to (kind, school, base) within SIG_AGREE, else a new one
--- (a full entry first drops its fewest-votes sig, lowest expected on ties).
-local function FindSig(entry, kind, school, base)
+-- The sig of `entry` closest to (kind, school, base) within SIG_AGREE, else a new one; nil when the entry is full and
+-- holds nothing the new one may drop. A full entry first drops its fewest-votes sig, lowest expected on ties, but a sig
+-- with a vote from its cast's own landed hit (`landed`, OnBirth) goes only for a new one born of a landing too:
+-- run hunter2 F2, Black Arrow 466930's 1.0 s DoT sig (1 landed vote, 0.09 expected) went twice for pet-melee sigs of
+-- 1 vote against 0.31-0.47, and the DoT learned in F9.
+local function FindSig(entry, kind, school, base, landing)
     local best, bestGap
     for _, sig in ipairs(entry.sigs) do
         local gap = math.abs(sig.period - base)
@@ -384,11 +390,14 @@ local function FindSig(entry, kind, school, base)
     if best then return best, true end
 
     if #entry.sigs >= SIGS_MAX then
-        local worst = 1
+        local worst
         for index, sig in ipairs(entry.sigs) do
-            local other = entry.sigs[worst]
-            if sig.votes < other.votes or sig.votes == other.votes and sig.expected < other.expected then worst = index end
+            local other = worst and entry.sigs[worst]
+            local weaker = not other or sig.votes < other.votes
+                or sig.votes == other.votes and sig.expected < other.expected
+            if (landing or not sig.landed) and weaker then worst = index end
         end
+        if not worst then return nil end
         table.remove(entry.sigs, worst)
     end
     local sig = { kind = kind, school = school, period = base, votes = 0, expected = 0 }
@@ -449,19 +458,23 @@ function Learn.OnBirth(key, stream, now)
 
     local physical = stream.school == 1
     local rows, order = WindowCasts(key, stream)
+    local landing = {}
+    for _, spellID in ipairs(stream.landed or {}) do landing[spellID] = true end
     local sigs, entries, keep = {}, {}, {}
     for _, spellID in ipairs(order) do
         local row = rows[spellID]
         local chance = math.min(1, row.n * CHANCE_RATE * stream.period / RATE_WINDOW)
         keep[spellID] = true
         local entry = VoteEntry(spellID, keep)
-        local sig, existed = FindSig(entry, row.kind, stream.school, base)
+        local sig, existed = FindSig(entry, row.kind, stream.school, base, landing[spellID])
         if existed then
             local weight = sig.votes + sig.expected
             sig.period = (weight * sig.period + chance * base) / (weight + chance)
         end
-        sig.expected = sig.expected + chance
-        if physical then entry.physical.expected = entry.physical.expected + chance end
+        if sig then
+            sig.expected = sig.expected + chance
+            if physical then entry.physical.expected = entry.physical.expected + chance end
+        end
         sigs[spellID], entries[spellID] = sig, entry
     end
 
@@ -475,6 +488,7 @@ function Learn.OnBirth(key, stream, now)
             if sig and not voted[spellID] and (castAt == nil or sig.lastCast ~= castAt) then
                 sig.votes = sig.votes + 1
                 sig.lastCast = castAt
+                sig.landed = sig.landed or landing[spellID]
                 voted[spellID] = sig
                 if physical then entries[spellID].physical.votes = entries[spellID].physical.votes + 1 end
             end
