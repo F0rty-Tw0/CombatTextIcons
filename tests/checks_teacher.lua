@@ -1889,6 +1889,23 @@ return function(T)
             ReadWith(rig, HITS, { { Y, 3210 } })
             Check("candidates: each cast's largest never pairs a row of another ID (no alias, no fingerprint)",
                 rig.ns.Fingerprints.Alias(Y) == nil and rig.ns.Fingerprints.Get(Z) == nil and rig.ns.Fingerprints.Get(W) == nil)
+            -- Run hunter2: a filled sum aliased Auto Shot 75 to 467718 in F2; in F4 its 5 hits each shared a frame with a
+            -- pet cast and landed 0.0-0.6 s after theirs (no steady delay), and each cast's largest summed to row 75's
+            -- 40772 exactly, yet the row counted as another ID's, so 467718 never learned and 75 went by as '?'.
+            rig = Rig({})
+            rig.ns.Fingerprints.SetAlias(Y, Z, true)
+            ReadWith(rig, HITS, { { Y, 3210 } })
+            F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            Check("candidates: a row a filled sum aliased to the cast is its own: Z's largest per cast meets row Y -> Z "
+                .. "learned from 3 hits, the alias kept as it was (filled), W nothing",
+                F.IsLearned(Z) and last.learned[Z] == 3 and F.Alias(Y) == Z and F.Filled(Z) and F.Get(W) == nil
+                and Find(last, Z).verdict == "agree")
+            -- Run lock2 from its start save: the plain saved alias 446285 -> 205180 took the proc's 22498 hit in F1.
+            rig = Rig({})
+            rig.ns.Fingerprints.SetAlias(Y, Z)
+            ReadWith(rig, HITS, { { Y, 3210 } })
+            Check("candidates: ... while a plain saved alias keeps row Y another ID's: nothing learned (control)",
+                rig.ns.Fingerprints.Get(Z) == nil and rig.ns.Fingerprints.Alias(Y) == Z)
 
             -- Z cast at 60 and 61: the 1100 hit names both casts and goes to the newest, so 1000 + 1100 meets row 2100
             rig = Rig({})
@@ -2726,8 +2743,9 @@ return function(T)
             last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "alias"
             and rig.ns.Fingerprints.Alias(OTHER_ROW) == MIND_BLAST and rig.ns.Fingerprints.Filled(MIND_BLAST)
             and not rig.ns.Fingerprints.IsLearned(MIND_BLAST))
-        -- A later fight: the base's counted hits fit under the aliased row (Fits), so it learns there.
-        rig, last = SteadyFight(Rotation(VARIED), { Row(OTHER_ROW, 82500), Row(SWP_ROW, 9500) },
+        -- A later fight: the base's counted hits fit under the aliased row (Fits), so it learns there. The row runs past
+        -- their sum: one that met it exactly is the cast's own to the cast pass, which learns the hits first.
+        rig, last = SteadyFight(Rotation(VARIED), { Row(OTHER_ROW, 90000), Row(SWP_ROW, 9500) },
             function(rig) rig.ns.Fingerprints.SetAlias(OTHER_ROW, MIND_BLAST, true) end)
         Check("steady (e6b): a later fight's 4 counted hits fit under the row a filled sum aliased -> learns the 4",
             last.area == "clear" and Learned(last) == 4 and Outcome(MIND_BLAST) == "learned"

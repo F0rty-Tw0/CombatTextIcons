@@ -577,6 +577,11 @@ end
 -- A row of another ID also needs the way in at least half the cast's casts:
 -- a castless proc's lone hit in one of many cast frames is no hit of the cast (run 153349Z: one holy
 -- 2364 after 1 of 6 Void Volley casts equalled the proc's row 1260076). Its delays span at most ALIAS_SPREAD.
+-- A row a filled sum aliased to the cast (Steady's OtherRow: the cast learned nothing then, and learns under that row
+-- later) is the cast's own, unless Procs tracks it. Run hunter2: a filled sum aliased Auto Shot 75 to 467718 in F2;
+-- its later hits landed 0.0-0.6 s after their casts (no steady delay), F4's 5 summed by each cast's largest to row 75
+-- exactly, and as another ID's row it stayed '?' (971K of 998K). A plain alias keeps the rules above: its cast learned
+-- samples where it was set, and a stale one (lock2's saved 446285 -> 205180) took a proc's hit and its learning.
 local function DelaySpan(way)
     local low, high = math.huge, -math.huge
     for _, hit in ipairs(way.hits) do
@@ -591,7 +596,9 @@ end
 local function Pairs(group, way, row, owners)
     if way == group and group.mixed or way == group.all and group.cand.casts > SHORT_CASTS then return false end
     local whole = way == group or way.area
-    if row.spellID ~= group.castID
+    local own = row.spellID == group.castID or Fingerprints.Alias(row.spellID) == group.castID
+        and Fingerprints.Filled(group.castID) and not Procs.Has(row.spellID)
+    if not own
         and (not whole or Procs.Has(row.spellID) or owners.rows[group.castID] or owners.casts[row.spellID]
             or 2 * way.covered < way.casts or DelaySpan(way) > ALIAS_SPREAD) then
         return false
@@ -658,7 +665,11 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
                     Fingerprints.Add(group.castID, { school = hit.school, delay = hit.at - cast.castAt,
                         castAt = cast.castAt, hops = hops, spell = cast.castSpell, size = hit.size, exact = exact })
                 end
-                if row.spellID ~= group.castID then Fingerprints.SetAlias(row.spellID, group.castID) end
+                -- A saved alias stays as it was: a filled one keeps the cast's crits near its sizes (Casts.Claim). Run
+                -- hunter2 F7: set plainly, 467718 drew a 25918 crit (12959 halved, another spell's size) on its stamp.
+                if row.spellID ~= group.castID and Fingerprints.Alias(row.spellID) ~= group.castID then
+                    Fingerprints.SetAlias(row.spellID, group.castID)
+                end
                 Fingerprints.SetPerCast(group.castID, OwnHitsPerCast(way))
                 if area then Fingerprints.SetArea(group.castID) end
                 learned[#learned + 1] = way
