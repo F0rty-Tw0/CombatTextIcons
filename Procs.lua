@@ -456,11 +456,16 @@ end
 -- by size: the candidate is learned as a rhythm, which names a hit only in a stream of its period. Run hunter2: Auto
 -- Shot 75 (school 32, p 2.62) learned by size in F4 drew four row-less school-32 hits of its size in F5 (8223 x3,
 -- 16444 crit; 41113 over) and the safety net dropped it. A group with another band or school replaces the candidate
--- with a size proc. A pair that is not sure leaves the candidate: priest4's Shadow Word: Pain 589 grew a size
--- candidate to learned from three such pairs and drew wrong.
+-- with a size proc. A pair that is not sure leaves a candidate of its school: priest4's Shadow Word: Pain 589 grew a
+-- size candidate to learned from three such pairs and drew wrong. One of another school takes the row as if it had no
+-- entry (a size candidate): the row's hits summed to it exactly in a school the candidate's ticks are not, so the
+-- stream was another spell's. Run hunter2: Black Arrow 466930's school-32 ticks (p 1.0) made row 344572's F1
+-- candidate; F4's lone physical 9641 hit was the row exactly, yet the candidate kept the row, learned from the ticks
+-- in F5 and drew them.
 local function Apply(target, group, sure)
     local entry = procs[target.id]
-    if entry and entry.period and (entry.learned or not sure) then return nil end
+    local otherSchool = entry ~= nil and group ~= nil and group.school ~= entry.school
+    if entry and entry.period and (entry.learned or not (sure or otherSchool)) then return nil end
     if entry and entry.period and entry.school == group.school and Overlaps(entry, group) then
         entry.lo, entry.hi = math.min(entry.lo, group.lo), math.max(entry.hi, group.hi)
         entry.learned, entry.unpaired = true, 0

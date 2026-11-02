@@ -772,9 +772,15 @@ return function(T)
             Is(other[5], 32, 950, 1050, 1, true) and other[5].period == nil and otherWorld.results[1].verdict == "agree")
         local counted = Once({ N(32, 950), N(32, 1050), Stray(32) }, { { id = 5, total = 2000 } },
             function(store) store[5] = Rhythm(32, 1000, 1100, 1, false) end)
-        Check("procs rhythm read: a rhythm candidate whose row a pair that is not sure takes is left as it is",
+        Check("procs rhythm read: a rhythm candidate whose row a same-school pair that is not sure takes is left as it is",
             counted[5].period == 1 and counted[5].lo == 1000 and counted[5].hi == 1100 and counted[5].streak == 1
             and counted[5].learned == false)
+        -- run hunter2: Black Arrow's school-32 ticks made row 344572's rhythm candidate; F4's lone physical hit was the
+        -- row exactly (not sure: other physical '?' hits), and the candidate went on to learn from the ticks in F5
+        local crossed = Once({ N(1, 2000), Stray(1) }, { { id = 5, total = 2000 } },
+            function(store) store[5] = Rhythm(32, 1000, 1100, 1, false) end)
+        Check("procs rhythm read: a rhythm candidate whose row a pair of another school takes (not sure) gives way to a size candidate",
+            Is(crossed[5], 1, 2000, 2000, 1, false) and crossed[5].period == nil)
     end
     do
         local procs = Once({ N(32, 500), N(32, 500) }, { { id = 1, total = 1500, tally = 500, verdict = "under" }, { id = 2, total = 1000 } },
