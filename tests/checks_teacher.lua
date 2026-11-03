@@ -2147,6 +2147,27 @@ return function(T)
             F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
             Check("exact: one cast's every-hit sum meeting its own row adds 2 samples, none exact: not learned",
                 last.learned[Z] == 2 and #F.Get(Z).samples == 2 and not F.IsLearned(Z) and F.Get(Z).samples[1].exact == nil)
+
+            -- Run mage F1: Arcane Blast was cast on the stamp of another spell's burst (10640 on its target, 6143 on 2
+            -- other plates = row 210833); the 10640 was the cast's largest hit and taught a band up to it. Ten casts of Z
+            -- hit 1000 each 0.22 s on; the first cast's stamp also holds 1005 on its plate and 600 on 2 others = row Y.
+            local burst = {}
+            for index = 0, 9 do
+                local castAt = 60 + index
+                burst[#burst + 1] = { 32, 1000, "", { spellID = Z, base = Z, at = castAt }, castAt + 0.22 }
+            end
+            burst[#burst + 1] = { 32, 1005, "", { spellID = Z, base = Z, at = 60 }, 60 }
+            burst[#burst + 1] = { 32, 600, "", nil, 60, nil, "nameplate2" }
+            burst[#burst + 1] = { 32, 600, "", nil, 60, nil, "nameplate3" }
+            rig = Rig({})
+            ReadWith(rig, burst, { { Z, 10000 }, { Y, 2205 } })
+            F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            local sizes = {}
+            for _, sample in ipairs(F.Get(Z) and F.Get(Z).samples or {}) do sizes[#sizes + 1] = sample.size end
+            table.sort(sizes)
+            Check("burst: a hit whose frame sums to another row whole (1005 + 600 + 600 = row Y) is no cast's largest "
+                .. "-> Z learns its ten 1000s at 0.22 s, tally 10000",
+                F.IsLearned(Z) and #sizes == 10 and sizes[10] == 1000 and Find(last, Z).tally == 10000)
         end
 
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks

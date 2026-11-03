@@ -409,7 +409,8 @@ end
 -- every '?' hit of that cast, any school), for Pairs. A group whose normal-scale sizes span more than a
 -- crit is `mixed`: other hits share its cast windows (Surging Totem's ~11K ticks among ~55K Lightning
 -- Bolts summed within 1 % of the bolt's row, run 20261025T192458Z), so only its `top` may pair.
-local function Groups(unknown)
+-- `Burst(hit, castID)` (BurstRow) names a hit of another row's burst, which is no cast's largest.
+local function Groups(unknown, Burst)
     local byKey, list, castTimes = {}, {}, {}
     for _, hit in ipairs(unknown) do
         if hit.castID then
@@ -425,7 +426,8 @@ local function Groups(unknown)
             group.sum = group.sum + hit.amount
             group.hits[#group.hits + 1] = hit
             local top = group.topOf[hit.castAt]
-            if not top or hit.amount > top.amount then group.topOf[hit.castAt] = hit end
+            local largest = not top or hit.amount > top.amount
+            if largest and not Burst(hit, hit.castID) then group.topOf[hit.castAt] = hit end
         end
     end
     for _, group in ipairs(list) do
@@ -469,6 +471,27 @@ local function LoneRow(open)
         end
 
         return false
+    end
+end
+
+-- Whether the '?' hits of `hit`'s school in its frame, two or more, sum to the whole of an open row that is neither
+-- `castID`'s nor aliased to it (LoneRow): another spell's burst on the plates around, not the cast's hit. Run mage F1:
+-- Arcane Blast 30451 was cast on the stamp of a 10640 on its target and 6143s on 2 other plates, 22926 = row 210833
+-- exactly; as that cast's largest hit the 10640 taught Arcane Blast (~5K) a band up to it, and in F5 its padded band
+-- drew a 15812 of the same burst (row over by 9853) while its own 5056 0.05 s later went by as '?'.
+local function BurstRow(open, unknown)
+    local frames = {}
+    for _, hit in ipairs(unknown) do
+        local key = hit.at .. ":" .. hit.school
+        local frame = frames[key] or { sum = 0, count = 0 }
+        frames[key], frame.sum, frame.count = frame, frame.sum + hit.amount, frame.count + 1
+    end
+    local Lone = LoneRow(open)
+
+    return function(hit, castID)
+        local frame = frames[hit.at .. ":" .. hit.school]
+
+        return frame.count >= 2 and Lone({ amount = frame.sum }, castID)
     end
 end
 
@@ -1027,7 +1050,7 @@ end
 -- the DoT's draws were other spells' (a stale save's Nature DoT under Lava Burst 51505 drew Surging Totem's ticks).
 -- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
 local function Learn(run, results, open, rows)
-    local groups = Groups(run.unknown)
+    local groups = Groups(run.unknown, BurstRow(open, run.unknown))
     local owners = Owners(groups, rows)
     local seen, learned, rewritten = { rows = {}, groups = {} }, {}, {}
     Pass(groups, open, owners, function(group) return group end, seen, results, learned, rewritten)
