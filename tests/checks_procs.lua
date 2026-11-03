@@ -1205,6 +1205,30 @@ return function(T)
         Check("procs swing pass: a band that tick streams hold 3/4 of (10 of 13) is a DoT's ticks; 6 of 13 (warrior F2), "
             .. "or 10 at another period, is still a swing",
             WithStreams(10, 2.06) == nil and WithStreams(6, 2.06) ~= nil and WithStreams(10, 1.0) ~= nil)
+        -- run warrior F2: Ravager 156287's 4 normals (377449-390395) and a crit on one normal's stamp, ~2 s apart on the
+        -- target, summed to its row 2289882 exactly
+        local function Ravager(times, amounts)
+            local list = {}
+            for i, amount in ipairs(amounts or { 381043, 390395, 760103, 380892, 377449 }) do
+                list[i] = { school = 1, amount = amount, crit = amount > 600000, at = times[i], plate = "p1" }
+            end
+            list[#list + 1] = { school = 1, amount = 1600000, crit = false, at = 470, plate = "p1" }
+
+            return list
+        end
+        local RAVAGER_AT = { 467.605, 469.615, 469.615, 471.601, 473.333 }
+        procs = Once(Ravager(RAVAGER_AT), { { id = 156287, total = 2289882 } })
+        local ravager = procs[156287]
+        Check("procs swing pass: 4 normals on 4 stamps of a steady swing (a crit sharing one) that sum to a row exactly "
+            .. "learn a swing, its period the median gap of the stamps (warrior F2 Ravager)",
+            ravager ~= nil and ravager.learned == true and ravager.lo == 377449 and ravager.hi == 390395
+            and math.abs(ravager.swing - 1.986) < 1e-6 and ravager.critSeen == true)
+        procs = Once(Ravager({ 460, 461.2, 461.2, 463.2, 466.0 }), { { id = 156287, total = 2289882 } })
+        Check("procs swing pass: 4 normals whose gaps stray past a quarter of the period (1.2, 2.0, 2.8 s) keep no swing",
+            procs[156287] == nil or procs[156287].swing == nil)
+        procs = Once(Ravager({ 467.605, 469.615, 469.615, 471.601 }, { 381043, 390395, 760103, 380892 }),
+            { { id = 156287, total = 1912433 } })
+        Check("procs swing pass: 3 normals summing to a row exactly keep no swing", procs[156287] == nil or procs[156287].swing == nil)
     end
 
     -- Swing draw: Procs.NameSwing names a hit in the band widened by SWING_STEP (a crit by its half) on a steady swing;

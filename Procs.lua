@@ -30,6 +30,8 @@ local SWING_STEP = 0.03  -- a swing band's sorted normals step at most this shar
 local SWING_SPREAD = 0.08 -- a swing band's top over its bottom, at most (run warrior F2: Devastator 236282's 11 normals
                           -- 297734-318587 step at most 2.1 % apart and spread 7.0 %)
 local SWING_MIN = 6      -- normals a swing band needs, and its hits on its busiest plate
+local SWING_FEW = 4      -- a few band's normals, and its stamps on its busiest plate (run warrior F2: Ravager 156287)
+local SWING_STEADY = 0.25 -- a few band's gaps sit within this share of its period, each way
 local SWING_SOON = 0.5   -- a band hit this share of the swing period or less after the last on its plate is no swing
 local SWING_TICKED = 0.75 -- a band whose hits this fight's tick streams hold this share of, or more, is a DoT's ticks
 
@@ -891,25 +893,35 @@ end
 -- them land SWING_SOON of it apart or closer, while the fight's tick streams hold less than SWING_TICKED of them (a
 -- DoT's ticks keep a stream's clock). Learned at once from one exact pair (overkill 0, unique both ways): the cluster,
 -- the clean margins and the rhythm are the proof one size pair lacks. Drawn by Procs.NameSwing only.
+-- A few band (SWING_FEW normals up to SWING_MIN) keeps a steady swing on SWING_FEW stamps of its busiest plate, hits
+-- of one stamp counted once, every gap within SWING_STEADY of the period: run warrior F2, Ravager 156287's 4 normals
+-- (377449-390395) and a crit on one normal's stamp, gaps 1.73-2.01 s, summed to its row 2289882 exactly and drew
+-- its 2 hits in F3. 3 normals drew wrong (lock4 48181 +0.08 %, Haunt 1262710's ticks lost 0.2 %).
 
--- The busiest plate's swing period of a band's hits ({ at, plate }), or nil when it keeps no steady swing.
-local function SwingPeriod(band)
-    local byPlate, busiest = {}, nil
+-- The busiest plate's swing period of a band's hits ({ at, plate }), or nil when it keeps no steady swing. few: the
+-- band's normals are fewer than SWING_MIN (above).
+local function SwingPeriod(band, few)
+    local byPlate, seen, busiest = {}, {}, nil
     for _, hit in ipairs(band) do
         if hit.plate ~= nil and IsNumber(hit.at) then
-            byPlate[hit.plate] = byPlate[hit.plate] or {}
-            table.insert(byPlate[hit.plate], hit.at)
-            if not busiest or #byPlate[hit.plate] > #byPlate[busiest] then busiest = hit.plate end
+            byPlate[hit.plate], seen[hit.plate] = byPlate[hit.plate] or {}, seen[hit.plate] or {}
+            local stamps = byPlate[hit.plate]
+            if not (few and seen[hit.plate][hit.at]) then
+                seen[hit.plate][hit.at] = true
+                table.insert(stamps, hit.at)
+            end
+            if not busiest or #stamps > #byPlate[busiest] then busiest = hit.plate end
         end
     end
     local times = busiest and byPlate[busiest] or {}
-    if #times < SWING_MIN then return nil end
+    if #times < (few and SWING_FEW or SWING_MIN) then return nil end
     table.sort(times)
     local gaps = {}
     for i = 2, #times do gaps[#gaps + 1] = times[i] - times[i - 1] end
     table.sort(gaps)
     local period = gaps[math.floor((#gaps + 1) / 2)]
     if period <= 0 or gaps[1] <= SWING_SOON * period then return nil end
+    if few and (gaps[1] < (1 - SWING_STEADY) * period or gaps[#gaps] > (1 + SWING_STEADY) * period) then return nil end
 
     return period
 end
@@ -958,7 +970,7 @@ local function SwingGroups(hits, streams)
         end
         for _, cluster in ipairs(clusters) do
             local lo, hi = cluster[1].amount, cluster[#cluster].amount
-            if #cluster >= SWING_MIN and hi <= lo * (1 + SWING_SPREAD) then
+            if #cluster >= SWING_FEW and hi <= lo * (1 + SWING_SPREAD) then
                 local band, sum, critCount = {}, 0, 0
                 for _, hit in ipairs(cluster) do band[#band + 1], sum = hit, sum + hit.amount end
                 for _, hit in ipairs(bySchool[school].crits) do
@@ -967,7 +979,7 @@ local function SwingGroups(hits, streams)
                         band[#band + 1], sum, critCount = hit, sum + hit.amount, critCount + 1
                     end
                 end
-                local period = SwingPeriod(band)
+                local period = SwingPeriod(band, #cluster < SWING_MIN)
                 local ticked = period and Ticked(streams, school, lo, hi, period) or 0
                 if ns.Debug and period then
                     ns.Debug("TEACH swing band school=%s band=%s-%s hits=%d p=%.2f ticked=%d", school, lo, hi, #band, period, ticked)
