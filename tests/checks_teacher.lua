@@ -2770,6 +2770,29 @@ return function(T)
         Check("steady (d3): steady at 0.30 (20000s) and 0.80 (5000s): the 0.30 cluster sums 4 x the other -> learns its 4 alone",
             last.area == "clear" and Learned(last) == 4 and echoOk and Outcome(MIND_BLAST) == "learned")
 
+        -- Run druid2 F1: Swipe's hit after all 14 casts at 0.24 s (98751) beside a bleed's ticks after 10 at 1.12 s
+        -- (49948). Six MB casts, a 20000 hit 0.30 s after each, more 20000s after the casts `others` lists at each delay.
+        local function Every(others)
+            local events = {}
+            for index, t in ipairs({ 10, 15, 20, 25, 30, 35 }) do
+                events[#events + 1] = { t, MIND_BLAST }
+                events[#events + 1] = { t + 0.30, nil, 20000 }
+                for delay, casts in pairs(others) do
+                    if casts[index] then events[#events + 1] = { t + delay, nil, 20000 } end
+                end
+            end
+            table.sort(events, function(a, b) return a[1] < b[1] end)
+            return events
+        end
+        local four = { true, true, false, true, true, false }
+        rig, last = SteadyFight(Every({ [0.80] = four }), { Row(MIND_BLAST, 250000) })
+        Check("steady (d5): a hit 0.30 s after all 6 casts (120000) tops one 0.80 s after 4 (80000) -> learns the 6",
+            last.area == "clear" and Learned(last) == 6 and SamplesFrom(rig, 20000) and Outcome(MIND_BLAST) == "learned")
+        rig, last = SteadyFight(Every({ [0.80] = four, [1.30] = { false, true, true, false, true, true } }),
+            { Row(MIND_BLAST, 350000) })
+        Check("steady (d6): the 0.30 s cluster after all 6 casts sums under the 0.80 and 1.30 s ones together -> none",
+            last.area == "clear" and Learned(last) == nil and Outcome(MIND_BLAST) == "clusters=3")
+
         -- Run warrior F1: Shield Slam 23922 hit 0.165 s after each cast, ~600-870K, but one 204K. One MB cast a
         -- `sizes[i]` hit at 0.30 s each, a Shadow Word: Death before each at a varied offset (no sole cast).
         local function Odd(sizes)

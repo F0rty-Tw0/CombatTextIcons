@@ -133,7 +133,7 @@ local function Window(list, d, school)
         if not cast.second or cast.top.hit.size > SIZE_SPREAD * cast.second then counted[#counted + 1] = cast.top end
     end
 
-    return counted
+    return counted, #order
 end
 
 -- The most pairs of `counted` whose sizes stay within SIZE_SPREAD (tie: the smallest sizes), in pair order, when
@@ -169,13 +169,14 @@ end
 
 -- The qualifying windows of one cast spell joined into clusters (windows whose counted hits overlap,
 -- directly or through a chain). Each cluster answers its window with the most counted casts (tie:
--- the smallest d).
+-- the smallest d), and how many casts that window holds a hit of its school after (`covered`).
 local function Clusters(list, need)
     local clusters = {}
     for _, pair in ipairs(list) do
-        local counted = Qualifies(Window(list, pair.delay, pair.hit.school), need)
+        local window, covered = Window(list, pair.delay, pair.hit.school)
+        local counted = Qualifies(window, need)
         if counted then
-            local merged = { best = { d = pair.delay, counted = counted }, hits = {} }
+            local merged = { best = { d = pair.delay, counted = counted, covered = covered }, hits = {} }
             for _, item in ipairs(counted) do merged.hits[item.hit] = true end
             for index = #clusters, 1, -1 do
                 local other = clusters[index]
@@ -304,19 +305,30 @@ end
 -- other's when all share its school, else nil. Run shaman5 fight 1: every Lava Burst 51505 left ~85K crits on its
 -- target at 0.20-0.28 s (424K for 5 casts) and ~28K ones at 0.65-0.73 s (150K), the size of the hits its Overload
 -- row 285452 holds (~31K on each of 6 dummies a cast); like sums (two hits of one cast) still teach nothing.
-local function Dominant(clusters)
-    local top, sums = nil, {}
+-- A cluster whose window holds a hit after every one of the `casts` also speaks for them when no other's does and its
+-- sum tops all the others' together: a direct hit lands after each cast, a DoT's tick only where its rhythm falls.
+-- Run druid2 F1: Swipe 106785's 10 counted hits at 0.24 s (98751, a hit after all 14 casts) and a bleed's 9 ticks at
+-- 1.12 s (49948) tied short of DOMINANT, and the Swipe row's 772K in F3 went '?'. Run lock4 F1: 234153's three
+-- clusters of 3 hits for its 4 casts (5896 against 4358 and 4358) stay unlearned.
+local function Dominant(clusters, casts)
+    local top, sums, total = nil, {}, 0
     for index, cluster in ipairs(clusters) do
         if cluster.best.counted[1].hit.school ~= clusters[1].best.counted[1].hit.school then return nil end
         sums[index] = 0
         for _, pair in ipairs(cluster.best.counted) do sums[index] = sums[index] + pair.hit.amount end
+        total = total + sums[index]
         if not top or sums[index] > sums[top] then top = index end
     end
-    for index in ipairs(clusters) do
-        if index ~= top and sums[top] < DOMINANT * sums[index] then return nil end
+    if not top then return nil end
+    local dominant, every = true, clusters[top].best.covered >= casts and sums[top] > total - sums[top]
+    for index, cluster in ipairs(clusters) do
+        if index ~= top then
+            dominant = dominant and sums[top] >= DOMINANT * sums[index]
+            every = every and cluster.best.covered < casts
+        end
     end
 
-    return clusters[top]
+    return (dominant or every) and clusters[top] or nil
 end
 
 -- One cast spell's result: { spell, castID, casts, counted (nil without a Dominant cluster, or when luck
@@ -332,7 +344,7 @@ local function SpellResults(hits, learnedNow, span)
         local clusters = Clusters(pairsOf[spell], math.max(MIN_CASTS, math.ceil(SHARE * casts - EPS)))
         local result = { spell = spell, castID = baseOf[spell], mode = modeOf[spell], casts = casts, outcome = "none",
             pairs = pairsOf[spell] }
-        local dominant = Dominant(clusters)
+        local dominant = Dominant(clusters, casts)
         if dominant then result.counted = dominant.best.counted end
         if result.counted then
             local p = Luck(result.counted, casts, hits, span)
