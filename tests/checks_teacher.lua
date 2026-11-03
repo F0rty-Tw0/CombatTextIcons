@@ -2399,8 +2399,9 @@ return function(T)
         Check("rhythm route: Procs.Forget mid-stream -> the next hit draws ?, no further tally",
             fifth[4] == ICON and Wound(rig) == UNKNOWN and rig.ns.Teacher.fight.tally[X] == 1050)
 
-        -- The pair route's guards: the loose tick a period before must be like-sized, the band's only hit since, not
-        -- physical, and no unlearned cast may have made the hit.
+        -- The pair route's guards: the loose tick a period before must be in the band (not like-sized: lock4's Darkglare
+        -- beams vary with the target's DoTs), the band's only hit since, not physical, and no unlearned cast may have
+        -- made the hit.
         local function Pair(r, first, second, gap, school, unit2)
             r.Hit(10, "nameplate1", first, school or 106)
             return r.Hit(10 + (gap or 1), unit2 or "nameplate1", second, school or 106)
@@ -2417,8 +2418,11 @@ return function(T)
         T.Store().procs = { [X] = { school = 106, period = 1.0, lo = 300, hi = 400, learned = true,
             streak = 2, unpaired = 0, seen = 0 } }
         rig.ns.Procs.Init(T.Store())
-        Check("rhythm pair: both in the band but not like-sized (300 then 395, past SIZE_GUARD) -> ?",
-            Pair(rig, 300, 395) == UNKNOWN)
+        Check("rhythm pair: both in the band, 300 then 395 (past SIZE_GUARD), draws the rhythm icon",
+            Pair(rig, 300, 395) == ICON and rig.ns.Teacher.fight.tally[X] == 395)
+        rig = RhythmRig()
+        Check("rhythm pair: the tick a period before sits under the band (240 then 350) -> ?",
+            Pair(rig, 240, 350) == UNKNOWN)
         rig = RhythmRig()
         rig.Hit(10, "nameplate1", 350, 106)
         rig.Hit(10.5, "nameplate1", 355, 106)

@@ -905,21 +905,14 @@ function Procs.NameCast(school, amount, flagText, candidates)
     return found
 end
 
--- Whether two hits are one spell's ticks by size: two of a kind within SIZE_GUARD, a crit over a normal within the
--- crit band (Streams' size guard).
-local function LikeSized(x, xCrit, y, yCrit)
-    if xCrit == yCrit then return math.abs(x - y) <= SIZE_GUARD * math.max(x, y) end
-    local crit, normal = x, y
-    if yCrit then crit, normal = y, x end
-
-    return CRIT_LO <= crit / normal and crit / normal <= CRIT_HI
-end
-
 -- Procs.NamePair(loose, school, amount, flagText, now): the one learned rhythm entry of the school whose padded band
--- holds the hit and one like-sized loose hit of the plate (Streams.Loose, oldest first) one period before it, within
--- the stream slack, the band's only hit since; nil for none or several. Names a known rhythm's ticks from its second
--- on, where a stream is born only on the fourth: run lock3 F2, Darkglare 205231's first beams (199520.955,
--- 199522.823, 199524.681, 8.5-10.3K, 1.77 s) hit 5 plates each and went by as '?' until the stream at 199526.558.
+-- holds the hit and one loose hit of the plate (Streams.Loose, oldest first) one period before it, within the stream
+-- slack, the band's only hit since; nil for none or several. Names a known rhythm's ticks from its second on, where a
+-- stream is born only on the fourth: run lock3 F2, Darkglare 205231's first beams (199520.955, 199522.823,
+-- 199524.681, 8.5-10.3K, 1.77 s) hit 5 plates each and went by as '?' until the stream at 199526.558. The band is
+-- the size test: the two ticks need not be within SIZE_GUARD of each other. Run lock4 F3: Darkglare's 12322 then
+-- 9656 on nameplate8 1.64 s apart (21.6 % apart, its beam grows with the target's DoTs) stayed '?' (lock4 right
+-- 33.3 % -> 33.7 %, wrong unchanged).
 -- Never physical: melee swings and GCD-paced strikes pair one period apart (old druid F10/F12, 3576-24815).
 function Procs.NamePair(loose, school, amount, flagText, now)
     local crit = Procs.Crit(flagText)
@@ -933,7 +926,7 @@ function Procs.NamePair(loose, school, amount, flagText, now)
                 local gap = now - hit.at
                 if gap > 0 and gap <= entry.period + slack and hit.amount and InBand(entry, hit.amount, hit.crit) then
                     inBand = inBand + 1
-                    partner = partner or gap >= entry.period - slack and LikeSized(amount, crit, hit.amount, hit.crit)
+                    partner = partner or gap >= entry.period - slack
                 end
             end
             -- a crowd's in-band hits come denser than one a period
