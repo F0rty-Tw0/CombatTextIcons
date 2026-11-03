@@ -868,7 +868,8 @@ do -- Phase 3: records and Claim
         end)
     -- Run paladin2 F7: Judgment 20271 (2 hits a cast, area) took its own 5577 and 2 hits around at 0.161 s; its own
     -- second hit at 0.421 s, inside its window, went '?' because the hits around had filled the record.
-    Scenario("per cast and area: a cast's hits around its target leave its own-plate hits per cast open",
+    Scenario("per cast and area: a cast's hits around its target leave its own-plate hits per cast open, and a plate "
+        .. "around takes as many hits as its own",
         function()
             local function Last(hits)
                 local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
@@ -889,6 +890,12 @@ do -- Phase 3: records and Claim
             local MB, own, around = "tex:8092", { 30.2, 21000, "nameplate1" }, { 30.2, 20000, "nameplate2" }
             return Last({ own, around, { 30.22, 20000, "nameplate1" } }) == MB
                 and Last({ own, around, { 30.21, 20000, "nameplate1" }, { 30.22, 20000, "nameplate1" } }) ~= MB
+                -- run paladin2 F4: Judgment's second round hit its target and both plates around it again; a plate
+                -- around takes as many hits as the cast's own plate took, no more
+                and Last({ own, around, { 30.22, 20000, "nameplate1" }, { 30.22, 20000, "nameplate2" } }) == MB
+                and Last({ own, around, { 30.22, 20000, "nameplate2" } }) ~= MB
+                and Last({ own, around, { 30.22, 20000, "nameplate1" }, { 30.22, 20000, "nameplate2" },
+                    { 30.23, 20000, "nameplate2" } }) ~= MB
         end)
     -- Run paladin2 F4: Judgment 20271 (window 0.161-0.44 s, 2 a cast) took its own first hit 0.1 s after the window's
     -- start and its second 0.27 s later, past the top. Mind Blast here: window 0.17-0.23 s (SLACK 0.05).

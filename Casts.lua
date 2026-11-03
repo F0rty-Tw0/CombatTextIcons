@@ -418,8 +418,11 @@ function Casts.QuietNear(plate, school, size, at)
 end
 
 -- Whether a hit on `plate`, another plate than the cast's, is an area spell's (Area.lua: the meter showed its row
--- holding such hits): a plate the record has not hit yet, SLACK below its window to SPLASH past its top, and once
--- the record took its own hit at most SPLASH past that hit, as Splash. Run paladin2 F7: 408385 (window top past 0.5 s)
+-- holding such hits): a plate the record has hit fewer times than its own plate (once at most before its own hit),
+-- SLACK below its window to SPLASH past its top, and once
+-- the record took its own hit at most SPLASH past that hit, as Splash. Run paladin2 F4: Judgment 20271 (2 a cast) hit
+-- its target and 2 plates around at 0.20-0.26 s, then all 3 again at 0.528 s; with the second round drawn its row met
+-- the meter exactly (28436), and in F7 too (32406). Run paladin2 F7: 408385 (window top past 0.5 s)
 -- took its 4650 own hit 0.23 s after its cast and a 3523 on another plate in that frame; a 7788 crit on a third plate
 -- 1.01 s after the cast, first of a later frame with 3894 on both plates it had hit, drew as 408385 (row 103878 got
 -- 111666). The caller checked the school and the band (from AREA_LO of the smallest size for an areaLow base).
@@ -428,7 +431,7 @@ end
 -- frame 0.33 s after its cast struck 5 plates at a like size; taking 3 of those ran its row over. Its own hit may come
 -- a frame early (run druid F7: a 33499 crit at 0.213 s), so the window still holds the rest of its frame.
 local function AreaHit(record, fp, plate, now)
-    if not fp.area or record.plates[plate] then return false end
+    if not fp.area or (record.plates[plate] or 0) >= math.max(1, record.own) then return false end
     local low, high = RecordWindow(record)
     local age = now - record.at
     if fp.areaFrame then
@@ -737,6 +740,7 @@ end
 -- `own` counts the hits on the cast's plate, the ones its learned hits per cast count (Fits): its hits on the plates
 -- around are no own hits. Run paladin2 F7: Judgment 20271 (2 a cast) took its own 5577 and 2 hits around in one frame
 -- at 0.161 s, and its own second hit 5656 at 0.421 s, inside its window, found the record full and went '?'.
+-- `plates` counts the hits a plate took (AreaHit).
 function Casts.Accept(record, plate, now, size)
     for index = #wounds, 1, -1 do
         local wound = wounds[index]
@@ -754,7 +758,7 @@ function Casts.Accept(record, plate, now, size)
         record.echo, echo.at, echo.plate, echo.plates[plate] = echo, now, plate, true
         return
     end
-    record.plates[plate] = true
+    record.plates[plate] = (record.plates[plate] or 0) + 1
     if plate == record.plate then record.own = record.own + 1 end
     if plate ~= record.plate and record.hops == 0 then return end
     if record.hops == 0 then record.firstAt = now end
