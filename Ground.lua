@@ -27,6 +27,7 @@ local Ground = {}
 ns.Ground = Ground
 
 local MIN_PLATES = 3     -- plates a wide frame hits at least
+Ground.MIN_PLATES = MIN_PLATES -- Casts.GroundStarts: crits on this many plates start a first tick
 local MIN_CASTS = 3      -- casts with a first tick at least (Steady's)
 local SHARE = 0.6        -- of a cast spell's casts the first ticks must cover (Steady's)
 local WAIT = 1.5         -- a first tick lands at most this long after its cast (Casts' UNKNOWN_WAIT)
@@ -110,7 +111,8 @@ end
 -- three 16.5K crits on one plate (200335.220, 8.2K halved: Earthquake's crits are ~3x) took the next cast's first
 -- tick from its real one. A later tick is due a period after the last one seen, so a crit Near anchors it too:
 -- synthetic Death and Decay (crits x2) crits on all 4 plates in one frame every few casts, and two such frames in a
--- row ended the walk (fight D 40K short of the row -> rows=0).
+-- row ended the walk (fight D 40K short of the row -> rows=0). Learned, the draw route also lets crits on MIN_PLATES
+-- plates of one frame start a first tick, on the crit scale learned here (Casts.GroundStarts); this pass has no scale.
 local function Near(low, high, size)
     local guard = 1 - Streams.SIZE_GUARD
 

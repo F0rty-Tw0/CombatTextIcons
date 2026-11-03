@@ -1275,6 +1275,48 @@ do -- Phase 3: records and Claim
             and Last({ first, crit2 }, 1.5) ~= EQ and Last({ first, crit2 }) == EQ
             and Last({ { 31, 19500, "nameplate2", "CRITICAL" } }, 1.5) ~= EQ
     end)
+    -- shaman5 fight 5: Earthquake's first tick 0.93 s after its cast at 200334.391 was five crits on five plates
+    -- (25.1-26.5K, ~3x its 8.8K normals) and no normal; at 200318.972 a crit came ahead of the normals of its frame.
+    -- Both stayed '?'. Three 16.5K crits on one plate in a first-tick window (200335.220) were another spell's. Learned
+    -- here with crit scale 1.5: a first-tick crit waits for its frame's end and draws when a normal took the tick in its
+    -- frame, or crits on 3 plates did; crits on fewer plates, or off the crit scale, stay off it.
+    Scenario("ground: a first-tick crit draws at its frame's end once a normal or crits on 3 plates take the tick",
+        function()
+            local function Count(hits)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                for castAt = 1, 3 do
+                    ns.Fingerprints.Add(462620, { school = 8, delay = 1, castAt = castAt, hops = 1, size = 6400,
+                        tick = 0, crit = 1.5 })
+                    ns.Fingerprints.Add(462620, { school = 8, delay = 6, castAt = castAt, hops = 1, size = 6600,
+                        tick = 5 })
+                end
+                local drawn = 0
+                ns.Display.Plate = function(_, texture)
+                    if texture == "tex:462620" then drawn = drawn + 1 end
+                end
+                S.now, S.target = 30, nil
+                ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 462620)
+                for _, hit in ipairs(hits) do
+                    S.now = hit[1]
+                    ns.Core.UNIT_COMBAT(hit[3], "WOUND", hit[4] or "", hit[2], 8)
+                end
+                ns.Core.FlushMates()
+                return drawn
+            end
+            local C = "CRITICAL"
+            local three = { { 31, 19500, "nameplate2", C }, { 31, 19800, "nameplate3", C },
+                { 31, 19200, "nameplate4", C } }
+            local later = { table.unpack(three) }
+            later[#later + 1] = { 32, 6500, "nameplate2" }
+            return Count({ { 31, 19500, "nameplate2", C }, { 31, 6500, "nameplate3" } }) == 2
+                and Count(three) == 3 and Count(later) == 4
+                and Count({ { 31, 19500, "nameplate2", C }, { 31, 19800, "nameplate3", C } }) == 0
+                and Count({ { 31, 19500, "nameplate2", C }, { 31, 19800, "nameplate2", C },
+                    { 31, 19200, "nameplate2", C } }) == 0
+                and Count({ { 31, 13000, "nameplate2", C }, { 31, 13000, "nameplate3", C },
+                    { 31, 13000, "nameplate4", C } }) == 0
+        end)
     -- shaman5 fight 5: Earthquake casts at 200336.478 and 200337.567 ticked in frames 0.12-0.18 s apart; the older
     -- cast's tick at 200338.389 landed in the younger's first-tick window and took it, later its tick at
     -- 200340.394 stepped the younger again, so the younger's own ticks (200338.568, 200339.519, 200340.508, 200341.528) stayed '?'.

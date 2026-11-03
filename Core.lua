@@ -436,7 +436,8 @@ local QueueFlush -- the next frame flushes what waits for its frame's end (below
 -- ground ticks). A hit with no such hit in its frame is a stranger's and stays hidden, unless a learned proc names it
 -- on a plate yours drew on just before (DrawMate).
 -- ownFrame = { at = a frame's stamp, schools = { [school] = true } }; held = { at = the frame's stamp, hits = { {
--- plate, school, amount, flagText, kind, record }, ... } } (kind, record: its Casts.Claim answer).
+-- plate, school, amount, flagText, kind, record }, ... } } (kind, record: its Casts.Claim answer; a held share has
+-- `share` instead, HoldShare, and a held ground crit `ground`, its record, HoldGround).
 local ownFrame, held = { schools = {} }, { hits = {} }
 
 -- A solo hit of `school` landed on a mob fighting you at `now`: its frame's held hits of that school are mates.
@@ -472,6 +473,17 @@ local function LikeDrawn(hit)
     end
 
     return base
+end
+
+-- Draws a hit held to its frame's end as the learned cast `record` (`route` for /cti debug) and tallies it.
+local function DrawHeld(hit, record, route)
+    if ns.Debug then ns.Debug("  -> %s %s", route, ShowValue(record.spellID)) end
+    Casts.Accept(record, hit.plate, hit.at, Streams.NormalAmount(hit.amount, hit.flagText))
+    Tracker.OnDirectHit(hit.plate, record.spellID, hit.at)
+    Streams.Landed(hit.plate, record.spellID, hit.at)
+    Drawn(record.base, hit.amount, hit.at)
+    Ledger.Add("damage", record.base, hit.amount)
+    Display.Plate(hit.plate, SpellTexture(record.spellID), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
 end
 
 -- A held hit at its frame's end, when `mated`: drawn when a learned cast claimed it and drew a hit in its frame (an
@@ -514,14 +526,7 @@ local function DrawMate(hit, mated)
         if ns.Debug then ns.Debug("  -> HIDDEN (mate)") end
         return
     end
-    local record = hit.record
-    if ns.Debug then ns.Debug("  -> mate %s", ShowValue(record.spellID)) end
-    Casts.Accept(record, hit.plate, hit.at, Streams.NormalAmount(hit.amount, hit.flagText))
-    Tracker.OnDirectHit(hit.plate, record.spellID, hit.at)
-    Streams.Landed(hit.plate, record.spellID, hit.at)
-    Drawn(record.base, hit.amount, hit.at)
-    Ledger.Add("damage", record.base, hit.amount)
-    Display.Plate(hit.plate, SpellTexture(record.spellID), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
+    DrawHeld(hit, hit.record, "mate")
 end
 
 -- A solo hit on a mob fighting you that nothing named: the teacher learns from it (Teacher.Unknown), and it draws the
@@ -554,15 +559,42 @@ local function DrawShare(hit)
     Display.Plate(hit.plate, SpellTexture(hit.share), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
 end
 
+-- A held crit that may start a ground cast's first tick (HoldGround) at its frame's end: drawn as that cast when its
+-- frame is the first tick (Casts.GroundStarts, `plates` the plates its frame's held crits of that record hit), else
+-- the question mark route it was held from (Question).
+local function DrawGround(hit, plates)
+    if not Casts.GroundStarts(hit.ground, hit.at, plates) then
+        return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates)
+    end
+    DrawHeld(hit, hit.ground, "ground")
+end
+
 -- Ends the held hits' frame once `now` is past its stamp, or with nil (the fight ended; the replays end each frame
--- with it too): each is a mate or a stranger's (DrawMate), or a split proc's share (DrawShare).
+-- with it too): each is a mate or a stranger's (DrawMate), a split proc's share (DrawShare), or a crit that may start
+-- a ground cast's first tick (DrawGround).
 function Core.FlushMates(now)
     local hits = held.hits
     if #hits == 0 or (now and now <= held.at) then return end
     local own = ownFrame.at == held.at and ownFrame.schools or {}
     held = { hits = {} }
+    local plates, seen = {}, {} -- plates[record] = plates its held crits hit; seen[record][plate] = true
     for _, hit in ipairs(hits) do
-        if hit.share then DrawShare(hit) else DrawMate(hit, own[hit.school] == true) end
+        local record = hit.ground
+        if record then
+            seen[record] = seen[record] or {}
+            if not seen[record][hit.plate] then
+                seen[record][hit.plate], plates[record] = true, (plates[record] or 0) + 1
+            end
+        end
+    end
+    for _, hit in ipairs(hits) do
+        if hit.share then
+            DrawShare(hit)
+        elseif hit.ground then
+            DrawGround(hit, plates[hit.ground])
+        else
+            DrawMate(hit, own[hit.school] == true)
+        end
     end
 end
 
@@ -589,6 +621,17 @@ local function HoldShare(plate, school, amount, flagText, now, procID, cast, can
     QueueFlush()
 end
 
+-- Holds a solo '?' crit that may start the first tick of the ground cast `record` (Casts.GroundFirst) until its frame
+-- ends: a normal later in the frame, or crits on enough plates, prove the tick. DrawGround decides.
+local function HoldGround(plate, school, amount, flagText, now, record, cast, candidates)
+    Core.FlushMates(now)
+    if held.at ~= now then held = { at = now, hits = {} } end
+    held.hits[#held.hits + 1] = { plate = plate, school = school, amount = amount, flagText = flagText, at = now,
+        ground = record, cast = cast, candidates = candidates }
+    if ns.Debug then ns.Debug("  .. ground") end
+    QueueFlush()
+end
+
 -- The hit route: the tracker names DoT and channel ticks and a learned cast fingerprint
 -- names a direct hit (Casts.Claim); both draw at once, in a group too. Two learned DoTs that
 -- both fit draw the question mark at once. Whatever nothing names is fed to the streams; solo
@@ -605,7 +648,8 @@ end
 -- (Procs.NameOnset: a burst's first tick). A learned swing on your target (SwingWound) ranks just below the size procs,
 -- above the rhythm ones. Solo, a hit on a creature with no threat list that does
 -- not fight you, which the tracker does not name, waits for its frame's end instead of hiding (Hold, Core.FlushMates),
--- and so does a solo '?' hit a learned proc's twin split band holds (HoldShare). The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
+-- and so does a solo '?' hit a learned proc's twin split band holds (HoldShare), or a solo '?' crit that may start a
+-- learned ground cast's first tick (HoldGround). The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
 -- (run 153349Z: strangers on 8 nearby dummies made both reads crowded). Frame mates reach the area pass only
 -- (Teacher.Mate), never the crowd check.
@@ -743,6 +787,10 @@ local function Wound(plate, unit, flagText, amount, school, now)
         local share = Teacher.NotCrowded() and not Procs.Name(school, amount, flagText, false)
             and Procs.Name(school, amount, flagText, true)
         if share then return HoldShare(plate, school, amount, flagText, now, share, cast, candidates) end
+        -- a crit no claim named that may start a ground cast's first tick waits for its frame (HoldGround)
+        local ground = kind == nil and Casts.GroundFirst(plate, school, now, Streams.NormalAmount(amount, flagText),
+            flagText)
+        if ground then return HoldGround(plate, school, amount, flagText, now, ground, cast, candidates) end
 
         return Question(plate, school, amount, flagText, now, cast, candidates)
     end

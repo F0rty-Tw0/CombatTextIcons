@@ -486,7 +486,8 @@ local function Fits(record, fp, plate, school, now, size, crit)
     if fp.pattern == "ground" then
         -- a tick is anchored only by a normal hit near the learned sizes (Ground's Near: a halved crit of another
         -- spell passes for one), or by a crit near them on its learned scale (GroundSize) on a tick after one seen
-        -- (Ground.lua's Walk); the padded band draws the rest of its frame
+        -- (Ground.lua's Walk); the padded band draws the rest of its frame. A first-tick crit waits for its frame's
+        -- end in Core instead (Casts.GroundFirst)
         local tick = GroundTick(record, fp, now)
         local lattice = record.tickAt ~= nil and tick ~= nil and tick > record.tick
         local near = NearSizes(record, GroundSize(fp, size, crit))
@@ -749,6 +750,40 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
         return "ambiguous"
     end
     if fits == 1 then return "learned", found, lateOnly end
+end
+
+-- The ground record a crit that Claim named no one's may start the first tick of, or nil: one that has seen no tick
+-- yet, the crit inside its first-tick window, in band and near the learned sizes on its crit scale (GroundSize). A crit
+-- alone anchors no first tick (Fits): another spell's crits land in that window too (shaman5 F5: three 16.5K crits on
+-- one plate at 200335.220). Core holds such a crit to its frame's end, and its frame decides (Casts.GroundStarts).
+-- Shaman5 F5: Earthquake's first tick at 200335.316 was five crits on five plates (25.1-26.5K, ~3x its 8.8K normals)
+-- and no normal, all '?'; at 200318.972 two crits came ahead of the normals that anchored their frame, and stayed '?'.
+function Casts.GroundFirst(plate, school, now, size, flagText)
+    local plain = Plain(plate) and Plain(school) and Plain(now) and Plain(flagText)
+    if not (plain and flagText == "CRITICAL" and IsNumber(size)) then return nil end
+    for _, record in ipairs(records) do
+        local fp = Live(record, now)
+        local unseen = fp and fp.pattern == "ground" and fp.school == school and not record.tickAt
+        if unseen and GroundTick(record, fp, now) == 0 and Casts.InBand(record.base, record.spellID, size)
+            and NearSizes(record, GroundSize(fp, size, true)) then
+            return record
+        end
+    end
+end
+
+-- Whether the frame at `at` is the first tick of the ground `record` that held crits wait on (Casts.GroundFirst): a
+-- normal hit took it there (Claim), or the crits hit `plates` plates, at least the ground pass's wide frame
+-- (Ground.MIN_PLATES), while no other record of its spell ticked in that frame (an older cast's tick starts no
+-- younger cast's first one, Claim). The crits' frame then is the record's first tick.
+function Casts.GroundStarts(record, at, plates)
+    if record.tickAt == at then return true end
+    if record.tickAt or plates < ns.Ground.MIN_PLATES then return false end
+    for _, other in ipairs(records) do
+        if other ~= record and other.base == record.base and other.tickAt == at then return false end
+    end
+    record.tick, record.tickAt = 0, at
+
+    return true
 end
 
 -- The hit is drawn: the record has taken one more hit, and the hit (Claim's newest wound on its plate and stamp: a
