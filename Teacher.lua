@@ -765,7 +765,7 @@ end
 -- (Procs.lua Remainders), which learns it at once and draws every tick in its band. Each must be the only one of the
 -- other among every open row, free or not, and the row must be free. The spell is learned as that school's DoT at the
 -- rhythm most of the stream ticks keep (Procs.PeriodNear), its votes set aside, and a second series in those streams
--- as the row's rhythm proc (SecondSeries).
+-- as the row's rhythm proc (SecondSeries), with the steady fall its streams share, if any (SeriesFall).
 -- Run lock2 F4 read first (bench shuffle): school 36's '?' (220613) met Wither 445468's row exactly, but Wither was
 -- not cast there; the one free row in bounds was Unstable Affliction 1259790's (222218), and learned as a school-36
 -- DoT it kept UA's own stack ticks from learning (up to 514186 a seed).
@@ -796,12 +796,27 @@ local function DotPeriod(records)
     return best
 end
 
+-- A second series' steady fall: the mean of its streams' falls (Streams' Fall) when two or more fell and each sits
+-- within Streams.FALL_SPREAD of that mean, else nil. Run lock4 F1: Wither's collapse streams fell x0.982 a tick.
+local function SeriesFall(series)
+    local sum, count = 0, 0
+    for _, fall in ipairs(series.falls) do sum, count = sum + fall, count + 1 end
+    if count < 2 then return nil end
+    local mean = sum / count
+    for _, fall in ipairs(series.falls) do
+        if math.abs(fall - mean) > Streams.FALL_SPREAD then return nil end
+    end
+
+    return mean
+end
+
 -- The DoT pass's second series: the same bounds that make a school's streams one row's make every series in them
 -- that row's. Run lock3 F1: Wither 445468's 57 ticks at ~1.0 s (4060-5637, its stacks collapsing after Malevolence
 -- 442726) beside its own 1445-2171 ticks at 1.32-1.51 s; in F2 such ticks went by as '?' (319424 of its 666459 row).
 -- Returns the period, lo and hi of the records the DoT's `period` does not keep (Procs.PeriodNear), clustered as
 -- DotPeriod clusters them, with the most ticks, when that cluster spans two streams or more and its normal sizes
--- miss the DoT's band (else it is the DoT's own ticks, a stream that skipped some); else nil.
+-- miss the DoT's band (else it is the DoT's own ticks, a stream that skipped some); else nil. Fourth, the series'
+-- steady fall (SeriesFall), nil for none.
 local function SecondSeries(records, period)
     local ownLo, ownHi, others = math.huge, 0, {}
     for _, rec in ipairs(records) do
@@ -813,19 +828,20 @@ local function SecondSeries(records, period)
     end
     local best, most = nil, 0
     for _, anchor in ipairs(others) do
-        local series = { ticks = 0, weighted = 0, streams = 0, lo = anchor.lo, hi = anchor.hi }
+        local series = { ticks = 0, weighted = 0, streams = 0, lo = anchor.lo, hi = anchor.hi, falls = {} }
         for _, rec in ipairs(others) do
             if Procs.PeriodNear(anchor.period, rec.period) then
                 series.ticks, series.weighted = series.ticks + rec.n, series.weighted + rec.n * rec.period
                 series.streams = series.streams + 1
                 series.lo, series.hi = math.min(series.lo, rec.lo), math.max(series.hi, rec.hi)
+                if rec.fall then series.falls[#series.falls + 1] = rec.fall end
             end
         end
         if series.ticks > most then best, most = series, series.ticks end
     end
     if not best or best.streams < 2 or (best.lo <= ownHi and best.hi >= ownLo) then return nil end
 
-    return best.weighted / best.ticks, best.lo, best.hi
+    return best.weighted / best.ticks, best.lo, best.hi, SeriesFall(best)
 end
 
 local function DotPass(run, rows, open, rewritten, results, learned)
@@ -843,7 +859,8 @@ local function DotPass(run, rows, open, rewritten, results, learned)
         if not stream.procID and rec.n > 0 then
             local school = School(rec.school)
             school.sum = school.sum + rec.sum
-            school.records[#school.records + 1] = { period = stream.period, n = rec.n, lo = rec.lo, hi = rec.hi }
+            school.records[#school.records + 1] = { period = stream.period, n = rec.n, lo = rec.lo, hi = rec.hi,
+                fall = rec.fall }
         end
     end
     local spent = {}
@@ -898,10 +915,11 @@ local function DotPass(run, rows, open, rewritten, results, learned)
                     results[item.index] = { spellID = row.spellID, meterID = row.spellID, tally = school.sum,
                         meter = row.total, verdict = "under" }
                     -- its second series draws as a rhythm proc of the row (Procs.NameStream)
-                    local rate, lo, hi = SecondSeries(school.records, raw)
-                    if rate then Procs.Teach(row.spellID, id, lo, hi, rate, run.at) end
+                    local rate, lo, hi, fall = SecondSeries(school.records, raw)
+                    if rate then Procs.Teach(row.spellID, id, lo, hi, rate, run.at, fall) end
                     if rate and ns.Debug then
-                        ns.Debug("TEACH dot series %d school=%d p=%.2f band=%d-%d", row.spellID, id, rate, lo, hi)
+                        ns.Debug("TEACH dot series %d school=%d p=%.2f band=%d-%d fall=%s", row.spellID, id, rate, lo,
+                            hi, fall and string.format("%.4f", fall) or "-")
                     end
                 end
                 if ns.Debug then

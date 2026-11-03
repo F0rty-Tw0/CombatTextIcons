@@ -358,12 +358,14 @@ local function DrawRhythm(plate, rhythmID, school, amount, flagText, now, onsetA
     return true
 end
 
--- Draws a hit whose stream fits a learned rhythm proc (ticks that share no size band) with that row's icon; a
--- hit before its stream is born is named by a logged cast of the proc's row that its band holds (Procs.NameCast).
+-- Draws a hit whose stream fits a learned rhythm proc (ticks that share no size band, or its steady fall) with that
+-- row's icon; a hit before its stream is born is named by a logged cast of the proc's row that its band holds
+-- (Procs.NameCast).
 -- `candidates` is Casts.Candidates for the hit. Returns whether it drew.
 local function RhythmWound(plate, stream, school, amount, flagText, candidates, now)
     if not Teacher.NotCrowded() then return false end
-    local rhythmID, onsetAt = Procs.NameStream(stream), stream and stream.birth
+    local rhythmID = Procs.NameStream(stream)
+    local onsetAt = stream and not stream.procFell and stream.birth or nil
     if not rhythmID then rhythmID, onsetAt = Procs.NameCast(school, amount, flagText, candidates), now end
     if not rhythmID then return false end
 
@@ -381,7 +383,8 @@ local function OnsetWound(plate, stream, school, amount, flagText, now)
 end
 
 -- Draws a loose hit (no stream took it) that pairs with the tick one learned rhythm period before it on the plate
--- (Procs.NamePair), when no unlearned cast may have made it: a learned cast's own hit was claimed before (Casts.Claim).
+-- (Procs.NamePair), or that ends a learned rhythm's steady fall over the plate's loose ticks (Procs.NameFall), when no
+-- unlearned cast may have made it: a learned cast's own hit was claimed before (Casts.Claim).
 -- Nor may a learned DoT's cast in the hit's window (Casts.TickerAt): an off-beat tick the tracker missed is the DoT's,
 -- and run mage F6 paired Arcane Missiles 5143's as the mislearned proc 153626. `candidates` is Casts.Candidates for the
 -- hit. Returns whether it drew.
@@ -391,7 +394,10 @@ local function PairWound(plate, stream, school, amount, flagText, candidates, no
         if not Fingerprints.IsLearned(cast.castID) then return false end
     end
     if Casts.TickerAt(plate, now, school) then return false end
-    local rhythmID, partnerAt = Procs.NamePair(Streams.Loose(plate, school), school, amount, flagText, now)
+    local loose = Streams.Loose(plate, school)
+    local rhythmID, partnerAt = Procs.NamePair(loose, school, amount, flagText, now)
+    -- a collapse's tick under the band (Procs.NameFall) teaches no onset link: none names a hit under the band
+    if not rhythmID then rhythmID, partnerAt = Procs.NameFall(loose, school, amount, flagText, now), nil end
     if not rhythmID then return false end
 
     return DrawRhythm(plate, rhythmID, school, amount, flagText, now, partnerAt)
@@ -565,7 +571,8 @@ end
 -- the question mark; so does a learned rhythm proc that fits the stream the hit extends or births
 -- (Procs.NameStream), or that a recent cast of its row and the hit's size name before the stream is born
 -- (Procs.NameCast), ranked below the Tracker and Casts; last, below the stack series, one whose tick a period
--- before the hit is still loose on the plate (Procs.NamePair), then one whose onset link's cast leads the hit
+-- before the hit is still loose on the plate (Procs.NamePair) or whose steady fall the plate's loose ticks keep
+-- (Procs.NameFall), then one whose onset link's cast leads the hit
 -- (Procs.NameOnset: a burst's first tick). Solo, a hit on a creature with no threat list that does
 -- not fight you, which the tracker does not name, waits for its frame's end instead of hiding (Hold, Core.FlushMates),
 -- and so does a solo '?' hit a learned proc's twin split band holds (HoldShare). The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting

@@ -40,7 +40,8 @@ local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
--- [spellID] = { school, lo, hi, streak, learned, unpaired, seen, period, floor, critSeen }; the saved table itself.
+-- [spellID] = { school, lo, hi, streak, learned, unpaired, seen, period, floor, critSeen, fall }; the saved table itself.
+-- fall: a rhythm proc's steady fall per tick (Procs.Teach), nil for none.
 -- period is set on a rhythm proc only; floor is the lowest cut-short tick seen, kept only below lo. critSeen: a group
 -- that paired the proc's row held a crit (false: none yet, so Name draws no crit; a store saved before it: true).
 -- splits: a learned size proc's extra bands { lo, hi, twin, k } (Split), nil for none. k (the entry's and each split's):
@@ -74,6 +75,11 @@ local function ValidLinks(links)
     end
 
     return kept
+end
+
+-- A saved steady fall (Procs.Teach): a share above 0 and at most Streams.FALL_MAX, else nil.
+local function ValidFall(fall)
+    return IsNumber(fall) and fall > 0 and fall <= Streams.FALL_MAX and fall or nil
 end
 
 -- A saved plate count (Shares, below): a whole number from 1, else nil.
@@ -113,6 +119,7 @@ function Procs.Init(charDB)
             entry.critSeen = entry.critSeen ~= false
             entry.critOnly = entry.critOnly == true or nil
             entry.onset = entry.period and ValidLinks(entry.onset) or nil
+            entry.fall = entry.period and ValidFall(entry.fall) or nil
             entry.splits = not entry.period and ValidSplits(entry.splits) or nil
             entry.k = not entry.period and ValidK(entry.k) or nil
         else
@@ -901,14 +908,15 @@ function Procs.Read(hits, open, results, rows, at, ticks, streams)
     if streams then RhythmPass(open, results, rows, at, streams, taken) end
 end
 
--- Procs.Teach(id, school, lo, hi, period, at): the castless pass (Ground.Castless) proved a rhythm on many plates under
--- the open row id, or the DoT pass a learned DoT's second series under its row (Teacher's SecondSeries): learned at
--- once, as an exact rhythm pair is, and drawn by Procs.NameStream.
-function Procs.Teach(id, school, lo, hi, period, at)
+-- Procs.Teach(id, school, lo, hi, period, at, fall): the castless pass (Ground.Castless) proved a rhythm on many plates
+-- under the open row id, or the DoT pass a learned DoT's second series under its row (Teacher's SecondSeries): learned
+-- at once, as an exact rhythm pair is, and drawn by Procs.NameStream. `fall`: the series' steady fall (Streams' Fall),
+-- nil for none.
+function Procs.Teach(id, school, lo, hi, period, at, fall)
     local plain = IsNumber(id) and IsNumber(school) and IsNumber(lo) and IsNumber(hi) and IsNumber(period)
     if not (plain and lo > 0 and lo <= hi and period > 0) then return end
     procs[id] = { school = school, lo = lo, hi = hi, period = period, streak = RHYTHM_STREAK, learned = true,
-        unpaired = 0, seen = IsNumber(at) and at or 0 }
+        unpaired = 0, seen = IsNumber(at) and at or 0, fall = ValidFall(fall) }
 end
 
 -- Name ---------------------------------------------------------------------------------------------------
@@ -1058,9 +1066,21 @@ local function InBand(entry, amount, crit)
     return (crit ~= true and normal) or (crit ~= false and big)
 end
 
+-- Whether a stream's steady fall (Streams' Fall: FALL_TICKS shares in a row) is the entry's learned one, within
+-- FALL_SPREAD, with its last hit at most the entry's padded top: a collapse falls out of the band it starts in.
+-- Run lock4: Wither 445468's collapse series started at 4523-6031 by its stacks and fell x0.982 a tick to 3222.
+local function FallsAs(entry, stream, amount)
+    local fall = entry.fall
+    if not (fall and stream.fall and (stream.falls or 0) >= Streams.FALL_TICKS) then return false end
+
+    return math.abs(stream.fall - fall) <= Streams.FALL_SPREAD and amount <= entry.hi * PAD_HI
+end
+
 -- Procs.NameStream(stream): the one learned rhythm entry whose school and period match the stream and whose
--- padded band holds its last hit, or nil for none or several. A positive answer is cached on stream.procID and
--- served only while that entry is still a learned rhythm entry; once it is not, the stream is looked up afresh.
+-- padded band holds its last hit, or whose steady fall the stream falls at (FallsAs), or nil for none or several.
+-- A positive answer is cached on stream.procID and served only while that entry is still a learned rhythm entry;
+-- once it is not, the stream is looked up afresh. stream.procFell: the fall named it, not the band; its first tick
+-- sits under the band, where no onset link names a hit (Core passes no onset for it).
 function Procs.NameStream(stream)
     if not stream then return nil end
     if stream.procID then
@@ -1070,15 +1090,16 @@ function Procs.NameStream(stream)
     end
     local school, period, amount = stream.school, stream.period, stream.lastAmount
     if not (IsNumber(school) and IsNumber(period) and IsNumber(amount)) then return nil end
-    local found
+    local found, fell
     for id, entry in pairs(procs) do
         local isRhythm = entry.learned == true and entry.period and entry.school == school
-        if isRhythm and PeriodNear(entry.period, period) and entry.lo * PAD_LO <= amount and amount <= entry.hi * PAD_HI then
+        local inBand = entry.lo * PAD_LO <= amount and amount <= entry.hi * PAD_HI
+        if isRhythm and PeriodNear(entry.period, period) and (inBand or FallsAs(entry, stream, amount)) then
             if found then return nil end
-            found = id
+            found, fell = id, not inBand
         end
     end
-    stream.procID = found
+    stream.procID, stream.procFell = found, found and fell or nil
 
     return found
 end
@@ -1142,6 +1163,52 @@ function Procs.NamePair(loose, school, amount, flagText, now)
     end
 
     return found, foundAt
+end
+
+-- The normal loose hit (Streams.Loose) one or two of `period`s before `at`, within the stream slack, whose share per
+-- period to `size` is `fall` within Streams.FALL_SPREAD, else nil; the newest such hit wins (a tick one period back
+-- before a tick two back, which would skip it).
+local function FallPartner(loose, period, fall, at, size)
+    local slack = Streams.Slack(period)
+    for index = #loose, 1, -1 do
+        local hit = loose[index]
+        local gap = at - hit.at
+        for multiple = 1, 2 do
+            local fits = gap > 0 and math.abs(gap - multiple * period) <= slack and not hit.crit and hit.amount
+                and hit.amount > 0 and math.abs((size / hit.amount) ^ (1 / multiple) - fall) <= Streams.FALL_SPREAD
+            if fits then return hit end
+        end
+    end
+
+    return nil
+end
+
+-- Procs.NameFall(loose, school, amount, flagText, now): the one learned rhythm entry of the school with a steady fall
+-- (Procs.Teach) that a normal hit at most its padded top ends: the hit and Streams.FALL_TICKS loose hits of the plate
+-- (oldest first) before it, each one period (or two) after the last, each falling by the entry's share per period;
+-- nil for none or several. Names a collapse's ticks from its third, where its stream is born only on the fourth, or
+-- later when a tick lands off its beat: run lock4 F5, Wither 445468's 3475 -> 3410 -> 3347 -> 3283 came 1.02, 0.90 and
+-- 1.09 s apart (x0.981 each), and no stream was born before 3222.
+function Procs.NameFall(loose, school, amount, flagText, now)
+    local crit = Procs.Crit(flagText)
+    if not (IsNumber(school) and IsNumber(amount) and IsNumber(now)) or crit ~= false or amount <= 0 then return nil end
+    local found
+    for id, entry in pairs(procs) do
+        local fits = entry.learned == true and entry.period and entry.fall and entry.school == school
+            and amount <= entry.hi * PAD_HI
+        local at, size, ticks = now, amount, 0
+        while fits and ticks < Streams.FALL_TICKS do
+            local partner = FallPartner(loose or {}, entry.period, entry.fall, at, size)
+            if not partner then break end
+            at, size, ticks = partner.at, partner.amount, ticks + 1
+        end
+        if fits and ticks >= Streams.FALL_TICKS then
+            if found then return nil end
+            found = id
+        end
+    end
+
+    return found
 end
 
 -- Onset links ----------------------------------------------------------------------------------------

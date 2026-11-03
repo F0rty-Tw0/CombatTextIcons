@@ -3112,7 +3112,7 @@ return function(T)
         -- the cast, so it never voted, and its row (772071) held every school-36 '?' hit (740626). Here one cast on
         -- nameplate1 and 8 ticks 1.4 s apart on 3 other plates: 3 x 8 x 5000 = 120000 '?' in school 36.
         local WITHER = 445468
-        local function WitherFight(rig, at, rows, series, extra)
+        local function WitherFight(rig, at, rows, series, extra, fall)
             local S, Core = rig.S, rig.ns.Core
             SlashCmdList.COMBATTEXTICONS("debug")
             S.now = at - 2
@@ -3122,8 +3122,9 @@ return function(T)
                 for _, unit in ipairs({ "nameplate2", "nameplate3", "nameplate4" }) do
                     rig.Hit(at + 1.5 + 1.4 * k, unit, 5000, 36)
                 end
-                -- a second series of the row: 12000 every 1.0 s on the given plates
-                for _, unit in ipairs(k < 6 and series or {}) do rig.Hit(at + 2.2 + k, unit, 12000, 36) end
+                -- a second series of the row: 12000 every 1.0 s on the given plates, each tick `fall` of the last
+                local size = math.floor(12000 * (fall or 1) ^ k + 0.5)
+                for _, unit in ipairs(k < 6 and series or {}) do rig.Hit(at + 2.2 + k, unit, size, 36) end
             end
             -- lone school-36 hits: { seconds after the cast, plate, amount }
             for _, hit in ipairs(extra or {}) do rig.Hit(at + hit[1], hit[2], hit[3], 36) end
@@ -3179,6 +3180,46 @@ return function(T)
         for k = 0, 3 do drawn = rig.Hit(100 + k, "nameplate5", 12000, 36) end
         Check("dot (d2): the series' stream on a plate never cast on draws the row (" .. tostring(drawn) .. ")",
             drawn == "tex:" .. WITHER)
+        Check("dot (d2): a flat series learns no fall", series ~= nil and series.fall == nil)
+
+        -- Run lock4: Wither's collapse fell x0.982 a tick from wherever its stacks put it (4523-6031), past the
+        -- band its F1 series taught. Here the series falls x0.982 from 12000 (68873 a plate): 257746 under 262000.
+        rig = Rig({})
+        WitherFight(rig, 10, { Row(WITHER, 262000) }, { "nameplate2", "nameplate3" }, nil, 0.982)
+        series = rig.ns.Procs.Get(WITHER)
+        Check("dot (d3): a series falling x0.982 a tick on 2 plates -> the row's rhythm learns that fall (" ..
+            tostring(series and series.fall) .. ")", Outcome() == "learned" and series ~= nil
+            and series.fall ~= nil and math.abs(series.fall - 0.982) < 0.001)
+        rig.S.now = 99
+        rig.ns.Core.PLAYER_REGEN_DISABLED()
+        local UNKNOWN = rig.ns.Meter.UNKNOWN_ICON
+        local fell, flat = {}, {}
+        for k = 0, 4 do
+            fell[k + 1] = rig.Hit(100 + k, "nameplate5", math.floor(9000 * 0.982 ^ k + 0.5), 36)
+            flat[k + 1] = rig.Hit(100.4 + k, "nameplate6", 9000, 36)
+        end
+        Check("dot (d4): a collapse falling x0.982 from 9000 (under the 9315-13800 padded band) -> ? ? then the row:"
+            .. " its 3rd tick by its 2 loose ticks (Procs.NameFall), its 4th and 5th by its stream (" ..
+            table.concat(fell, " ") .. ")", fell[1] == UNKNOWN and fell[2] == UNKNOWN and fell[3] == "tex:" .. WITHER
+            and fell[4] == "tex:" .. WITHER and fell[5] == "tex:" .. WITHER)
+        Check("dot (d4): a flat 9000 series beside it stays ?", flat[3] == UNKNOWN and flat[4] == UNKNOWN
+            and flat[5] == UNKNOWN)
+
+        -- A stream the fall names starts its burst under the band, where no onset link names a hit: it teaches none.
+        -- Here a crit 2nd tick keeps the 3rd from two loose partners, so the stream's birth (4th) is the first draw.
+        rig = Rig({})
+        WitherFight(rig, 10, { Row(WITHER, 262000) }, { "nameplate2", "nameplate3" }, nil, 0.982)
+        rig.S.now = 99
+        rig.ns.Core.PLAYER_REGEN_DISABLED()
+        rig.Cast(99.6, "nameplate1", 980)
+        local sizes, collapse = { 9000, 17676, 8679, 8523 }, {}
+        for k = 1, 4 do
+            collapse[k] = rig.Hit(99 + k, "nameplate5", sizes[k], 36, k == 2 and "CRITICAL" or nil)
+        end
+        series = rig.ns.Procs.Get(WITHER)
+        Check("dot (d5): a fall-named stream's birth draws the row and teaches no onset link (" ..
+            table.concat(collapse, " ") .. ")", collapse[3] == UNKNOWN and collapse[4] == "tex:" .. WITHER
+            and series ~= nil and series.onset == nil)
 
         rig = Rig({})
         WitherFight(rig, 10, { Row(WITHER, 197000) }, { "nameplate2" })

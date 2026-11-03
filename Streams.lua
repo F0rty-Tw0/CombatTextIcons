@@ -41,18 +41,22 @@ local WIDE_PLATES = 3                  -- plates a ground patch's frame hits at 
 local CRIT_LO, CRIT_HI = ns.IsForever and 1.35 or 1.8, ns.IsForever and 1.65 or 2.7
 local CRIT_MID = ns.IsForever and 1.5 or 2.25
 local CRIT_FACTOR = ns.IsForever and 1.5 or 2
+-- A steady fall (Fall, below): each normal tick a near-fixed share of the one before, at most FALL_MAX of it; two
+-- shares agree within FALL_SPREAD, and FALL_TICKS of them in a row make the fall.
+local FALL_MAX, FALL_SPREAD, FALL_TICKS = 0.995, 0.004, 2
 -- Read-only exports: Procs.lua groups and matches with the same numbers.
 Streams.SIZE_GUARD, Streams.CRIT_LO, Streams.CRIT_HI = SIZE_GUARD, CRIT_LO, CRIT_HI
+Streams.FALL_MAX, Streams.FALL_SPREAD, Streams.FALL_TICKS = FALL_MAX, FALL_SPREAD, FALL_TICKS
 Streams.RAMP_STEP = RAMP_STEP -- Tracker.lua: a learned instance's ramp step
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 
 local channelCast      -- the newest channel's cast-log entry; Streams.StopChannel stamps its `stop`
-local current          -- [stream] = { school, sum, n, lo, hi }: this fight's share of each stream (Streams.NewFight)
+local current          -- [stream] = { school, sum, n, lo, hi, fall }: this fight's share of each stream (Streams.NewFight)
 
 -- Adds a hit to the stream's record in the current fight when shouldRecord. sum and n take every number; lo and
--- hi only a normal hit.
+-- hi only a normal hit; fall the stream's steady fall (Fall) once it has one.
 local function Note(stream, size, crit, shouldRecord)
     if not shouldRecord or not current or type(size) ~= "number" then return end
     local rec = current[stream]
@@ -62,6 +66,27 @@ local function Note(stream, size, crit, shouldRecord)
     end
     rec.sum, rec.n = rec.sum + size, rec.n + 1
     if not crit and size > 0 then rec.lo, rec.hi = math.min(rec.lo or size, size), math.max(rec.hi or size, size) end
+    if stream.falls and stream.falls >= FALL_TICKS then rec.fall = stream.fall end
+end
+
+-- Steps the stream's steady fall with its normal tick of `size` at `at`: the tick's share of the normal tick before
+-- it, per period (a skipped tick takes the root), joins the running fall when within FALL_SPREAD of it, else starts
+-- one; a share over FALL_MAX (flat or rising) ends it. stream.fall is the mean share, stream.falls how many in a row.
+-- Run lock4 F10: Wither 445468's stacks collapsed after Malevolence as 4523 -> 4443 -> 4366 -> 4287 -> 4210 -> 4133
+-- every ~1.0 s (x0.982 each), under the 5303-6031 band its F1 series taught.
+local function Fall(stream, at, size)
+    local last, lastAt = stream.fallAmount, stream.fallAt
+    stream.fallAmount, stream.fallAt = size, at
+    if not last then return end
+    local multiple = math.floor((at - lastAt) / stream.period + 0.5)
+    local share = multiple >= 1 and (size / last) ^ (1 / multiple) or nil
+    if not share or share > FALL_MAX then
+        stream.fall, stream.falls = nil, 0
+    elseif stream.fall and math.abs(share - stream.fall) <= FALL_SPREAD then
+        stream.fall, stream.falls = (stream.fall * stream.falls + share) / (stream.falls + 1), stream.falls + 1
+    else
+        stream.fall, stream.falls = share, 1
+    end
 end
 
 -- Starts a new fight record table, makes it current and returns it.
@@ -80,6 +105,7 @@ function Streams.JoinFight(into, from)
         else
             joined.sum, joined.n = joined.sum + rec.sum, joined.n + rec.n
             if rec.lo then joined.lo, joined.hi = math.min(joined.lo or rec.lo, rec.lo), math.max(joined.hi or rec.hi, rec.hi) end
+            joined.fall = rec.fall or joined.fall
         end
     end
 
@@ -472,7 +498,10 @@ function Streams.Feed(key, school, amount, flagText, now, shouldRecord)
         stream.period = BLEND * stream.period + (1 - BLEND) * ((now - stream.lastAt) / multiple)
         stream.lastAt = now
         stream.count = stream.count + 1
-        if not crit and size and size > 0 then stream.lastAmount = size end
+        if not crit and size and size > 0 then
+            stream.lastAmount = size
+            Fall(stream, now, size)
+        end
         Note(stream, size, crit, shouldRecord)
 
         return stream
@@ -515,6 +544,9 @@ function Streams.Feed(key, school, amount, flagText, now, shouldRecord)
         end
         entry.streams[#entry.streams + 1] = stream
         CapStreams(entry)
+        for _, h in ipairs(ticks) do
+            if not h.crit and h.amount and h.amount > 0 then Fall(stream, h.at, h.amount) end
+        end
         for _, h in ipairs(ticks) do Note(stream, h.amount, h.crit, shouldRecord) end
         -- The lead ticks are the stream's own first ticks: the record counts them (one is enough for the sum; the
         -- owners move only on two) and the loose list gives them up (Darkglare 205231's first beam, run lock2 F3).

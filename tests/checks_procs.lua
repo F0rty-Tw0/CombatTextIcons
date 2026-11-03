@@ -786,6 +786,15 @@ return function(T)
         saved.procs[5].rest, saved.procs[6].rest = "yes", true
         ns.Procs.Init(saved)
         Check("procs init: a saved rest is kept only as true", saved.procs[5].rest == nil and saved.procs[6].rest == true)
+        saved = { procs = { [5] = Entry(36, 100, 200, 2, true), [6] = Entry(36, 100, 200, 2, true),
+            [7] = Entry(36, 100, 200, 2, true), [8] = Entry(36, 100, 200, 3, true) } }
+        for id = 5, 7 do saved.procs[id].period = 1.0 end
+        saved.procs[5].fall, saved.procs[6].fall, saved.procs[7].fall, saved.procs[8].fall = 0.982, 1.2, "0.98", 0.982
+        ns.Procs.Init(saved)
+        Check("procs init: a rhythm's saved fall is kept in (0, FALL_MAX]; past it, a string, or on a size proc it is"
+            .. " dropped and the entry kept (a store saved before falls loads as no fall)",
+            saved.procs[5].fall == 0.982 and saved.procs[6].fall == nil and saved.procs[7].fall == nil
+            and saved.procs[8].fall == nil and saved.procs[6].learned == true and saved.procs[8].learned == true)
     end
     -- One rule, no copies: Procs exports the learn streak and the crit rule ----------------------------
     do
