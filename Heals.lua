@@ -13,7 +13,8 @@
 -- Chain Heal goes out on a totem's stamp in 13 of its 17 casts.
 -- A cast is learned once LEARN_CASTS of its casts left a sample (TWIN_CASTS of one size), at least HIT_SHARE of its
 -- counted casts did, its ID was a heal row, and luck alone (some heal on the cast's stamp by chance, FRAME) gives
--- that many at most ALPHA often.
+-- that many at most ALPHA often. Solo on a clear map, the heal on a cast's stamp that would be the sample teaching it
+-- (Completes) is named before the fight's read: hunter's second Exhilaration, shamanheal's third Chain Heal.
 -- Fixed sizes: a castless proc that heals one size each time (Rune of Self-Mending 5763, its crit 11526; Holy
 -- Retributor's Order 21535) has no cast to tie it, but its row tells its size: when a row equals the summed amount
 -- of the fight's heals on you of one size (crits at normal scale), that size is the row's, a row that did not
@@ -153,6 +154,21 @@ local function Twin(sizes)
     return #sizes == 2 and math.abs(a - b) <= TWIN * math.max(a, b)
 end
 
+-- The smallest and biggest kept size of an entry with samples, else nil.
+local function Range(entry)
+    if not (entry and #entry.sizes > 0) then return nil end
+    local low, high = math.huge, 0
+    for _, size in ipairs(entry.sizes) do low, high = math.min(low, size), math.max(high, size) end
+
+    return low, high
+end
+
+-- Whether `size` sits inside the padded band of the entry's samples.
+local function Fits(entry, size)
+    local low, high = Range(entry)
+    return low ~= nil and size ~= nil and size >= PAD_LO * low and size <= PAD_HI * high
+end
+
 local function Learned(entry)
     local need = Twin(entry.sizes) and TWIN_CASTS or LEARN_CASTS
     return not entry.pending and entry.hits >= need and entry.hits >= HIT_SHARE * entry.casts
@@ -162,6 +178,31 @@ end
 function Heals.IsLearned(spellID)
     local entry = IsID(spellID) and heals[spellID]
     return entry and Learned(entry) or false
+end
+
+-- The entry as one more counted cast that left a sample of `size` makes it, luck alone at the mean chance of its
+-- counted casts so far.
+local function WithSample(entry, size)
+    local sizes = {}
+    for _, each in ipairs(entry.sizes) do sizes[#sizes + 1] = each end
+    sizes[#sizes + 1] = size
+    if #sizes > SAMPLES then table.remove(sizes, 1) end
+
+    return { casts = entry.casts + 1, hits = entry.hits + 1, expected = entry.expected + entry.expected / entry.casts,
+        sizes = sizes }
+end
+
+-- Whether a heal of `size` on a stamp of `spellID`'s cast, solo on a clear map, is the sample that
+-- teaches it: a cast not learned yet whose ID was a heal row, `size` inside the padded band of its samples, and with
+-- that sample the cast is learned (Learned). The fight's own read would learn it from that very sample, so the heal
+-- is named now: hunter's Exhilaration 109304 F9 twins F7's 87926 with 87925, which drew '?' before the read.
+local function Completes(spellID, size)
+    local entry = heals[spellID]
+    if not (entry and not entry.pending and entry.hits > 0 and Fits(entry, size)) or Learned(entry) then
+        return false
+    end
+
+    return Learned(WithSample(entry, size))
 end
 
 -- The row whose learned size `size` is, nil when none is or two are (two rows sharing a size name neither).
@@ -202,10 +243,11 @@ local function CoupleRow(amount, hits)
     return found
 end
 
--- Whether any heal, size, couple or train is learned: only then do Core's heals on you wait for their frame.
+-- Whether any heal, size, couple or train is learned, or a cast is one sample from it (Completes): only then do
+-- Core's heals on you wait for their frame.
 function Heals.AnyLearned()
-    for _, entry in pairs(heals) do
-        if Learned(entry) then return true end
+    for spellID, entry in pairs(heals) do
+        if Learned(entry) or Completes(spellID, entry.sizes[#entry.sizes]) then return true end
     end
     for _, entry in pairs(sizes) do
         if entry.reads >= SIZE_READS then return true end
@@ -218,21 +260,6 @@ end
 
 function Heals.IsTrainLearned(spellID)
     return IsID(spellID) and ready[spellID] ~= nil
-end
-
--- The smallest and biggest kept size of an entry with samples, else nil.
-local function Range(entry)
-    if not (entry and #entry.sizes > 0) then return nil end
-    local low, high = math.huge, 0
-    for _, size in ipairs(entry.sizes) do low, high = math.min(low, size), math.max(high, size) end
-
-    return low, high
-end
-
--- Whether `size` sits inside the padded band of the entry's samples.
-local function Fits(entry, size)
-    local low, high = Range(entry)
-    return low ~= nil and size ~= nil and size >= PAD_LO * low and size <= PAD_HI * high
 end
 
 -- The smallest and biggest kept size of a learned heal, else nil.
@@ -324,9 +351,10 @@ end
 -- Which of one frame's waiting heals (each { size, amount }) at `at` (nil: no train is due) a learned size, its hits
 -- (`hits`, each { amount, school, spellID = its icon's }; nil: none), its helpful casts or a running train made:
 -- claims[index] = spell ID. A heal of a learned size is its row's first, then one a learned k makes from a hit is that couple's; then
--- each learned cast, in cast order, takes the largest heal inside its padded band that nothing took before; then each
--- running train due in the frame takes its tick (ClaimTicks).
-function Heals.Claim(castIDs, waiting, hits, at)
+-- each learned cast, in cast order, takes the largest heal inside its padded band that nothing took before; when
+-- `solo` (you solo on a clear map), the largest heal nothing took is the frame's one helpful cast with samples' when
+-- it is the sample that teaches it (Completes); then each running train due in the frame takes its tick (ClaimTicks).
+function Heals.Claim(castIDs, waiting, hits, at, solo)
     local claims = {}
     for index, heal in ipairs(waiting) do claims[index] = SizeRow(heal.size) or CoupleRow(heal.amount, hits or {}) end
     for _, castID in ipairs(castIDs) do
@@ -340,6 +368,17 @@ function Heals.Claim(castIDs, waiting, hits, at)
             end
         end
         if best then claims[best] = castID end
+    end
+    local sampled -- the frame's one cast with samples, as the read counts a stamp (Heals.Learn); false: two have them
+    for _, castID in ipairs(solo and castIDs or {}) do
+        if Range(heals[castID]) and sampled ~= castID then sampled = sampled == nil and castID or false end
+    end
+    if sampled then
+        local best
+        for index, heal in ipairs(waiting) do
+            if not claims[index] and heal.size and (not best or heal.size > waiting[best].size) then best = index end
+        end
+        if best and Completes(sampled, waiting[best].size) then claims[best] = sampled end
     end
     if IsNumber(at) then ClaimTicks(waiting, claims, at) end
 

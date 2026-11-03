@@ -150,6 +150,42 @@ return function(T)
             and next(T.Store().heals) == nil)
     end
 
+    do -- the sample that teaches a cast names its heal before the read: hunter F9's Exhilaration twins F7's 87926
+        local EXHILARATION, TOTEM = 109304, 5394
+        local ns = T.Boot()
+        local H = ns.Heals
+        local heals, helps = Fight(EXHILARATION, 1, function() return { 87926 } end)
+        H.Learn(heals, helps, { Row(EXHILARATION) }, 100)
+        local frame = { { size = 5000 }, { size = 87925 } }
+        local claims = H.Claim({ EXHILARATION }, frame, nil, nil, true)
+        Check("heals: a solo cast's heal that twins its one sample names it before the read",
+            not H.IsLearned(EXHILARATION) and H.AnyLearned() and claims[2] == EXHILARATION and claims[1] == nil)
+        Check("heals: in a group or a crowd the teaching sample names nothing",
+            next(H.Claim({ EXHILARATION }, frame, nil, nil, false)) == nil
+            and next(H.Claim({ EXHILARATION }, frame)) == nil)
+        Check("heals: a heal 0.65 % off the one sample teaches nothing, so it names nothing",
+            next(H.Claim({ EXHILARATION }, { { size = 88500 } }, nil, nil, true)) == nil)
+        Check("heals: the teaching sample is the frame's one cast with samples; beside a cast with none it still is",
+            H.Claim({ TOTEM, EXHILARATION }, frame, nil, nil, true)[2] == EXHILARATION)
+        heals, helps = Fight(TOTEM, 1)
+        H.Learn(heals, helps, { Row(TOTEM) }, 100)
+        Check("heals: beside another cast with samples the teaching sample names nothing",
+            next(H.Claim({ TOTEM, EXHILARATION }, frame, nil, nil, true)) == nil)
+
+        -- shamanheal F4: Chain Heal's 3rd sample, 2 from F3 (59910, 61971 at normal scale)
+        ns = T.Boot()
+        H = ns.Heals
+        heals, helps = Fight(CHAIN_HEAL, 2, function(k) return { k == 1 and 59910 or 61971 } end)
+        H.Learn(heals, helps, { Row(CHAIN_HEAL) }, 100)
+        Check("heals: the third sample inside the band names the cast; one below 0.7 x the smallest does not",
+            H.Claim({ CHAIN_HEAL }, { { size = 42138 } }, nil, nil, true)[1] == CHAIN_HEAL
+            and next(H.Claim({ CHAIN_HEAL }, { { size = 41895 } }, nil, nil, true)) == nil)
+        heals, helps = Fight(RIPTIDE, 2)
+        H.Learn(heals, helps, {}, 100)
+        Check("heals: a cast whose ID was never a heal row names nothing",
+            next(H.Claim({ RIPTIDE }, { { size = 40000 } }, nil, nil, true)) == nil)
+    end
+
     do -- fixed sizes: a row equal to the sum of the fight's heals of one size teaches that size
         local RUNE, ORDER = 1287908, 1260079
         local function Sized(spellID, total) return { spellID = spellID, total = total, overkill = 0 } end

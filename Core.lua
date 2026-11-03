@@ -781,10 +781,10 @@ end
 
 -- Heals and damage taken (drawn over the player) -------------------------------------
 
--- Once a heal is learned (Heals.AnyLearned), a heal on you that no channel named waits for the end of
--- its frame (Core.FlushHeals): it lands before its own cast's UNIT_SPELLCAST_SUCCEEDED in that frame (shamanheal:
--- the heal of each of 17 Chain Heal 1064 casts is logged on the cast's stamp, the line before the CAST line), so only
--- then does the frame know its casts; its hits (frameHits) come with them.
+-- Once a heal is learned or one sample from it (Heals.AnyLearned), a heal on you that no channel named waits for the
+-- end of its frame (Core.FlushHeals): it lands before its own cast's UNIT_SPELLCAST_SUCCEEDED in that frame
+-- (shamanheal: the heal of each of 17 Chain Heal 1064 casts is logged on the cast's stamp, the line before the CAST
+-- line), so only then does the frame know its casts; its hits (frameHits) come with them.
 -- waiting = { at = the frame's stamp, heals = { { flagText, amount, school, size }, ... } }; frameCasts = { at, ids =
 -- your helpful casts on that stamp, in cast order, each once (seen) }.
 local waiting, frameCasts = { heals = {} }, { ids = {} }
@@ -816,7 +816,7 @@ function Core.FlushHeals(now)
     local casts = frameCasts.at == waiting.at and frameCasts.ids or {}
     local hits, at = frameHits.at == waiting.at and frameHits.list or {}, waiting.at
     waiting = { heals = {} }
-    local claims = Heals.Claim(casts, heals, hits, at)
+    local claims = Heals.Claim(casts, heals, hits, at, not InGroup() and Teacher.AreaClear())
     for index, heal in ipairs(heals) do DrawOwnHeal(heal, claims[index]) end
 end
 
