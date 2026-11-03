@@ -72,9 +72,13 @@ local PAD_LO, PAD_HI = 0.7, 2
 -- a crit's half, 5763.5). A row matches a size's sum within SUM_TOL (the meter's own rounding).
 local SIZE_TOL, SUM_TOL = 1, 1
 local SIZE_READS = 2    -- reads whose row matched one size teach it
--- A row that sums SURE_RUN or more heals of one size teaches it in one read: paladin F3's rune rows 1287908 (8 heals
--- of 5763, crits at normal scale) and 1287665 (16 of 720) match to 1, as no chance size does that often.
-local SURE_RUN = 4
+-- A row that sums SURE_RUN or more heals of one size teaches it in one read: heals that repeat to SIZE_TOL are a fixed
+-- size's mark (a heal that scales with mastery or crit rolls rarely lands twice to 1), and the row must match their
+-- sum to 1 as well. druid2 F8's Holy Retributor's Order row 57728 is 2 x 28864, priest3 F8's rune row 23053 is 5763,
+-- 5763 and a 11527 crit, paladin F3's rune rows 1287908 and 1287665 sum 8 heals of 5763 and 16 of 720; each read
+-- before taught nothing and the next fight's heals of that size drew '?'. A row of one heal may be any heal's: one
+-- read of it named dk's heals wrong (2.86 % of its raw) and keeps the two reads.
+local SURE_RUN = 2
 local SIZE_CAP = 32     -- sizes kept; the one seen least recently goes first
 -- A coupled heal is k x its hit within COUPLE_TOL (the game rounds: 0.3 x 2391 heals 717). COUPLE_PAIRS heals of one k
 -- in a read sample it: priest3's clear fights hold 1 to 9 heals next to a hit drawn 335467.

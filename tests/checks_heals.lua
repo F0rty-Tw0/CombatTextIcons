@@ -153,23 +153,22 @@ return function(T)
     do -- fixed sizes: a row equal to the sum of the fight's heals of one size teaches that size
         local RUNE, ORDER = 1287908, 1260079
         local function Sized(spellID, total) return { spellID = spellID, total = total, overkill = 0 } end
-        -- priest3 F9: Rune of Self-Mending heals 5763, 5763 and a 11526 crit (5763 at normal scale) beside a 40000
+        -- Rune of Self-Mending heals once, 5763, beside a 40000
         local function RuneHeals()
-            return { { size = 5763, amount = 5763, at = 10 }, { size = 5763.5, amount = 11527, at = 20 },
-                { size = 5763, amount = 5763, at = 30 }, { size = 40000, amount = 40000, at = 40 } }
+            return { { size = 5763, amount = 5763, at = 10 }, { size = 40000, amount = 40000, at = 40 } }
         end
         local ns = T.Boot()
         local H = ns.Heals
-        H.Learn(RuneHeals(), {}, { Sized(RUNE, 23053), Sized(CHAIN_HEAL, 39000) }, 100)
-        Check("sizes: one read whose row is one size's sum teaches nothing yet",
+        H.Learn(RuneHeals(), {}, { Sized(RUNE, 5763), Sized(CHAIN_HEAL, 39000) }, 100)
+        Check("sizes: one read whose row is one heal's size teaches nothing yet",
             not H.AnyLearned() and SizeOf(RUNE).reads == 1 and SizeOf(CHAIN_HEAL).size == nil)
-        H.Learn(RuneHeals(), {}, { Sized(RUNE, 23054) }, 100)
+        H.Learn(RuneHeals(), {}, { Sized(RUNE, 5764) }, 100)
         Check("sizes: a second read of that size learns it", H.AnyLearned() and SizeOf(RUNE).reads == 2)
         local claims = H.Claim({}, { { size = 5763 }, { size = 5764 }, { size = 5766 }, { size = nil } })
         Check("sizes: a heal of the learned size is its row's with no cast; another size or none is not",
             claims[1] == RUNE and claims[2] == RUNE and claims[3] == nil and claims[4] == nil)
 
-        H.Learn(RuneHeals(), {}, { Sized(ORDER, 23053), Sized(RUNE, 23053) }, 100)
+        H.Learn(RuneHeals(), {}, { Sized(ORDER, 5763), Sized(RUNE, 5763) }, 100)
         Check("sizes: two rows equal to one size's sum sample neither", SizeOf(ORDER).size == nil
             and SizeOf(RUNE).reads == 2)
         H.Learn(RuneHeals(), {}, { Sized(RUNE, 20000) }, 100)
@@ -196,6 +195,16 @@ return function(T)
         H.Learn(many, {}, { Sized(1287665, 11520) }, 100)
         Check("sizes: one read whose row sums SURE_RUN heals of one size teaches it alone",
             SizeOf(1287665).reads == 2 and H.Claim({}, { { size = 720 } })[1] == 1287665)
+        -- druid2 F8: the Holy Retributor's Order row 57728 sums two heals of 28864; priest3 F8: the rune row 23053 sums
+        -- 5763, 5763 and a 11527 crit (5763.5 at normal scale)
+        H.Learn({ { size = 28864, amount = 28864, at = 10 }, { size = 28864, amount = 28864, at = 20 },
+            { size = 40000, amount = 40000, at = 30 } }, {}, { Sized(ORDER, 57728) }, 100)
+        Check("sizes: one read whose row sums two heals of one size teaches it alone",
+            SizeOf(ORDER).reads == 2 and H.Claim({}, { { size = 28864 } })[1] == ORDER)
+        H.Learn({ { size = 5763, amount = 5763, at = 10 }, { size = 5763.5, amount = 11527, at = 20 },
+            { size = 5763, amount = 5763, at = 30 } }, {}, { Sized(RUNE, 23053) }, 100)
+        Check("sizes: one read whose row sums three heals of one size, a crit at normal scale, teaches it alone",
+            SizeOf(RUNE).reads == 2 and H.Claim({}, { { size = 5763 } })[1] == RUNE)
 
         -- a learned size claims before a cast, and is no cast's sample: paladin's Word of Glory stamps hold a proc
         ns = T.Boot()
@@ -658,21 +667,19 @@ return function(T)
         Check("heals: a carried fight's heals and casts join the next fight's read", ns.Heals.IsLearned(CHAIN_HEAL)
             and T.Store().heals[CHAIN_HEAL].casts == 3)
 
-        -- two clear reads whose Rune of Self-Mending row is its heals' amounts summed: 5763 + a 11527 crit
+        -- a clear read whose Rune of Self-Mending row is its heals' amounts summed: 5763 + a 11527 crit
         ns = T.Boot()
         ns.Teacher.area = "clear"
         S = T.State()
-        for _ = 1, 2 do
-            local session = Session({})
-            session.healRows = { { spellID = 1287908, totalAmount = 17290, overkillAmount = 0 } }
-            S.sessions = { session }
-            ns.Teacher.Start(1)
-            ns.Teacher.Seen(53)
-            ns.Teacher.Healed(5763, "", 10)
-            ns.Teacher.Healed(11527, "CRITICAL", 20)
-            ns.Teacher.Finish(100)
-            FireAll(S)
-        end
+        local runeSession = Session({})
+        runeSession.healRows = { { spellID = 1287908, totalAmount = 17290, overkillAmount = 0 } }
+        S.sessions = { runeSession }
+        ns.Teacher.Start(1)
+        ns.Teacher.Seen(53)
+        ns.Teacher.Healed(5763, "", 10)
+        ns.Teacher.Healed(11527, "CRITICAL", 20)
+        ns.Teacher.Finish(100)
+        FireAll(S)
         Check("heals: the fight's heal amounts reach the teacher, and a row of one size's sum learns it",
             SizeOf(1287908).reads == 2 and ns.Heals.AnyLearned())
 
