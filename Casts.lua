@@ -120,7 +120,7 @@ Casts.AREA_LO = AREA_LO -- the area pass (Area.lua) falls back to this floor for
 -- of shamanele's meter and 17.5 -> 17.9 % of druid2's.
 local SHRINK = 0.5
 local RECORD_MAX = 20   -- open records at most; the oldest is dropped
-local records = {}      -- oldest first: { spellID, base, at, plate, hops, plates, last, seen, settled }
+local records = {}      -- oldest first: { spellID, base, at, plate, hops, own, plates, last, seen, settled }
 local SPLASH = 0.5      -- a cast's splash lands on other plates at most this long after its own hit (Splash)
 local QUIET = 1.5       -- and only when no unclaimed hit like it landed on another plate this long before that hit
 Casts.SPLASH = SPLASH   -- the area pass (Area.lua) reads other plates' hits this far past the window's top
@@ -307,8 +307,8 @@ function Casts.NoteCast(castID, now, castGUID, pet)
             if #stackCasts > STACK_MAX then table.remove(stackCasts, 1) end
         end
     elseif (entry.plate or pattern == "ground") and pattern then
-        records[#records + 1] = { spellID = castID, base = base, at = now, plate = entry.plate, hops = 0, plates = {},
-            last = now }
+        records[#records + 1] = { spellID = castID, base = base, at = now, plate = entry.plate, hops = 0, own = 0,
+            plates = {}, last = now }
         if #records > RECORD_MAX then table.remove(records, 1) end
     end
 
@@ -483,7 +483,7 @@ local function Fits(record, fp, plate, school, now, size, crit)
     if fp.pattern ~= "chain" then
         local low, high = RecordWindow(record)
         local age = now - record.at
-        return plate == record.plate and record.hops < (fp.perCast or 1) and age >= low - SLACK
+        return plate == record.plate and record.own < (fp.perCast or 1) and age >= low - SLACK
             and age <= high + SLACK and "in"
     end
     if not record.plates[plate] then
@@ -726,6 +726,9 @@ end
 -- run paladin2 left a 0 Physical hit on its target on each cast's stamp, which took 408385's record so its real
 -- 4.6-5.2K hit 0.23 s later went '?' (paladin2 36.0 -> 40.1 % right). It still draws as the cast: hunter F12's 0 hit of Black
 -- Arrow 466930 is what opens its DoT's ticks (Tracker.OnDirectHit); left '?', they taught a rhythm proc that ran over.
+-- `own` counts the hits on the cast's plate, the ones its learned hits per cast count (Fits): its hits on the plates
+-- around are no own hits. Run paladin2 F7: Judgment 20271 (2 a cast) took its own 5577 and 2 hits around in one frame
+-- at 0.161 s, and its own second hit 5656 at 0.421 s, inside its window, found the record full and went '?'.
 function Casts.Accept(record, plate, now, size)
     for index = #wounds, 1, -1 do
         local wound = wounds[index]
@@ -744,6 +747,7 @@ function Casts.Accept(record, plate, now, size)
         return
     end
     record.plates[plate] = true
+    if plate == record.plate then record.own = record.own + 1 end
     if plate ~= record.plate and record.hops == 0 then return end
     if record.hops == 0 then record.firstAt = now end
     record.hops, record.last = record.hops + 1, now

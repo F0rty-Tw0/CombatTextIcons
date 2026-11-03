@@ -866,6 +866,30 @@ do -- Phase 3: records and Claim
                 -- after it still takes the record
                 and Last({ { 30.18, 0, "nameplate1" }, own }) == MB
         end)
+    -- Run paladin2 F7: Judgment 20271 (2 hits a cast, area) took its own 5577 and 2 hits around at 0.161 s; its own
+    -- second hit at 0.421 s, inside its window, went '?' because the hits around had filled the record.
+    Scenario("per cast and area: a cast's hits around its target leave its own-plate hits per cast open",
+        function()
+            local function Last(hits)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                MindBlast(ns)
+                ns.Fingerprints.SetPerCast(8092, 2)
+                ns.Fingerprints.SetArea(8092)
+                local drawn
+                ns.Display.Plate = function(_, texture) drawn = texture end
+                S.now, S.target = 30, "nameplate1"
+                ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 8092)
+                for _, hit in ipairs(hits) do
+                    S.now, drawn = hit[1], nil
+                    ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 32)
+                end
+                return drawn
+            end
+            local MB, own, around = "tex:8092", { 30.2, 21000, "nameplate1" }, { 30.2, 20000, "nameplate2" }
+            return Last({ own, around, { 30.22, 20000, "nameplate1" } }) == MB
+                and Last({ own, around, { 30.21, 20000, "nameplate1" }, { 30.22, 20000, "nameplate1" } }) ~= MB
+        end)
     -- Run warrior F3: Thunder Clap 6343's hit on an untargeted dummy no one fights (no threat list, an ID the dummy probe
     -- never learned) came the line before its target hit, in one frame. Such a hit waits for its frame's end
     -- (Core.FlushMates): a learned area cast that drew in that frame draws it, while no unclaimed hit like it landed on
