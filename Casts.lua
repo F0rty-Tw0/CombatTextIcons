@@ -451,7 +451,12 @@ end
 -- window, fits the same weak way when `size` is inside the learned sizes, unpadded: Lava Burst learned
 -- at 0.50-0.60 s in a first fight landed at 0.37-0.44 s in every later one. A hit on another plate fits a
 -- non-chain record the same weak way when it is the cast's Splash, or its AreaHit. A non-chain record that took its
--- hit takes "in" more on its plate inside its window up to its learned hits per cast (Fingerprints.SetPerCast).
+-- hit takes "in" more on its plate inside its window up to its learned hits per cast (Fingerprints.SetPerCast), and
+-- "late" past the window top by as much as its first own hit came after the window's start: travel delays every hit
+-- of a cast alike. Run paladin2 F4: Judgment 20271 (window 0.161-0.44 s, 2 a cast) took its own first hit at 0.258 s
+-- and its second 0.27 s later, at 0.528 s, past the top; with both drawn its row met the meter exactly (28436). Only
+-- "late": a younger cast's record that fits the hit in its own window answers first (run shamanele F6: Lightning Bolt
+-- 188196's window spans 1.04 s, and its older cast's record took a younger cast's own hit).
 -- Else false.
 local function Fits(record, fp, plate, school, now, size, crit)
     if school ~= fp.school then return false end
@@ -483,8 +488,11 @@ local function Fits(record, fp, plate, school, now, size, crit)
     if fp.pattern ~= "chain" then
         local low, high = RecordWindow(record)
         local age = now - record.at
-        return plate == record.plate and record.own < (fp.perCast or 1) and age >= low - SLACK
-            and age <= high + SLACK and "in"
+        if not (plate == record.plate and record.own < (fp.perCast or 1) and age >= low - SLACK) then return false end
+        if age <= high + SLACK then return "in" end
+        local shift = math.max(0, record.firstAt - record.at - low)
+
+        return age <= high + shift + SLACK and "late"
     end
     if not record.plates[plate] then
         return now - record.last <= CHAIN_GAP and record.hops < CHAIN_MAX and HopSize(record, size, now) and "in"

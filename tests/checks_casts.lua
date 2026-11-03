@@ -890,6 +890,30 @@ do -- Phase 3: records and Claim
             return Last({ own, around, { 30.22, 20000, "nameplate1" } }) == MB
                 and Last({ own, around, { 30.21, 20000, "nameplate1" }, { 30.22, 20000, "nameplate1" } }) ~= MB
         end)
+    -- Run paladin2 F4: Judgment 20271 (window 0.161-0.44 s, 2 a cast) took its own first hit 0.1 s after the window's
+    -- start and its second 0.27 s later, past the top. Mind Blast here: window 0.17-0.23 s (SLACK 0.05).
+    Scenario("per cast: a cast's later own hit may land past its window top as late as its first hit came",
+        function()
+            local function Last(hits)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                MindBlast(ns)
+                ns.Fingerprints.SetPerCast(8092, 2)
+                local drawn
+                ns.Display.Plate = function(_, texture) drawn = texture end
+                S.now, S.target = 30, "nameplate1"
+                ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 8092)
+                for _, hit in ipairs(hits) do
+                    S.now, drawn = hit[1], nil
+                    ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 32)
+                end
+                return drawn
+            end
+            local MB = "tex:8092"
+            return Last({ { 30.23, 21000, "nameplate1" }, { 30.33, 20000, "nameplate1" } }) == MB
+                and Last({ { 30.17, 21000, "nameplate1" }, { 30.33, 20000, "nameplate1" } }) ~= MB
+                and Last({ { 30.23, 21000, "nameplate1" }, { 30.36, 20000, "nameplate1" } }) ~= MB
+        end)
     -- Run warrior F3: Thunder Clap 6343's hit on an untargeted dummy no one fights (no threat list, an ID the dummy probe
     -- never learned) came the line before its target hit, in one frame. Such a hit waits for its frame's end
     -- (Core.FlushMates): a learned area cast that drew in that frame draws it, while no unclaimed hit like it landed on
