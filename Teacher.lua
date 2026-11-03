@@ -889,6 +889,7 @@ local function Learn(run, results, open, rows)
     Teacher.Yield()
     for _, way in ipairs(Stack.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Area.Learn(run, rows, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Area.Twins(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(learned) do
         local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)
         if dot and fp and fp.learned and fp.school ~= dot.school then ns.Learn.Drop(way.castID) end
@@ -1294,10 +1295,13 @@ function Teacher.Drawn(spellID, amount, now, school)
 end
 
 -- A hit a learned DoT drew: its votes named it, not the meter, so Procs.Read also sums it with its school's '?' hits.
-function Teacher.Ticked(school, amount, flagText)
+-- `spellID`, `now` and `plate` (optional) place it for the twin pass (Area.Twins), with its normal-scale `size`.
+function Teacher.Ticked(school, amount, flagText, spellID, now, plate)
     local fight = Teacher.fight
     if not (fight and IsNumber(school) and IsNumber(amount)) then return end
-    fight.ticks[#fight.ticks + 1] = { school = school, amount = amount, crit = Procs.Crit(flagText) }
+    fight.ticks[#fight.ticks + 1] = { school = school, amount = amount, crit = Procs.Crit(flagText),
+        spellID = IsNumber(spellID) and spellID or nil, at = IsNumber(now) and now or nil, plate = plate,
+        size = Streams.NormalAmount(amount, flagText) }
 end
 
 -- A solo unexplained hit on a mob fighting you (drawn '?', or hidden while the meter is off or

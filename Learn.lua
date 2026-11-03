@@ -38,6 +38,7 @@ local SIGS_MAX = 4                     -- rhythms kept per spell
 local VOTE_SPELLS = 128                -- spells kept in the vote store
 local BASE_EMA = 0.1                   -- weight of one tick sample in a learned base period
 local CHANCE_RATE = 0.7                -- chance one cast in the rate window matches a stream: 0.7 P / RATE_WINDOW
+local TWIN_MAX = 1                     -- a twin strikes the plates around for at most its tick's own size
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -146,7 +147,25 @@ function Learn.Init(db)
         local unpaired = entry.unpaired
         if type(unpaired) ~= "number" or unpaired < 0 or unpaired % 1 ~= 0 then entry.unpaired = 0 end
         if type(entry.size) ~= "number" or not (entry.size > 0) then entry.size = nil end
+        if type(entry.twin) ~= "number" or not (entry.twin > 0 and entry.twin <= TWIN_MAX) then entry.twin = nil end
     end
+end
+
+-- The share of each tick a learned spell's twin strikes the plates around its target for (Tracker.Twin), or nil.
+function Learn.Twin(spellID)
+    local entry = IsId(spellID) and learned[spellID]
+
+    return entry and entry.twin or nil
+end
+
+-- The twin pass (Area.Twins) found the spell's ticks matched on other plates at `share` of each tick, and the meter
+-- row held them. False when the spell is not learned or the share is out of bounds.
+function Learn.SetTwin(spellID, share)
+    local entry = IsId(spellID) and learned[spellID]
+    if not (entry and IsId(share) and share > 0 and share <= TWIN_MAX) then return false end
+    entry.twin = share
+
+    return true
 end
 
 function Learn.Get(spellID)

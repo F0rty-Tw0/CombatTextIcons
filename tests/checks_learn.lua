@@ -1352,6 +1352,40 @@ return function(T)
         Check("spread: grouped, the castless stream is not adopted", Spread(true) == nil)
         Check("spread: two learned DoTs fit the stream, neither adopts it", Spread(false, true) == nil)
     end
+    do -- twin (run mage: Arcane Missiles 5143's ticks struck the plates around at 0.5 of each tick, row 7268): a learned
+        -- channel with a taught share draws its twin on another plate within a period of its tick; off the share, or
+        -- with no share taught, the hit is not the channel's
+        local function Twin(share)
+            local rig = Rig()
+            rig.Seed(9002, 32, 1.0, "channel")
+            rig.Learned(9002).twin = share
+            rig.Channel(100, 9002)
+            local tick = rig.Hit(101, 1000, 32)
+            return tick, rig.Hit(101.2, 500, 32, "nameplate2"), rig.Hit(101.3, 800, 32, "nameplate2")
+        end
+        local tick, twin, off = Twin(0.5)
+        Check("twin: a hit at the taught share of the channel's tick on another plate is the channel's",
+            tick == "tex:9002" and twin == "tex:9002")
+        Check("twin: a hit off the share is not the channel's (" .. tostring(off) .. ")", off ~= "tex:9002")
+        local _, untaught = Twin(nil)
+        Check("twin: with no share taught the hit is not the channel's", untaught ~= "tex:9002")
+
+        -- the twin pass teaches the share the ratios agree on, only while their sum fits the row's room
+        local function Teach(total)
+            local ns = T.Boot()
+            SeedLearned(9002, 32, 1.0, "channel")
+            local run = { tally = { [9002] = 4000 }, ticks = {}, unknown = {} }
+            for index = 1, 4 do
+                run.ticks[index] = { spellID = 9002, at = 100 + index, plate = "P", size = 1000 }
+                run.unknown[index] = { school = 32, amount = 500, size = 500, at = 100.1 + index, plate = "Q" }
+            end
+            run.unknown[5] = { school = 32, amount = 900, size = 900, at = 104.2, plate = "Q" } -- another spell's
+            ns.Area.Twins(run, { { spellID = 9002, total = total, overkill = 0 } }, {})
+            return ns.Learn.Twin(9002)
+        end
+        Check("twin pass: four hits at 0.5 of the tick before them, inside the room, teach 0.5", Teach(6100) == 0.5)
+        Check("twin pass: past the row's room nothing is taught", Teach(5000) == nil)
+    end
     do -- spec 1/2 replacement, the shown part: unknown school-32 DoT (period 3), learned after 4 fresh plates
         local rig = Rig()
         for plate = 1, 4 do ApplyDot(rig, 20 * (plate - 1), "nameplate" .. plate, { 9001 }, 3, 4) end

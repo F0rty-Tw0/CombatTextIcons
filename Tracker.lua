@@ -716,6 +716,32 @@ function Tracker.OnDirectHit(plate, castID, now)
     end
 end
 
+-- A learned spell's twin (Learn.SetTwin, taught by the twin pass in Area.lua): the same effect also strikes the plates
+-- around its target for a fixed share of each tick. A hit of its school on another plate, at most one period after a
+-- tick a learned instance took, sized within Streams.SIZE_GUARD of the share of that tick (normal scale), is the
+-- spell's when exactly one instance fits it, else nil. Run mage F2-F7: Arcane Missiles 5143's ticks on the target were
+-- drawn, while each tick's twins at 0.47-0.53 of it on up to 3 other plates (row 7268) stayed '?'; run priest3: Void
+-- Torrent 263165's twins at 0.20 of each tick landed on one other plate in the tick's own frame.
+function Tracker.Twin(plate, school, amount, flagText, now)
+    local normal = Streams.NormalAmount(amount, flagText)
+    if not (Plain(plate) and Plain(school) and normal and normal > 0) then return nil end
+    local found
+    for key, list in pairs(instances) do
+        for _, instance in ipairs(key ~= plate and list or NONE) do
+            local share = instance.fromLearn and instance.lastTick and Learn.Twin(instance.icon)
+            local gap = share and now - instance.lastTick
+            local like = share and instance.school == school and instance.lastAmount
+                and math.abs(normal - share * instance.lastAmount) <= Streams.SIZE_GUARD * share * instance.lastAmount
+            if like and gap >= 0 and gap <= instance.period then
+                if found and found ~= instance.icon then return nil end
+                found = instance.icon
+            end
+        end
+    end
+
+    return found
+end
+
 -- Whether a hit on `plate` falls on the tick timing of one of its instances.
 function Tracker.QualifiesByPhase(plate, school, amount, flagText, now)
     Housekeeping(now)

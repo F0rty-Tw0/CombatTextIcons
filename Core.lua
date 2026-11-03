@@ -487,7 +487,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if named then
         if ns.Debug then ns.Debug("  -> tracker %s", ShowValue(spellID)) end
         Drawn(spellID, amount)
-        if Learn.Get(spellID) then Teacher.Ticked(school, amount, flagText) end
+        if Learn.Get(spellID) then Teacher.Ticked(school, amount, flagText, spellID, now, plate) end
         Ledger.Add("damage", spellID, amount)
         return Display.Plate(plate, SpellTexture(spellID), text, flagText, school)
     end
@@ -549,6 +549,14 @@ local function Wound(plate, unit, flagText, amount, school, now)
     -- A loose tick pairs with the one a learned rhythm period before it only after the stack spells had it: lock3
     -- F2, Unstable Affliction's 7821 (2 stacks x 3258 x 1.2) at 199540.864 sits in Darkglare's band.
     if solo and PairWound(plate, stream, school, amount, flagText, candidates, now) then return end
+    -- A learned DoT's twin (Tracker.Twin) is the last solo route before the question mark: the meter taught its share.
+    local twinID = solo and Tracker.Twin(plate, school, amount, flagText, now)
+    if twinID then
+        if ns.Debug then ns.Debug("  -> twin %s", ShowValue(twinID)) end
+        Drawn(twinID, amount)
+        Ledger.Add("damage", twinID, amount)
+        return Display.Plate(plate, SpellTexture(twinID), text, flagText, school)
+    end
     if solo then
         Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now, school), flagText, candidates)
         if not Teacher.AreaClear() then

@@ -19,6 +19,7 @@
 -- other plates in that span summed 613306 against a residual of 625142. Hunter F3's Kill Command 17253 drew 22960 of
 -- 29658, and Beast Cleave's 84 hits on 4 plates (151786) are far past its residual: no area.
 -- Learned hits leave the '?' that Procs.Read then sees. With /cti debug each tried base logs one TEACH area line.
+-- The twin pass (Area.Twins) does the same for a learned DoT or channel's ticks: their fixed share on other plates.
 
 local _, ns = ...
 local Fingerprints, Casts = ns.Fingerprints, ns.Casts
@@ -204,6 +205,76 @@ function Area.Learn(run, rows, learned)
             if ns.Debug and #way.hits > 0 then
                 ns.Debug("TEACH area %d hits=%d sum=%d room=%d -> %s", castID, #way.hits, math.floor(way.sum),
                     math.floor(room), fits and "learned" or "refused")
+            end
+        end
+    end
+
+    return ways
+end
+
+-- The twin pass of one read: a learned DoT or channel (Learn.lua) whose ticks the tracker drew this fight (run.ticks
+-- with a place) may also strike the plates around its target for a fixed share of each tick. Each fresh '?' hit of its
+-- school on another plate, at most one learned period after one of its ticks, pairs with the newest such tick; their
+-- sizes' ratio (normal scale) is the share it would show. The share most ratios agree with (within Streams.SIZE_GUARD)
+-- is taught (Learn.SetTwin) when TWIN_MIN hits or more agree and their sum fits the row's room (total, overkill and
+-- Judge's tolerance, less the drawn ticks). Run mage F2: Arcane Missiles 5143 drew 48508 of row 7268's 161687; 59 hits
+-- at 0.47-0.53 of the tick before them on other plates summed 64330 (room 113179). Run priest3 F3: Void Torrent
+-- 263165's twins came at 0.20 of its ticks, beside other Shadow hits at 0.13 and 0.30-0.36.
+-- Returns the ways it taught { castID, sum, hits }.
+local TWIN_MIN = 4
+function Area.Twins(run, rows, learned)
+    local spent = {}
+    for _, way in ipairs(learned) do
+        for _, hit in ipairs(way.hits) do spent[hit] = true end
+    end
+    local ticksOf, order = {}, {}
+    for _, tick in ipairs(run.ticks or {}) do
+        if tick.spellID and tick.at and tick.plate ~= nil and tick.size and tick.size > 0 then
+            if not ticksOf[tick.spellID] then
+                ticksOf[tick.spellID] = {}
+                order[#order + 1] = tick.spellID
+            end
+            table.insert(ticksOf[tick.spellID], tick)
+        end
+    end
+    table.sort(order)
+
+    local ways = {}
+    for _, spellID in ipairs(order) do
+        local dot, row = ns.Learn.Get(spellID), ns.Steady.RowOf(spellID, rows)
+        if dot and row then
+            local matched = {}
+            for _, hit in ipairs(run.unknown) do
+                local newest
+                if not spent[hit] and hit.school == dot.school and hit.size and hit.size > 0 then
+                    for _, tick in ipairs(ticksOf[spellID]) do
+                        local gap = hit.at - tick.at
+                        if tick.plate ~= hit.plate and gap >= 0 and gap <= dot.period then newest = tick end
+                    end
+                end
+                if newest then matched[#matched + 1] = { hit = hit, ratio = hit.size / newest.size } end
+            end
+            local best, bestCount = nil, 0
+            for _, pair in ipairs(matched) do
+                local count = 0
+                for _, other in ipairs(matched) do
+                    if math.abs(other.ratio - pair.ratio) <= ns.Streams.SIZE_GUARD * pair.ratio then count = count + 1 end
+                end
+                if count > bestCount then best, bestCount = pair.ratio, count end
+            end
+            local way = { castID = spellID, sum = 0, hits = {} }
+            for _, pair in ipairs(best and matched or {}) do
+                if math.abs(pair.ratio - best) <= ns.Streams.SIZE_GUARD * best then
+                    way.sum = way.sum + pair.hit.amount
+                    way.hits[#way.hits + 1] = pair.hit
+                end
+            end
+            local room = row.total + row.overkill + math.max(1, row.total / 100) - (run.tally[spellID] or 0)
+            local fits = #way.hits >= TWIN_MIN and way.sum <= room and ns.Learn.SetTwin(spellID, best)
+            if fits then ways[#ways + 1] = way end
+            if ns.Debug and #way.hits > 0 then
+                ns.Debug("TEACH twin %d hits=%d sum=%d room=%d share=%.2f -> %s", spellID, #way.hits,
+                    math.floor(way.sum), math.floor(room), best, fits and "learned" or "refused")
             end
         end
     end
