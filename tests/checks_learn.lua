@@ -1365,6 +1365,15 @@ return function(T)
         local first, second, far, rig = Ramped(true)
         Check("ramp: a ramp DoT's ticks stepping up 1.4x are drawn", first == "tex:9503" and second == "tex:9503")
         Check("ramp: a hit 1.86x its last tick is not a ramp DoT's (" .. tostring(far) .. ")", far ~= "tex:9503")
+        do -- run lock4 F8: Agony 980 ticked 1934, then 3129 (1.62x, a step and Haunt's buff) and that tick is its own
+            local riseRig = Rig()
+            riseRig.Seed(9503, 32, 1.4, "dot")
+            riseRig.Learned(9503).ramp, riseRig.Learned(9503).size = true, 1000
+            riseRig.Cast(0, 9503)
+            riseRig.Hit(1.4, 1000, 32)
+            local risen = riseRig.Hit(2.8, 1620, 32)
+            Check("ramp: a ramp DoT's tick 1.62x its last is drawn (" .. tostring(risen) .. ")", risen == "tex:9503")
+        end
         Check("ramp: Learn.Ramp reads the stored mark", rig.ns.Learn.Ramp(9503) == true)
         local _, _, plain, plainRig = Ramped(nil)
         Check("ramp: a plain DoT draws the same 1.86x hit (" .. tostring(plain) .. ")", plain == "tex:9503")
