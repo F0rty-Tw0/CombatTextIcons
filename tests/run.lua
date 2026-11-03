@@ -2163,6 +2163,14 @@ do -- Rev 5 (in-game 2026-10-25): the forget5 run made 4 wrong aliases; only 413
         ok and blastOk, "fingerprints as in 19")
 end
 
+-- True when the replay's saved volleys file cast `id` under Void Volley's bolt row 1242189 (Volley.lua): the volley
+-- pass learns it from Void Volley 1242173's bursts in runs 140233Z F2 and 153349Z F1.
+local function VoidVolleyBolts(run, id)
+    local volley = ((run.info.charDB or {}).volleys or {})[id]
+
+    return id == 1242173 and volley ~= nil and volley.row == 1242189
+end
+
 do -- steady learning (2026-10-25): run 140233Z, /cti forget then 3 dummy fights; the sole-cast sums never learned Mind Blast
     -- (a Devouring Plague cast shares two of its frames). Fight 1's 3 casts each left one ~17-19K Shadow hit at
     -- 0.17-0.23 s beside small Shadow co-hits (0.4-2.2K): each cast's biggest hit counts, so fight 1 learns
@@ -2187,7 +2195,7 @@ do -- steady learning (2026-10-25): run 140233Z, /cti forget then 3 dummy fights
                 local learned, drawn, meter = {}, live[index] and live[index].amount or 0, 0
                 for id, count in pairs(run.last and run.last.learned or {}) do
                     learned[#learned + 1] = id .. "=" .. count
-                    if id ~= 8092 then learnOk = false end
+                    if id ~= 8092 and not VoidVolleyBolts(run, id) then learnOk = false end
                 end
                 for _, row in ipairs(run.rows or {}) do
                     if row.spellID == 8092 then meter = meter + row.totalAmount end
@@ -2211,7 +2219,7 @@ do -- steady learning (2026-10-25): run 140233Z, /cti forget then 3 dummy fights
     end)
     if not ok then Check("steady criterion ran without error: " .. tostring(err), false) end
     Criterion(21, "steady replay (haste 25 and 0): run 140233Z fight 1 learns Mind Blast 8092 from its 3 casts' biggest"
-        .. " hits (small Shadow co-hits spoil none); nothing else learns",
+        .. " hits (small Shadow co-hits spoil none); nothing else learns but Void Volley's bolts (row 1242189)",
         ok and ranOk and learnOk, table.concat(parts, "\n     ") .. "\n     " .. table.concat(steadyLines, "\n     "))
     Criterion(22, "steady replay (haste 25 and 0): fights 2 and 3 draw over two thirds of the Mind Blast row live under"
         .. " 8092; only 8092 ever learns",
@@ -2225,8 +2233,10 @@ do -- own seen (2026-10-25): run 153349Z, strangers on 8 nearby dummies made bot
             local runs = ReplayFights(REPLAY_CROWD, { haste = haste })
             clearOk = clearOk and #runs >= 2 and runs[1].last.area == "clear" and runs[2].last.area == "clear"
             for index, run in ipairs(runs) do
-                -- a holy proc's lone hit in one Void Volley frame never teaches Void Volley (F3 is a skip: no learned)
-                noVolley = noVolley and (run.last and run.last.learned or {})[1242173] == nil
+                -- a holy proc's lone hit in one Void Volley frame never teaches Void Volley (F3 is a skip: no learned);
+                -- its bolts' own row 1242189 may (the volley pass)
+                local learnedVolley = (run.last and run.last.learned or {})[1242173]
+                noVolley = noVolley and (learnedVolley == nil or VoidVolleyBolts(run, 1242173))
                     and ((run.info.charDB or {}).castAliases or {})[1260076] == nil
                 local learned = {}
                 for id, count in pairs(run.last and run.last.learned or {}) do learned[#learned + 1] = id .. "=" .. count end
@@ -2238,7 +2248,7 @@ do -- own seen (2026-10-25): run 153349Z, strangers on 8 nearby dummies made bot
         end
     end)
     if not ok then Check("own-seen criterion ran without error: " .. tostring(err), false) end
-    Criterion(23, "own-seen replay (haste 25 and 0): run 153349Z reads both fights clear (strangers' dummies add nothing to seen); Void Volley 1242173 never learns the proc 1260076",
+    Criterion(23, "own-seen replay (haste 25 and 0): run 153349Z reads both fights clear (strangers' dummies add nothing to seen); Void Volley 1242173 never learns the proc 1260076 (only its bolts' row 1242189)",
         ok and clearOk and noVolley, table.concat(parts, "\n     "))
 end
 

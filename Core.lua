@@ -701,6 +701,14 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if solo and PairWound(plate, stream, school, amount, flagText, candidates, now) then return end
     -- A burst's first tick, which no tick a period before pairs, is named by the cast that leads it (onset link).
     if solo and OnsetWound(plate, stream, school, amount, flagText, now) then return end
+    -- A bolt of a learned volley (Volley.Name): a hit its cast's window holds whose size a bolt just before repeats.
+    local volleyID = solo and Teacher.NotCrowded() and ns.Volley.Name(school, amount, flagText, now)
+    if volleyID then
+        if ns.Debug then ns.Debug("  -> volley %s", ShowValue(volleyID)) end
+        Drawn(volleyID, amount)
+        Ledger.Add("damage", volleyID, amount)
+        return Display.Plate(plate, SpellTexture(volleyID), text, flagText, school)
+    end
     -- A learned DoT's twin (Tracker.Twin) is the last solo route before the question mark: the meter taught its share.
     local twinID = solo and Tracker.Twin(plate, school, amount, flagText, now)
     if twinID then
@@ -890,6 +898,7 @@ local function UseSpec()
     Heals.Init(store)
     Casts.InitOwnRows(store)
     Procs.Init(store)
+    ns.Volley.Init(store)
     Ledger.Init(store)
     Teacher.Init(store)
     Tracker.Reset()
@@ -975,6 +984,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     local now = GetTime()
     if (unit == "player" or unit == "pet") and Plain(spellID) then
         Procs.NoteCast(spellID, now) -- a rhythm's onset may follow any cast (a totem's is not harmful)
+        ns.Volley.NoteCast(spellID, now)
         local harmful = C_Spell.IsSpellHarmful and C_Spell.IsSpellHarmful(spellID)
         if Plain(harmful) and harmful then
             local plate = Casts.NoteCast(spellID, now, castGUID, unit == "pet")
@@ -1094,6 +1104,7 @@ SlashCmdList.COMBATTEXTICONS = function(message)
         Casts.Forget()
         Heals.Forget()
         Procs.Forget()
+        ns.Volley.Forget()
         Ledger.Forget()
         print(PREFIX .. "forgot this spec's learned spells")
         return
