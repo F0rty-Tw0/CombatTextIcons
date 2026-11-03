@@ -285,8 +285,9 @@ local function FrameHit(amount, school, now, flagText, plate)
     frameHits.list[#frameHits.list + 1] = { amount = amount, school = school, flagText = flagText, plate = plate }
 end
 
--- A hit was drawn with this spell's icon: the teacher tallies it, and its frame entry (FrameHit) takes the ID: the
--- newest, or for a hit held to its frame's end (`at`, Core.FlushMates) the newest unnamed one of its amount.
+-- A hit was drawn with this spell's icon: the teacher tallies it, a running heal train of its row ticks
+-- (Heals.Struck), and its frame entry (FrameHit) takes the ID: the newest, or for a hit held to its frame's end
+-- (`at`, Core.FlushMates) the newest unnamed one of its amount.
 local function Drawn(spellID, amount, at)
     local now = at or GetTime()
     local hit
@@ -300,6 +301,7 @@ local function Drawn(spellID, amount, at)
         end
     end
     Teacher.Drawn(spellID, amount, now, hit and hit.school)
+    Heals.Struck(spellID, now)
     if hit then
         hit.spellID = spellID
         mine[hit.plate] = now

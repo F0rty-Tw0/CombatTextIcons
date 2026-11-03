@@ -541,9 +541,9 @@ return function(T)
         -- shamanresto: 73921 is no heal row (its ticks overheal), and each read holds more castless damage rows
         -- (F1: 1307222, 1310088); the hits drawn or learned under 73921 share the ticks' frames
         local PROC, PROC2 = 1307222, 1310088
-        local function Under(spellID, off)
+        local function Under(spellID, off, ticks)
             local hits = {}
-            for tick = 1, 8 do hits[tick] = { spellID = spellID, at = 10 + 1.5 * tick + (off or 0) } end
+            for tick = 1, ticks or 8 do hits[tick] = { spellID = spellID, at = 10 + 1.5 * tick + (off or 0) } end
             return hits
         end
         local function Mixed(named)
@@ -565,6 +565,30 @@ return function(T)
         Check("trains: two castless damage rows whose hits share the ticks' frames name neither",
             Learns({ named = both }) == nil)
         Check("trains: hits of a row off the ticks' frames name no row", Learns({ named = Under(ROW, 0.5) }) == nil)
+
+        -- shamanresto F2: the last Healing Rain healed you 9 ticks, then hit the mobs on 3 more before the fight's end
+        H = Boot()
+        TrainRead(H, { RAIN, TWIN }, { rows = { Row(ROW), Row(OTHER) }, sparse = true, damage = Damage({}),
+            drawn = Under(ROW, 0, 12) })
+        Check("trains: a walk's ticks run on through the hits drawn under its row past its last heal on you",
+            T.Store().healTrains[RAIN].walks[1].ticks == 12)
+
+        -- shamanresto F2: you stood outside the first Healing Rain for 5 ticks while it hit the mobs
+        local function Outside(spellID)
+            local learner = Boot()
+            Read(learner, Damage({}))
+            learner.Cast(RAIN, 100)
+            for tick = 1, 4 do learner.Struck(spellID, 100 + 1.5 * tick) end
+            return learner, learner.Claim({}, { { size = 11000 } }, nil, 107.5)[1]
+        end
+        local outside, fifth = Outside(ROW)
+        Check("trains: ticks drawn only on the mobs under the train's row are no misses: its 5th tick on you is its own",
+            fifth == ROW)
+        outside.Struck(ROW, 109)
+        Check("trains: a heal in the frame of a tick the mobs' hit already counted is that tick's",
+            outside.Claim({}, { { size = 11000 } }, nil, 109)[1] == ROW)
+        local _, foreign = Outside(OTHER)
+        Check("trains: hits drawn under another ID keep no train running", foreign == nil)
     end
 
     do -- trains: the claim of a running train's ticks (learned: 9600-11700 every 1.5 s, 8 ticks)

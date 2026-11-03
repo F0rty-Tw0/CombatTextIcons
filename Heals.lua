@@ -261,15 +261,38 @@ function Heals.Cast(spellID, now)
     live[#live + 1] = { castID = spellID, at = now, last = now, k = 0, misses = 0 }
 end
 
+-- A hit drawn under `spellID` at `at`: each running train of that row ticked, on the mobs at least, when `at` is half
+-- a period to MISSES periods (SLACK past) after its last tick: no miss though no heal of yours came, and a heal of that
+-- frame is still the tick's (ClaimTicks). The row's own hits are its ticks, so no SLACK window around the mean
+-- period: a haste buff shortens them mid-train (shamanresto F2's Healing Rain ticked every 1.65-1.69 s, then every
+-- 1.47-1.52 s). shamanresto F2: you stood outside the first Healing Rain for its first 5 ticks while it hit the mobs,
+-- and the train ended before its first tick on you.
+function Heals.Struck(spellID, at)
+    if not (IsID(spellID) and IsNumber(at)) then return end
+    for _, run in ipairs(live) do
+        local train = ready[run.castID]
+        if train and train.row == spellID and at > run.last and run.k < train.ticks then
+            local period = run.k > 0 and (run.last - run.at) / run.k or train.period
+            local slots = math.max(1, math.floor((at - run.last) / period + 0.5))
+            if at - run.last >= period / 2 and at - run.last <= MISSES * period + SLACK then
+                run.k, run.misses, run.last, run.bare = run.k + slots, 0, at, at
+            end
+        end
+    end
+end
+
 -- Each running train whose tick is due at `at` (SLACK either side) takes the heal nothing took before inside its
--- padded band and within STEP of its last tick, the nearest that tick's size (the first: the band's middle). A train
--- past its due tick counts a miss; MISSES in a row, or its learned ticks counted, end it.
+-- padded band and within STEP of its last tick, the nearest that tick's size (the first: the band's middle); a tick
+-- Struck counted at `at` takes it too. A train past its due tick counts a miss; MISSES in a row, or its learned ticks
+-- counted, end it.
 local function ClaimTicks(waiting, claims, at)
     local kept = {}
     for _, run in ipairs(live) do
         local train = ready[run.castID]
-        local running, due = train ~= nil, nil
-        while running do
+        local bare = run.bare == at
+        run.bare = nil
+        local running, due = train ~= nil, bare and at or nil
+        while running and not bare do
             local period = run.k > 0 and (run.last - run.at) / run.k or train.period
             due = run.last + period * (1 + run.misses)
             if at <= due + SLACK then break end
@@ -287,9 +310,10 @@ local function ClaimTicks(waiting, claims, at)
             end
             if best then
                 claims[best] = train.row
-                run.k, run.misses, run.last, run.size = run.k + 1 + run.misses, 0, at, waiting[best].size
-                running = run.k < train.ticks
+                if not bare then run.k, run.misses, run.last = run.k + 1 + run.misses, 0, at end
+                run.size = waiting[best].size
             end
+            if best or bare then running = run.k < train.ticks end
         end
         if running then kept[#kept + 1] = run end
     end
@@ -780,6 +804,21 @@ local function HitRow(walk, duals, rowAt, stamped)
     return found
 end
 
+-- How many ticks a walk ran: its heal ticks, then each due one (SLACK either side; MISSES missed in a row end it)
+-- that holds a hit drawn or learned under its row (`at`: their stamps). shamanresto F2's last Healing Rain healed you
+-- 9 ticks, then hit the mobs on 3 more: a train learned from 9 ended F4's trains 5 ticks early.
+local function RanOn(walk, at)
+    local ticks, last, misses = walk.ticks, walk.ats[#walk.ats], 0
+    while misses < MISSES do
+        local due, found = last + walk.period * (1 + misses), nil
+        for stamp in pairs(at) do
+            if math.abs(stamp - due) <= SLACK and (not found or stamp < found) then found = stamp end
+        end
+        if found then ticks, last, misses = ticks + 1, found, 0 else misses = misses + 1 end
+    end
+    return ticks
+end
+
 -- Each helpful cast of a clear read counts its stamp's walk (one per stamp, nil: none) with the stamp's other casts.
 -- A cast whose own ID and base are no heal rows takes as its row the one castless damage row (Duals) whose own hits
 -- (`rowAt`) pulse with its walk (HitRow); else the read's DualRow when its walk pulses with the fight's hits (`hitAt`:
@@ -789,7 +828,7 @@ end
 -- (279267.757: a 5641 heal and five hits of 11.6-23.7K). shamanresto's 73921 is no heal row at all (overhealed), and
 -- each read holds other castless damage rows, so only the hits under 73921 tell its row.
 -- A stamp whose casts are all direct heals walks with its largest heal no learned size names (`largest`) as the head
--- of a tail (WalkFrom). Returns the cast IDs counted.
+-- of a tail (WalkFrom). A walk's ticks run on through its row's hits (RanOn). Returns the cast IDs counted.
 local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest, rowAt)
     local sorted, stamped, count = {}, {}, 0
     for _, heal in ipairs(fightHeals) do
@@ -833,8 +872,10 @@ local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt, larg
             for _, other in ipairs(stamps[at]) do
                 if other ~= castID then with[#with + 1] = other end
             end
+            local hits = entry.row and rowAt[entry.row]
             table.insert(entry.walks, { with = with, period = walk.period, size = walk.size, low = walk.low,
-                high = walk.high, ticks = walk.ticks, luck = walk.luck, share = walk.share })
+                high = walk.high, ticks = hits and walk.ats and RanOn(walk, hits) or walk.ticks, luck = walk.luck,
+                share = walk.share })
             if #entry.walks > SAMPLES then table.remove(entry.walks, 1) end
             entry.seen = reads
             counted[#counted + 1] = castID

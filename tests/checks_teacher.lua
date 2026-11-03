@@ -3517,6 +3517,13 @@ return function(T)
         for _, count in pairs(named) do stamps, each = stamps + 1, each and count == 4 end
         Check("castless (a3): the learned row's hits, with their stamps, reach the heal teacher's read (" .. stamps
             .. " stamps)", stamps == 15 and each and named[10] == 4 and named[24] == 4)
+        local struck = {}
+        rig.ns.Heals.Struck = function(spellID, at) struck[#struck + 1] = spellID .. "@" .. at end
+        rig.S.now = 99
+        rig.ns.Core.PLAYER_REGEN_DISABLED()
+        for k = 0, 3 do rig.Hit(100 + k, "nameplate2", 2000, 32) end
+        Check("castless (a4): a hit drawn with the row's icon reaches the heal trains (" .. tostring(struck[#struck])
+            .. ")", struck[#struck] == NATHREZA .. "@103")
 
         rig = Rig({})
         AuraFight(rig, 122000, 5000)
