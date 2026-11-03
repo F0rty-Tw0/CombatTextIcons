@@ -18,7 +18,8 @@
 -- Retributor's Order 21535) has no cast to tie it, but its row tells its size: when a row equals the summed amount
 -- of the fight's heals on you of one size (crits at normal scale), that size is the row's, a row that did not
 -- overheal and healed only you in that fight (druid's Frenzied Regeneration row 217748 = 4 x 54437). Checked per row,
--- never assumed per fight: a healer's fight overheals, so its rows match no sum (shamanheal). SIZE_READS reads of
+-- never assumed per fight: a healer's fight overheals, so its rows match no sum (shamanheal), though a fixed heal
+-- overheals whole, so its row can be a whole part of that sum (Part). SIZE_READS reads of
 -- one size teach it (one read when its row sums SURE_RUN heals); then each heal on you of that size is the row's, cast or not, unless two learned rows share it.
 -- Coupled heals: a spell that heals you a fixed share k of each of its hits, on the hit's stamp (Devouring Plague
 -- 335467 heals 0.3 x its hit, priest3; Drain Life 234153 heals 7 x its tick, lock3). When a clear read's hits drawn
@@ -438,25 +439,53 @@ local function SampleSize(spellID, size, count)
     end
 end
 
+-- Whether a row of `total` is a part of a run of one size: u of its heals at normal scale (a crit counts two), 1 to
+-- all but one, the rest overhealed whole, within SUM_TOL plus SIZE_TOL / 2 a heal (the logged sizes are rounded),
+-- while luck alone (a row anywhere over the size) lands that near some u ALPHA often at most. shamanheal's
+-- 1263002 rows read 11527 (F1, 2 heals of 11527 on you) and 11526 (F5, 3), then 23053 twice (F6, F7: 5 and 3
+-- heals): a healer's fixed proc overheals whole, so its row never sums the run. A rune of 720 lands near some u
+-- of a 16-heal run by luck 1 read in 5: it never passes.
+local function Part(run, total)
+    local units = math.floor(run.sum / run.size + 0.5)
+    local luck = 0
+    for u = 1, units - 1 do luck = luck + 2 * (SUM_TOL + u * SIZE_TOL / 2) / run.size end
+    local u = math.floor(total / run.size + 0.5)
+    return u >= 1 and u < units and math.abs(total - u * run.size) <= SUM_TOL + u * SIZE_TOL / 2 and luck <= ALPHA
+end
+
+local function AddMatch(matches, index, spellID)
+    matches[index] = matches[index] or {}
+    table.insert(matches[index], spellID)
+end
+
 -- Each of a clear read's heal rows that equals the sum of exactly one run of the fight's heals on you (SizeRuns),
--- a run no other row equals, samples that run's size for the row.
+-- a run no other row equals, samples that run's size for the row. A row that sums no run but is a part of exactly
+-- one (Part), a run no row sums and no other row is a part of, samples its size too, as one read: never a sure run.
 local function LearnSizes(fightHeals, rows)
     local runs = SizeRuns(fightHeals)
-    local matches = {} -- by run index: the rows equal to its sum
+    local sums, parts = {}, {} -- by run index: the rows equal to its sum; the rows that are a part of it
     for _, row in ipairs(rows) do
-        local total, found = row.total, nil
+        local total, found, partOf = row.total, nil, nil
         if IsID(row.spellID) and IsNumber(total) and total > 0 then
             for index, run in ipairs(runs) do
-                if math.abs(run.sum - total) <= SUM_TOL then found = found == nil and index or false end
+                if math.abs(run.sum - total) <= SUM_TOL then
+                    found = found == nil and index or false
+                elseif Part(run, total) then
+                    partOf = partOf == nil and index or false
+                end
             end
         end
         if found then
-            matches[found] = matches[found] or {}
-            table.insert(matches[found], row.spellID)
+            AddMatch(sums, found, row.spellID)
+        elseif found == nil and partOf then
+            AddMatch(parts, partOf, row.spellID)
         end
     end
-    for index, rowIDs in pairs(matches) do
+    for index, rowIDs in pairs(sums) do
         if #rowIDs == 1 then SampleSize(rowIDs[1], runs[index].size, runs[index].heals) end
+    end
+    for index, rowIDs in pairs(parts) do
+        if #rowIDs == 1 and not sums[index] then SampleSize(rowIDs[1], runs[index].size, 1) end
     end
 end
 

@@ -206,6 +206,31 @@ return function(T)
         Check("sizes: one read whose row sums three heals of one size, a crit at normal scale, teaches it alone",
             SizeOf(RUNE).reads == 2 and H.Claim({}, { { size = 5763 } })[1] == RUNE)
 
+        -- shamanheal: the 1263002 row reads 11527 over 2 heals of 11527 (F1), 11526 over 3 (F5), 23053 over 5 (F6)
+        H.Forget()
+        local function Procs(count, size)
+            local heals = { { size = 40000, amount = 40000, at = 50 } }
+            for k = 1, count do heals[#heals + 1] = { size = size, amount = size, at = k } end
+            return heals
+        end
+        H.Learn(Procs(2, 11527), {}, { Sized(1263002, 11527) }, 100)
+        Check("sizes: a row that is one of a run's heals (the rest overhealed) samples its size, one read",
+            SizeOf(1263002).reads == 1 and SizeOf(1263002).size == 11527 and not H.AnyLearned())
+        H.Learn(Procs(3, 11526), {}, { Sized(1263002, 11526) }, 100)
+        Check("sizes: a second read of a part learns the size",
+            SizeOf(1263002).reads == 2 and H.Claim({}, { { size = 11527 } })[1] == 1263002)
+        H.Learn(Procs(5, 11527), {}, { Sized(ORDER, 23053), Sized(RUNE, 23053) }, 100)
+        Check("sizes: two rows that are a part of one run sample neither",
+            SizeOf(ORDER).size == nil and SizeOf(RUNE).size == nil)
+        H.Learn(Procs(3, 11527), {}, { Sized(ORDER, 34581), Sized(RUNE, 23054) }, 100)
+        Check("sizes: a part of a run another row sums samples nothing", SizeOf(ORDER).size == 11527
+            and SizeOf(RUNE).size == nil)
+        H.Learn(Procs(3, 11527), {}, { Sized(RUNE, 17290) }, 100)
+        Check("sizes: a row between two parts of a run samples nothing", SizeOf(RUNE).size == nil)
+        H.Learn(Procs(16, 720), {}, { Sized(1287665, 4322) }, 100)
+        Check("sizes: a part of a run of a small size, near some part by luck, samples nothing",
+            SizeOf(1287665).size == nil)
+
         -- a learned size claims before a cast, and is no cast's sample: paladin's Word of Glory stamps hold a proc
         ns = T.Boot()
         H = ns.Heals
