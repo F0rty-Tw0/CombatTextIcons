@@ -320,9 +320,15 @@ end
 -- The meter showed a cast's row holding its hits on the plates around its target (Area.lua): its records take them.
 -- `low`: the hits from Casts.AREA_LO of its smallest showed it, so its records take such hits from there (Casts.Claim).
 -- `framed`: only the hits in its own hits' frames showed it, so its records take only those (Casts' AreaHit).
+-- Its samples' hops become 1: the other plates' hits in its frame are its splash, not a chain's hops. Run priest4: a
+-- cand of 1227280 that met an alias row in F7 took its frame mate as a hop, its fan proved them area in F10, and as a
+-- chain its F12 record took a second frame on the plates it had hit (31914 drawn against 20644).
 function Fingerprints.SetArea(spellID, low, framed)
     local entry = Fingerprints.Get(spellID)
-    if entry then entry.area, entry.areaLow, entry.areaFrame = true, low == true or nil, framed == true or nil end
+    if not entry then return end
+    entry.area, entry.areaLow, entry.areaFrame = true, low == true or nil, framed == true or nil
+    for _, sample in ipairs(entry.samples) do sample.hops = 1 end
+    Refresh(entry)
 end
 
 -- `filled`: the alias rests on a filled sum (Steady's CastSum), so Filled answers for its cast; an alias set again

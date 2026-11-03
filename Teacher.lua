@@ -472,6 +472,62 @@ local function LoneRow(open)
     end
 end
 
+-- A group's `fan` = { castID, sum, hits, castOf, mates, area, covered, casts, fan }: per cast, every '?' hit of its
+-- school on its largest hit's plate in that hit's frame (an AoE's primary and its own splash there), plus the '?' hits
+-- and frame mates (Teacher.Mate, `mates`) of that school in that frame on other plates within Streams.SIZE_GUARD of one
+-- of those sizes: the splash on the plates around. `area` when every counted cast had such a hit. The cand takes mates
+-- like its largest hit only: run hunter F1, 392060's two casts each put a 58K crit and a 14357 splash on the target and
+-- 14357s (a 28713 crit) on 4 other plates 0.52 s later, 288046 = row 392058 exactly; its cand (largest + mates like it)
+-- summed 115763, and that row (10-14 % of both hunter logs) stayed '?' in every fight.
+local function Fan(group, frames, mates, spent)
+    local cand = group.cand
+    local fan = { castID = group.castID, sum = 0, hits = {}, castOf = {}, mates = {}, area = true, fan = true,
+        covered = 0, casts = cand.casts }
+    local mateFrames = {}
+    for _, mate in ipairs(mates or {}) do
+        if mate.school == group.school then
+            mateFrames[mate.at] = mateFrames[mate.at] or {}
+            table.insert(mateFrames[mate.at], mate)
+        end
+    end
+    local function Take(hit, candidate)
+        fan.sum = fan.sum + hit.amount
+        fan.hits[#fan.hits + 1] = hit
+        fan.castOf[hit] = candidate
+    end
+    for _, top in ipairs(cand.hits) do
+        if not cand.mates[top] then
+            local candidate = group.castOf[top]
+            fan.covered = fan.covered + 1
+            local sizes = {}
+            for _, hit in ipairs(group.all.hits) do
+                local of = group.all.castOf[hit]
+                if hit.at == top.at and hit.plate == top.plate and of.castAt == candidate.castAt then
+                    Take(hit, of)
+                    sizes[#sizes + 1] = hit.size
+                end
+            end
+            local mated = false
+            for _, others in ipairs({ frames[top.at .. ":" .. group.school] or {}, mateFrames[top.at] or {} }) do
+                for _, hit in ipairs(others) do
+                    local like = false
+                    for _, size in ipairs(sizes) do
+                        like = like or hit.size and size
+                            and math.abs(hit.size - size) <= Streams.SIZE_GUARD * math.max(hit.size, size)
+                    end
+                    if like and hit.plate ~= top.plate and not spent[hit] and not fan.castOf[hit] then
+                        fan.mates[hit], mated = true, true
+                        Take(hit, candidate)
+                    end
+                end
+            end
+            fan.area = fan.area and mated
+        end
+    end
+
+    return fan
+end
+
 -- Groups each base's '?' hits by school through their candidates (Casts.Candidates), not the sole
 -- cast: a hit whose frame also holds another spell's cast has no sole cast, so its own cast's group misses it
 -- (run lock F1: both Haunt 48181 hits shared a frame with Darkglare or Unstable Affliction, and the two summed
@@ -490,7 +546,7 @@ end
 -- lands on the bolt's plate ~0.45x its size, and Lightning Bolt 188196's row holds both (ele log F3: 63230 + 28817 +
 -- 64483 + 26106 + 25821 = row 208457), so its cand stays under the row. It pairs only in short fights (SHORT_CASTS).
 -- `all` leaves out each hit `Lone(hit, castID)` names the whole of another row.
-local function CandidateGroups(unknown, spent, Lone)
+local function CandidateGroups(unknown, spent, Lone, mates)
     local byKey, list = {}, {}
     for _, hit in ipairs(unknown) do
         local newest = {}
@@ -566,6 +622,7 @@ local function CandidateGroups(unknown, spent, Lone)
     for _, group in ipairs(list) do
         group.stamps = castsOf[group.castID] or {}
         for _ in pairs(group.stamps) do group.cand.casts = group.cand.casts + 1 end
+        group.fan = Fan(group, frames, mates, spent)
     end
     table.sort(list, function(a, b)
         if a.castID ~= b.castID then return a.castID < b.castID end
@@ -625,7 +682,10 @@ local function Covers(group, way, row)
 end
 
 local function Pairs(group, way, row, owners)
-    if way == group and group.mixed or way == group.all and group.cand.casts > SHORT_CASTS then return false end
+    if way == group and group.mixed or way == group.all and group.cand.casts > SHORT_CASTS
+        or way == group.fan and not way.area then
+        return false
+    end
     local whole = way == group or way.area or Covers(group, way, row)
     local own = row.spellID == group.castID or Fingerprints.Alias(row.spellID) == group.castID
         and Fingerprints.Filled(group.castID) and not Procs.Has(row.spellID)
@@ -731,8 +791,13 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
                 local exact = row.spellID == group.castID and way ~= group.all or Covers(group, way, row)
                 -- An exact way's frame mates are its cast's area (Fingerprints.SetArea), no chain hops: a chain draws
                 -- from its own plate's hit on, and run shaman6 F2's Meteor 117588 hit its 4 mates before its target in
-                -- one frame, so as a chain it drew 61504 of 371725.
-                local area = exact and way.mates ~= nil and next(way.mates) ~= nil
+                -- one frame, so as a chain it drew 61504 of 371725. A fan's mates (Fan) are its area too, and so are
+                -- the mates of a cast a fan marked area before: run priest4, 1227280's cand met its alias row in F7 (a
+                -- mate as a hop), its fan taught area in F10, its cand met the row again in F11, and with those mates
+                -- as chain hops its record took a second frame on the plates it had hit (F12 drew 31914 against 20644).
+                local before = Fingerprints.Get(group.castID)
+                local area = (exact or way.fan or before ~= nil and before.area == true) and way.mates ~= nil
+                    and next(way.mates) ~= nil
                 for _, hit in ipairs(way.hits) do
                     local cast = way.castOf and way.castOf[hit] or { castAt = hit.castAt, castSpell = hit.castSpell }
                     local hops = way.mates and way.mates[hit] and not area and 2 or 1
@@ -958,13 +1023,15 @@ local function Learn(run, results, open, rows)
     for _, way in ipairs(learned) do
         for _, hit in ipairs(way.hits) do spent[hit] = true end
     end
-    local candGroups, candSeen = CandidateGroups(run.unknown, spent, LoneRow(open)), { rows = seen.rows, groups = {} }
+    local candGroups = CandidateGroups(run.unknown, spent, LoneRow(open), run.mates)
+    local candSeen = { rows = seen.rows, groups = {} }
     -- A cast a '?' hit names as a candidate is cast this fight too, so its row is its own (Owners): run shaman6 F1,
     -- Meteor 117588's cand (its 112583 crit on the target and 4 mates of 56-58K) met its row 341245 exactly, and so
     -- did Ascendance 114050's cand of the same hits as an alias, so neither paired (shaman5 F3 alike).
     for _, group in ipairs(candGroups) do owners.casts[group.castID] = true end
     Pass(candGroups, open, owners, function(group) return group.cand end, candSeen, results, learned, rewritten)
     Pass(candGroups, open, owners, function(group) return group.all end, candSeen, results, learned, rewritten)
+    Pass(candGroups, open, owners, function(group) return group.fan end, candSeen, results, learned, rewritten)
     Teacher.Yield()
     for _, way in ipairs(Steady.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     Teacher.Yield()

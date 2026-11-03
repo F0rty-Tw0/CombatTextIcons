@@ -2035,6 +2035,48 @@ return function(T)
             Check("candidates: frame mates whose delays span 1.2 s (past 0.3) meet row 9000 of another ID -> no alias",
                 rig.ns.Fingerprints.Alias(Y) == nil and rig.ns.Fingerprints.Get(Z) == nil)
 
+            -- Run hunter F1: 392060's two casts each put a 58K crit and a 14357 splash on the target and 14357s on 4
+            -- other plates in one frame, 288046 = row 392058; its cand (largest + mates like it) summed 115763. Z cast
+            -- at 60, 70 and 80: a 4000 and a 1000 on the target, 1000s on nameplate2 and nameplate3, all 0.5 s later.
+            local FAN = {}
+            for _, t in ipairs({ 60, 70, 80 }) do
+                FAN[#FAN + 1] = { 32, 4000, "", nil, t + 0.5, { Candidate(Z, t) } }
+                FAN[#FAN + 1] = { 32, 1000, "", nil, t + 0.5, { Candidate(Z, t) } }
+                FAN[#FAN + 1] = { 32, 1000, "", nil, t + 0.5, nil, "nameplate2" }
+                FAN[#FAN + 1] = { 32, 1000, "", nil, t + 0.5, nil, "nameplate3" }
+            end
+            rig = Rig({})
+            ReadWith(rig, FAN, { { Y, 21000 } })
+            F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            Check("candidates: a cast's fan (its target's hits + the splash like them on other plates, 3 x 7000) meets "
+                .. "row 21000 of another ID -> alias, Z learned from 12 hits as an area spell, not a chain",
+                F.Alias(Y) == Z and F.IsLearned(Z) and F.Get(Z).area == true and F.Get(Z).pattern ~= "chain"
+                and last.learned[Z] == 12 and Find(last, Z).verdict == "agree")
+            local ALONE = {}
+            for _, t in ipairs({ 60, 70, 80, 90 }) do
+                ALONE[#ALONE + 1] = { 32, 4000, "", nil, t + 0.5, { Candidate(Z, t) } }
+                ALONE[#ALONE + 1] = { 32, 1000, "", nil, t + 0.5, { Candidate(Z, t) } }
+            end
+            rig = Rig({})
+            ReadWith(rig, ALONE, { { Z, 20000 } })
+            last = rig.ns.Teacher.last
+            Check("candidates: ... with no splash on other plates a fan is no area and pairs nothing: 4 casts' target "
+                .. "hits (4 x 5000) meet Z's own row 20000, an `all` past SHORT_CASTS (the steady pass's 4 aside)",
+                last.learned[Z] == 4 and Find(last, Z).verdict ~= "agree")
+
+            -- Run priest4: 1227280's cand met its alias row in F7 with a mate as a chain hop, its fan taught area in
+            -- F10, and as a chain its F12 record drew a second frame (31914 against 20644). AREA's cand learns Z as a
+            -- chain; marked area its hops flatten, and a later cand's mates join as area, not hops.
+            rig = Rig({})
+            ReadWith(rig, AREA, { { Y, 9000 } })
+            F = rig.ns.Fingerprints
+            local chained = F.Get(Z).pattern == "chain"
+            F.SetArea(Z)
+            local flattened = F.Get(Z).pattern ~= "chain"
+            ReadWith(rig, AREA, { { Y, 9000 } })
+            Check("candidates: an area mark flattens a chain's hops, and a cand's mates after it are area, not hops",
+                chained and flattened and F.Get(Z).pattern ~= "chain" and #F.Get(Z).samples > 9)
+
             -- Ele log F3: Lightning Bolt 188196's row held each bolt and its ~0.45x Elemental Overloads, and Lava Burst
             -- shared its cast stamp. Z cast with W on each stamp (Z alone if `alone`): a 1000 bolt at 0.2 s and a 450
             -- overload at 0.6 s.
