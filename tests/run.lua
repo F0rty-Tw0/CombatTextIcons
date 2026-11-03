@@ -612,6 +612,7 @@ local function Replay(name, opts)
         ns.Teacher.Seen = function() end
     end
     local route -- the last "  -> " debug line of the UNIT_COMBAT being replayed
+    local held -- the UNIT_COMBAT being replayed waits for its frame's end (Core's "  .. held" line)
     local steady = {} -- the steady pass's TEACH lines, for the criteria's detail text
     local onRoute -- while the replay flushes waiting heals: takes each one's route line
     ns.Debug = function(format, ...)
@@ -620,6 +621,7 @@ local function Replay(name, opts)
             route = line
             if onRoute then onRoute(line) end
         end
+        if line == "  .. held" then held = true end
         if line:find("^TEACH steady ") then steady[#steady + 1] = line end
     end
     S.haste = opts.haste or fixtureLabels.haste
@@ -680,6 +682,23 @@ local function Replay(name, opts)
         Core.FlushHeals(now)
         onRoute, draws = nil, {}
     end
+    -- A hit on a creature with no threat list that does not fight you waits for its frame's end too (Core.FlushMates):
+    -- its hit entry takes the route and draw of that flush, as a waiting heal's does.
+    local matesWaiting = {}
+    local function FlushMates(now)
+        if #matesWaiting == 0 then return end
+        draws = {}
+        onRoute = function(line)
+            local hit = table.remove(matesWaiting, 1)
+            if hit then
+                hit.route = line
+                if draws[#draws] then Show(hit, draws[#draws]) end
+            end
+            draws = {}
+        end
+        Core.FlushMates(now)
+        onRoute, draws = nil, {}
+    end
     local excluded = fixtureLabels.excludePhases or {}
     local hits = {}
     S.now = events[1].t
@@ -689,13 +708,16 @@ local function Replay(name, opts)
     end
     Core.PLAYER_REGEN_DISABLED()
     for _, event in ipairs(events) do
-        if event.t > S.now then FlushHeals(event.t) end
+        if event.t > S.now then
+            FlushHeals(event.t)
+            FlushMates(event.t)
+        end
         S.now, phase = event.t, event.phase
         if targets then S.target = TargetAt(targets, event.t) end
         S.pending, S.pendingTag = {}, ""
         if event.kind == "U" then
             draws = {}
-            route = nil
+            route, held = nil, nil
             local logged = (opts.logThreat or opts.replayThreat) and event.threat
             if logged ~= nil then S.threat[event.unit] = logged end
             if event.group ~= nil then S.group = event.group end
@@ -708,6 +730,7 @@ local function Replay(name, opts)
             local hit, draw = { event = event, noise = event.noise, route = route }, draws[#draws]
             draws = {}
             if draw then Show(hit, draw) end
+            if held then matesWaiting[#matesWaiting + 1] = hit end
             if not excluded[event.phase] then hits[#hits + 1] = hit end
         elseif event.kind == "H" then
             -- a logged heal reaches Core.Heal as in game; it is no hit: info.heals keeps what it drew
@@ -737,6 +760,7 @@ local function Replay(name, opts)
         end
     end
     FlushHeals(nil)
+    FlushMates(nil)
     if opts.seen and ns.Teacher.fight then ns.Teacher.fight.seen = opts.seen end
     info.seen = ns.Teacher.fight and ns.Teacher.fight.seen
     Core.PLAYER_REGEN_ENABLED() -- the fight ends: buffered samples commit, the read is queued

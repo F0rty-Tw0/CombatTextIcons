@@ -841,6 +841,56 @@ do -- Phase 3: records and Claim
                 -- after it still takes the record
                 and Last({ { 30.18, 0, "nameplate1" }, own }) == MB
         end)
+    -- Run warrior F3: Thunder Clap 6343's hit on an untargeted dummy no one fights (no threat list, an ID the dummy probe
+    -- never learned) came the line before its target hit, in one frame. Such a hit waits for its frame's end
+    -- (Core.FlushMates): a learned area cast that drew in that frame draws it, while no unclaimed hit like it landed on
+    -- another plate in the QUIET before (run druid2 F3); without a solo hit of its school in the frame it is a stranger's
+    -- and stays hidden; one no learned cast drew joins the fight's mates (Teacher.Mate) for the area pass, never '?'.
+    Scenario("frame mates: a dummy's hit no one fights draws as a learned area cast that drew in its frame, else hides",
+        function()
+            -- hits { t, amount, unit, school } (amount "cast": a Mind Blast cast at t), after a cast at 30: nameplate2 and
+            -- nameplate3 are dummies no one fights, nameplate1 the target. Returns nameplate2's last icon, the fight's
+            -- mates and nameplate2's draws.
+            local function Run(hits, teach)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                MindBlast(ns)
+                if teach then ns.Fingerprints.SetArea(8092) end
+                ns.Teacher.area = "clear"
+                for _, unit in ipairs({ "nameplate2", "nameplate3" }) do
+                    S.threat[unit], S.guids[unit] = false, "Creature-0-1-2-3-107483-0000" .. unit
+                end
+                local drawn, count = {}, {}
+                ns.Display.Plate = function(plate, texture) drawn[plate], count[plate] = texture, (count[plate] or 0) + 1 end
+                S.now, S.target = 30, "nameplate1"
+                ns.Core.PLAYER_REGEN_DISABLED()
+                ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 8092)
+                for _, hit in ipairs(hits) do
+                    S.now = hit[1]
+                    if hit[2] == "cast" then
+                        ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c" .. hit[1], 8092)
+                    else
+                        ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], hit[4] or 32)
+                    end
+                end
+                ns.Core.FlushMates()
+                return drawn[Plate("nameplate2")], #ns.Teacher.fight.mates, count[Plate("nameplate2")] or 0
+            end
+            local MB = "tex:8092"
+            local splashFirst = { { 30.2, 20000, "nameplate2" }, { 30.2, 21000, "nameplate1" } }
+            local drawnFirst, fedDrawn = Run(splashFirst, true)
+            local unlearned, fed = Run(splashFirst)
+            local stranger, fedStranger = Run({ { 30.2, 20000, "nameplate2" }, { 30.2, 21000, "nameplate1", 4 } }, true)
+            local lone = Run({ { 30.2, 20000, "nameplate2" } }, true)
+            local loud = Run({ { 29.6, 20000, "nameplate3" }, splashFirst[1], splashFirst[2] }, true)
+            -- run mage F7: the frame's own hit is another spell's (2000, outside Mind Blast's band)
+            local notDrawn = Run({ splashFirst[1], { 30.2, 2000, "nameplate1" } }, true)
+            -- a drawn mate is claimed (Casts.Accept finds its wound), so the next cast's mate 1 s later still draws
+            local _, _, twice = Run({ splashFirst[1], splashFirst[2], { 31, "cast" }, { 31.2, 20000, "nameplate2" },
+                { 31.2, 21000, "nameplate1" } }, true)
+            return drawnFirst == MB and fedDrawn == 0 and unlearned == nil and fed == 1 and stranger == nil
+                and fedStranger == 0 and lone == nil and loud == nil and notDrawn == nil and twice == 2
+        end)
     -- The area pass (Area.lua): Mind Blast cast at plate p1 drew its 21000 hit; '?' Shadow hits on other plates
     -- 0.2 s after the cast (or at hit[4]) sum against the row's residual (total + overkill + 1 % - 21000). `other`: a
     -- row of another spell the fight drew nothing under.
@@ -884,6 +934,15 @@ do -- Phase 3: records and Claim
                 and apart and not apartLow and splashSum == 21000 and splash and splashLow and not tiny
                 and not alone and not owned and notOwned and mixedSum == 39000
         end)
+    -- Frame mates (Teacher.Mate: hits on dummies no one fights, in a solo hit's frame) are other plates' hits too.
+    Scenario("area pass: frame mates on other plates count with the '?' hits", function()
+        local ns = Rig(MindBlast)
+        local function Hit(size, plate) return { at = 30.2, plate = plate, school = 32, size = size, amount = size } end
+        local run = { casts = { { at = 30, base = 8092, spellID = 8092, plate = "p1" } }, tally = { [8092] = 21000 },
+            unknown = { Hit(19000, "p2") }, mates = { Hit(20000, "p3") } }
+        local ways = ns.Area.Learn(run, { { spellID = 8092, total = 60000, overkill = 0 } }, {})
+        return #ways == 1 and ways[1].sum == 39000 and ns.Fingerprints.Get(8092).area == true
+    end)
     -- The area pass also tries a base the steady pass learned at this read (way.steady): it drew nothing yet, so its
     -- counted 21000 hit stands for the drawn. Run paladin F3: Hammer of Light 427453's target hits taught it at the read
     -- and its splash (26119 + 27007, one frame on 2 other plates) marked it areaLow then. Its hits must share frames on

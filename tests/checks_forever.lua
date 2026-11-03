@@ -282,11 +282,14 @@ return function(T)
             rig.S.target = plate
             for _, t in ipairs(times) do rig.Hit(t, plate, 500, 4) end
         end
-        -- A non-target hit on nameplate2 at `t`: its route line and the texture drawn.
+        -- A non-target hit on nameplate2 at `t`, its frame ended (a dummy's hit no one fights waits for that): its
+        -- route line and the texture drawn.
         local function Other(rig, t)
             rig.S.target = "nameplate1"
-            local texture = rig.Hit(t, "nameplate2", 500, 4)
-            return rig.Route(), texture
+            local before = #rig.draws
+            rig.Hit(t, "nameplate2", 500, 4)
+            rig.ns.Core.FlushMates()
+            return rig.Route(), #rig.draws > before and rig.draws[#rig.draws].texture or nil
         end
 
         local rig = Dummies({ nameplate1 = A1, nameplate2 = A2 })

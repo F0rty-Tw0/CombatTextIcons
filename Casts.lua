@@ -352,9 +352,17 @@ local function Splash(record, plate, school, now, size)
     if not record.seen or record.plates[plate] then return false end
     local own = record.at + record.seen[1]
     if now <= own or now - own > SPLASH or not NearSizes(record, size) then return false end
+
+    return Casts.Quiet(record, school, own)
+end
+
+-- Whether no unclaimed hit of `school` NearSizes `record` landed on another plate than its cast's in the QUIET before
+-- `at` (Splash's guard; Core's frame mates too): hits like it on other plates anyway are another spell's, or a
+-- stranger's.
+function Casts.Quiet(record, school, at)
     for _, wound in ipairs(wounds) do
-        if not wound.claimed and wound.plate ~= record.plate and wound.school == school and wound.at < own
-            and own - wound.at <= QUIET and NearSizes(record, wound.size) then
+        if not wound.claimed and wound.plate ~= record.plate and wound.school == school and wound.at < at
+            and at - wound.at <= QUIET and NearSizes(record, wound.size) then
             return false
         end
     end
@@ -634,14 +642,21 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
     if fits == 1 then return "learned", found, lateOnly end
 end
 
--- The hit is drawn: the record has taken one more hit, and the hit (Claim's last wound) is claimed. A splash while the
--- record's own first hit is unclaimed (ambiguous) leaves that hit open. A hit of normal-scale `size` 0 spends nothing:
+-- The hit is drawn: the record has taken one more hit, and the hit (Claim's newest wound on its plate and stamp: a
+-- frame mate is drawn at its frame's end, Core.FlushMates) is claimed. A splash while the record's own first hit is
+-- unclaimed (ambiguous) leaves that hit open. A hit of normal-scale `size` 0 spends nothing:
 -- run paladin2 left a 0 Physical hit on its target on each cast's stamp, which took 408385's record so its real
 -- 4.6-5.2K hit 0.23 s later went '?' (paladin2 36.0 -> 40.1 % right). It still draws as the cast: hunter F12's 0 hit of Black
 -- Arrow 466930 is what opens its DoT's ticks (Tracker.OnDirectHit); left '?', they taught a rhythm proc that ran over.
 function Casts.Accept(record, plate, now, size)
-    local wound = wounds[#wounds]
-    if wound and wound.plate == plate and wound.at == now then wound.claimed = true end
+    for index = #wounds, 1, -1 do
+        local wound = wounds[index]
+        if wound.at ~= now then break end
+        if wound.plate == plate then
+            wound.claimed = true
+            break
+        end
+    end
     if size == 0 then return end
     record.plates[plate] = true
     if plate ~= record.plate and record.hops == 0 then return end

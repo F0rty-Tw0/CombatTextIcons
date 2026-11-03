@@ -2,7 +2,8 @@
 -- meter row may also hold the same cast's hits on the plates around it: an AoE's other targets. The row's residual
 -- (its total, overkill and Judge's tolerance, less what was drawn under it this fight) bounds them. Per base learned
 -- before this read (single pattern) that drew this fight, or learned at it by the steady pass alone (its counted hits
--- stand for the drawn: Area.Learn), the '?' hits of its school inside its padded size band on
+-- stand for the drawn: Area.Learn), the '?' hits and frame mates (Teacher.Mate: hits on dummies no one fights, in a
+-- solo hit's frame) of its school inside its padded size band on
 -- another plate than its cast's, AREA_SLACK below its learned window to Casts.SPLASH past its top after its newest
 -- cast, are summed. When the sum fits the residual and explains at least SHARE of it, with MIN_HITS hits or more,
 -- the base is marked area (Fingerprints.SetArea): its records then take such hits on other plates (Casts.lua).
@@ -47,16 +48,18 @@ local function InArea(castID, cast, hit, floor)
         and Casts.InBand(castID, cast.spellID, hit.size, floor)
 end
 
--- The fresh '?' hits of `fp`'s school on other plates than `castID`'s casts that land InArea from `floor`:
--- { castID, sum, hits }.
+-- The fresh '?' hits and frame mates (Teacher.Mate) of `fp`'s school on other plates than `castID`'s casts that land
+-- InArea from `floor`: { castID, sum, hits }.
 local function Gather(run, castID, fp, casts, spent, floor)
     local way = { castID = castID, sum = 0, hits = {} }
-    for _, hit in ipairs(run.unknown) do
-        local fresh = not spent[hit] and hit.school == fp.school
-        local cast = fresh and OtherPlateCast(casts, hit.at, hit.plate, fp.delayHi + Casts.SPLASH)
-        if cast and InArea(castID, cast, hit, floor) then
-            way.sum = way.sum + hit.amount
-            way.hits[#way.hits + 1] = hit
+    for _, hits in ipairs({ run.unknown, run.mates or {} }) do
+        for _, hit in ipairs(hits) do
+            local fresh = not spent[hit] and hit.school == fp.school
+            local cast = fresh and OtherPlateCast(casts, hit.at, hit.plate, fp.delayHi + Casts.SPLASH)
+            if cast and InArea(castID, cast, hit, floor) then
+                way.sum = way.sum + hit.amount
+                way.hits[#way.hits + 1] = hit
+            end
         end
     end
 

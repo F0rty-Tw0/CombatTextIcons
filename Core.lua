@@ -9,7 +9,9 @@
 -- combat the Teacher reads it to learn.
 -- A hit nothing names is hidden, except solo on a mob fighting you: there it
 -- draws the question mark at once while the area is clear (Teacher.AreaClear:
--- the last fight's meter read showed only your hits), else it stays hidden. An
+-- the last fight's meter read showed only your hits), else it stays hidden. A hit
+-- on a training dummy no one fights waits for the end of its frame: a learned AoE
+-- cast that drew in that frame may draw it (Core.FlushMates). An
 -- unnamed heal on you decides the same way. A learned proc (Procs.lua) draws its own icon where
 -- the question mark would, while no read found the area crowded (Teacher.NotCrowded: a map no read decided yet
 -- counts). A learned direct heal (Heals.lua) names a heal on you in its
@@ -162,6 +164,13 @@ local function FightsYou(unit, now)
     return dummy
 end
 
+-- Whether `unit` is a creature that keeps no threat list (plain nil): a training dummy, yours or a stranger's.
+local function NoThreatList(unit)
+    local ok, threat = pcall(UnitThreatSituation, "player", unit)
+
+    return ok and not issecretvalue(threat) and threat == nil and CreatureID(PlainGUID(unit)) ~= nil
+end
+
 -- grug: temporary probe for missing direct hits (Lightning Bolt): /cti debug logs
 -- hits, teacher verdicts and casts to CombatTextIconsDB.debugLog. Remove after the in-game run.
 local DEBUG_MAX = 100000 -- an AoE pull fills 3000 lines in under a minute; 20000 cut a 12-minute run short
@@ -253,21 +262,31 @@ local events = CreateFrame("Frame")
 -- drew, nil when none } }: a heal on you in that frame may be a learned share of one (Heals.Claim)
 local frameHits = { list = {} }
 
--- A hit on an enemy plate at `now`: its frame keeps it for the frame's heals (Drawn names it). Heals of an earlier
--- frame still waiting are drawn first, before their frame's hits give way.
+-- A hit on an enemy plate at `now`: its frame keeps it for the frame's heals (Drawn names it). Heals and held hits
+-- (Core.FlushMates) of an earlier frame still waiting are drawn first, before their frame's hits give way.
 local function FrameHit(amount, school, now)
     if frameHits.at ~= now then
         Core.FlushHeals(now)
+        Core.FlushMates(now)
         frameHits = { at = now, list = {} }
     end
     frameHits.list[#frameHits.list + 1] = { amount = amount, school = school }
 end
 
--- The hit Wound is on was drawn with this spell's icon: the teacher tallies it, and its frame entry (FrameHit, the
--- newest) takes the ID.
-local function Drawn(spellID, amount)
-    local now = GetTime()
-    local hit = frameHits.at == now and frameHits.list[#frameHits.list] or nil
+-- A hit was drawn with this spell's icon: the teacher tallies it, and its frame entry (FrameHit) takes the ID: the
+-- newest, or for a hit held to its frame's end (`at`, Core.FlushMates) the newest unnamed one of its amount.
+local function Drawn(spellID, amount, at)
+    local now = at or GetTime()
+    local hit
+    if frameHits.at == now then
+        for index = #frameHits.list, 1, -1 do
+            local entry = frameHits.list[index]
+            if not at or (entry.amount == amount and not entry.spellID) then
+                hit = entry
+                break
+            end
+        end
+    end
     Teacher.Drawn(spellID, amount, now, hit and hit.school)
     if hit then hit.spellID = spellID end
 end
@@ -334,6 +353,86 @@ local function PairWound(plate, stream, school, amount, flagText, candidates, no
     return DrawRhythm(plate, rhythmID, school, amount, flagText)
 end
 
+local QueueFlush -- the next frame flushes what waits for its frame's end (below)
+
+-- A hit on a creature with no threat list that does not fight you (a dummy you do not target, of an ID the dummy
+-- probe has not learned) waits for the end of its frame (held): an AoE's hit on it is often logged before its target
+-- hit in that frame. Run warrior F3: Thunder Clap 6343's 614887 on nameplate4 (npc 107483) came the line before its
+-- 1176829 on the target, and its row 2899923 held both. At the frame's end it is a mate when a solo hit of its school
+-- on a mob fighting you shares the frame (ownFrame): a learned cast that claimed it (its area, Casts.lua) and drew in
+-- that frame draws it (DrawMate), else the area pass may weigh it (Teacher.Mate). A mate is never a '?', no '?' hit the other passes learn from, and
+-- no wound of the crowd check: fed to the '?' hits, mates cut shaman5's right from 22.5 % to 15.0 % (its Earthquake
+-- ground ticks). A hit with no such hit in its frame is a stranger's and stays hidden.
+-- ownFrame = { at = a frame's stamp, schools = { [school] = true } }; held = { at = the frame's stamp, hits = { {
+-- plate, school, amount, flagText, kind, record }, ... } } (kind, record: its Casts.Claim answer).
+local ownFrame, held = { schools = {} }, { hits = {} }
+
+-- A solo hit of `school` landed on a mob fighting you at `now`: its frame's held hits of that school are mates.
+local function OwnHit(school, now)
+    if ownFrame.at ~= now then ownFrame = { at = now, schools = {} } end
+    ownFrame.schools[school] = true
+end
+
+-- Whether a hit of `base` was drawn in the frame of stamp `at` (frameHits).
+local function DrawnInFrame(base, at)
+    if frameHits.at ~= at then return false end
+    for _, hit in ipairs(frameHits.list) do
+        if hit.spellID == base then return true end
+    end
+
+    return false
+end
+
+-- A held hit at its frame's end, when `mated`: drawn when a learned cast claimed it and drew a hit in its frame (an
+-- AoE lands on its target and the plates around at once) while no unclaimed hit like it landed on another plate in
+-- the QUIET before (Casts.Quiet), else given to the area pass. Run shaman5 F2: 470057's 4 crits on other dummies came
+-- in the frame of its own 50953 on the target, and draw. Run mage F7: Arcane Blast 30451's record took 3 Arcane hits on
+-- 3 other dummies (1152-2387) as its Splash, 0.45 s after its own hit, in the frame of an Arcane Missiles 5143 tick on
+-- the target; drawn, their 4701 ran past its row (mage over 0.46 % -> 0.68 %). Run druid2 F3: another spell's ~10.5K
+-- hits on all 5 dummies came 0.67 s before Primal Wrath 285381's cast, and its 4 mates of that size drew its row 7690
+-- over (druid2 over 0.00 % -> 0.06 %).
+local function DrawMate(hit, mated)
+    if not mated then
+        if ns.Debug then ns.Debug("  -> HIDDEN") end
+        return
+    end
+    local claimed = hit.kind == "learned" and DrawnInFrame(hit.record.base, hit.at)
+        and Casts.Quiet(hit.record, hit.school, hit.at)
+    if not claimed then
+        Teacher.Mate(hit.plate, hit.school, hit.amount, hit.at, hit.flagText)
+        if ns.Debug then ns.Debug("  -> HIDDEN (mate)") end
+        return
+    end
+    local record = hit.record
+    if ns.Debug then ns.Debug("  -> mate %s", ShowValue(record.spellID)) end
+    Casts.Accept(record, hit.plate, hit.at, Streams.NormalAmount(hit.amount, hit.flagText))
+    Tracker.OnDirectHit(hit.plate, record.spellID, hit.at)
+    Streams.Landed(hit.plate, record.spellID, hit.at)
+    Drawn(record.base, hit.amount, hit.at)
+    Ledger.Add("damage", record.base, hit.amount)
+    Display.Plate(hit.plate, SpellTexture(record.spellID), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
+end
+
+-- Ends the held hits' frame once `now` is past its stamp, or with nil (the fight ended; the replays end each frame
+-- with it too): each is a mate or a stranger's (DrawMate).
+function Core.FlushMates(now)
+    local hits = held.hits
+    if #hits == 0 or (now and now <= held.at) then return end
+    local own = ownFrame.at == held.at and ownFrame.schools or {}
+    held = { hits = {} }
+    for _, hit in ipairs(hits) do DrawMate(hit, own[hit.school] == true) end
+end
+
+-- Holds a hit on a creature with no threat list that does not fight you until its frame ends (held).
+local function Hold(plate, flagText, amount, school, now, kind, record)
+    Core.FlushMates(now)
+    if held.at ~= now then held = { at = now, hits = {} } end
+    held.hits[#held.hits + 1] = { plate = plate, school = school, amount = amount, flagText = flagText, at = now,
+        kind = kind, record = record }
+    if ns.Debug then ns.Debug("  .. held") end
+    QueueFlush()
+end
+
 -- The hit route: the tracker names DoT and channel ticks and a learned cast fingerprint
 -- names a direct hit (Casts.Claim); both draw at once, in a group too. Two learned DoTs that
 -- both fit draw the question mark at once. Whatever nothing names is fed to the streams; solo
@@ -345,16 +444,22 @@ end
 -- the question mark; so does a learned rhythm proc that fits the stream the hit extends or births
 -- (Procs.NameStream), or that a recent cast of its row and the hit's size name before the stream is born
 -- (Procs.NameCast), ranked below the Tracker and Casts; last, below the stack series, one whose tick a period
--- before the hit is still loose on the plate (Procs.NamePair).
+-- before the hit is still loose on the plate (Procs.NamePair). Solo, a hit on a creature with no threat list that does
+-- not fight you, which the tracker does not name, waits for its frame's end instead of hiding (Hold, Core.FlushMates).
 -- The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
--- (run 153349Z: strangers on 8 nearby dummies made both reads crowded).
+-- (run 153349Z: strangers on 8 nearby dummies made both reads crowded). Frame mates reach the area pass only
+-- (Teacher.Mate), never the crowd check.
 local function Wound(plate, unit, flagText, amount, school, now)
     FrameHit(amount, school, now)
     local fightsYou = FightsYou(unit, now)
     local grouped = InGroup()
     if grouped then Teacher.Grouped() end
     local solo = fightsYou and not grouped
+    -- a dummy's hit no one fights waits for its frame's end (held), plain school and amount only (its mate check)
+    local holds = not fightsYou and not grouped and type(school) == "number" and type(amount) == "number"
+        and Plain(school) and Plain(amount) and NoThreatList(unit)
+    if solo and Plain(school) then OwnHit(school, now) end
     local text = HitText(flagText, amount)
     if ns.Debug then
         ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit, ShowValue(school),
@@ -402,6 +507,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     -- An UNKNOWN answer is not fed: the tracker already holds the candidates. The teacher
     -- learns from it only solo.
     if spellID == Tracker.UNKNOWN then
+        if holds then return Hold(plate, flagText, amount, school, now, kind, record) end
         if not fightsYou then
             if ns.Debug then ns.Debug("  -> HIDDEN") end
             return
@@ -458,6 +564,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         Ledger.Add("damage", UnknownKey(school), amount)
         return Display.Plate(plate, UnknownTexture(), text, flagText, school)
     end
+    if holds then return Hold(plate, flagText, amount, school, now, kind, record) end
     if ns.Debug then ns.Debug("  -> HIDDEN") end
 end
 
@@ -531,13 +638,14 @@ function Core.FlushHeals(now)
     for index, heal in ipairs(heals) do DrawOwnHeal(heal, claims[index]) end
 end
 
--- The game's next frame flushes the waiting heals; a callback still on their own stamp waits again.
-local function QueueFlush()
+-- The game's next frame flushes the waiting heals and held hits; a callback still on their own stamp waits again.
+function QueueFlush()
     if flushQueued then return end
     flushQueued = pcall(C_Timer.After, 0, function()
         flushQueued = false
         Core.FlushHeals(GetTime())
-        if #waiting.heals > 0 then QueueFlush() end
+        Core.FlushMates(GetTime())
+        if #waiting.heals > 0 or #held.hits > 0 then QueueFlush() end
     end)
 end
 
@@ -669,6 +777,7 @@ end
 function Core.PLAYER_REGEN_ENABLED()
     if not db.enabled then return end
     Core.FlushHeals()
+    Core.FlushMates()
     Casts.Flush(GetTime())
     Ledger.Finish(GetTime())
     Teacher.Finish(GetTime())
@@ -689,6 +798,7 @@ function Core.UNIT_COMBAT(unit, event, flagText, amount, school)
     local now = GetTime()
     if not (Plain(unit) and Plain(event)) then return end
     Core.FlushHeals(now)
+    Core.FlushMates(now)
     if unit:find("^nameplate%d+$") then
         EnemyHit(unit, event, flagText, amount, school, now)
     elseif event == "HEAL" and (unit == "player" or unit:find("^party[1-4]$")) then
@@ -704,6 +814,7 @@ end
 function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     if not db.enabled then return end
     Core.FlushHeals(GetTime())
+    Core.FlushMates(GetTime())
     if ns.Debug then
         ns.Debug("CAST %s %s base=%s", unit, ShowValue(spellID), Plain(spellID) and ShowBase(spellID) or "?")
     end

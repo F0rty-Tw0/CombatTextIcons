@@ -1013,6 +1013,7 @@ end
 local function Carry(run, into)
     for spellID, amount in pairs(run.tally) do into.tally[spellID] = (into.tally[spellID] or 0) + amount end
     for index, hit in ipairs(run.unknown) do table.insert(into.unknown, index, hit) end
+    for index, hit in ipairs(run.mates or {}) do table.insert(into.mates, index, hit) end
     for index, tick in ipairs(run.ticks or {}) do table.insert(into.ticks, index, tick) end
     for index, cast in ipairs(run.casts or {}) do table.insert(into.casts, index, cast) end
     for index, heal in ipairs(run.heals or {}) do table.insert(into.heals, index, heal) end
@@ -1209,8 +1210,8 @@ end
 -- Combat began: open a fight (an unfinished one is replaced).
 function Teacher.Start(now, group)
     local streams = Streams.NewFight()
-    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, casts = {}, seen = 0, plates = {}, live = 0,
-        schools = {}, group = group, streams = streams, heals = {}, helps = {}, drawn = {} }
+    Teacher.fight = { at = now, tally = {}, unknown = {}, mates = {}, ticks = {}, casts = {}, seen = 0, plates = {},
+        live = 0,        schools = {}, group = group, streams = streams, heals = {}, helps = {}, drawn = {} }
 end
 
 -- A wound landed while the player was grouped: the fight's read will not learn.
@@ -1318,6 +1319,17 @@ function Teacher.Unknown(plate, school, amount, now, cast, flagText, candidates)
         entry.castID, entry.castAt, entry.castSpell = cast.base, cast.at, cast.spellID
     end
     fight.unknown[#fight.unknown + 1] = entry
+end
+
+-- A solo hit's frame mate (Core.FlushMates): a hit of its school on a creature with no threat list that does not
+-- fight you. Only the area pass weighs it (Area.Learn), as the other plates' hits of a learned cast.
+function Teacher.Mate(plate, school, amount, now, flagText)
+    local fight = Teacher.fight
+    if not (fight and plate ~= nil and IsNumber(school) and IsNumber(amount) and IsNumber(now)) or amount <= 0 then
+        return
+    end
+    fight.mates[#fight.mates + 1] = { school = school, amount = amount, at = now, plate = plate,
+        crit = Procs.Crit(flagText), size = Streams.NormalAmount(amount, flagText) }
 end
 
 -- Combat ended: close the fight and queue its read.
