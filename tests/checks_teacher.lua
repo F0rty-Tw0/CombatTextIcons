@@ -3019,7 +3019,7 @@ return function(T)
         -- the cast, so it never voted, and its row (772071) held every school-36 '?' hit (740626). Here one cast on
         -- nameplate1 and 8 ticks 1.4 s apart on 3 other plates: 3 x 8 x 5000 = 120000 '?' in school 36.
         local WITHER = 445468
-        local function WitherFight(rig, at, rows, series)
+        local function WitherFight(rig, at, rows, series, extra)
             local S, Core = rig.S, rig.ns.Core
             SlashCmdList.COMBATTEXTICONS("debug")
             S.now = at - 2
@@ -3032,6 +3032,8 @@ return function(T)
                 -- a second series of the row: 12000 every 1.0 s on the given plates
                 for _, unit in ipairs(k < 6 and series or {}) do rig.Hit(at + 2.2 + k, unit, 12000, 36) end
             end
+            -- lone school-36 hits: { seconds after the cast, plate, amount }
+            for _, hit in ipairs(extra or {}) do rig.Hit(at + hit[1], hit[2], hit[3], 36) end
             S.now = at + 20
             Core.PLAYER_REGEN_ENABLED()
             S.sessions = { Session(nextSession, rows) }
@@ -3089,6 +3091,37 @@ return function(T)
         WitherFight(rig, 10, { Row(WITHER, 197000) }, { "nameplate2" })
         Check("dot (e): the series on one plate only -> the DoT is learned, no rhythm",
             Outcome() == "learned" and rig.ns.Procs.Get(WITHER) == nil)
+
+        -- Run lock4 F1: Malevolence's one 24486 hit (row 446285, never cast under that ID) sat among Wither's '?'
+        -- hits, and Wither's ticks outside its streams (its cast-time tick, off-rhythm ones) left the streams at 94 %
+        -- of its row with 4087 unseen. Here a 9000 hit is the whole of the never-cast row 446285, and 2 x 3000 one-off
+        -- ticks join no stream: '?' 135000, 126000 without the 9000; row 127000, 1000 of it unseen.
+        local LONE = { { 9, "nameplate1", 9000 }, { 3.1, "nameplate5", 3000 }, { 7.7, "nameplate6", 3000 } }
+        rig = Rig({})
+        WitherFight(rig, 10, { Row(WITHER, 127000), Row(446285, 9000) }, nil, LONE)
+        entry = rig.ns.Learn.Get(WITHER)
+        Check("dot (f): another row's lone hit is left out, ticks outside streams fit DOT_FIT -> learned (" ..
+            tostring(Outcome()) .. ")", Outcome() == "learned" and entry ~= nil and entry.school == 36)
+
+        -- The same hits against a row they meet exactly (126000): the remainder pass learns it whole, not the DoT pass.
+        rig = Rig({})
+        WitherFight(rig, 10, { Row(WITHER, 126000), Row(446285, 9000) }, nil, LONE)
+        Check("dot (g): the school's '?' sum meets the row exactly -> left to the remainder pass",
+            Outcome() == nil and rig.ns.Learn.Get(WITHER) == nil and rig.ns.Procs.Get(WITHER) ~= nil)
+
+        -- Bench shuffle, lock2 F4 read first: school 36's '?' met Wither's row exactly, but Wither was not cast there,
+        -- and Unstable Affliction 1259790's row (0.7 % off) was the one free row in bounds. Here the cast's row 119000
+        -- is 0.8 % under the '?' (120000) and Agony 980's row (never cast, so never free) meets it exactly.
+        rig = Rig({})
+        WitherFight(rig, 10, { Row(WITHER, 119000), Row(980, 120000) })
+        Check("dot (h): the '?' sum meets a row not cast -> the cast's near row learns nothing (" ..
+            tostring(Outcome()) .. ")", Outcome() == nil and rig.ns.Learn.Get(WITHER) == nil)
+
+        -- A row not cast that is in bounds without meeting the '?' exactly (119500) makes the school's rows two.
+        rig = Rig({})
+        WitherFight(rig, 10, { Row(WITHER, 119000), Row(980, 119500) })
+        Check("dot (i): a row not cast is in bounds too -> the school is not one row's, nothing learned (" ..
+            tostring(Outcome()) .. ")", Outcome() == nil and rig.ns.Learn.Get(WITHER) == nil)
     end
 
     do -- castless pass (Ground.Castless): a never-cast row's ticks on many plates at once, every period

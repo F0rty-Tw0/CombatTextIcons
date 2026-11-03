@@ -45,8 +45,9 @@ local READ_DELAY = 1 -- seconds after combat the session is read
 -- lock3 F3: the area was clear, then a world boss had strangers' wounds at 30x the best pace (clear fights peak below
 -- 2.1x), and a learned proc drew 234195 against its row's 15682 before the read could turn the area crowded.
 local CROWD_PACE, CROWD_WAIT = 4, 5
--- The DoT pass's slack: a stream records no tick before its birth, so a row may run past its school's ticks by the
--- fight's unseen damage, at most this share of the row. lock3 F1: Wither's streams held 91 % of its row.
+-- The DoT pass's slack: a stream records no tick before its birth, so a row may run past its school's stream ticks by
+-- this share of the row, and past its '?' hits by the fight's unseen damage, at most this share too. lock3 F1:
+-- Wither's streams held 91 % of its row; lock4 F1: 94 %, with 4087 of the fight unseen.
 local DOT_FIT = 0.1
 -- A way pairs with a row of another ID only when its hits' delays after their casts span at most this (Ground's and
 -- Chain's first-hit window). shaman6 F2: Earthquake's cand summed three castless 12-school hits at 0.10, 0.79 and
@@ -448,8 +449,9 @@ local function Groups(unknown)
 end
 
 -- Whether `hit` alone is the whole of an open row (total, up to its overkill) that is neither `castID`'s nor aliased
--- to it: a one-hit row's hit, not the cast's. Run shaman5 F9: 40935 (row 157348) and 25142 (row 1310088) landed in
--- Lightning Bolt 188196's windows, and every hit there summed 291200 against its row's 225123, the rest exactly.
+-- to it (`castID` false: any open row): a one-hit row's hit, not the cast's. Run shaman5 F9: 40935 (row 157348) and
+-- 25142 (row 1310088) landed in Lightning Bolt 188196's windows, and every hit there summed 291200 against its row's
+-- 225123, the rest exactly.
 local function LoneRow(open)
     return function(hit, castID)
         for _, item in ipairs(open) do
@@ -685,10 +687,21 @@ end
 
 -- The DoT pass: a spell cast this fight whose own row stayed open, and one school with tick streams that row
 -- bounds both ways: the school's '?' hits no learned way took sum to at most the row, and the row to at most those
--- hits and to at most its stream ticks (no rhythm proc's), each plus the fight's unseen damage (meter total - seen)
--- capped at DOT_FIT of the row. Each must be the only one of the other. The spell is learned as that school's DoT at
--- the rhythm most of the stream ticks keep (Procs.PeriodNear), its votes set aside, and a second series in those
--- streams as the row's rhythm proc (SecondSeries).
+-- hits plus the fight's unseen damage (meter total - seen) and to at most its stream ticks (no rhythm proc's) plus the
+-- ticks before their births, each capped at DOT_FIT of the row. A '?' hit that alone is the whole of an open row is
+-- that row's (LoneRow), not a tick, and a school whose '?' sum meets any open row exactly is left to the remainder pass
+-- (Procs.lua Remainders), which learns it at once and draws every tick in its band. Each must be the only one of the
+-- other among every open row, free or not, and the row must be free. The spell is learned as that school's DoT at the
+-- rhythm most of the stream ticks keep (Procs.PeriodNear), its votes set aside, and a second series in those streams
+-- as the row's rhythm proc (SecondSeries).
+-- Run lock2 F4 read first (bench shuffle): school 36's '?' (220613) met Wither 445468's row exactly, but Wither was
+-- not cast there; the one free row in bounds was Unstable Affliction 1259790's (222218), and learned as a school-36
+-- DoT it kept UA's own stack ticks from learning (up to 514186 a seed).
+-- Run lock4 F1: Malevolence 442726's one 24486 hit (row 446285; Wither's ticks in its cast's window kept the cast pass
+-- off it) sat among Wither's '?' hits, 284497 against its row 263686; without it 260011, streams 248321 (94 %), 4087
+-- unseen. Learned there, Wither drew 1.69M more by F18 (F2 1311996 of its 1492771 row, spread by Seed of Corruption).
+-- Run lock F1: Wither's '?' sum met its row (192991) exactly; as a DoT it drew 63921 of F2's 180239, as the remainder
+-- all of it.
 -- Run lock3 F1: Wither 445468 was cast once, Seed of Corruption spread it to 5 plates and no birth window held the
 -- cast, so it had no vote; it voted only in F5, after 1.4M of its 2.2M had gone by as '?'. Its row (772071) held
 -- every school-36 '?' hit (740626, 96 %) and its streams (704829, 91 %): 144 ticks at 1.32-1.51 s, 57 at ~1.0 s under
@@ -765,8 +778,9 @@ local function DotPass(run, rows, open, rewritten, results, learned)
     for _, way in ipairs(learned) do
         for _, hit in ipairs(way.hits) do spent[hit] = true end
     end
+    local Lone = LoneRow(open)
     for _, hit in ipairs(run.unknown) do
-        if not spent[hit] and schools[hit.school] then
+        if not spent[hit] and schools[hit.school] and not Lone(hit, false) then
             schools[hit.school].unknown = schools[hit.school].unknown + hit.amount
         end
     end
@@ -775,19 +789,26 @@ local function DotPass(run, rows, open, rewritten, results, learned)
     for _, item in ipairs(run.casts or {}) do cast[item.spellID], cast[item.base] = true, true end
     for _, row in ipairs(rows) do total = total + row.total end
     local unseen = math.max(0, total - run.seen)
-    local function Fits(position, school)
-        local row, id = open[position].row, open[position].row.spellID
-        local free = not rewritten[position] and cast[id] and not ns.Learn.Get(id) and not Procs.Has(id)
-            and not Fingerprints.IsLearned(id) and not Fingerprints.IsAliasTarget(id)
+    local function Fits(row, school)
         local tol = math.max(1, row.total / 100)
 
-        return free and school.unknown <= row.total + row.overkill + tol
-            and row.total <= math.min(school.sum, school.unknown) + math.min(unseen, DOT_FIT * row.total) + tol
+        return school.unknown <= row.total + row.overkill + tol
+            and row.total <= school.unknown + math.min(unseen, DOT_FIT * row.total) + tol
+            and row.total <= school.sum + DOT_FIT * row.total + tol
     end
-    local schoolsOf, rowsOf = {}, {}
-    for position in ipairs(open) do
+    local function Free(position)
+        local id = open[position].row.spellID
+
+        return not rewritten[position] and cast[id] and not ns.Learn.Get(id) and not Procs.Has(id)
+            and not Fingerprints.IsLearned(id) and not Fingerprints.IsAliasTarget(id)
+    end
+    local schoolsOf, rowsOf, exact = {}, {}, {}
+    for position, item in ipairs(open) do
+        local row = item.row
         for _, id in ipairs(order) do
-            if Fits(position, schools[id]) then
+            local school = schools[id]
+            if row.total <= school.unknown and school.unknown <= row.total + row.overkill then exact[id] = true end
+            if Fits(row, school) then
                 schoolsOf[position] = (schoolsOf[position] or 0) + 1
                 rowsOf[id] = (rowsOf[id] or 0) + 1
             end
@@ -796,7 +817,8 @@ local function DotPass(run, rows, open, rewritten, results, learned)
     for position, item in ipairs(open) do
         for _, id in ipairs(order) do
             local school, row = schools[id], item.row
-            if schoolsOf[position] == 1 and rowsOf[id] == 1 and Fits(position, school) then
+            if schoolsOf[position] == 1 and rowsOf[id] == 1 and not exact[id] and Fits(row, school)
+                and Free(position) then
                 local raw = DotPeriod(school.records)
                 local period = raw * (1 + (ns.Learn.Haste() or 0) / 100)
                 if ns.Learn.Teach(row.spellID, id, period) then
