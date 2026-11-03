@@ -777,18 +777,25 @@ function Procs.Teach(id, school, lo, hi, period, at)
 end
 
 -- Name ---------------------------------------------------------------------------------------------------
--- Whether a hit may be the entry's crit: inside the padded crit range once a crit paired its row; before that, only
--- a crit whose normal-scale size sits in the band itself. Shaman2 F3: 1310088 (learned from two normals, 5101-5310)
+-- Whether a crit fits the padded band [lo, hi]: its normal-scale size (Streams.NormalAmount) at least lo, the crit at
+-- most hi x CRIT_HI. A crit is a full crit factor over its own roll, so one whose roll would sit under the band is no
+-- crit of it; above, crit-damage talents stretch past the factor. Run paladin2: 1276284's F1 row was 7104 + a 14207
+-- crit exactly, beside three 11.0-11.3K crits not its own; at the old floor (lo x 0.85 x CRIT_LO, 1.53x) it drew
+-- 11151-11781 crits of that kind in F2-F7.
+local function CritFits(amount, lo, hi)
+    local size = Streams.NormalAmount(amount, "CRITICAL")
+
+    return size ~= nil and lo <= size and amount <= hi * CRIT_HI
+end
+
+-- Whether a hit may be the entry's crit: CritFits once a crit paired its row; before that, only a crit whose
+-- normal-scale size sits in the band itself. Shaman2 F3: 1310088 (learned from two normals, 5101-5310)
 -- drew crits 10433 and 9814, its own (with its normals they sum to the meter's 50489), and 11941, which was not
 -- (2.25x); now only 10433 draws (9814 / 2 sits under the band: a '?', not a wrong icon).
 local function Big(entry, amount, lo, hi)
-    if entry.critOnly then
-        local size = Streams.NormalAmount(amount, "CRITICAL")
-
-        return size ~= nil and lo <= size and size <= hi
-    end
-    if entry.critSeen ~= false then return lo * CRIT_LO <= amount and amount <= hi * CRIT_HI end
     local size = Streams.NormalAmount(amount, "CRITICAL")
+    if entry.critOnly then return size ~= nil and lo <= size and size <= hi end
+    if entry.critSeen ~= false then return CritFits(amount, lo, hi) end
 
     return size ~= nil and entry.lo <= size and size <= entry.hi
 end
@@ -838,11 +845,12 @@ function Procs.Name(school, amount, flagText)
     return found
 end
 
--- Whether the entry's padded band holds a hit: the normal range, or the crit range; crit nil (unknown) fits either.
+-- Whether the entry's padded band holds a hit: the normal range, or the crit range (CritFits); crit nil (unknown)
+-- fits either.
 local function InBand(entry, amount, crit)
     local lo, hi = entry.lo * PAD_LO, entry.hi * PAD_HI
     local normal = lo <= amount and amount <= hi
-    local big = lo * CRIT_LO <= amount and amount <= hi * CRIT_HI
+    local big = CritFits(amount, lo, hi)
 
     return (crit ~= true and normal) or (crit ~= false and big)
 end

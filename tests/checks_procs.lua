@@ -572,12 +572,12 @@ return function(T)
     do
         local ns, procs = Rig()
         local Name = ns.Procs.Name
-        procs[7] = Entry(106, 339, 364, 3, true) -- normal pad [288.15, 418.6], crit pad [518.67, 1130.22]
+        procs[7] = Entry(106, 339, 364, 3, true) -- normal pad [288.15, 418.6], crit pad [576.3, 1130.22]
         Check("procs name normal: [lo x 0.85, hi x 1.15] -> 289 and 418 fit, 288 and 419 do not (flag '')",
             Name(106, 289, "") == 7 and Name(106, 418, "") == 7 and Name(106, 288, "") == nil and Name(106, 419, "") == nil)
-        Check("procs name crit: [lo x 0.85 x 1.8, hi x 1.15 x 2.7] -> 519 and 1130 fit, 518 and 1131 do not (flag CRITICAL)",
-            Name(106, 519, "CRITICAL") == 7 and Name(106, 1130, "CRITICAL") == 7
-            and Name(106, 518, "CRITICAL") == nil and Name(106, 1131, "CRITICAL") == nil)
+        Check("procs name crit: [lo x 0.85 x 2, hi x 1.15 x 2.7] -> 577 and 1130 fit, 576 and 1131 do not (flag CRITICAL)",
+            Name(106, 577, "CRITICAL") == 7 and Name(106, 1130, "CRITICAL") == 7
+            and Name(106, 576, "CRITICAL") == nil and Name(106, 1131, "CRITICAL") == nil)
         Check("procs name flag: a normal hit never fits the crit range (600, flag ''), a crit never the normal range (400, CRITICAL)",
             Name(106, 600, "") == nil and Name(106, 400, "CRITICAL") == nil)
         Check("procs name unknown crit: a nil flag fits either range (289, 600, 1130) and neither gap (450)",
@@ -597,11 +597,24 @@ return function(T)
             okText and textSchool == nil and textAmount == nil and nothing == nil)
 
         local forever, foreverProcs = Rig(function(State) State.interface = 16001 end)
-        foreverProcs[7] = Entry(106, 339, 364, 3, true) -- Forever crit pad [389.0 .. 690.7] = [288.15 x 1.35, 418.6 x 1.65]
-        Check("procs name crit: the band is Streams' (Forever 1.35-1.65 fits 390 and 690, not 388 or 691; retail 1.8-2.7 fits 390 nowhere)",
-            forever.Procs.Name(106, 390, "CRITICAL") == 7 and forever.Procs.Name(106, 690, "CRITICAL") == 7
-            and forever.Procs.Name(106, 388, "CRITICAL") == nil and forever.Procs.Name(106, 691, "CRITICAL") == nil
-            and Name(106, 390, "CRITICAL") == nil)
+        foreverProcs[7] = Entry(106, 339, 364, 3, true) -- Forever crit pad [432.2 .. 690.7] = [288.15 x 1.5, 418.6 x 1.65]
+        Check("procs name crit: the band is Streams' (Forever x1.5-1.65 fits 433 and 690, not 432 or 691; retail x2-2.7 fits 433 nowhere)",
+            forever.Procs.Name(106, 433, "CRITICAL") == 7 and forever.Procs.Name(106, 690, "CRITICAL") == 7
+            and forever.Procs.Name(106, 432, "CRITICAL") == nil and forever.Procs.Name(106, 691, "CRITICAL") == nil
+            and Name(106, 433, "CRITICAL") == nil)
+
+        -- run paladin2 F2: 1276284 (normal 7104, crit 14207 in F1) drew melee crits of 11151-11524 at the old floor
+        procs[1276284] = Entry(1, 7104, 7104, 1, true)
+        procs[1276284].critSeen = true
+        Check("procs name crit floor: a crit under twice the padded band names nothing (11505, 1.62x); its own 14207 does",
+            Name(1, 11505, "CRITICAL") == nil and Name(1, 14207, "CRITICAL") == 1276284)
+        -- a rhythm entry's band (Procs.NamePair) takes the same floor: a 1620 crit (0.81 of 1000 halved) is no tick of
+        -- it, so the normal one period back is the band's only hit
+        local rhythm = Rig()
+        rhythm.Procs.Teach(9, 8, 1000, 1000, 2, 0)
+        local loose = { { at = 8, amount = 1000, crit = false }, { at = 9, amount = 1620, crit = true } }
+        Check("procs name pair crit floor: a crit under twice the padded band is not in the rhythm band (1000 -> 9)",
+            rhythm.Procs.NamePair(loose, 8, 1000, "", 10) == 9)
     end
     -- Procs.Name and a floor: a cut-short tick may be the hit (runs 20261025T192458Z, 194821Z) ------------------
     do
