@@ -1369,6 +1369,16 @@ return function(T)
         Check("twin: a hit off the share is not the channel's (" .. tostring(off) .. ")", off ~= "tex:9002")
         local _, untaught = Twin(nil)
         Check("twin: with no share taught the hit is not the channel's", untaught ~= "tex:9002")
+        do -- run mage F5: Arcane Missiles' twins of the next tick landed just before it, past one period from the last
+            local rig = Rig()
+            rig.Seed(9002, 32, 1.0, "channel")
+            rig.Learned(9002).twin = 0.5
+            rig.Channel(100, 9002)
+            rig.Hit(101, 1000, 32)
+            Check("twin: a twin within Tolerance past a period after the tick is the channel's",
+                rig.Hit(102.15, 500, 32, "nameplate2") == "tex:9002")
+            Check("twin: a hit past that is not the channel's", rig.Hit(102.4, 500, 32, "nameplate3") ~= "tex:9002")
+        end
         do -- run priest3 F8: Void Torrent's 14398 crit tick put 2879 hits (0.20 of it as landed) on the plates around
             local rig = Rig()
             rig.Seed(9002, 32, 1.0, "channel")

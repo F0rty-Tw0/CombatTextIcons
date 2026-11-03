@@ -722,13 +722,15 @@ function Tracker.OnDirectHit(plate, castID, now)
 end
 
 -- A learned spell's twin (Learn.SetTwin, taught by the twin pass in Area.lua): the same effect also strikes the plates
--- around its target for a fixed share of each tick. A hit of its school on another plate, at most one period after a
--- tick a learned instance took, sized within Streams.SIZE_GUARD of the share of that tick (normal scale), is the
+-- around its target for a fixed share of each tick. A hit of its school on another plate, at most one period (and
+-- Tolerance) after a tick a learned instance took, sized within Streams.SIZE_GUARD of the share of that tick (normal scale), is the
 -- spell's when exactly one instance fits it, else nil. Run mage F2-F7: Arcane Missiles 5143's ticks on the target were
 -- drawn, while each tick's twins at 0.47-0.53 of it on up to 3 other plates (row 7268) stayed '?'; run priest3: Void
 -- Torrent 263165's twins at 0.20 of each tick landed on one other plate in the tick's own frame.
 -- A twin may also take the share of the tick as it landed, crit included (lastRaw), and not crit itself: run priest3
 -- F8, Void Torrent's 14398 crit tick put 2879 hits (0.20 of 14398) on three plates, twice the share of its normal size.
+-- A twin of the next tick may land before that tick, up to Phase's tolerance past a period: run mage F5, Arcane
+-- Missiles' twins came 0.03-0.07 s before each target tick, 0.33 s after the one before on its ~0.30 s.
 local function TwinSized(instance, share, normal, amount)
     local function Near(size, tick) return tick and math.abs(size - share * tick) <= Streams.SIZE_GUARD * share * tick end
 
@@ -744,7 +746,7 @@ function Tracker.Twin(plate, school, amount, flagText, now)
             local share = instance.fromLearn and instance.lastTick and Learn.Twin(instance.icon)
             local gap = share and now - instance.lastTick
             local like = share and instance.school == school and TwinSized(instance, share, normal, amount)
-            if like and gap >= 0 and gap <= instance.period then
+            if like and gap >= 0 and gap <= instance.period + Tolerance(instance.period) then
                 if found and found ~= instance.icon then return nil end
                 found = instance.icon
             end
