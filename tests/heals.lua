@@ -182,7 +182,10 @@ local function ScoreHeals(heals, facts, healer, into)
                 into.named, stat.named = into.named + amount, stat.named + amount
                 local tied = TRUTH[id] and TRUTH[id].sizes and TrueSize(id, amount, heal.event.flag)
                     or CastWithin(facts.ties[id], id, heal.event.t)
-                if not (facts.meter[id] or facts.damage[id]) or not tied then
+                -- A damage-only row stands for a heal only when no CAST line names its ID as its own: Healing Rain's
+                -- ticks (73921) are cast as 444995, while a heal named under a cast damage spell is a misnaming.
+                local row = facts.meter[id] or (facts.damage[id] and not facts.casts[id])
+                if not row or not tied then
                     into.wrong, stat.wrong = into.wrong + amount, stat.wrong + amount
                 end
                 if not healer and unit ~= "player" then
@@ -232,10 +235,15 @@ do -- self-check: casts of 10 at 100; rows 10; heals of 100 each on the player u
     assert(truth.named == 400 and truth.wrong == 100 and truth.byID[1064].wrong == 100,
         "heals self-check: a cast ties its base= IDs and TRUTH's rows; a direct heal's cast 1 s before is wrong")
     local damageOnly = NewHeals("damage only")
-    ScoreHeals({ Heal(101, "tex:30") }, LogFacts({ "100.000 CAST player 30 base=30",
+    ScoreHeals({ Heal(101, "tex:30") }, LogFacts({ "100.000 CAST player 31 base=30,30",
         "1.0 TEACH row 30 total=1 overkill=0 override=30" }), false, damageOnly)
     assert(damageOnly.named == 100 and damageOnly.wrong == 0,
-        "heals self-check: a tied heal under an ID the log's meter shows only as a damage row is right")
+        "heals self-check: a tied heal under an uncast ID the log's meter shows only as a damage row is right")
+    local castDamage = NewHeals("cast damage")
+    ScoreHeals({ Heal(101, "tex:30") }, LogFacts({ "100.000 CAST player 30 base=30",
+        "1.0 TEACH row 30 total=1 overkill=0 override=30" }), false, castDamage)
+    assert(castDamage.wrong == 100,
+        "heals self-check: a heal named under a damage spell the player casts is wrong")
     local function Sized(amount, flag) return { event = { t = 500, unit = "player", amount = amount, flag = flag },
         shown = { texture = "tex:1287908" } } end
     local castless = NewHeals("castless")
