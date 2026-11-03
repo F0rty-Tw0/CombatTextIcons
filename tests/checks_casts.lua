@@ -1017,6 +1017,56 @@ do -- Phase 3: records and Claim
             local unlike = Run({ mate[1], mate[2], { 30.23, 9000, "nameplate2", 8 } })
             return soon == PROC and never == nil and late == "tex:8092" and unlike == "tex:8092"
         end)
+    -- Run lock3 F2: Darkglare 205231's second beams (8.7-17.0K, 1.87 s after its first) hit 5 dummies in one frame; the
+    -- target's went '?' (Agony 980, not learned yet, was cast at it 0.6 s before: Agony may have made it) and the 4
+    -- mates, held to the frame's end, hid. A mated frame's held hit that pairs on its own plate with the tick a
+    -- learned rhythm period before it (Procs.NamePair; no cast at that plate) draws as the rhythm.
+    Scenario("frame mates: a mate that pairs with its own plate's tick a learned rhythm period before draws as it",
+        function()
+            -- hits { t, amount, unit, school } (amount "cast": a cast of unlearned 980 at nameplate1 at t); rhythm
+            -- 205231 learned at 8460-12413, school 32, every 1.77 s. Returns nameplate2's last icon.
+            local function Run(hits)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                T.Store().procs = { [205231] = { school = 32, lo = 8460, hi = 12413, period = 1.77, streak = 1,
+                    learned = true } }
+                ns.Procs.Init(T.Store())
+                ns.Teacher.area = "clear"
+                for _, unit in ipairs({ "nameplate2", "nameplate3" }) do
+                    S.threat[unit], S.guids[unit] = false, "Creature-0-1-2-3-107483-0000" .. unit
+                end
+                local drawn = {}
+                ns.Display.Plate = function(plate, texture) drawn[plate] = texture end
+                S.now, S.target = 30, "nameplate1"
+                ns.Core.PLAYER_REGEN_DISABLED()
+                for _, hit in ipairs(hits) do
+                    S.now = hit[1]
+                    if hit[2] == "cast" then
+                        ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c" .. hit[1], 980)
+                    else
+                        ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], hit[4] or 32)
+                    end
+                end
+                ns.Core.FlushMates()
+                return drawn[Plate("nameplate2")]
+            end
+            local DG = "tex:205231"
+            local first = { { 30, 9000, "nameplate2" }, { 30, 9000, "nameplate1" } }
+            local function Second(at, own, extra)
+                local hits = { first[1], first[2], { at - 0.6, "cast" } }
+                if extra then hits[#hits + 1] = extra end
+                hits[#hits + 1] = { at, 9500, "nameplate2" }
+                hits[#hits + 1] = { at, 9400, "nameplate1", own }
+                return Run(hits)
+            end
+            return Second(31.87) == DG
+                -- no own hit of the school in the frame: a stranger's, hidden
+                and Second(31.87, 4) == nil
+                -- not a rhythm period after the plate's last tick
+                and Second(31.0) == nil
+                -- a second in-band hit on the plate since: denser than the rhythm, hidden
+                and Second(31.87, nil, { 31.0, 9200, "nameplate2" }) == nil
+        end)
     -- The area pass (Area.lua): Mind Blast cast at plate p1 drew its 21000 hit; '?' Shadow hits on other plates
     -- 0.2 s after the cast (or at hit[4]) sum against the row's residual (total + overkill + 1 % - 21000). `other`: a
     -- row of another spell the fight drew nothing under. `stamps`: when the 21000 drew (run.drawn), default none.

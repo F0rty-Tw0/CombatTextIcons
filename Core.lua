@@ -350,11 +350,12 @@ local function ProcWound(plate, school, amount, flagText, now, held)
 end
 
 -- Draws a hit with a learned rhythm proc's icon and tallies it; returns true. `onsetAt` is the first tick of the
--- burst the hit belongs to, when known: the onset links learn from it (Procs.Drew).
-local function DrawRhythm(plate, rhythmID, school, amount, flagText, now, onsetAt)
+-- burst the hit belongs to, when known: the onset links learn from it (Procs.Drew). `held`: a hit held to its frame's
+-- end (Core.FlushMates), tallied at its own stamp.
+local function DrawRhythm(plate, rhythmID, school, amount, flagText, now, onsetAt, held)
     if ns.Debug then ns.Debug("  -> rhythm %s", ShowValue(rhythmID)) end
     Procs.Drew(rhythmID, now, onsetAt)
-    Drawn(rhythmID, amount)
+    Drawn(rhythmID, amount, held and now or nil)
     Ledger.Add("damage", rhythmID, amount)
     Display.Plate(plate, SpellTexture(rhythmID), HitText(flagText, amount), flagText, school)
 
@@ -390,8 +391,8 @@ end
 -- unlearned cast may have made it: a learned cast's own hit was claimed before (Casts.Claim).
 -- Nor may a learned DoT's cast in the hit's window (Casts.TickerAt): an off-beat tick the tracker missed is the DoT's,
 -- and run mage F6 paired Arcane Missiles 5143's as the mislearned proc 153626. `candidates` is Casts.Candidates for the
--- hit. Returns whether it drew.
-local function PairWound(plate, stream, school, amount, flagText, candidates, now)
+-- hit; `held`: a frame mate's (DrawMate). Returns whether it drew.
+local function PairWound(plate, stream, school, amount, flagText, candidates, now, held)
     if stream or not Teacher.NotCrowded() then return false end
     for _, cast in ipairs(candidates) do
         if not Fingerprints.IsLearned(cast.castID) then return false end
@@ -403,7 +404,7 @@ local function PairWound(plate, stream, school, amount, flagText, candidates, no
     if not rhythmID then rhythmID, partnerAt = Procs.NameFall(loose, school, amount, flagText, now), nil end
     if not rhythmID then return false end
 
-    return DrawRhythm(plate, rhythmID, school, amount, flagText, now, partnerAt)
+    return DrawRhythm(plate, rhythmID, school, amount, flagText, now, partnerAt, held)
 end
 
 -- Draws a hit on your target that a learned swing entry names (Procs.NameSwing) and tallies it; returns whether it drew.
@@ -481,6 +482,9 @@ end
 -- the target; drawn, their 4701 ran past its row (mage over 0.46 % -> 0.68 %). Run druid2 F3: another spell's ~10.5K
 -- hits on all 5 dummies came 0.67 s before Primal Wrath 285381's cast, and its 4 mates of that size drew its row 7690
 -- over (druid2 over 0.00 % -> 0.06 %).
+-- A mated held hit that is like none pairs on its own plate with the tick a learned rhythm period before it (PairWound,
+-- with its plate's casts): run lock3 F2, Darkglare 205231's second beams on 4 dummies hid while its target's went '?'
+-- (an unlearned Agony 980 cast at the target 0.6 s before may have made that one).
 -- A held hit with no mate is drawn when a learned proc names it (ProcWound) on a plate one of your hits drew on in the
 -- MINE_WAIT before (MineRecently), else hidden, and kept for the teacher as a stranger (Teacher.Stranger): an AoE's
 -- splash a frame apart from its target hit is one too. Run warrior F3: proc 435791's 697818 on a dummy came 0.03 s after
@@ -504,6 +508,8 @@ local function DrawMate(hit, mated)
             Display.Plate(hit.plate, SpellTexture(base), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
             return
         end
+        if PairWound(hit.plate, hit.stream, hit.school, hit.amount, hit.flagText,
+            Casts.Candidates(hit.plate, hit.at, hit.school), hit.at, true) then return end
         Teacher.Mate(hit.plate, hit.school, hit.amount, hit.at, hit.flagText)
         if ns.Debug then ns.Debug("  -> HIDDEN (mate)") end
         return
@@ -560,12 +566,13 @@ function Core.FlushMates(now)
     end
 end
 
--- Holds a hit on a creature with no threat list that does not fight you until its frame ends (held).
-local function Hold(plate, flagText, amount, school, now, kind, record)
+-- Holds a hit on a creature with no threat list that does not fight you until its frame ends (held). `stream`: the
+-- stream that took it (Streams.Feed), if any.
+local function Hold(plate, flagText, amount, school, now, kind, record, stream)
     Core.FlushMates(now)
     if held.at ~= now then held = { at = now, hits = {} } end
     held.hits[#held.hits + 1] = { plate = plate, school = school, amount = amount, flagText = flagText, at = now,
-        kind = kind, record = record }
+        kind = kind, record = record, stream = stream }
     if ns.Debug then ns.Debug("  .. held") end
     QueueFlush()
 end
@@ -731,7 +738,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
 
         return Question(plate, school, amount, flagText, now, cast, candidates)
     end
-    if holds then return Hold(plate, flagText, amount, school, now, kind, record) end
+    if holds then return Hold(plate, flagText, amount, school, now, kind, record, stream) end
     if ns.Debug then ns.Debug("  -> HIDDEN") end
 end
 
