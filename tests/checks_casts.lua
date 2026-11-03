@@ -524,16 +524,18 @@ return function(T)
             Count(loaded.aliasFills) == 1 and loaded.aliasFills[76] == true)
         local taught = T.Boot(function()
             CombatTextIconsCharDB = { casts = {
-                [591] = Copy({ perCast = 2, area = true, areaLow = true }),
-                [592] = Copy({ perCast = 9, area = "yes", areaLow = true }), -- past PER_CAST_MAX, area not true
+                [591] = Copy({ perCast = 2, area = true, areaLow = true, areaFrame = true }),
+                [592] = Copy({ perCast = 9, area = "yes", areaLow = true, areaFrame = true }), -- past PER_CAST_MAX, area not true
                 [593] = Copy({ perCast = 1.5, areaLow = true }),             -- not a whole count, no area
+                [594] = Copy({ area = true, areaFrame = "yes" }),
             } }
         end).Fingerprints
         local kept = T.Store().casts
-        Check("fingerprints: a saved perCast 2-4, area true and its areaLow true load, other values load as none",
+        Check("fingerprints: a saved perCast 2-4, area true and its areaLow / areaFrame true load, other values load as none",
             kept[591].perCast == 2 and kept[591].area == true and kept[591].areaLow == true and kept[592].perCast == nil
             and kept[592].area == nil and kept[592].areaLow == nil and kept[593].perCast == nil
-            and kept[593].areaLow == nil)
+            and kept[593].areaLow == nil and kept[591].areaFrame == true and kept[592].areaFrame == nil
+            and kept[594].area == true and kept[594].areaFrame == nil)
         taught.SetPerCast(591, 3); taught.SetPerCast(591, 2)
         local most = kept[591].perCast
         taught.SetPerCast(591, 9); taught.SetPerCast(593, 1)
@@ -812,6 +814,7 @@ do -- Phase 3: records and Claim
             local function Twice(F) F.SetPerCast(8092, 2) end
             local function Around(F) F.SetArea(8092) end
             local function AroundLow(F) F.SetArea(8092, true) end
+            local function AroundFrame(F) F.SetArea(8092, nil, true) end
             local MB, own = "tex:8092", { 30.2, 21000, "nameplate1" }
             local twice = { own, { 30.22, 20000, "nameplate1" } }
             local frame = { own, { 30.2, 20000, "nameplate2" } }
@@ -828,6 +831,15 @@ do -- Phase 3: records and Claim
                 -- drew a 7788 crit 0.78 s after its own hit, in a later 3-plate frame of another spell's
                 and Last({ { 30.17, 21000, "nameplate1" }, { 30.66, 20000, "nameplate2" } }, Around) == MB
                 and Last({ { 30.17, 21000, "nameplate1" }, { 30.72, 20000, "nameplate2" } }, Around) ~= MB
+                -- an areaFrame base takes other plates' hits inside its window (0.17-0.23 s, SLACK 0.05) or in its own
+                -- hit's frame, never SPLASH past them: run druid F11, Swipe 106785 took another spell's 5-plate frame
+                -- 0.33 s after its cast (13000: no Splash)
+                and Last({ own, { 30.2, 13000, "nameplate2" } }, AroundFrame) == MB
+                and Last({ { 30.17, 21000, "nameplate1" }, { 30.27, 13000, "nameplate2" } }, AroundFrame) == MB
+                and Last({ { 30.17, 21000, "nameplate1" }, { 30.3, 13000, "nameplate2" } }, Around) == MB
+                and Last({ { 30.17, 21000, "nameplate1" }, { 30.3, 13000, "nameplate2" } }, AroundFrame) ~= MB
+                and Last({ own, { 30.6, 13000, "nameplate2" } }, AroundFrame) ~= MB
+                and Last({ { 30.4, 21000, "nameplate1" }, { 30.4, 13000, "nameplate2" } }, AroundFrame) == MB
                 -- run paladin2: Hammer of Light 427453's splash hit the other plates at 0.55-0.63 of its learned
                 -- smallest, under the padded band; another plate's hit fits a record the lower floor marked area
                 -- from AREA_LO (0.4) of it (7200), its own plate keeps the padded band (12600); run paladin: Blessed
@@ -991,6 +1003,34 @@ do -- Phase 3: records and Claim
                 and apart and not apartLow and splashSum == 21000 and splash and splashLow and not tiny
                 and not alone and not owned and notOwned and mixedSum == 39000 and beside and not open
                 and not elsewhere and ownFramed and ownFramedLow
+        end)
+    -- Run druid2 F3: Swipe 106785's area span held 108 hits (1136262) in a room of 641187, other spells' among them;
+    -- the hits in its own hits' frames alone explain the room, when they share at least half of those frames. Such a
+    -- base is marked areaFrame (Casts' AreaHit). Hits { size, plate, at } beside a 21000 Mind Blast cast at 30 on p1;
+    -- `stamps`: its own hits (run.drawn). Row 60000: room 39600.
+    Scenario("area pass: hits in the own hits' frames alone teach areaFrame when the whole span runs past the room",
+        function()
+            local function Try(hits, stamps)
+                local ns = Rig(MindBlast)
+                local unknown, drawn = {}, {}
+                for _, hit in ipairs(hits) do
+                    unknown[#unknown + 1] = { at = hit[3], plate = hit[2], school = 32, size = hit[1], amount = hit[1] }
+                end
+                for _, at in ipairs(stamps) do drawn[#drawn + 1] = { spellID = 8092, amount = 21000, at = at } end
+                local run = { casts = { { at = 30, base = 8092, spellID = 8092, plate = "p1" } }, tally = { [8092] = 21000 },
+                    unknown = unknown, drawn = drawn }
+                local ways = ns.Area.Learn(run, { { spellID = 8092, total = 60000, overkill = 0 } }, {})
+                local fp = ns.Fingerprints.Get(8092)
+                return #ways == 1 and ways[1].sum or 0, fp.area == true, fp.areaFrame == true
+            end
+            local stray = { 14000, "p4", 30.25 }
+            local sum, area, framed = Try({ { 14000, "p2", 30.2 }, { 14000, "p3", 30.23 }, stray }, { 30.2, 30.23 })
+            local _, oneFrame = Try({ { 14000, "p2", 30.2 }, { 14000, "p3", 30.2 }, stray }, { 30.2, 30.23 })
+            local _, fewFrames = Try({ { 14000, "p2", 30.2 }, { 14000, "p3", 30.23 }, stray },
+                { 30.2, 30.23, 30.24, 30.26, 30.27 })
+            local fitSum, fit, fitFramed = Try({ { 14000, "p2", 30.2 }, { 14000, "p3", 30.23 } }, { 30.2, 30.23 })
+            return sum == 28000 and area and framed and not oneFrame and not fewFrames and fitSum == 28000 and fit
+                and not fitFramed
         end)
     -- Frame mates (Teacher.Mate: hits on dummies no one fights, in a solo hit's frame) are other plates' hits too. Run
     -- paladin2 F2: mates that push the '?' hits past the room are left out, and the '?' hits alone teach.

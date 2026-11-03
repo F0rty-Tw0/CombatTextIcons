@@ -18,7 +18,8 @@
 -- window; tick 1: the others); they make the pattern "stack" with the medians.
 -- A meter-proven way may teach `perCast` (hits one cast lands on its plate, SetPerCast) and the area pass `area` (its
 -- casts also hit the plates around their target, SetArea, Area.lua), with `areaLow` when only the hits from
--- Casts.AREA_LO of its smallest showed it; Casts.lua reads them.
+-- Casts.AREA_LO of its smallest showed it, and `areaFrame` when only the hits in its own hits' frames did; Casts.lua
+-- reads them.
 -- Saved data is checked on load and never trusted.
 
 local _, ns = ...
@@ -318,9 +319,10 @@ end
 
 -- The meter showed a cast's row holding its hits on the plates around its target (Area.lua): its records take them.
 -- `low`: the hits from Casts.AREA_LO of its smallest showed it, so its records take such hits from there (Casts.Claim).
-function Fingerprints.SetArea(spellID, low)
+-- `framed`: only the hits in its own hits' frames showed it, so its records take only those (Casts' AreaHit).
+function Fingerprints.SetArea(spellID, low, framed)
     local entry = Fingerprints.Get(spellID)
-    if entry then entry.area, entry.areaLow = true, low == true or nil end
+    if entry then entry.area, entry.areaLow, entry.areaFrame = true, low == true or nil, framed == true or nil end
 end
 
 -- `filled`: the alias rests on a filled sum (Steady's CastSum), so Filled answers for its cast; an alias set again
@@ -416,6 +418,7 @@ local function Repair(entry)
         and perCast or nil
     entry.area = entry.area == true or nil
     entry.areaLow = entry.area and entry.areaLow == true or nil
+    entry.areaFrame = entry.area and entry.areaFrame == true or nil
     Refresh(entry)
 end
 

@@ -110,6 +110,25 @@ local function OwnStamps(run, castID, ways)
     return stamps
 end
 
+-- `way` with only its hits in the frame of an own hit of its cast (`own`, OwnStamps), when such hits share at least
+-- SHARE of its own frames (an AoE strikes the plates around at each cast), else an empty way.
+local function OwnFramed(way, own)
+    local beside, frames, shared = { castID = way.castID, sum = 0, hits = {} }, 0, {}
+    for _ in pairs(own) do frames = frames + 1 end
+    for _, hit in ipairs(way.hits) do
+        if own[hit.at] then
+            beside.sum = beside.sum + hit.amount
+            beside.hits[#beside.hits + 1] = hit
+            shared[hit.at] = true
+        end
+    end
+    local count = 0
+    for _ in pairs(shared) do count = count + 1 end
+    if count < math.max(MIN_HITS, SHARE * frames) then return { castID = way.castID, sum = 0, hits = {} } end
+
+    return beside
+end
+
 -- Whether every hit of `way` shares its frame with an own hit of its cast (`own`, OwnStamps).
 local function Beside(way, own)
     for _, hit in ipairs(way.hits) do
@@ -148,7 +167,10 @@ end
 -- closed its row (room 1316791), so F3 drew its 1307148 splash too. Run hunter F16: Kill Command 17253's one 2610 hit
 -- beside its own, in a room of 3949, left the row open; marked area, F18 drew 65865 over its row.
 -- A way that does not explain with its frame mates is tried on its '?' hits alone: run paladin2 F2, 4 Physical mates
--- (17385) pushed 408385's 111 hits (519945) past its room of 526678, and its F4-F7 splashes went '?'.
+-- (17385) pushed 408385's 111 hits (519945) past its room of 526678, and its F4-F7 splashes went '?'. One that still
+-- does not is tried on the hits in its own hits' frames alone (OwnFramed), and a base they mark is areaFrame: run
+-- druid2 F3, Swipe 106785's span held 108 hits (1136262) in a room of 641187, other bleeds' and strikes' among them,
+-- and its F5 splash (210K) went '?'.
 -- Returns the ways it marked area { castID, sum, hits }.
 function Area.Learn(run, rows, learned)
     local spent, learnedNow, steady = {}, {}, {}
@@ -189,8 +211,11 @@ function Area.Learn(run, rows, learned)
                 local way = Gather(run, castID, fp, castsOf[castID], spent, floor, true)
                 if Explains(way, not floor) then return way end
                 local bare = Gather(run, castID, fp, castsOf[castID], spent, floor, false)
+                if Explains(bare, not floor) then return bare end
+                local beside = OwnFramed(way, own)
+                beside.framed = true
 
-                return Explains(bare, not floor) and bare or way
+                return Explains(beside, not floor) and beside or way
             end
             local way = Way(nil)
             local low = not Explains(way, true)
@@ -199,7 +224,7 @@ function Area.Learn(run, rows, learned)
             local fits = Explains(way, not low)
                 and not (held and (not Explains(Framed(way, own), not low) or OtherRowSum(way, row, rows, run.tally)))
             if fits then
-                Fingerprints.SetArea(castID, low)
+                Fingerprints.SetArea(castID, low, way.framed)
                 ways[#ways + 1] = way
             end
             if ns.Debug and #way.hits > 0 then

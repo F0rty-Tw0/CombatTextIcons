@@ -413,11 +413,18 @@ end
 -- took its 4650 own hit 0.23 s after its cast and a 3523 on another plate in that frame; a 7788 crit on a third plate
 -- 1.01 s after the cast, first of a later frame with 3894 on both plates it had hit, drew as 408385 (row 103878 got
 -- 111666). The caller checked the school and the band (from AREA_LO of the smallest size for an areaLow base).
+-- An areaFrame base (only the hits in its own hits' frames showed it area) takes them alone: inside its window, or in
+-- its own hit's frame. Run druid F11: Swipe 106785 (window 0.24-0.25 s) hit 2 plates in its frame, and another spell's
+-- frame 0.33 s after its cast struck 5 plates at a like size; taking 3 of those ran its row over. Its own hit may come
+-- a frame early (run druid F7: a 33499 crit at 0.213 s), so the window still holds the rest of its frame.
 local function AreaHit(record, fp, plate, now)
     if not fp.area or record.plates[plate] then return false end
-    if record.hops >= 1 and now - record.last > SPLASH then return false end
     local low, high = RecordWindow(record)
     local age = now - record.at
+    if fp.areaFrame then
+        return record.hops >= 1 and now == record.last or age >= low - SLACK and age <= high + SLACK
+    end
+    if record.hops >= 1 and now - record.last > SPLASH then return false end
 
     return age >= low - SLACK and age <= high + SPLASH
 end
