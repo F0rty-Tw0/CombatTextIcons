@@ -71,8 +71,8 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 --   casts = { { spellID, base, at, plate }, ... }, streams = { [stream] = record }, seen = sum, live = this fight's
 --   own seen (no carried fight's), crowded = the live crowd check fired, carried = seconds of fights carried in,
 --   duration = seconds in combat (set at Finish), group, heals = { { size, amount, at }, ... } on you, helps = { { spellID,
---   at }, ... } your helpful casts and drawn = { { spellID, amount, at }, ... } the hits drawn with an icon (for
---   Heals.Learn) }
+--   at }, ... } your helpful casts and drawn = { { spellID, amount, at, school }, ... } the hits drawn with an icon
+--   (for Heals.Learn) }
 Teacher.fight = nil
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
 -- the crowd check's state: "clear" or "crowded", which a read saves with its map (SaveArea), or "unknown" on a map no
@@ -1271,12 +1271,16 @@ function Teacher.Helped(spellID, now)
     fight.helps[#fight.helps + 1] = { spellID = spellID, at = now }
 end
 
--- A hit was drawn with this spell's icon at `now` (nil: unknown); Heals.Learn pairs it with the heals on its stamp.
-function Teacher.Drawn(spellID, amount, now)
+-- A hit of `school` (nil: unknown) was drawn with this spell's icon at `now` (nil: unknown); Heals.Learn pairs it
+-- with the heals on its stamp.
+function Teacher.Drawn(spellID, amount, now, school)
     local fight = Teacher.fight
     if not (fight and IsNumber(spellID) and IsNumber(amount)) then return end
     fight.tally[spellID] = (fight.tally[spellID] or 0) + amount
-    if IsNumber(now) then fight.drawn[#fight.drawn + 1] = { spellID = spellID, amount = amount, at = now } end
+    if IsNumber(now) then
+        fight.drawn[#fight.drawn + 1] = { spellID = spellID, amount = amount, at = now,
+            school = IsNumber(school) and school or nil }
+    end
 end
 
 -- A hit a learned DoT drew: its votes named it, not the meter, so Procs.Read also sums it with its school's '?' hits.

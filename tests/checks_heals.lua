@@ -288,15 +288,44 @@ return function(T)
         H.Learn(heals, {}, Rows(DRAIN), 100, drawn)
         Check("couples: a heal off its share leaves two of one k: nothing", CoupleOf(DRAIN).reads == nil)
 
+        -- priest3: Devouring Plague's 0.3 learned from its drawn shadow hits names a heal 0.3 x a shadow hit no icon
+        -- drew; a hit of another school, or drawn under another ID, is none of its
+        local function ShadowRead(school)
+            heals, drawn = DrainRead({ 33310, 7490, 6670 }, 0.3)
+            for index, hit in ipairs(drawn) do
+                hit.spellID, hit.school = PLAGUE, school and school(index) or 32
+            end
+            H.Learn(heals, {}, Rows(PLAGUE), 100, drawn)
+        end
+        H.Forget()
+        ShadowRead()
+        ShadowRead()
+        local heal = { { size = 9996, amount = 9996 } }
+        Check("couples: a learned couple keeps its hits' school", CoupleOf(PLAGUE).school == 32)
+        Check("couples: a heal of k x an undrawn hit of the couple's school is the couple's",
+            H.Claim({}, heal, { { amount = 33320, school = 32 } })[1] == PLAGUE)
+        Check("couples: an undrawn hit of another school, or one drawn under another ID, claims nothing",
+            next(H.Claim({}, heal, { { amount = 33320, school = 4 } })) == nil
+            and next(H.Claim({}, heal, { { amount = 33320, school = 32, spellID = OTHER } })) == nil)
+        H.Forget()
+        ShadowRead()
+        ShadowRead(function(index) return index == 1 and 4 or 32 end)
+        Check("couples: a couple whose reads' hits mixed schools names only drawn hits", CoupleOf(PLAGUE).reads == 2
+            and CoupleOf(PLAGUE).school == nil and next(H.Claim({}, heal, { { amount = 33320, school = 32 } })) == nil
+            and H.Claim({}, heal, { { amount = 33320, school = 32, spellID = PLAGUE } })[1] == PLAGUE)
+
         -- the saved couples are checked, never trusted
         ns = T.Boot(function()
-            CombatTextIconsCharDB = { healCouples = { [DRAIN] = { lo = 6.9999, hi = 7.0001, reads = 2 },
+            CombatTextIconsCharDB = { healCouples = { [DRAIN] = { lo = 6.9999, hi = 7.0001, reads = 2, school = 0.5 },
+                [77472] = { lo = 0.2999, hi = 0.3001, reads = 2, school = 32 },
                 [PLAGUE] = { lo = 0.31, hi = 0.29, reads = 2 }, [OTHER] = { lo = 0, hi = 1, reads = 2 },
                 [5394] = { lo = 1, hi = 1, reads = 0 }, [0.5] = { lo = 1, hi = 1, reads = 2 }, [1064] = "junk" } }
         end)
         local saved = T.Store().healCouples or {}
         Check("couples: a valid saved couple loads learned", ns.Heals.Claim({}, { { size = 9891, amount = 9891 } },
             { { spellID = DRAIN, amount = 1413 } })[1] == DRAIN)
+        Check("couples: a saved school loads; a bad one is dropped alone", saved[77472].school == 32
+            and saved[DRAIN] ~= nil and saved[DRAIN].school == nil)
         Check("couples: saved couples with a bad span, read count or ID, or junk, are dropped", saved[PLAGUE] == nil
             and saved[OTHER] == nil and saved[5394] == nil and saved[0.5] == nil and saved[1064] == nil)
     end
@@ -687,7 +716,7 @@ return function(T)
         local PROC_ID = 777
         local draws = {}
         local ns = T.Boot(function()
-            CombatTextIconsCharDB = { healCouples = { [PROC_ID] = { lo = 7, hi = 7, reads = 2 } } }
+            CombatTextIconsCharDB = { healCouples = { [PROC_ID] = { lo = 7, hi = 7, reads = 2, school = 32 } } }
         end)
         local S = T.State()
         ns.Teacher.area = "clear"
@@ -702,12 +731,20 @@ return function(T)
         ns.Core.UNIT_COMBAT("player", "HEAL", "", 5000, 1)
         S.now = 51
         ns.Core.UNIT_COMBAT("player", "HEAL", "", 9891, 1)
+        S.now = 52
+        ns.Core.UNIT_COMBAT("nameplate1", "WOUND", "", 2000, 32) -- no icon draws it
+        ns.Core.UNIT_COMBAT("nameplate1", "WOUND", "", 3000, 4)
+        ns.Core.UNIT_COMBAT("player", "HEAL", "", 14000, 1)
+        ns.Core.UNIT_COMBAT("player", "HEAL", "", 21000, 1)
         ns.Core.FlushHeals()
         Check("heals core: a heal of the learned share of its frame's drawn hit is named; others and a later frame's "
             .. "are '?'", draws[1] == "tex:777" and draws[2] == ns.Meter.UNKNOWN_ICON
-            and draws[3] == ns.Meter.UNKNOWN_ICON and #draws == 3)
-        Check("heals core: the drawn hit reaches the fight with its stamp", ns.Teacher.fight.drawn[1].spellID == PROC_ID
-            and ns.Teacher.fight.drawn[1].at == 50)
+            and draws[3] == ns.Meter.UNKNOWN_ICON)
+        Check("heals core: the share of an undrawn hit of the couple's school is named, of another school's is not",
+            draws[4] == "tex:777" and draws[5] == ns.Meter.UNKNOWN_ICON and #draws == 5)
+        Check("heals core: the drawn hit reaches the fight with its stamp and school",
+            ns.Teacher.fight.drawn[1].spellID == PROC_ID and ns.Teacher.fight.drawn[1].at == 50
+            and ns.Teacher.fight.drawn[1].school == 32)
     end
 
     do -- a learned train (Healing Tide Totem): its cast starts it, and a heal on its due tick is named

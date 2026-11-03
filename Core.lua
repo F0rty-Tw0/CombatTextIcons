@@ -249,16 +249,27 @@ end
 -- The event frame: its handlers are the Core functions below.
 local events = CreateFrame("Frame")
 
--- frameHits = { at = a frame's stamp, list = the hits drawn with an icon on it, each { spellID, amount } }: a heal on
--- you in that frame may be a learned share of one (Heals.Claim)
+-- frameHits = { at = a frame's stamp, list = its hits on enemy plates, each { amount, school, spellID = the icon it
+-- drew, nil when none } }: a heal on you in that frame may be a learned share of one (Heals.Claim)
 local frameHits = { list = {} }
 
--- A hit was drawn with this spell's icon: the teacher tallies it, and the frame keeps it for its heals.
+-- A hit on an enemy plate at `now`: its frame keeps it for the frame's heals (Drawn names it). Heals of an earlier
+-- frame still waiting are drawn first, before their frame's hits give way.
+local function FrameHit(amount, school, now)
+    if frameHits.at ~= now then
+        Core.FlushHeals(now)
+        frameHits = { at = now, list = {} }
+    end
+    frameHits.list[#frameHits.list + 1] = { amount = amount, school = school }
+end
+
+-- The hit Wound is on was drawn with this spell's icon: the teacher tallies it, and its frame entry (FrameHit, the
+-- newest) takes the ID.
 local function Drawn(spellID, amount)
     local now = GetTime()
-    Teacher.Drawn(spellID, amount, now)
-    if frameHits.at ~= now then frameHits = { at = now, list = {} } end
-    frameHits.list[#frameHits.list + 1] = { spellID = spellID, amount = amount }
+    local hit = frameHits.at == now and frameHits.list[#frameHits.list] or nil
+    Teacher.Drawn(spellID, amount, now, hit and hit.school)
+    if hit then hit.spellID = spellID end
 end
 
 -- Why a solo unexplained hit or heal stays hidden when the area is not clear: no meter to
@@ -339,6 +350,7 @@ end
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
 -- (run 153349Z: strangers on 8 nearby dummies made both reads crowded).
 local function Wound(plate, unit, flagText, amount, school, now)
+    FrameHit(amount, school, now)
     local fightsYou = FightsYou(unit, now)
     local grouped = InGroup()
     if grouped then Teacher.Grouped() end
@@ -483,7 +495,7 @@ end
 -- Once a heal is learned (Heals.AnyLearned), a heal on you that no channel named waits for the end of
 -- its frame (Core.FlushHeals): it lands before its own cast's UNIT_SPELLCAST_SUCCEEDED in that frame (shamanheal:
 -- the heal of each of 17 Chain Heal 1064 casts is logged on the cast's stamp, the line before the CAST line), so only
--- then does the frame know its casts; its drawn hits (frameHits) come with them.
+-- then does the frame know its casts; its hits (frameHits) come with them.
 -- waiting = { at = the frame's stamp, heals = { { flagText, amount, school, size }, ... } }; frameCasts = { at, ids =
 -- your helpful casts on that stamp, in cast order, each once (seen) }.
 local waiting, frameCasts = { heals = {} }, { ids = {} }
