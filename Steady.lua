@@ -215,7 +215,32 @@ Steady.RowOf = RowOf -- the area pass (Area.lua) bounds by the same row
 -- was drawn under it this fight. A learned DoT of the cast in another school than the hits drew by votes, not by the
 -- meter, so its draws take no room: a stale save's Nature DoT under Lava Burst 51505 drew 260K of other Nature hits,
 -- and the 6 Fire hits that sum to the row learned nothing until a fight later (run shaman3 start, fight 1).
-local function Fits(castID, hits, rows, tally)
+-- A learned one-hit cast whose counted hit stayed '?' drew no hit of its own after that cast (before its next one), so
+-- what it drew there takes no room: run hunter F7, 467718's record took a 7319 at 0.54 s (its old window) on the cast
+-- whose own 7345 came at 0.14 s; its 7 hits summed to row 75 exactly, the 7319 pushed the counted ones past the room,
+-- and F8-F9 left 89K of 75 '?' at the new delays.
+local function Superseded(castID, hits, run)
+    local fp = Fingerprints.Get(castID)
+    if not (fp and fp.learned and fp.pattern == "single" and (fp.perCast or 1) == 1) then return 0 end
+    local spans = {}
+    for _, pair in ipairs(hits) do
+        local stop = pair.castAt + WINDOWS * SPREAD
+        for _, cast in ipairs(run.casts or {}) do
+            if cast.base == castID and cast.at > pair.castAt then stop = math.min(stop, cast.at) end
+        end
+        spans[#spans + 1] = { pair.castAt, stop }
+    end
+    local sum = 0
+    for _, draw in ipairs(run.drawn or {}) do
+        local inside = false
+        for _, span in ipairs(spans) do inside = inside or draw.at > span[1] and draw.at < span[2] end
+        if draw.spellID == castID and inside then sum = sum + draw.amount end
+    end
+
+    return sum
+end
+
+local function Fits(castID, hits, rows, tally, run)
     local row = RowOf(castID, rows)
     if not row then return false end
     local dot, sum, dotSchool = ns.Learn.Get(castID), 0, false
@@ -223,7 +248,7 @@ local function Fits(castID, hits, rows, tally)
         sum = sum + pair.hit.amount
         if dot and pair.hit.school == dot.school then dotSchool = true end
     end
-    local drawn = (dot and not dotSchool) and 0 or (tally[castID] or 0)
+    local drawn = (dot and not dotSchool) and 0 or (tally[castID] or 0) - Superseded(castID, hits, run)
     local room = row.total + row.overkill + math.max(1, row.total / 100) - drawn
 
     return sum <= room
@@ -386,7 +411,7 @@ local function Gate(results, rows, run)
         for _, pair in ipairs(base.hits) do
             if owners[pair.hit] > 1 then outcome = "shared" end
         end
-        if outcome == "learned" and not Fits(castID, base.hits, rows, tally) then
+        if outcome == "learned" and not Fits(castID, base.hits, rows, tally, run) then
             local other, filled
             if not RowOf(castID, rows) then other, filled = OtherRow(castID, base, rows, tally, owned) end
             if filled then

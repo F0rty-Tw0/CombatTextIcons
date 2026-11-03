@@ -2985,6 +2985,23 @@ return function(T)
             last.area == "clear" and Learned(last) == 3 and #voidDelays == 3 and voidDelays[1] == 0 and voidDelays[3] == 0
             and based and Outcome(VOID_BLAST) == "learned" and drawn == "tex:" .. VOID_BLAST)
 
+        -- Run hunter F7: 467718's record took a 7319 at 0.54 s (its old window) on the casts whose own hits came at
+        -- 0.14 s and stayed '?'; they summed to row 75 exactly, and the draws took their room. Here the record draws a
+        -- 21000 at 0.30 s after each Void Blast whose own hit (at 0.0) stays '?': those draws take no room.
+        local stale = {}
+        for index, t in ipairs({ 10, 15, 20 }) do
+            stale[#stale + 1] = { t, VOID_BLAST }
+            stale[#stale + 1] = { t, nil, ({ 22090, 22574, 22978 })[index] }
+            stale[#stale + 1] = { t + 0.30, nil, 21000 }
+        end
+        rig, last = SteadyFight(stale, { Row(MIND_BLAST, 67642), Row(1287663, 63000) }, FarMindBlast)
+        local drewStale = false
+        for _, line in ipairs(CombatTextIconsDB.debugLog) do
+            drewStale = drewStale or line:find("TEACH 8092 tally=63000 ", 1, true) ~= nil
+        end
+        Check("steady (h2): a learned one-hit base's draws after casts whose own hit stayed '?' take no room -> learns 3",
+            last.area == "clear" and drewStale and Learned(last) == 3 and Outcome(VOID_BLAST) == "learned")
+
         -- Haunt 48181 in run 20261025T180045Z's first log: an exact sum left 2 samples (22336, 27095); the next
         -- fight's casts each had a 1.6K tick in the hit's frame. Two kept sized samples band the pairs.
         local function TwoSamples(r)
