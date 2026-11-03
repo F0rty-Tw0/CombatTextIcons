@@ -334,7 +334,7 @@ return function(T)
     -- every 1.5 s from the cast, sized 12000 - 300 x tick (`size(tick)` when given). opts: `rows` (default: each
     -- cast's), `before` (the train also ticked 1.5 s before the cast), `direct` (a heal of that size on the cast's
     -- stamp), `filler` (a heal of 11000 every 0.5 s all fight long), `sparse` (a heal of 11000 every 3 s all fight
-    -- long, each between two ticks: luck gives a 5 tick walk ~4e-4 often).
+    -- long, each between two ticks: luck gives a 5 tick walk ~4e-4 often), `damage` (Heals.Learn's damage side).
     local TIDE, TOTEM = 108280, 5394
     local function TrainRead(H, casts, opts)
         opts = opts or {}
@@ -355,7 +355,7 @@ return function(T)
             for t = from, 100, step do heals[#heals + 1] = { size = 11000, amount = 11000, at = t } end
             table.sort(heals, function(a, b) return a.at < b.at end)
         end
-        H.Learn(heals, helps, rows, 100)
+        H.Learn(heals, helps, rows, 100, nil, opts.damage)
     end
 
     do -- trains: learning
@@ -436,6 +436,38 @@ return function(T)
         H.Forget()
         Check("trains: /cti forget drops the trains", not H.IsTrainLearned(1267068)
             and next(T.Store().healTrains or {}) == nil and not H.AnyLearned())
+    end
+
+    do -- trains: shamanheal's Healing Rain casts as 444995 (base 73920) and 1298679 on one stamp, neither a heal row;
+        -- its heal and damage row is 73921, and its ticks share their frames with its hits on the mobs
+        local RAIN, TWIN, ROW, OTHER = 444995, 1298679, 73921, 999002
+        local function Boot() return T.Boot(function(S) S.baseSpells[RAIN] = 73920 end).Heals end
+        local function Damage(opts)
+            local hits = {}
+            for tick = 1, 8 do hits[tick] = { at = 10 + 1.5 * tick + (opts.off or 0) } end
+            return { rows = opts.rows or { Row(ROW) }, cast = opts.cast or {}, hits = hits }
+        end
+        local function Read(H, damage)
+            TrainRead(H, { RAIN, TWIN }, { rows = { Row(ROW), Row(OTHER) }, sparse = true, damage = damage })
+        end
+
+        local H = Boot()
+        Read(H, Damage({}))
+        H.Cast(RAIN, 100)
+        H.Cast(TWIN, 100)
+        local frame = H.Claim({}, { { size = 11700 }, { size = 11600 } }, nil, 101.5)
+        Check("trains: twin casts with no heal row learn one train under the heal and damage row their ticks hit with",
+            H.IsTrainLearned(RAIN) and not H.IsTrainLearned(TWIN) and frame[1] == nil and frame[2] == ROW)
+
+        H = Boot()
+        Read(H, Damage({ off = 0.5 }))
+        Check("trains: hits off the ticks' frames give no row", not H.IsTrainLearned(RAIN) and not H.IsTrainLearned(TWIN))
+        H = Boot()
+        Read(H, Damage({ cast = { [ROW] = true } }))
+        Check("trains: a heal and damage row that is a cast's own is no row of another cast", not H.IsTrainLearned(RAIN))
+        H = Boot()
+        Read(H, Damage({ rows = { Row(ROW), Row(OTHER) } }))
+        Check("trains: two rows that heal and damage name neither", not H.IsTrainLearned(RAIN))
     end
 
     do -- trains: the claim of a running train's ticks (learned: 9600-11700 every 1.5 s, 8 ticks)
@@ -629,6 +661,27 @@ return function(T)
         local couple = (T.Store().healCouples or {})[234153] or {}
         Check("heals: the fight's drawn hits reach the teacher, and two reads of one k learn the couple",
             couple.reads == 2 and ns.Heals.AnyLearned())
+
+        -- a clear read of one Healing Rain cast: 8 heal ticks every 1.5 s, each frame with a '?' hit of 73921, a heal
+        -- and damage row; a heal of 11000 every 3 s between the ticks
+        ns = T.Boot()
+        ns.Teacher.area = "clear"
+        S = T.State()
+        local session = Session({ 73921 })
+        session.rows[2] = { spellID = 73921, totalAmount = 8, overkillAmount = 0 }
+        S.sessions = { session }
+        ns.Teacher.Start(1)
+        ns.Teacher.Seen(53)
+        ns.Teacher.Helped(444995, 10)
+        for tick = 1, 8 do
+            ns.Teacher.Healed(12000 - 300 * tick, "", 10 + 1.5 * tick)
+            ns.Teacher.Unknown("nameplate1", 8, 1, 10 + 1.5 * tick)
+        end
+        for t = 0.75, 100, 3 do ns.Teacher.Healed(11000, "", t) end
+        ns.Teacher.Finish(100)
+        FireAll(S)
+        Check("heals: the fight's damage rows and '?' hits reach the teacher, and a pulsing walk takes their one row",
+            ns.Heals.IsTrainLearned(444995) and T.Store().healTrains[444995].row == 73921)
     end
 
     -- Core wiring: once Chain Heal is learned (saved: 40000-42000, padded 28000-84000), a heal on you waits for its
