@@ -335,7 +335,8 @@ end
 -- `held`: the hit was held to its frame's end (DrawMate), so Drawn names its frame entry by amount.
 local function ProcWound(plate, school, amount, flagText, now, held)
     local twin = FrameTwin(plate, school, amount, flagText, now)
-    local procID = Teacher.NotCrowded() and Procs.Name(school, amount, flagText, twin)    if not procID or Casts.SampledAt(plate, now, school, Streams.NormalAmount(amount, flagText), procID) then
+    local procID = Teacher.NotCrowded() and Procs.Name(school, amount, flagText, twin)
+    if not procID or Casts.SampledAt(plate, now, school, Streams.NormalAmount(amount, flagText), procID) then
         return false
     end
     if ns.Debug then ns.Debug("  -> proc %s", ShowValue(procID)) end
