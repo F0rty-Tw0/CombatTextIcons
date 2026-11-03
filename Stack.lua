@@ -14,16 +14,17 @@
 -- (Stack.Step), running or not: a buff breaks a series past SIZE_GUARD while stacks live, and a recast's first tick
 -- falls on the running timer's phase, not in a cast's window. Run lock3 fight 1: Darkglare stepped 3258 to 3910 at
 -- 199127.838 and the window-only walk took 10 extensions (luck 1 past the tries); the steps take 19, it learns there
--- and fight 2 draws 16 ticks. The draw route (Casts.StackTick) continues a series the same way but starts one only on a
--- step: one hit at a time has no luck test to guard its start. A walk that took most of its ticks two periods apart
--- walks again at twice the period, else learns nothing (half a period draws hits between the ticks).
+-- and fight 2 draws 16 ticks. The draw route (Casts.StackTick) continues a series the same way but starts one on a
+-- step, or in a cast's window only at a size near the learned stacks' (one hit at a time has no luck test to guard its
+-- start), and lets such a series rise at one stack count (Casts.lua's Opens). A walk that took most of its ticks two
+-- periods apart walks again at twice the period, else learns nothing (half a period draws hits between the ticks).
 -- MIN_STEPS ticks or more must change the stack count (a steady DoT is no stack), and the ticks must beat luck: each
 -- tick's next slots find a hit by luck with the plate's rate of the school's hits * the slots' width * the share of
 -- them that agree with the predicted size, Poisson tail times the patterns tried. The meter bounds from below only, as
 -- the chain pass: the ticks' sum is at most the own row (lock3 F1: 0.40 of UA's row was in the streams it owns, the
--- rest '?'). Learned, each cast with a stack in a taken tick keeps a sample with the period and the life: tick 0 at
--- its delay for a cast that started a series (the window), tick 1 for the others. With /cti debug each tried spell
--- logs one TEACH stack line.
+-- rest '?'). Learned, each cast with a stack in a taken tick keeps a sample with the period, the life and that tick's
+-- size a stack (`unit`): tick 0 at its delay for a cast that started a series (the window), tick 1 for the others.
+-- With /cti debug each tried spell logs one TEACH stack line.
 
 local _, ns = ...
 local Fingerprints, Streams, Chain = ns.Fingerprints, ns.Streams, ns.Chain
@@ -202,7 +203,7 @@ local function Walk(plate, pattern, walk)
             for _, castAt in ipairs(plate.times) do
                 local age = hit.at - castAt
                 local live = age >= -EPS and age <= pattern.life + EPS
-                if live and not walk.casts[castAt] then walk.casts[castAt] = age end
+                if live and not walk.casts[castAt] then walk.casts[castAt], walk.units[castAt] = age, series.unit end
             end
             -- the next slots, one and two periods on, find an agreeing hit by luck
             local width = 4 * Streams.Slack(series.period)
@@ -220,7 +221,7 @@ end
 local function Walked(plates, low, period, life)
     local pattern = { low = low, period = period, life = life }
     pattern.walk = { hits = {}, sum = 0, extended = 0, ones = 0, steps = 0, expected = 0, gaps = {}, casts = {},
-        starts = {}, past = math.huge }
+        units = {}, starts = {}, past = math.huge }
     for _, plate in ipairs(plates) do Walk(plate, pattern, pattern.walk) end
 
     return pattern
@@ -309,7 +310,8 @@ local function Teach(castID, spellOf, school, pattern)
             local delay = pattern.walk.casts[castAt]
             if (pattern.walk.starts[castAt] == true) == starts then
                 Fingerprints.Add(castID, { school = school, delay = delay, castAt = castAt, hops = 1,
-                    spell = spellOf[castAt], tick = starts and 0 or 1, period = pattern.period, life = pattern.life })
+                    spell = spellOf[castAt], tick = starts and 0 or 1, period = pattern.period, life = pattern.life,
+                    unit = pattern.walk.units[castAt] })
             end
         end
     end

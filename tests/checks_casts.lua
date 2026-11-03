@@ -1653,6 +1653,29 @@ end
             r.ns.Teacher.fight.crowded = true
         end, 3258, 6517)
         Check("stack: in a crowded fight no stack tick draws (lock3 fight 3)", crowded == false)
+        -- lock4 F3/F15: one cast a mob, its lone stack's ticks rise (3905, 4193, 4883); a stack's learned size is 3906
+        local function Opened(sizes)
+            local rig = StackRig(function(r)
+                for castAt = 4, 6 do
+                    r.ns.Fingerprints.Add(UA, { school = 32, delay = 1.3, castAt = castAt, hops = 1, tick = 0,
+                        period = 1.33, life = 8, unit = 3906 })
+                end
+            end)
+            rig.Cast(100, UA, "nameplate1")
+            local drew = {}
+            for index, size in ipairs(sizes) do
+                drew[index] = Drew(rig.Hit(100 + 1.33 * index, "nameplate1", "WOUND", size, 32), UA)
+            end
+            return drew
+        end
+        local rise = Opened({ 3905, 4193, 4883 })
+        Check("stack: a lone cast's series opens in its window near a stack's learned size and its ticks rise "
+            .. "(lock4 F3)", rise[1] and rise[2] and rise[3])
+        local small = Opened({ 1802, 3905 })
+        Check("stack: a hit far under a stack's learned size opens no series in the window", not small[1] and not small[2])
+        local fall = Opened({ 3254, 3254, 2823 })
+        Check("stack: an opened series keeps its steady ticks and takes no normal tick 13 % under the last (Agony's, "
+            .. "lock4 F15)", fall[1] and fall[2] and not fall[3])
         -- lock2 fight 5: Haunt cast, Unstable Affliction cast 0.25 s later, then 1278047's 43366 in Haunt's window
         local spoil = StackRig(function(r)
             for castAt = 1, 3 do

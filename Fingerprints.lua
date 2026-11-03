@@ -197,7 +197,8 @@ function Fingerprints.Add(spellID, sample)
     local spell = IsNumber(sample.spell) and sample.spell or nil
     local kept = { school = school, delay = delay, castAt = castAt, hops = hops, spell = spell,
         size = HitSize(sample.size), tick = Tick(sample.tick), period = Positive(sample.period),
-        life = Positive(sample.life), crit = Positive(sample.crit), exact = sample.exact == true or nil }
+        life = Positive(sample.life), unit = Positive(sample.unit), crit = Positive(sample.crit),
+        exact = sample.exact == true or nil }
     entry.samples[#entry.samples + 1] = kept
     if #entry.samples > SAMPLES then table.remove(entry.samples, 1) end
     if entry.cap and kept.size and kept.size >= entry.cap then entry.cap = nil end
@@ -407,7 +408,8 @@ local function KeepSamples(list)
             local size = type(sample.size) == "number" and sample.size > 0 and sample.size or nil
             kept[#kept + 1] = { school = sample.school, delay = sample.delay, castAt = sample.castAt, hops = hops,
                 spell = spell, size = size, tick = Tick(sample.tick), period = Positive(sample.period),
-                life = Positive(sample.life), crit = Positive(sample.crit), exact = sample.exact == true or nil }
+                life = Positive(sample.life), unit = Positive(sample.unit), crit = Positive(sample.crit),
+                exact = sample.exact == true or nil }
         end
     end
     while #kept > SAMPLES do table.remove(kept, 1) end

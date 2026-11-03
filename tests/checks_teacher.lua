@@ -3662,6 +3662,11 @@ return function(T)
         end
         Check("stack (a): ticks every 1.4 s with a stranger's hits 0.7 s after each -> learned at 1.4 s, not 0.7",
             period ~= nil and math.abs(tonumber(period) - 1.4) < 0.05)
+        local learned = rig.ns.Fingerprints.Get(UA)
+        local units = learned and #learned.samples > 0
+        for _, sample in ipairs(learned and learned.samples or {}) do units = units and sample.unit == 3000 end
+        Check("stack (a): each learned sample keeps its tick's size a stack (3000), which opens a lone cast's series",
+            units)
 
         -- Run lock3 F1: Darkglare stepped Unstable Affliction's stack from 3258 to 3910 at 199127.838 while stacks
         -- lived, and every recast's first tick fell on the running timer's phase, outside the first cast's delay

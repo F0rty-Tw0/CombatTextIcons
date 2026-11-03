@@ -129,6 +129,10 @@ local STACK_MAX = 40    -- learned stack casts kept at most (StackTick)
 local stackCasts = {}   -- the learned stack spells' casts with a plate, oldest first: { spellID, base, at, plate }
 local series = {}       -- [base .. "@" .. plate] = a stack spell's running series on that plate (Stack.Tick)
 local seeds = {}        -- [base .. "@" .. plate] = hits that may start its series, oldest first: { at, unit, n, crit }
+-- A series opened in a cast's window (Opens) falls tick to tick past this share only on a crit, whose scale is a guess:
+-- run lock4 F12, Unstable Affliction 1259790 ticked 3513 then 3424 (-2.5 %); in F15 its 3254s were due with a 2823 of
+-- Agony 980 (-13 %), and taking it cost Agony its only ramp read (lock4 980 right 4.3 -> 1.2 %).
+local OPEN_FALL = 0.05
 
 -- Travel time follows distance, and distance changes per fight: Shadow Bolt 686 learned at 1.10-1.16 s
 -- landed at 0.92-1.09 s the next fight, 1.12-1.26 s the one after (run 20261025T180045Z). So each cast
@@ -731,11 +735,49 @@ end
 -- the live stacks agrees with the last tick's, as the stack pass walked it (Stack.Running, Multiple, Agree, Tick). A
 -- crit counts on its normal scale (Streams.NormalAmount: x2; lock3's crits are x2.15, inside SIZE_GUARD).
 -- With none running, each hit of the spell's school on the plate while a stack lives is a seed, and a series starts on
--- a step only (Stack.Step): a hit one or two learned periods after a seed of the same crit state, its size over the
--- live stacks within 1 % of the seed's, at another stack count. The stack pass also starts in a cast's window, but
--- that start takes any size: lock3 fight 3's crowd started a series on a 1007 (one stack is ~3258) and drew 9 hits of
--- ~900 a stack, lock2 fight 4's took Shadow of Nathreza's 1655 and Agony's 3607; and lock3 fight 4's first tick came
--- 2.95 s after the cast, outside the window.
+-- a step (Stack.Step): a hit one or two learned periods after a seed of the same crit state, its size over the live
+-- stacks within 1 % of the seed's, at another stack count. Or it opens in a live cast's window (Opens), as the stack
+-- pass starts one, when its size over the live stacks lies within Streams.RAMP_STEP of the learned stacks' sizes: a
+-- lone cast steps nothing (run lock4 F3: one cast a mob, its ticks rose 3905, 4193, 4883 while one stack lived, and its
+-- row went '?' in F3-F18). An opened series takes, at the same stack count, a tick that rises by up to RAMP_STEP or
+-- falls by up to OPEN_FALL (SIZE_GUARD with a crit on either side). Unsized, the window start took any size: lock3
+-- fight 3's crowd started a series on a 1007 (one stack is ~3258) and drew 9 hits of ~900 a stack, lock2 fight 4's took
+-- Shadow of Nathreza's 1655; and lock3 fight 4's first tick came 2.95 s after the cast, outside the window. A learned
+-- entry saved before stack sizes were kept opens none.
+
+-- Whether a hit of one-stack `unit` on `plate` at `now` opens the series of `fp`'s spell (`base`): the stacks' kept
+-- sizes, padded by Streams.RAMP_STEP, hold `unit`, and a live cast on the plate is as old as a learned tick 0's delay
+-- (Streams.Slack).
+local function Opens(fp, base, plate, now, unit)
+    local low, high, small, big
+    for _, sample in ipairs(fp.samples or {}) do
+        if sample.tick == 0 then
+            low, high = math.min(low or sample.delay, sample.delay), math.max(high or sample.delay, sample.delay)
+        end
+        if sample.unit then
+            small, big = math.min(small or sample.unit, sample.unit), math.max(big or sample.unit, sample.unit)
+        end
+    end
+    if not (low and small) or unit < small / Streams.RAMP_STEP or unit > big * Streams.RAMP_STEP then return false end
+    local slack = Streams.Slack(fp.period)
+    for _, cast in ipairs(stackCasts) do
+        local age = now - cast.at
+        if cast.base == base and cast.plate == plate and age >= low - slack and age <= high + slack then return true end
+    end
+
+    return false
+end
+
+-- Whether a hit of normal-scale `size` (`crit`) over `n` live stacks continues `running`: within SIZE_GUARD of its
+-- last tick's size a stack (Stack.Agree); an opened series at the same stack count by its rise and fall bounds.
+local function Continues(running, size, n, crit)
+    local unit = size / n
+    if not (running.opened and n == running.n) then return ns.Stack.Agree(unit, running.unit) end
+    local fall = (crit or running.crit) and Streams.SIZE_GUARD or OPEN_FALL
+
+    return unit >= (1 - fall) * running.unit and unit <= Streams.RAMP_STEP * running.unit
+end
+
 -- The cast whose series a hit of `school` and normal-scale `size` (`flagText` tells a crit) on `plate` at `now` ticks
 -- (the newest live cast of its spell), or nil: none, or the series of two spells. The series steps to the hit.
 function Casts.StackTick(plate, school, now, size, flagText)
@@ -762,14 +804,19 @@ function Casts.StackTick(plate, school, now, size, flagText)
             local tick
             if Stack.Running(running, now) then
                 local multiple = Stack.Multiple(running, now)
-                if multiple and Stack.Agree(size / n, running.unit) then
+                if multiple and Continues(running, size, n, crit) then
                     tick = Stack.Tick(running, now, size, n, multiple)
+                    tick.opened, tick.crit = running.opened and n == running.n or nil, crit
                 end
             else
                 local list = seeds[key] or {}
                 seeds[key] = list
                 tick = Stack.Step(list, now, size, n, crit, fp.period)
                 if not tick then list[#list + 1] = { at = now, unit = size / n, n = n, crit = crit } end
+                if not tick and Opens(fp, cast.base, plate, now, size / n) then
+                    tick = Stack.Tick(nil, now, size, n, nil, fp.period)
+                    tick.opened, tick.crit = true, crit
+                end
             end
             if tick and found then return nil end
             if tick then found, foundKey, foundTick = newest, key, tick end
