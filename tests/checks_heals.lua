@@ -314,6 +314,32 @@ return function(T)
             and CoupleOf(PLAGUE).school == nil and next(H.Claim({}, heal, { { amount = 33320, school = 32 } })) == nil
             and H.Claim({}, heal, { { amount = 33320, school = 32, spellID = PLAGUE } })[1] == PLAGUE)
 
+        -- priest3 F4: Devouring Plague's ticks draw nothing, and their 0.3 heals back the k its 3 drawn hits share, so
+        -- one read teaches it; ticks of another school, or heals off the k, back nothing
+        local function BackedRead(share, school)
+            heals, drawn = DrainRead({ 33310, 7490, 6670 }, 0.3)
+            for _, hit in ipairs(drawn) do hit.spellID, hit.school = PLAGUE, 32 end
+            local ticks = {}
+            for k, tick in ipairs({ 2391, 2400, 4782, 2410, 2388, 2395 }) do
+                local at = 100 + k
+                ticks[k] = { amount = tick, at = at, school = school }
+                heals[#heals + 1] = { size = 5000, amount = 5000, at = at }
+                heals[#heals + 1] = { size = share * tick, amount = math.floor(share * tick + 0.5), at = at }
+            end
+            H.Learn(heals, {}, Rows(PLAGUE), 100, drawn, { hits = ticks })
+        end
+        H.Forget()
+        BackedRead(0.3, 32)
+        Check("couples: a read whose undrawn hits of its school back its k beyond luck teaches it alone",
+            CoupleOf(PLAGUE).reads == 2 and H.Claim({}, heal, { { amount = 33320, school = 32 } })[1] == PLAGUE)
+        H.Forget()
+        BackedRead(0.3, 4)
+        Check("couples: undrawn hits of another school back nothing", CoupleOf(PLAGUE).reads == 1 and not H.AnyLearned())
+        H.Forget()
+        BackedRead(0.25, 32)
+        Check("couples: undrawn hits whose heals are off the k back nothing",
+            CoupleOf(PLAGUE).reads == 1 and not H.AnyLearned())
+
         -- the saved couples are checked, never trusted
         ns = T.Boot(function()
             CombatTextIconsCharDB = { healCouples = { [DRAIN] = { lo = 6.9999, hi = 7.0001, reads = 2, school = 0.5 },
