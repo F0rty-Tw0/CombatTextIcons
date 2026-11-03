@@ -304,7 +304,8 @@ return function(T)
     -- Trains: a read of one cast of each of `casts` (IDs on one stamp) at t = 10 and its train's `ticks` ticks (8)
     -- every 1.5 s from the cast, sized 12000 - 300 x tick (`size(tick)` when given). opts: `rows` (default: each
     -- cast's), `before` (the train also ticked 1.5 s before the cast), `direct` (a heal of that size on the cast's
-    -- stamp), `filler` (a heal of 11000 every 0.5 s all fight long).
+    -- stamp), `filler` (a heal of 11000 every 0.5 s all fight long), `sparse` (a heal of 11000 every 3 s all fight
+    -- long, each between two ticks: luck gives a 5 tick walk ~4e-4 often).
     local TIDE, TOTEM = 108280, 5394
     local function TrainRead(H, casts, opts)
         opts = opts or {}
@@ -320,8 +321,9 @@ return function(T)
             local size = opts.size and opts.size(tick) or 12000 - 300 * tick
             heals[#heals + 1] = { size = size, amount = size, at = 10 + 1.5 * tick }
         end
-        if opts.filler then
-            for t = 0.25, 100, 0.5 do heals[#heals + 1] = { size = 11000, amount = 11000, at = t } end
+        if opts.filler or opts.sparse then
+            local from, step = opts.filler and 0.25 or 0.75, opts.filler and 0.5 or 3
+            for t = from, 100, step do heals[#heals + 1] = { size = 11000, amount = 11000, at = t } end
             table.sort(heals, function(a, b) return a.at < b.at end)
         end
         H.Learn(heals, helps, rows, 100)
@@ -330,11 +332,19 @@ return function(T)
     do -- trains: learning
         local ns = T.Boot()
         local H = ns.Heals
-        TrainRead(H, { TIDE })
-        Check("trains: one cast's walk teaches nothing yet", not H.IsTrainLearned(TIDE) and not H.AnyLearned())
-        TrainRead(H, { TIDE })
+        TrainRead(H, { TIDE }, { ticks = 5, sparse = true })
+        Check("trains: one cast's walk that luck gives over 1e-4 often teaches nothing yet",
+            not H.IsTrainLearned(TIDE) and not H.AnyLearned())
+        TrainRead(H, { TIDE }, { ticks = 5, sparse = true })
         Check("trains: a second cast whose ticks walk the same train teaches it", H.IsTrainLearned(TIDE)
             and H.AnyLearned() and #T.Store().healTrains[TIDE].walks == 2)
+
+        -- shamanheal: Healing Tide's first walk (5 ticks every 1.76 s) luck 2.1e-05, its log 3 casts long
+        ns = T.Boot()
+        H = ns.Heals
+        TrainRead(H, { TIDE })
+        Check("trains: one walk luck gives 1e-4 often at most teaches alone", H.IsTrainLearned(TIDE)
+            and #T.Store().healTrains[TIDE].walks == 1 and T.Store().healTrains[TIDE].walks[1].luck < 1e-4)
 
         ns = T.Boot()
         H = ns.Heals
@@ -450,10 +460,17 @@ return function(T)
                 [CHAIN_HEAL] = "junk",
                 [77472] = { row = 77472, walks = { walk, { with = { "x", CHAIN_HEAL } },
                     { with = {}, period = 1.5, size = 5, low = 9, high = 10, ticks = 8 } } },
+                [61295] = { row = 61295, walks = { { with = {}, period = 1.5, size = 10500, low = 9600, high = 11700,
+                    ticks = 8, luck = 1e-6 } } },
+                [1267068] = { row = 1267068, walks = { { with = {}, period = 1.5, size = 10500, low = 9600,
+                    high = 11700, ticks = 8, luck = -1 } } },
             } }
         end)
         local saved = T.Store().healTrains
         Check("trains: a valid saved train loads learned", ns.Heals.IsTrainLearned(TIDE))
+        Check("trains: a saved sure walk teaches alone; a bad luck is dropped and its walk counts as WALK_ALPHA",
+            ns.Heals.IsTrainLearned(61295) and not ns.Heals.IsTrainLearned(1267068)
+            and #saved[1267068].walks == 1 and saved[1267068].walks[1].luck == nil)
         Check("trains: saved trains with a bad row or junk are dropped", saved[TOTEM] == nil and saved[CHAIN_HEAL] == nil)
         Check("trains: a saved train keeps its valid walks, each with only valid IDs", #saved[77472].walks == 2
             and saved[77472].walks[2].with[1] == CHAIN_HEAL and #saved[77472].walks[2].with == 1)

@@ -34,8 +34,9 @@
 -- each period, SLACK either side, each within STEP of the last). A clear read's cast walks its ticks; a walk is none
 -- when a tick of its size ran a period before the cast, when its ticks are all one size (a castless proc's: paladin's
 -- Word of Glory starts a 720 rune train under the rune's ID 1287665), or when luck gives it more than WALK_ALPHA
--- often. TRAIN_WALKS agreeing walks, TRAIN_SHARE of the cast's counted casts, learn it under the cast's heal row
--- (else its base's); then each cast starts the train, and its due ticks are that row's.
+-- often. Agreeing walks that luck alone gives TRAIN_LUCK often at most (two walks, or one sure walk), TRAIN_SHARE of
+-- the cast's counted casts, learn it under the cast's heal row (else its base's); then each cast starts the train,
+-- and its due ticks are that row's.
 -- Kept apart from the damage stores: an ID can be both a damage and a heal row (Healing Rain 73921).
 -- Saved data is checked on load and never trusted.
 
@@ -78,10 +79,13 @@ local PERIOD_LO, PERIOD_HI = 0.8, 3.5
 local MISSES = 2        -- missed ticks in a row end a train
 local TRAIN_TICKS = 5   -- a walk of fewer ticks is no train
 local WALK_ALPHA = 0.01 -- a walk luck alone gives this often or less is a train
--- Walks agree on one train within PERIOD_TOL s and their middle sizes within AGREE x; TRAIN_WALKS agreeing walks,
--- TRAIN_SHARE of the cast's counted casts, teach it.
+-- Walks agree on one train within PERIOD_TOL s and their middle sizes within AGREE x; agreeing walks whose lucks
+-- multiply to TRAIN_LUCK at most, TRAIN_SHARE of the cast's counted casts, teach it. TRAIN_LUCK is two walks at
+-- WALK_ALPHA, so one walk teaches alone when luck gives it that seldom: shamanheal casts Healing Tide 108280 three
+-- times, its first walk (5 ticks of ~30K every 1.76 s) luck 2.1e-05, and two walks named only its third cast's ticks
+-- (its second cast's ticks, 3.2 % of the log's raw healing, went '?').
 local PERIOD_TOL, AGREE = 0.1, 2
-local TRAIN_WALKS, TRAIN_SHARE = 2, 0.6
+local TRAIN_LUCK, TRAIN_SHARE = WALK_ALPHA * WALK_ALPHA, 0.6
 local TRAIN_CAP = 32    -- casts kept; the one seen least recently goes first
 
 local issecretvalue = issecretvalue or function() return false end
@@ -103,7 +107,8 @@ local couples = {}
 -- the spec store's `healTrains` = { [cast spell ID] = { row, walks = { walk, ... }, seen } }: the heal row its ticks
 -- draw under (its own ID, else its base's; nil until one was a heal row), its newest SAMPLES counted casts, each
 -- { with = the other helpful casts on its stamp, and when it walked a train: period, size (the middle tick), low,
--- high, ticks }, and the read that last counted it
+-- high, ticks, luck (how often luck alone gives the walk; nil in older saves: WALK_ALPHA) }, and the read that last
+-- counted it
 local trains = {}
 local ready = {} -- by cast ID: its learned train { row, period, size, low, high, ticks } (Judge), rebuilt per read
 -- the trains running now: { castID, at = the cast's stamp, last = its last tick's, k = that tick's slot, misses,
@@ -497,9 +502,9 @@ local function WalkFrom(sorted, at, first)
         ticks = #sizes }
 end
 
--- A cast's longest walk of TRAIN_TICKS or more that luck alone gives WALK_ALPHA often at most, else nil. Luck: any of
--- the heals a period range after the cast may be the first tick, then each later tick is a heal of its size inside
--- its 2 x SLACK window, at the fight's rate of heals that size.
+-- A cast's longest walk of TRAIN_TICKS or more that luck alone gives WALK_ALPHA often at most (walk.luck), else nil.
+-- Luck: any of the heals a period range after the cast may be the first tick, then each later tick is a heal of its
+-- size inside its 2 x SLACK window, at the fight's rate of heals that size.
 local function Walk(sorted, at, duration)
     local best, firsts = nil, 0
     for index = From(sorted, at), #sorted do
@@ -518,8 +523,9 @@ local function Walk(sorted, at, duration)
         if Near(heal.size, best.size) then near = near + 1 end
     end
     local chance = 1 - math.exp(-near / duration * 2 * SLACK)
+    best.luck = firsts * chance ^ (best.ticks - 1)
 
-    return firsts * chance ^ (best.ticks - 1) <= WALK_ALPHA and best or nil
+    return best.luck <= WALK_ALPHA and best or nil
 end
 
 -- Whether a heal cast has samples on its own stamps: a direct heal, no train's cast.
@@ -529,8 +535,9 @@ end
 
 -- A cast's learned train, else nil. Its counted casts are those whose stamp's other helpful casts are all direct
 -- heals (shamanheal casts each totem with Chain Heal on its stamp: the totem's walks count once Chain Heal, cast alone
--- too, has samples; Chain Heal's walks on those stamps never count). Learned when TRAIN_WALKS of its walks agree,
--- TRAIN_SHARE of its counted casts, it has a heal row and it is no direct heal itself. Its tick count is the agreeing
+-- too, has samples; Chain Heal's walks on those stamps never count). Learned when its agreeing walks' lucks multiply
+-- to TRAIN_LUCK at most, they are TRAIN_SHARE of its counted casts, it has a heal row and it is no direct heal
+-- itself. Its tick count is the agreeing
 -- walks' median: a walk can run on into the next cast's ticks or a foreign heal (synthetic Renew 139 walked 8, 9, 13
 -- and 16 ticks; the longest claimed a foreign heal two periods past its 8th tick).
 local function Judge(castID, entry)
@@ -555,7 +562,10 @@ local function Judge(castID, entry)
         end
         if not best or #group > #best then best = group end
     end
-    if not best or #best < TRAIN_WALKS or #best < TRAIN_SHARE * counted then return nil end
+    if not best or #best < TRAIN_SHARE * counted then return nil end
+    local luck = 1
+    for _, walk in ipairs(best) do luck = luck * (walk.luck or WALK_ALPHA) end
+    if luck > TRAIN_LUCK then return nil end
     local train, ticks = { row = entry.row, period = 0, low = math.huge, high = 0 }, {}
     for _, walk in ipairs(best) do
         train.period = train.period + walk.period / #best
@@ -610,7 +620,7 @@ local function LearnTrains(fightHeals, helps, own, duration)
                 if other ~= castID then with[#with + 1] = other end
             end
             table.insert(entry.walks, { with = with, period = walk.period, size = walk.size, low = walk.low,
-                high = walk.high, ticks = walk.ticks })
+                high = walk.high, ticks = walk.ticks, luck = walk.luck })
             if #entry.walks > SAMPLES then table.remove(entry.walks, 1) end
             entry.seen = reads
             counted[#counted + 1] = castID
@@ -747,7 +757,8 @@ local function Positive(value)
 end
 
 -- Keeps a saved counted cast with a list of the other casts' IDs (junk IDs dropped) and, when it walked, positive
--- finite sizes low <= size <= high, a positive period and a whole tick count; drops the rest.
+-- finite sizes low <= size <= high, a positive period and a whole tick count; drops the rest. A luck outside 0 to
+-- WALK_ALPHA is dropped alone: the walk then counts as WALK_ALPHA.
 local function ValidWalk(walk)
     if type(walk) ~= "table" or type(walk.with) ~= "table" then return nil end
     local with = {}
@@ -760,7 +771,10 @@ local function ValidWalk(walk)
         return nil
     end
 
-    return { with = with, period = walk.period, size = walk.size, low = walk.low, high = walk.high, ticks = walk.ticks }
+    local luck = IsNumber(walk.luck) and walk.luck >= 0 and walk.luck <= WALK_ALPHA and walk.luck or nil
+
+    return { with = with, period = walk.period, size = walk.size, low = walk.low, high = walk.high, ticks = walk.ticks,
+        luck = luck }
 end
 
 -- Keeps a saved train with a valid row (or none yet) and its valid counted casts (the newest SAMPLES); drops the rest.
