@@ -893,18 +893,20 @@ do -- Phase 3: records and Claim
         end)
     -- The area pass (Area.lua): Mind Blast cast at plate p1 drew its 21000 hit; '?' Shadow hits on other plates
     -- 0.2 s after the cast (or at hit[4]) sum against the row's residual (total + overkill + 1 % - 21000). `other`: a
-    -- row of another spell the fight drew nothing under.
+    -- row of another spell the fight drew nothing under. `stamps`: when the 21000 drew (run.drawn), default none.
     Scenario("area pass: other plates' hits that fit the residual and explain half of it teach area, else nothing",
         function()
-            local function Try(total, hits, other)
+            local function Try(total, hits, other, stamps)
                 local ns = Rig(MindBlast)
                 local unknown = {}
                 for _, hit in ipairs(hits) do
                     unknown[#unknown + 1] = { at = hit[4] or 30.2, plate = hit[2], school = hit[3] or 32, size = hit[1],
                         amount = hit[1] }
                 end
+                local drawn = {}
+                for _, at in ipairs(stamps or {}) do drawn[#drawn + 1] = { spellID = 8092, amount = 21000, at = at } end
                 local run = { casts = { { at = 30, base = 8092, spellID = 8092, plate = "p1" } }, tally = { [8092] = 21000 },
-                    unknown = unknown }
+                    unknown = unknown, drawn = drawn }
                 local rows = { { spellID = 8092, total = total, overkill = 0 } }
                 if other then rows[2] = { spellID = 22568, total = other, overkill = 0 } end
                 local ways = ns.Area.Learn(run, rows, {})
@@ -930,9 +932,19 @@ do -- Phase 3: records and Claim
             -- only when the padded band's hits do not fit: druid2 F1's Swipe 106785 fit with them, a smaller hit of
             -- another spell pushed the sum past the room
             local mixedSum = Try(60000, { { 19000, "p2" }, { 20000, "p3" }, { 8000, "p4" } }) -- room 39600
+            -- run warrior F1: one hit in the frame of the cast's own drawn hit that closes the row (21000 + 19000 of
+            -- 40000) teaches area; run hunter F16: one beside it that leaves the row open (41000 of 60000) does not,
+            -- nor one in another frame
+            local _, beside = Try(40000, { { 19000, "p2" } }, nil, { 30.2 })
+            local _, open = Try(60000, { { 20000, "p2" } }, nil, { 30.2 })
+            local _, elsewhere = Try(40000, { { 19000, "p2" } }, nil, { 30.3 })
+            -- run mage F5: a held hit alone on its plate in an own hit's frame is framed
+            local _, ownFramed, ownFramedLow = Try(45000, { { 11000, "p2", 32, 30.2 }, { 10000, "p3", 32, 30.25 } }, nil,
+                { 30.2, 30.25 })
             return sum == 39000 and area and overSum == 0 and not over and not small and not lone and not own and not school
                 and apart and not apartLow and splashSum == 21000 and splash and splashLow and not tiny
-                and not alone and not owned and notOwned and mixedSum == 39000
+                and not alone and not owned and notOwned and mixedSum == 39000 and beside and not open
+                and not elsewhere and ownFramed and ownFramedLow
         end)
     -- Frame mates (Teacher.Mate: hits on dummies no one fights, in a solo hit's frame) are other plates' hits too.
     Scenario("area pass: frame mates on other plates count with the '?' hits", function()
