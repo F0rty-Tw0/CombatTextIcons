@@ -392,7 +392,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     end
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
-        Casts.Accept(record, plate, now)
+        Casts.Accept(record, plate, now, Streams.NormalAmount(amount, flagText))
         Tracker.OnDirectHit(plate, record.spellID, now) -- a learned DoT of the cast may tick from this hit on
         Streams.Landed(plate, record.spellID, now) -- and an unlearned one's ticks name the cast from it (Owners)
         Drawn(record.base, amount) -- an override is tallied under the base spell's meter row

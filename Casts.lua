@@ -363,10 +363,14 @@ local function Splash(record, plate, school, now, size)
 end
 
 -- Whether a hit on `plate`, another plate than the cast's, is an area spell's (Area.lua: the meter showed its row
--- holding such hits): a plate the record has not hit yet, SLACK below its window to SPLASH past its top. The caller
--- checked the school and the band (from AREA_LO of the smallest size for an areaLow base).
+-- holding such hits): a plate the record has not hit yet, SLACK below its window to SPLASH past its top, and once
+-- the record took its own hit at most SPLASH past that hit, as Splash. Run paladin2 F7: 408385 (window top past 0.5 s)
+-- took its 4650 own hit 0.23 s after its cast and a 3523 on another plate in that frame; a 7788 crit on a third plate
+-- 1.01 s after the cast, first of a later frame with 3894 on both plates it had hit, drew as 408385 (row 103878 got
+-- 111666). The caller checked the school and the band (from AREA_LO of the smallest size for an areaLow base).
 local function AreaHit(record, fp, plate, now)
     if not fp.area or record.plates[plate] then return false end
+    if record.hops >= 1 and now - record.last > SPLASH then return false end
     local low, high = RecordWindow(record)
     local age = now - record.at
 
@@ -631,10 +635,14 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
 end
 
 -- The hit is drawn: the record has taken one more hit, and the hit (Claim's last wound) is claimed. A splash while the
--- record's own first hit is unclaimed (ambiguous) leaves that hit open.
-function Casts.Accept(record, plate, now)
+-- record's own first hit is unclaimed (ambiguous) leaves that hit open. A hit of normal-scale `size` 0 spends nothing:
+-- run paladin2 left a 0 Physical hit on its target on each cast's stamp, which took 408385's record so its real
+-- 4.6-5.2K hit 0.23 s later went '?' (paladin2 36.0 -> 40.1 % right). It still draws as the cast: hunter F12's 0 hit of Black
+-- Arrow 466930 is what opens its DoT's ticks (Tracker.OnDirectHit); left '?', they taught a rhythm proc that ran over.
+function Casts.Accept(record, plate, now, size)
     local wound = wounds[#wounds]
     if wound and wound.plate == plate and wound.at == now then wound.claimed = true end
+    if size == 0 then return end
     record.plates[plate] = true
     if plate ~= record.plate and record.hops == 0 then return end
     record.hops, record.last = record.hops + 1, now

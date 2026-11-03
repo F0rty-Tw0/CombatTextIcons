@@ -824,6 +824,10 @@ do -- Phase 3: records and Claim
                 -- Splash
                 and Last({ own, { 30.6, 13000, "nameplate2" } }, Around) == MB
                 and Last({ own, { 30.8, 20000, "nameplate2" } }, Around) ~= MB
+                -- once its own hit is drawn, another plate's lands at most SPLASH after it: run paladin2 F7's 408385
+                -- drew a 7788 crit 0.78 s after its own hit, in a later 3-plate frame of another spell's
+                and Last({ { 30.17, 21000, "nameplate1" }, { 30.66, 20000, "nameplate2" } }, Around) == MB
+                and Last({ { 30.17, 21000, "nameplate1" }, { 30.72, 20000, "nameplate2" } }, Around) ~= MB
                 -- run paladin2: Hammer of Light 427453's splash hit the other plates at 0.55-0.63 of its learned
                 -- smallest, under the padded band; another plate's hit fits a record the lower floor marked area
                 -- from AREA_LO (0.4) of it (7200), its own plate keeps the padded band (12600); run paladin: Blessed
@@ -833,6 +837,9 @@ do -- Phase 3: records and Claim
                 and Last({ own, { 30.2, 12000, "nameplate2" } }, AroundLow) == MB
                 and Last({ own, { 30.2, 7000, "nameplate2" } }, AroundLow) ~= MB
                 and Last({ { 30.2, 12000, "nameplate1" } }, AroundLow) ~= MB
+                -- run paladin2: a 0 hit on the cast's plate draws as the cast but spends nothing; its real hit
+                -- after it still takes the record
+                and Last({ { 30.18, 0, "nameplate1" }, own }) == MB
         end)
     -- The area pass (Area.lua): Mind Blast cast at plate p1 drew its 21000 hit; '?' Shadow hits on other plates
     -- 0.2 s after the cast (or at hit[4]) sum against the row's residual (total + overkill + 1 % - 21000). `other`: a
