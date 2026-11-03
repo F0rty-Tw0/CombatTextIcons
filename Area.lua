@@ -215,11 +215,16 @@ end
 -- The twin pass of one read: a learned DoT or channel (Learn.lua) whose ticks the tracker drew this fight (run.ticks
 -- with a place) may also strike the plates around its target for a fixed share of each tick. Each fresh '?' hit of its
 -- school on another plate, at most one learned period after one of its ticks, pairs with the newest such tick; their
--- sizes' ratio (normal scale) is the share it would show. The share most ratios agree with (within Streams.SIZE_GUARD)
--- is taught (Learn.SetTwin) when TWIN_MIN hits or more agree and their sum fits the row's room (total, overkill and
--- Judge's tolerance, less the drawn ticks). Run mage F2: Arcane Missiles 5143 drew 48508 of row 7268's 161687; 59 hits
--- at 0.47-0.53 of the tick before them on other plates summed 64330 (room 113179). Run priest3 F3: Void Torrent
--- 263165's twins came at 0.20 of its ticks, beside other Shadow hits at 0.13 and 0.30-0.36.
+-- sizes' ratio (normal scale), or their amounts' as they landed, is the share it would show: run priest3 F8, Void
+-- Torrent's 14398 crit tick put 2879 hits, 0.20 of it as landed, where its normal ticks put 0.20 of theirs (run mage:
+-- Arcane Missiles' twins kept 0.5 of a crit tick's normal size). Of the shares whose agreeing hits (within
+-- Streams.SIZE_GUARD) sum to at most the row's room (total, overkill and Judge's tolerance, less the drawn ticks), the
+-- one most pairs agree with is taught (Learn.SetTwin) when TWIN_MIN hits or more agree. Run mage F2: Arcane Missiles 5143
+-- drew 48508 of row 7268's 161687; 59 hits at 0.47-0.53 of the tick before them on other plates summed 64330 (room
+-- 113179). Run priest3 F3: Void Torrent 263165's twins came at 0.20 of its ticks, beside other Shadow hits at 0.13 and
+-- 0.30-0.36; run priest4 F12: six Shadow hits at 0.24-0.39 of its ticks outnumbered its five twins and passed the room.
+-- A share taught before stays while TWIN_MIN of its hits fit the room: run priest3 F8, 14 Shadow hits at 0.27 of Void
+-- Torrent's ticks outnumbered its twins at 0.19 and taught 0.27 in their place.
 -- Returns the ways it taught { castID, sum, hits }.
 local TWIN_MIN = 4
 function Area.Twins(run, rows, learned)
@@ -252,24 +257,44 @@ function Area.Twins(run, rows, learned)
                         if tick.plate ~= hit.plate and gap >= 0 and gap <= dot.period then newest = tick end
                     end
                 end
-                if newest then matched[#matched + 1] = { hit = hit, ratio = hit.size / newest.size } end
-            end
-            local best, bestCount = nil, 0
-            for _, pair in ipairs(matched) do
-                local count = 0
-                for _, other in ipairs(matched) do
-                    if math.abs(other.ratio - pair.ratio) <= ns.Streams.SIZE_GUARD * pair.ratio then count = count + 1 end
+                if newest then
+                    local landed = (newest.amount or 0) > 0 and hit.amount / newest.amount or nil
+                    matched[#matched + 1] = { hit = hit, ratios = { hit.size / newest.size, landed } }
                 end
-                if count > bestCount then best, bestCount = pair.ratio, count end
             end
-            local way = { castID = spellID, sum = 0, hits = {} }
-            for _, pair in ipairs(best and matched or {}) do
-                if math.abs(pair.ratio - best) <= ns.Streams.SIZE_GUARD * best then
-                    way.sum = way.sum + pair.hit.amount
-                    way.hits[#way.hits + 1] = pair.hit
+            local function Agrees(pair, share)
+                for _, ratio in ipairs(pair.ratios) do
+                    if math.abs(ratio - share) <= ns.Streams.SIZE_GUARD * share then return true end
                 end
+                return false
             end
             local room = row.total + row.overkill + math.max(1, row.total / 100) - (run.tally[spellID] or 0)
+            local function Way(share)
+                local way = { castID = spellID, sum = 0, hits = {} }
+                for _, pair in ipairs(matched) do
+                    if Agrees(pair, share) then
+                        way.sum = way.sum + pair.hit.amount
+                        way.hits[#way.hits + 1] = pair.hit
+                    end
+                end
+                return way
+            end
+            -- the share taught before while TWIN_MIN of its hits fit the room; else the share most pairs agree with
+            -- among those whose sum fits the room; else the most agreed one (refused)
+            local way, best
+            local taught = ns.Learn.Twin(spellID)
+            local kept = taught and Way(taught)
+            if kept and #kept.hits >= TWIN_MIN and kept.sum <= room then way, best = kept, taught end
+            for _, pair in ipairs(not way and matched or {}) do
+                for _, ratio in ipairs(pair.ratios) do
+                    local candidate = Way(ratio)
+                    local fitsRoom = candidate.sum <= room
+                    local better = not way or (fitsRoom and way.sum > room)
+                        or (fitsRoom == (way.sum <= room) and #candidate.hits > #way.hits)
+                    if better then way, best = candidate, ratio end
+                end
+            end
+            way = way or { castID = spellID, sum = 0, hits = {} }
             local fits = #way.hits >= TWIN_MIN and way.sum <= room and ns.Learn.SetTwin(spellID, best)
             if fits then ways[#ways + 1] = way end
             if ns.Debug and #way.hits > 0 then

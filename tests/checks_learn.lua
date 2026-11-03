@@ -1413,6 +1413,33 @@ return function(T)
         end
         Check("twin pass: four hits at 0.5 of the tick before them, inside the room, teach 0.5", Teach(6100) == 0.5)
         Check("twin pass: past the row's room nothing is taught", Teach(5000) == nil)
+
+        -- ticks of 1000 at 101-104 (`crit`: the one at 104 lands as a 2000 crit); `twins` hits on plate Q, each
+        -- { at, amount }; `taught`: a share taught before
+        local function Pass(total, twins, crit, taught)
+            local ns = T.Boot()
+            SeedLearned(9002, 32, 1.0, "channel")
+            if taught then ns.Learn.SetTwin(9002, taught) end
+            local run = { tally = { [9002] = 4000 }, ticks = {}, unknown = {} }
+            for index = 1, 4 do
+                local amount = (crit and index == 4) and 2000 or 1000
+                run.ticks[index] = { spellID = 9002, at = 100 + index, plate = "P", size = 1000, amount = amount }
+            end
+            for index, twin in ipairs(twins) do
+                run.unknown[index] = { school = 32, amount = twin[2], size = twin[2], at = twin[1], plate = "Q" }
+            end
+            ns.Area.Twins(run, { { spellID = 9002, total = total, overkill = 0 } }, {})
+            return ns.Learn.Twin(9002)
+        end
+        local twins = { { 101.1, 200 }, { 102.1, 200 }, { 103.1, 200 }, { 104.1, 400 } }
+        Check("twin pass: a twin at the share of a crit tick as it landed agrees with the rest (run priest3 F8)",
+            Pass(9000, twins, true) == 0.2)
+        local others = { { 101.1, 200 }, { 102.1, 200 }, { 103.1, 200 }, { 104.1, 200 },
+            { 101.2, 300 }, { 102.2, 300 }, { 103.2, 300 }, { 104.2, 300 }, { 104.3, 300 } }
+        Check("twin pass: of the shares, the most agreed one that fits the room is taught (run priest4 F12)",
+            Pass(5200, others) == 0.2)
+        Check("twin pass: a share taught before stays while its hits fit the room (run priest3 F8)",
+            Pass(9000, others, false, 0.2) == 0.2)
     end
     do -- spec 1/2 replacement, the shown part: unknown school-32 DoT (period 3), learned after 4 fresh plates
         local rig = Rig()
