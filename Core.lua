@@ -403,6 +403,23 @@ local function PairWound(plate, stream, school, amount, flagText, candidates, no
     return DrawRhythm(plate, rhythmID, school, amount, flagText, now, partnerAt)
 end
 
+-- Draws a hit on your target that a learned swing entry names (Procs.NameSwing) and tallies it; returns whether it drew.
+-- A hit on a cast's stamp (`candidates`, Casts.Candidates) is the cast's to explain, never a swing.
+local function SwingWound(plate, unit, school, amount, flagText, candidates, now)
+    if not (Teacher.NotCrowded() and IsTarget(unit)) then return false end
+    for _, cast in ipairs(candidates) do
+        if cast.castAt == now then return false end
+    end
+    local swingID = Procs.NameSwing(plate, school, amount, flagText, now)
+    if not swingID then return false end
+    if ns.Debug then ns.Debug("  -> swing %s", ShowValue(swingID)) end
+    Drawn(swingID, amount)
+    Ledger.Add("damage", swingID, amount)
+    Display.Plate(plate, SpellTexture(swingID), HitText(flagText, amount), flagText, school)
+
+    return true
+end
+
 local QueueFlush -- the next frame flushes what waits for its frame's end (below)
 
 -- A hit on a creature with no threat list that does not fight you (a dummy you do not target, of an ID the dummy
@@ -573,7 +590,8 @@ end
 -- (Procs.NameCast), ranked below the Tracker and Casts; last, below the stack series, one whose tick a period
 -- before the hit is still loose on the plate (Procs.NamePair) or whose steady fall the plate's loose ticks keep
 -- (Procs.NameFall), then one whose onset link's cast leads the hit
--- (Procs.NameOnset: a burst's first tick). Solo, a hit on a creature with no threat list that does
+-- (Procs.NameOnset: a burst's first tick). A learned swing on your target (SwingWound) ranks just below the size procs,
+-- above the rhythm ones. Solo, a hit on a creature with no threat list that does
 -- not fight you, which the tracker does not name, waits for its frame's end instead of hiding (Hold, Core.FlushMates),
 -- and so does a solo '?' hit a learned proc's twin split band holds (HoldShare). The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
@@ -660,7 +678,10 @@ local function Wound(plate, unit, flagText, amount, school, now)
     local candidates
     if solo then
         if ProcWound(plate, school, amount, flagText, now) then return end
-        candidates = Casts.Candidates(plate, now, school) -- one list for both: drawing changes no cast log
+        candidates = Casts.Candidates(plate, now, school) -- one list for all: drawing changes no cast log
+        -- a learned swing's hit, in its tight band and rhythm on your target (Procs.NameSwing), before a rhythm proc's
+        -- padded band takes it
+        if SwingWound(plate, unit, school, amount, flagText, candidates, now) then return end
         if RhythmWound(plate, stream, school, amount, flagText, candidates, now) then return end
     end
     -- A learned stack spell's tick (Casts.StackTick) takes a hit nothing named on a mob fighting you, after the

@@ -25,6 +25,12 @@ local TWIN = 0.002     -- two hits of one frame on two plates are one split hit'
 local SPLITS_MAX = 4   -- extra size bands (splits) a learned size proc keeps
 local SHARES_MAX = 8   -- plates a split proc's rule (Rule) predicts a share size for
 local PREDICT_PAD = 0.02 -- a predicted share size's slack, each way
+local SWING_STEP = 0.03  -- a swing band's sorted normals step at most this share apart; its crits (halved) and draws sit
+                         -- in the band widened by this share each way
+local SWING_SPREAD = 0.06 -- a swing band's top over its bottom, at most
+local SWING_MIN = 6      -- normals a swing band needs, and its hits on its busiest plate
+local SWING_SOON = 0.5   -- a band hit this share of the swing period or less after the last on its plate is no swing
+local SWING_TICKED = 0.75 -- a band whose hits this fight's tick streams hold this share of, or more, is a DoT's ticks
 
 -- Whether two tick periods are one rhythm.
 local function PeriodNear(a, b)
@@ -45,7 +51,8 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 -- period is set on a rhythm proc only; floor is the lowest cut-short tick seen, kept only below lo. critSeen: a group
 -- that paired the proc's row held a crit (false: none yet, so Name draws no crit; a store saved before it: true).
 -- splits: a learned size proc's extra bands { lo, hi, twin, k } (Split), nil for none. k (the entry's and each split's):
--- the plates each hit of its band landed on with its like shares (Shares), nil when unknown or mixed.
+-- the plates each hit of its band landed on with its like shares (Shares), nil when unknown or mixed. swing: a swing
+-- entry's period (Swing pass, below), set on no rhythm entry; Procs.Name never draws one, Procs.NameSwing does.
 local procs = {}
 
 local function Count(value) return IsNumber(value) and value >= 0 and value == math.floor(value) and value or 0 end
@@ -54,8 +61,9 @@ local function Valid(id, entry)
     if not IsNumber(id) or not Plain(entry) or type(entry) ~= "table" then return false end
     local school, lo, hi = entry.school, entry.lo, entry.hi
     if not (IsNumber(school) and IsNumber(lo) and IsNumber(hi)) then return false end
-    local period = entry.period
+    local period, swing = entry.period, entry.swing
     if period ~= nil and not (IsNumber(period) and period > 0) then return false end
+    if swing ~= nil and not (IsNumber(swing) and swing > 0 and period == nil) then return false end
 
     return lo > 0 and lo <= hi
 end
@@ -226,7 +234,7 @@ local function Targets(open, results, rows, cast)
         local id = row.spellID
         local isUnder = result and result.verdict == "under" and IsNumber(result.tally) and result.tally > 0
         local learned = Procs.Get(id)
-        local isSizeUnder = isUnder and learned and not learned.period
+        local isSizeUnder = isUnder and learned and not (learned.period or learned.swing)
         if isSizeUnder and IsNumber(id) and result.spellID == id and not Owned(id) then
             local lo = row.total - result.tally
             targets[#targets + 1] = { id = id, kind = "under", lo = lo, hi = lo + (row.overkill or 0), index = index }
@@ -568,6 +576,7 @@ end
 -- in F5 and drew them.
 local function Apply(target, group, sure)
     local entry = procs[target.id]
+    if entry and entry.swing then return nil end
     local otherSchool = entry ~= nil and group ~= nil and group.school ~= entry.school
     if entry and entry.period and (entry.learned or not (sure or otherSchool)) then return nil end
     if entry and entry.period and entry.school == group.school and Overlaps(entry, group) then
@@ -871,7 +880,134 @@ local function Shares(hits, group)
     return twin, k or nil
 end
 
--- Read: the size pass, the remainder pass, then the rhythm pass when the fight's streams are given.
+-- Swing pass ---------------------------------------------------------------------------------------
+-- An auto attack shares its school and size with other physical hits, so the 15 % walk merges its swings with them and
+-- the padded draw band takes them: run warrior F2, melee 6603's 10 normals (172430-177772) and 3 crits summed to its row
+-- 2811335 exactly, yet the walk joined 4 hits of 150592 and 200179 sat in the padded band. A swing band is a clean
+-- tight cluster instead: sorted normals SWING_STEP apart at most, nothing that close beside it, spread at most
+-- SWING_SPREAD, SWING_MIN normals or more; its crits are those whose halves sit in the band widened by SWING_STEP. Its
+-- hits on its busiest plate (SWING_MIN or more) keep a steady swing: their median gap is its period, and no two of
+-- them land SWING_SOON of it apart or closer, while the fight's tick streams hold less than SWING_TICKED of them (a
+-- DoT's ticks keep a stream's clock). Learned at once from one exact pair (overkill 0, unique both ways): the cluster,
+-- the clean margins and the rhythm are the proof one size pair lacks. Drawn by Procs.NameSwing only.
+
+-- The busiest plate's swing period of a band's hits ({ at, plate }), or nil when it keeps no steady swing.
+local function SwingPeriod(band)
+    local byPlate, busiest = {}, nil
+    for _, hit in ipairs(band) do
+        if hit.plate ~= nil and IsNumber(hit.at) then
+            byPlate[hit.plate] = byPlate[hit.plate] or {}
+            table.insert(byPlate[hit.plate], hit.at)
+            if not busiest or #byPlate[hit.plate] > #byPlate[busiest] then busiest = hit.plate end
+        end
+    end
+    local times = busiest and byPlate[busiest] or {}
+    if #times < SWING_MIN then return nil end
+    table.sort(times)
+    local gaps = {}
+    for i = 2, #times do gaps[#gaps + 1] = times[i] - times[i - 1] end
+    table.sort(gaps)
+    local period = gaps[math.floor((#gaps + 1) / 2)]
+    if period <= 0 or gaps[1] <= SWING_SOON * period then return nil end
+
+    return period
+end
+
+-- The hits this fight's tick streams (Streams' records) of the school hold in the band [lo, hi] at a period near
+-- `period`: a DoT's ticks keep the clock a stream follows, swings slip off it (dodges, parries, latency).
+local function Ticked(streams, school, lo, hi, period)
+    local n = 0
+    for stream, rec in pairs(streams or {}) do
+        local meets = rec.lo and rec.school == school and rec.lo <= hi * (1 + SWING_STEP) and lo * (1 - SWING_STEP) <= rec.hi
+        if meets and PeriodNear(stream.period, period) then n = n + rec.n end
+    end
+
+    return n
+end
+
+-- The '?' hits' swing bands (above), each { school, lo, hi, sum, critCount, period }; none whose hits this fight's
+-- tick streams hold SWING_TICKED of or more (Ticked): run lock4 F1, Haunt's 1262710 ticks (1801, p 1.00, 54 hits, 57
+-- in streams) summed to their row and learned as a swing, which drew them on the target only; their '?' ticks on the
+-- other plates then went to Darkglare 205231 (castless, F2) and drew wrong. Warrior F2's swings: 6 of 13 in streams.
+local function SwingGroups(hits, streams)
+    local bySchool, schools = {}, {}
+    for _, hit in ipairs(hits) do
+        local school, amount, crit = hit.school, hit.amount, hit.crit
+        if IsNumber(school) and IsNumber(amount) and amount > 0 and Plain(crit) and (crit == true or crit == false) then
+            if not bySchool[school] then
+                bySchool[school] = { normals = {}, crits = {} }
+                schools[#schools + 1] = school
+            end
+            table.insert(crit and bySchool[school].crits or bySchool[school].normals, hit)
+        end
+    end
+    table.sort(schools)
+    local groups = {}
+    for _, school in ipairs(schools) do
+        local normals = bySchool[school].normals
+        table.sort(normals, function(a, b) return a.amount < b.amount end)
+        local clusters, current = {}, nil
+        for _, hit in ipairs(normals) do
+            if current and hit.amount - current[#current].amount <= SWING_STEP * hit.amount then
+                current[#current + 1] = hit
+            else
+                current = { hit }
+                clusters[#clusters + 1] = current
+            end
+        end
+        for _, cluster in ipairs(clusters) do
+            local lo, hi = cluster[1].amount, cluster[#cluster].amount
+            if #cluster >= SWING_MIN and hi <= lo * (1 + SWING_SPREAD) then
+                local band, sum, critCount = {}, 0, 0
+                for _, hit in ipairs(cluster) do band[#band + 1], sum = hit, sum + hit.amount end
+                for _, hit in ipairs(bySchool[school].crits) do
+                    local size = Streams.NormalAmount(hit.amount, "CRITICAL")
+                    if size and lo * (1 - SWING_STEP) <= size and size <= hi * (1 + SWING_STEP) then
+                        band[#band + 1], sum, critCount = hit, sum + hit.amount, critCount + 1
+                    end
+                end
+                local period = SwingPeriod(band)
+                local ticked = period and Ticked(streams, school, lo, hi, period) or 0
+                if ns.Debug and period then
+                    ns.Debug("TEACH swing band school=%s band=%s-%s hits=%d p=%.2f ticked=%d", school, lo, hi, #band, period, ticked)
+                end
+                if period and ticked < SWING_TICKED * #band then
+                    groups[#groups + 1] = { school = school, lo = lo, hi = hi, sum = sum, critCount = critCount, period = period }
+                end
+            end
+        end
+    end
+
+    return groups
+end
+
+-- The swing pass of Read: the open rows with no overkill that the size pass left (taken) and no learned entry but a
+-- swing holds, against this fight's swing bands. A pair learns a swing entry at once; one it replaces was a candidate
+-- (a rhythm candidate's false stream, run warrior F1: 6603's p 2.09 band was another spell's) or a swing whose band
+-- drew none of its row (new gear moved the swings off it). Marks its rows taken.
+local function SwingPass(hits, open, results, rows, at, taken, streams)
+    local targets = {}
+    for _, target in ipairs(Targets(open, results, rows, Cast(hits))) do
+        local entry = procs[target.id]
+        local held = entry and entry.learned and not entry.swing
+        if target.kind == "open" and target.overkill == 0 and not taken[target.id] and not held then
+            targets[#targets + 1] = target
+        end
+    end
+    for index, group in pairs(Matches(SwingGroups(hits, streams), targets)) do
+        local target = targets[index]
+        procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, swing = group.period, streak = 1,
+            learned = true, unpaired = 0, seen = at, critSeen = group.critCount > 0 }
+        results[target.index] = Agree(target, group.sum)
+        taken[target.id] = true
+        if ns.Debug then
+            ns.Debug("TEACH swing %s school=%s p=%.2f band=%s-%s crits=%d learned", target.id, group.school, group.period,
+                group.lo, group.hi, group.critCount)
+        end
+    end
+end
+
+-- Read: the size pass, the remainder pass, the swing pass, then the rhythm pass when the fight's streams are given.
 function Procs.Read(hits, open, results, rows, at, ticks, streams)
     local targets = Targets(open, results, rows, Cast(hits))
     local groups = Groups(hits, ticks)
@@ -905,6 +1041,7 @@ function Procs.Read(hits, open, results, rows, at, ticks, streams)
             if isNew then Evict() end
         end
     end
+    SwingPass(hits, open, results, rows, at, taken, streams)
     if streams then RhythmPass(open, results, rows, at, streams, taken) end
 end
 
@@ -1028,7 +1165,7 @@ function Procs.Name(school, amount, flagText, twin)
     local crit = Procs.Crit(flagText) -- nil: unknown
     local found, contested, several, owner, owners = nil, false, false, nil, 0
     for id, entry in pairs(procs) do
-        if entry.learned == true and not entry.period and entry.school == school then
+        if entry.learned == true and not (entry.period or entry.swing) and entry.school == school then
             local lo, hi, floor = entry.lo * PAD_LO, entry.hi * PAD_HI, Floor(entry) * PAD_LO
             local normal = not entry.critOnly and lo <= amount and amount <= hi
             local big = Big(entry, amount, lo, hi)
@@ -1052,6 +1189,37 @@ function Procs.Name(school, amount, flagText, twin)
     local own = found and crit == false and (procs[found].lo <= amount and amount <= procs[found].hi
         or select(2, SplitFits(procs[found], amount, crit, twin)))
     if contested and not own then return nil end
+
+    return found
+end
+
+-- [plate] = { [id] = the last hit a swing entry's band held there }: a swing lands a period after the last, never
+-- within SWING_SOON of it. Session state, never saved.
+local swingLast = setmetatable({}, { __mode = "k" })
+
+-- Procs.NameSwing(plate, school, amount, flagText, now): the one learned swing entry of the school whose band, widened
+-- by SWING_STEP, holds the hit (a crit by its half, once a crit paired its row; a hit of unknown flag none), or nil for
+-- none or several. A hit in the band SWING_SOON of the entry's period or less after the band's last on the plate is no
+-- swing (nil). Core asks only for a hit on your target that lands on no cast's stamp.
+function Procs.NameSwing(plate, school, amount, flagText, now)
+    if plate == nil or not (IsNumber(school) and IsNumber(amount) and IsNumber(now)) then return nil end
+    local crit = Procs.Crit(flagText)
+    if crit == nil then return nil end
+    local size = crit and Streams.NormalAmount(amount, "CRITICAL") or amount
+    local found
+    for id, entry in pairs(procs) do
+        local fits = entry.learned == true and entry.swing and entry.school == school and not (crit and entry.critSeen == false)
+            and entry.lo * (1 - SWING_STEP) <= size and size <= entry.hi * (1 + SWING_STEP)
+        if fits then
+            if found then return nil end
+            found = id
+        end
+    end
+    if not found then return nil end
+    swingLast[plate] = swingLast[plate] or {}
+    local last = swingLast[plate][found]
+    swingLast[plate][found] = now
+    if last and now - last <= SWING_SOON * procs[found].swing then return nil end
 
     return found
 end

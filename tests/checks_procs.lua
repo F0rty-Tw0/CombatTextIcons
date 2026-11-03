@@ -1127,4 +1127,124 @@ return function(T)
             .. "a lone one is the teacher's '?'",
             #drawn == 4 and shares == 3 and drawn[4] ~= "tex:1276284" and #ns.Teacher.fight.unknown == 1)
     end
+
+    -- Swing pass: run warrior F2, melee 6603's 10 normals (172430-177772) and 3 crits on the target summed to its row
+    -- 2811335 exactly, while the 15 % walk joined four 150592 hits and 200179 sat beside them --------------------------
+    do
+        local SWINGS = { 173184, 343823, 172504, 172430, 176617, 177686, 177534, 355684, 353151, 177066, 177772, 177214, 176670 }
+        local GAPS = { 3.31, 1.60, 2.08, 3.36, 1.73, 2.27, 2.70, 1.88, 2.06, 1.96, 1.78, 2.15 }
+        -- the fight's '?' hits: the swings on p1 at their gaps, the crits flagged, then the strays of the school
+        local function Fight(gaps, extra)
+            local list, at = {}, 0
+            for i, amount in ipairs(SWINGS) do
+                if i > 1 then at = at + gaps[i - 1] end
+                list[#list + 1] = { school = 1, amount = amount, crit = amount > 300000, at = at, plate = "p1" }
+            end
+            for _, amount in ipairs(extra or { 150592, 150592, 150592, 150592, 200179 }) do
+                list[#list + 1] = { school = 1, amount = amount, crit = false, at = 1, plate = "p1" }
+            end
+
+            return list
+        end
+        local ROWS = { { id = 6603, total = 2811335 }, { id = 99, total = 802547 } }
+        local procs, _, lines = Once(Fight(GAPS), ROWS)
+        local entry = procs[6603]
+        Check("procs swing pass: a clean tight band whose hits keep a steady swing and sum to a row exactly learns at "
+            .. "once, its band the normals', its period the median gap",
+            entry ~= nil and entry.learned == true and math.abs(entry.swing - 2.06) < 1e-6 and entry.lo == 172430 and entry.hi == 177772
+            and entry.critSeen == true and entry.period == nil and lines[#lines]:find("TEACH swing 6603", 1, true) ~= nil)
+        local GAPS_SOON = { 3.31, 1.60, 2.08, 3.36, 1.73, 0.9, 2.70, 1.88, 2.06, 1.96, 1.78, 2.15 }
+        procs = Once(Fight(GAPS_SOON), ROWS)
+        Check("procs swing pass: two band hits on the plate half the period apart or closer keep no swing (no entry)",
+            procs[6603] == nil)
+        procs = Once(Fight(GAPS, { 150592, 150592, 150592, 150592, 200179, 167500 }), { { id = 6603, total = 2811335 + 167500 } })
+        Check("procs swing pass: a hit within SWING_STEP below the band joins it, so the band past SWING_SPREAD is none",
+            procs[6603] == nil)
+        procs = Once(Fight(GAPS), { { id = 6603, total = 2811335, overkill = 5 } })
+        Check("procs swing pass: a row with overkill teaches no swing (an exact sum only)", procs[6603] == nil)
+        procs = Once(Fight(GAPS), ROWS, function(store)
+            store[6603] = { school = 1, lo = 253439, hi = 260313, period = 2.09, streak = 1, learned = false, unpaired = 0, seen = 0 }
+        end)
+        Check("procs swing pass: a swing pair replaces the row's rhythm candidate (warrior F1's false stream)",
+            procs[6603] ~= nil and procs[6603].swing ~= nil and procs[6603].period == nil and procs[6603].learned == true)
+        procs = Once(Fight(GAPS), ROWS, function(store)
+            store[6603] = { school = 1, lo = 100000, hi = 103000, swing = 2, streak = 1, learned = true, unpaired = 0, seen = 0 }
+        end)
+        local sized = Once(Fight(GAPS), ROWS, Seed(6603, 1, 100000, 103000, 3, true))
+        Check("procs swing pass: an open row's learned swing that drew none (an old band) is learned anew; a learned size "
+            .. "proc's row is left alone",
+            procs[6603].lo == 172430 and procs[6603].hi == 177772 and sized[6603].lo == 100000 and sized[6603].swing == nil)
+        -- tick streams of the school holding the band's hits at its period: run lock4 F1, Haunt 1262710's ticks
+        local function WithStreams(n, period)
+            local ns, store = Rig()
+            local world = World(ROWS)
+            local streams = { [{ period = period }] = { school = 1, lo = 172430, hi = 177772, n = n, sum = 0 } }
+            ns.Procs.Read(Fight(GAPS), world.open, world.results, world.rows, AT, nil, streams)
+
+            return store[6603]
+        end
+        Check("procs swing pass: a band that tick streams hold 3/4 of (10 of 13) is a DoT's ticks; 6 of 13 (warrior F2), "
+            .. "or 10 at another period, is still a swing",
+            WithStreams(10, 2.06) == nil and WithStreams(6, 2.06) ~= nil and WithStreams(10, 1.0) ~= nil)
+    end
+
+    -- Swing draw: Procs.NameSwing names a hit in the band widened by SWING_STEP (a crit by its half) on a steady swing;
+    -- Procs.Name never draws a swing entry, so its padded band leaves the 150592 and 200179 hits alone
+    do
+        local ns, procs = Rig()
+        procs[6603] = { school = 1, lo = 172430, hi = 177772, swing = 2.06, streak = 1, learned = true, unpaired = 0, seen = 0,
+            critSeen = true }
+        local P = ns.Procs
+        Check("procs swing name: a normal and a crit of the band draw a period apart; Name leaves them",
+            P.NameSwing("p1", 1, 176769, "", 10) == 6603 and P.NameSwing("p1", 1, 356004, "CRITICAL", 15.2) == 6603
+            and P.NameSwing("p1", 1, 182000, "", 17.3) == 6603 and P.Name(1, 176769, "") == nil)
+        Check("procs swing name: off the band (150592, 200179, 184000), another school or an unknown flag is none",
+            P.NameSwing("p2", 1, 150592, "", 20) == nil and P.NameSwing("p2", 1, 200179, "", 20) == nil
+            and P.NameSwing("p2", 1, 184000, "", 20) == nil and P.NameSwing("p2", 32, 176000, "", 20) == nil
+            and P.NameSwing("p2", 1, 176000, nil, 20) == nil)
+        Check("procs swing name: a band hit half a period or less after the last on its plate is none; another plate draws",
+            P.NameSwing("p3", 1, 176000, "", 30) == 6603 and P.NameSwing("p3", 1, 176000, "", 31) == nil
+            and P.NameSwing("p4", 1, 176000, "", 31) == 6603)
+        local okSecret = pcall(P.NameSwing, "p5", Secret(1), 176000, "", 40)
+        Check("procs swing name: a secret school is no swing and no error", okSecret and P.NameSwing("p5", Secret(1), 176000, "", 40) == nil)
+    end
+
+    -- Saved swing entries load; a swing beside a period, or a bad swing, is dropped
+    do
+        local ns = Load(function()
+            CombatTextIconsCharDB = { procs = {
+                [1] = { school = 1, lo = 100, hi = 103, swing = 2, learned = true },
+                [2] = { school = 1, lo = 100, hi = 103, swing = 2, period = 2, learned = true },
+                [3] = { school = 1, lo = 100, hi = 103, swing = -1, learned = true },
+                [4] = { school = 1, lo = 100, hi = 103, swing = "x", learned = true },
+            } }
+        end)
+        ns.Procs.Init(T.Store())
+        local procs = T.Store().procs
+        Check("procs swing load: a plain swing entry stays; a swing with a period, or not a positive number, is dropped",
+            procs[1] ~= nil and procs[1].swing == 2 and procs[2] == nil and procs[3] == nil and procs[4] == nil)
+    end
+
+    -- Core draws a learned swing on the target only, off any cast's stamp
+    do
+        local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+        local S = T.State()
+        ns.Procs.Init(T.Store())
+        T.Store().procs[6603] = { school = 1, lo = 172430, hi = 177772, swing = 2.06, streak = 1, learned = true, unpaired = 0,
+            seen = 0, critSeen = true }
+        ns.Teacher.area = "clear"
+        local drawn = {}
+        ns.Display.Plate = function(plate, texture) drawn[#drawn + 1] = texture end
+        S.now, S.target = 30, "nameplate1"
+        ns.Core.PLAYER_REGEN_DISABLED()
+        S.now = 30.5
+        ns.Core.UNIT_COMBAT("nameplate1", "WOUND", "", 176000, 1)
+        S.now = 32.5
+        ns.Core.UNIT_COMBAT("nameplate2", "WOUND", "", 176000, 1)
+        S.now = 34.5
+        ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "cast", 23922)
+        ns.Core.UNIT_COMBAT("nameplate1", "WOUND", "", 176000, 1)
+        Check("procs core swing: a band hit on the target draws the swing; one on another plate or a cast's stamp does not",
+            drawn[1] == "tex:6603" and drawn[2] ~= "tex:6603" and drawn[3] ~= "tex:6603" and #drawn == 3)
+    end
 end
