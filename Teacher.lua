@@ -1204,6 +1204,7 @@ local function Learn(run, results, open, rows)
     for _, way in ipairs(Stack.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Ramp.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Flat.Learn(run, rows, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Train.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Volley.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Area.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Area.Twins(run, rows, learned)) do learned[#learned + 1] = way end

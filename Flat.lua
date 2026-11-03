@@ -44,6 +44,9 @@ function Flat.Channel(spellID)
     if not issecretvalue(spellID) and type(spellID) == "number" then channels[spellID] = true end
 end
 
+-- Whether the spell was seen channelling this session (the train pass, Train.lua, skips it too).
+function Flat.Channelled(spellID) return channels[spellID] == true end
+
 local function Like(a, b) return math.abs(a - b) <= LIKE * math.max(a, b) end
 
 -- The hit of `list` from `index` on that lands `period` after `last` (within Streams.Slack), like-sized with `size`,

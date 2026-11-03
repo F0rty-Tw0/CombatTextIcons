@@ -3916,6 +3916,62 @@ return function(T)
             .. tostring(small) .. ")", off ~= TEX and small ~= TEX)
     end
 
+    do -- train pass (Train.lua): a learned cast hit's DoT ticking a size of its own through recasts is learned as a DoT
+        -- Run hunter2 F1: Black Arrow 466930 hit 14588 0.37 s after its cast and ticked 1185 every 1.0 s from +1.29 s on,
+        -- through its recasts, while a stranger's Shadow hits held another row. Here its fingerprint is learned at 14000,
+        -- 0.3 s after the cast; casts at 10 and 20 on nameplate1 each hit 14000 at +0.3 s, then ticks of `tick` every 1.0 s
+        -- run from 11.3 to 30.3, and a stranger's 3000 Shadow hits land on nameplate2 every 1.5 s.
+        local ARROW, STRANGER = 466930, 5740
+        -- The outcome of the TEACH train line for the arrow (nil for none) and whether it was learned as a DoT.
+        local function TrainFight(opts)
+            opts = opts or {}
+            local rig = Rig({})
+            local S, Core = rig.S, rig.ns.Core
+            for castAt = 1, 3 do
+                rig.ns.Fingerprints.Add(ARROW, { school = 32, delay = 0.3, castAt = castAt, hops = 1, spell = ARROW,
+                    size = 14000 })
+            end
+            SlashCmdList.COMBATTEXTICONS("debug")
+            S.now = 8
+            Core.PLAYER_REGEN_DISABLED()
+            local hits = {}
+            for _, at in ipairs({ 10, 20 }) do
+                hits[#hits + 1] = { at = at, cast = true }
+                hits[#hits + 1] = { at = at + 0.3, plate = "nameplate1", size = 14000 }
+            end
+            for k = 0, (opts.ticks or 20) - 1 do
+                hits[#hits + 1] = { at = 11.3 + k, plate = "nameplate1", size = opts.tick or 1200 }
+            end
+            for k = 0, 13 do hits[#hits + 1] = { at = 10.5 + 1.5 * k, plate = "nameplate2", size = 3000 } end
+            table.sort(hits, function(a, b) return a.at < b.at end)
+            local sum, noise = 0, 0
+            for _, hit in ipairs(hits) do
+                if hit.cast then
+                    rig.Cast(hit.at, "nameplate1", ARROW)
+                else
+                    rig.Hit(hit.at, hit.plate, hit.size, 32)
+                    if hit.plate == "nameplate1" then sum = sum + hit.size else noise = noise + hit.size end
+                end
+            end
+            S.now = 32
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(nextSession, { Row(ARROW, sum + 400), Row(STRANGER, noise) }) }
+            nextSession = nextSession + 1
+            pcall(rig.Fire)
+            local outcome
+            for _, line in ipairs(CombatTextIconsDB.debugLog) do
+                outcome = line:match("TEACH train " .. ARROW .. " casts=.* %-> (%S+)") or outcome
+            end
+            return outcome, rig.ns.Learn.Get(ARROW)
+        end
+        local outcome, dot = TrainFight()
+        Check("train (a): two casts' hits, then 20 ticks of 1200 every 1.0 s through the recast -> learned as a DoT ("
+            .. tostring(outcome) .. ")", outcome == "learned" and dot ~= nil and dot.school == 32)
+        local outcome1, dot1 = TrainFight({ ticks = 6 })
+        Check("train (b): a train of 6 ticks, which ends before the recast -> not learned (" .. tostring(outcome1) .. ")",
+            outcome1 ~= "learned" and dot1 == nil)
+    end
+
     do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899
         local LAVA_BURST, LAVA_BASE = 51505, 73899
         local rig = Rig({})
