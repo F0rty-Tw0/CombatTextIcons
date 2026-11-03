@@ -1162,7 +1162,8 @@ end
 -- bounded by one open row; then the chain pass (Chain.lua) learns a cast's hops from plate to plate under its own
 -- open row, before the DoT pass: a proven chain is direct hits, so they leave the school's '?' sum the DoT pass
 -- bounds; then the DoT pass learns a cast's DoT from its school's streams, bounded by its own open row; then the
--- stack pass (Stack.lua) learns a stacking DoT's ticks on its cast's plate under its own open row; last, the area
+-- stack pass (Stack.lua) learns a stacking DoT's ticks on its cast's plate under its own open row, and the flat pass
+-- (Flat.lua) a learned cast hit's same-size DoT ticks on its plate under its row's room; last, the area
 -- pass (Area.lua) marks a spell learned before this read, or by the steady pass alone at it, whose row's residual its
 -- hits on other plates explain.
 -- A way the meter proved also teaches how many hits one cast landed on its plate (Fingerprints.SetPerCast), and an
@@ -1202,6 +1203,7 @@ local function Learn(run, results, open, rows)
     Teacher.Yield()
     for _, way in ipairs(Stack.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Ramp.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Flat.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Volley.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Area.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Area.Twins(run, rows, learned)) do learned[#learned + 1] = way end
@@ -1576,11 +1578,12 @@ function Teacher.AreaClear()
 end
 
 -- A harmful cast of the player or the pet (`base` is Casts.Base of `spellID`), for the ground pass; `plate` (the
--- cast's, nil when none) for the stack pass.
-function Teacher.Cast(spellID, base, now, plate)
+-- cast's, nil when none) for the stack pass; `pet` when the pet cast it (the flat pass, Flat.lua, skips it).
+function Teacher.Cast(spellID, base, now, plate, pet)
     local fight = Teacher.fight
     if not (fight and IsNumber(spellID) and IsNumber(base) and IsNumber(now)) then return end
-    fight.casts[#fight.casts + 1] = { spellID = spellID, base = base, at = now, plate = plate }
+    fight.casts[#fight.casts + 1] = { spellID = spellID, base = base, at = now, plate = plate,
+        pet = pet == true or nil }
 end
 
 -- A heal of `amount` (`flagText` its crit flag) landed on you, drawn or not: Heals.Learn takes the largest per stamp

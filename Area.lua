@@ -273,8 +273,10 @@ function Area.Twins(run, rows, learned)
     for _, spellID in ipairs(order) do
         local dot, row = ns.Learn.Get(spellID), ns.Steady.RowOf(spellID, rows)
         -- a ramping DoT's ticks on other plates are their own ramps, at no fixed share of its own (run lock4 F5: Agony
-        -- 980 taught 0.83 and drew Drain Life 234153's 1281s in F7 as its twins, then went over its row and dropped)
-        if dot and row and not ns.Learn.Ramp(spellID) then
+        -- 980 taught 0.83 and drew Drain Life 234153's 1281s in F7 as its twins, then went over its row and dropped).
+        -- A flat DoT (Learn.Flat) learns no twins either: run priest3's Devouring Plague 335467 took twins and the
+        -- heals named on that log fell 4.2 -> 3.8 % (its heal is 0.3 x a hit, taught by the hits nothing drew).
+        if dot and row and not ns.Learn.Ramp(spellID) and not ns.Learn.Flat(spellID) then
             local matched = {}
             for _, hit in ipairs(run.unknown) do
                 local newest

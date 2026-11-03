@@ -3818,6 +3818,81 @@ return function(T)
             .. tostring(outcome) .. ")", outcome == nil and not ramp)
     end
 
+    do -- flat pass (Flat.lua): a learned cast hit's same-size DoT ticks on its plate are learned as a flat DoT
+        -- Run priest4 F1: Devouring Plague 335467 hit for 6921 at its cast and ticked 6921 at +1.74 and +3.52 s. Here
+        -- its fingerprint is learned at size 7000; each cast at `at` hits 7000 + 200 k, then ticks that size 1.5 and
+        -- 3.0 s on (or `tick` when given), the casts 7 s apart on nameplate1.
+        local PLAGUE = 335467
+        -- The outcome of the TEACH flat line for Plague (nil for none), whether it was learned as flat, and the rig.
+        local function FlatFight(casts, opts)
+            opts = opts or {}
+            local rig = Rig({})
+            local S, Core = rig.S, rig.ns.Core
+            for castAt = 1, 3 do
+                rig.ns.Fingerprints.Add(PLAGUE, { school = 32, delay = 0, castAt = castAt, hops = 1, spell = PLAGUE,
+                    size = 7000 })
+            end
+            SlashCmdList.COMBATTEXTICONS("debug")
+            S.now = 8
+            Core.PLAYER_REGEN_DISABLED()
+            local sum = 0
+            for k = 0, casts - 1 do
+                local at, size = 10 + 7 * k, 7000 + 200 * k
+                if opts.pet then
+                    S.now, S.target, S.petTarget = at, "nameplate1", true
+                    Core.UNIT_SPELLCAST_SUCCEEDED("pet", "c" .. at, PLAGUE)
+                else
+                    rig.Cast(at, "nameplate1", PLAGUE)
+                end
+                if opts.channel then Core.UNIT_SPELLCAST_CHANNEL_START("player", "c" .. at, PLAGUE) end
+                rig.Hit(at, "nameplate1", size, 32)
+                for _, delay in ipairs({ 1.5, 3.0 }) do rig.Hit(at + delay, "nameplate1", opts.tick or size, 32) end
+                sum = sum + size + 2 * (opts.tick or size)
+            end
+            S.now = 30
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(nextSession, { Row(PLAGUE, sum + 400) }) }
+            nextSession = nextSession + 1
+            pcall(rig.Fire)
+            local outcome
+            for _, line in ipairs(CombatTextIconsDB.debugLog) do
+                outcome = line:match("TEACH flat " .. PLAGUE .. " casts=.* %-> (%S+)") or outcome
+            end
+            return outcome, rig.ns.Learn.Flat(PLAGUE), rig
+        end
+        local outcome, flat, rig = FlatFight(2)
+        Check("flat (a): two casts, each ticking twice for its own hit's size -> learned as a flat DoT ("
+            .. tostring(outcome) .. ")", outcome == "learned" and flat)
+        local outcome1, flat1 = FlatFight(1)
+        Check("flat (b): one cast's ticks -> not learned (" .. tostring(outcome1) .. ")",
+            outcome1 == "casts" and not flat1)
+        local outcome2, flat2 = FlatFight(2, { tick = 2500 })
+        Check("flat (c): like-sized ticks far under the cast's own hit (another spell's, run priest3 F1) -> not learned ("
+            .. tostring(outcome2) .. ")", outcome2 == nil and not flat2)
+        local outcome3, flat3 = FlatFight(2, { pet = true })
+        Check("flat (d): the pet's casts -> not tried (" .. tostring(outcome3) .. ")", outcome3 == nil and not flat3)
+        local outcome4, flat4 = FlatFight(2, { channel = true })
+        Check("flat (e): a channel's casts -> not tried (" .. tostring(outcome4) .. ")", outcome4 == nil and not flat4)
+
+        -- The learned flat DoT draws: its next cast's frame gives no other hit to it (run hunter2 F13: Barbed Shot), its
+        -- first tick is its own hit's size, and a tick 4 % off its last is not its. A fresh rig: each boot resets the state.
+        _, _, rig = FlatFight(2)
+        local S, Core = rig.S, rig.ns.Core
+        local TEX = "tex:" .. PLAGUE
+        S.now = 40
+        Core.PLAYER_REGEN_DISABLED()
+        rig.Cast(41, "nameplate1", PLAGUE)
+        local frame = rig.Hit(41, "nameplate1", 3000, 32)
+        local first = rig.Hit(42.5, "nameplate1", 7000, 32)
+        local off = rig.Hit(44, "nameplate1", 7300, 32)
+        rig.Cast(51, "nameplate2", PLAGUE)
+        local small = rig.Hit(52.5, "nameplate2", 2500, 32)
+        Check("flat (f): a learned flat DoT draws its 7000 tick, not a 3000 hit in its cast frame ("
+            .. tostring(frame) .. ")", first == TEX and frame ~= TEX)
+        Check("flat (g): nor a 7300 tick 4 % past its last (" .. tostring(off) .. "), nor a 2500 first tick ("
+            .. tostring(small) .. ")", off ~= TEX and small ~= TEX)
+    end
+
     do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899
         local LAVA_BURST, LAVA_BASE = 51505, 73899
         local rig = Rig({})

@@ -264,6 +264,15 @@ local function Oversized(instance, amount, flagText)
     return normal ~= nil and normal > AMOUNT_HIGH * spell.size
 end
 
+-- Whether a hit is no first tick of a flat DoT's instance (Learn.Flat): its ticks are the size of its cast's own hit
+-- (Flat.OwnSize). Without it run priest4 drew 1.3K and run hunter2 1.9K of other hits as first ticks.
+local function OffFlat(instance, amount, flagText)
+    if not (instance.fromLearn and Learn.Flat(instance.icon)) then return false end
+    local normal = Streams.NormalAmount(amount, flagText)
+
+    return not (normal and ns.Flat.OwnSize(instance.icon, normal))
+end
+
 -- Which multiple of the period a tick at `now` lands on (1 or 2; 0 for the tick
 -- after a recast, at restartAt + period), or nil. Callers test `if multiple`;
 -- 0 still counts as a match. When `strict` (the fight turned crowded) a tick must lie within Streams.SIZE_GUARD of
@@ -279,6 +288,9 @@ end
 -- last STEADY_RUN ticks were like-sized: run priest3 F8, Void Torrent 263165 ticked 7224, 7199, 7224, took a 3213 Shadow
 -- hit due in its next window, and its own 14550 crit tick in that frame went '?'. Two like-sized ticks are not enough: on run shadow-forget5 F3 a learned Mind Flay
 -- 15407 opened on two 2914 hits of another spell, and held to them it never took its own 5003 ticks after them.
+-- A flat DoT's ticks (Learn.Flat) keep one size, so it is held within Flat.HOLD: within AMOUNT_LOW-AMOUNT_HIGH runs
+-- priest3, priest4 and hunter2 drew 150K, 20K and 16K of other hits as Devouring Plague 335467's and Barbed Shot
+-- 217200's.
 local STEADY_RUN = 3
 -- A ramp DoT's tick rises at most this much over its last one: a step and a buff on it. Run lock4 F8, Agony 980 (row
 -- 8182 = 3119 crit + 1934 + 3129) ticked 1934, then 3129 (1.62x, after Haunt 48181 landed); held to Streams.RAMP_STEP
@@ -291,7 +303,7 @@ local function Phase(instance, school, amount, flagText, now, strict)
     local restarted = instance.restartAt and math.abs(now - (instance.restartAt + instance.period)) <= tolerance
     if not instance.lastTick then
         if instance.channel then return 1 end
-        if Oversized(instance, amount, flagText) then return nil end
+        if Oversized(instance, amount, flagText) or OffFlat(instance, amount, flagText) then return nil end
         if math.abs(now - (instance.castAt + instance.period)) <= tolerance then return 1 end
         if instance.landAt and math.abs(now - (instance.landAt + instance.period)) <= tolerance then return 1 end
         if restarted then return 0 end
@@ -304,7 +316,9 @@ local function Phase(instance, school, amount, flagText, now, strict)
             local last = instance.lastAmount
             local tested = normal and last and last > 0
             local low, high = AMOUNT_LOW, AMOUNT_HIGH
-            if strict or instance.channel and (instance.likeRun or 0) >= STEADY_RUN then
+            if instance.fromLearn and Learn.Flat(instance.icon) then
+                low, high = 1 - ns.Flat.HOLD, 1 / (1 - ns.Flat.HOLD)
+            elseif strict or instance.channel and (instance.likeRun or 0) >= STEADY_RUN then
                 low, high = 1 - Streams.SIZE_GUARD, 1 / (1 - Streams.SIZE_GUARD)
             elseif instance.fromLearn and Learn.Ramp(instance.icon) then
                 low, high = 1 / Streams.RAMP_STEP, RAMP_RISE
@@ -614,8 +628,10 @@ function Tracker.OnCast(unit, castID, now)
     if spell.mode == "target" then
         local key = TargetPlate()
         if not key then return end
-        -- A learned DoT's own hit lands in its cast frame (Flame Shock's initial damage): Identify gives it that hit
-        if learned and not (directs[key] and directs[key].at == now) then
+        -- A learned DoT's own hit lands in its cast frame (Flame Shock's initial damage): Identify gives it that hit.
+        -- A flat DoT's own hit is its cast fingerprint's (Flat.lua learns only those): run hunter2 F13, Barbed Shot
+        -- 217200's frame gave a 3719 crit of another spell to it, while its own 2627 came 0.12 s later.
+        if learned and not Learn.Flat(castID) and not (directs[key] and directs[key].at == now) then
             directs[key] = { at = now, school = spell.school, icon = spell.icon }
         end
         local instance = FindInstance(key, castID)

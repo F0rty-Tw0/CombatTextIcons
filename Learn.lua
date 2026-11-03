@@ -238,6 +238,22 @@ function Learn.Ramp(spellID)
     return entry and entry.ramp == true or false
 end
 
+-- Whether the learned spell ticks for one fixed size (the flat pass, Flat.lua, taught it).
+function Learn.Flat(spellID)
+    local entry = IsId(spellID) and learned[spellID]
+
+    return entry and entry.flat == true or false
+end
+
+-- The flat pass (Flat.lua) taught the learned spell: its ticks keep one size. False when it is not learned.
+function Learn.SetFlat(spellID)
+    local entry = IsId(spellID) and learned[spellID]
+    if not entry then return false end
+    entry.flat = true
+
+    return true
+end
+
 -- The teacher's DoT pass (Teacher.lua) learned `spellID` from its meter row: a DoT of `school` at base period `base`;
 -- `ramp` when the ramp pass (Ramp.lua) taught it. Its votes give way. False when an argument is not a plain number or
 -- the period is no tick rhythm.

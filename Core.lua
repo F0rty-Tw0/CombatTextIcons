@@ -991,7 +991,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
         local harmful = C_Spell.IsSpellHarmful and C_Spell.IsSpellHarmful(spellID)
         if Plain(harmful) and harmful then
             local plate = Casts.NoteCast(spellID, now, castGUID, unit == "pet")
-            Teacher.Cast(spellID, Casts.Base(spellID), now, plate)
+            Teacher.Cast(spellID, Casts.Base(spellID), now, plate, unit == "pet")
         elseif Plain(harmful) and unit == "player" then
             if frameCasts.at ~= now then frameCasts = { at = now, ids = {}, seen = {} } end
             if not frameCasts.seen[spellID] then
@@ -1014,6 +1014,7 @@ end
 
 function Core.UNIT_SPELLCAST_CHANNEL_START(unit, castGUID, spellID)
     if not db.enabled then return end
+    ns.Flat.Channel(spellID)
     Tracker.OnChannelStart(spellID, GetTime(), castGUID)
 end
 

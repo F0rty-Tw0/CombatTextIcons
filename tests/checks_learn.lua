@@ -1465,6 +1465,18 @@ return function(T)
             ns.Area.Twins(run, { { spellID = 9002, total = 6100, overkill = 0 } }, {})
             Check("twin pass: a ramp DoT is taught no share", ns.Learn.Twin(9002) == nil)
         end
+        do -- run priest3: Devouring Plague 335467, a flat DoT, took twins and the log's named heals fell 4.2 -> 3.8 %
+            local ns = T.Boot()
+            SeedLearned(9002, 32, 1.0, "dot")
+            ns.Learn.SetFlat(9002)
+            local run = { tally = { [9002] = 4000 }, ticks = {}, unknown = {} }
+            for index = 1, 4 do
+                run.ticks[index] = { spellID = 9002, at = 100 + index, plate = "P", size = 1000 }
+                run.unknown[index] = { school = 32, amount = 500, size = 500, at = 100.1 + index, plate = "Q" }
+            end
+            ns.Area.Twins(run, { { spellID = 9002, total = 6100, overkill = 0 } }, {})
+            Check("twin pass: a flat DoT is taught no share", ns.Learn.Flat(9002) and ns.Learn.Twin(9002) == nil)
+        end
 
         -- ticks of 1000 at 101-104 (`crit`: the one at 104 lands as a 2000 crit); `twins` hits on plate Q, each
         -- { at, amount }; `taught`: a share taught before
