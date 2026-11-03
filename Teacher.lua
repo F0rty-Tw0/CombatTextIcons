@@ -76,9 +76,9 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 --   casts = { { spellID, base, at, plate }, ... }, streams = { [stream] = record }, seen = sum, plates = { [plate] =
 --   this fight's own seen on it (no carried fight's) }, live = the busiest plate's, crowded = the live crowd check
 --   fired, carried = seconds of fights carried in,
---   duration = seconds in combat (set at Finish), group, heals = { { size, amount, at }, ... } on you, helps = { { spellID,
---   at }, ... } your helpful casts and drawn = { { spellID, amount, at, school }, ... } the hits drawn with an icon
---   (for Heals.Learn) }
+--   duration = seconds in combat and ended = the stamp combat ended (both set at Finish), group, heals = { { size,
+--   amount, at }, ... } on you, helps = { { spellID, at }, ... } your helpful casts and drawn = { { spellID, amount,
+--   at, school }, ... } the hits drawn with an icon (for Heals.Learn) }
 Teacher.fight = nil
 Teacher.last = nil  -- latest read: { skip = reason } or { session, rows = { {...}, ... }, learned = { [castID] = hits }, area = "clear" | "crowded" | "group" | "short" }
 -- the crowd check's state: "clear" or "crowded", which a read saves with its map (SaveArea), or "unknown" on a map no
@@ -1507,7 +1507,7 @@ local function Judging(run, sessionID, rows, reason)
         local named = Ground.Castless(run, hits, openRows, rows, results)
         if healRows then
             Heals.Learn(run.heals, run.helps, healRows, run.duration, run.drawn,
-                { rows = rows, cast = fight.cast, hits = run.unknown, named = named })
+                { rows = rows, cast = fight.cast, hits = run.unknown, named = named }, run.ended)
         end
     end
     Ledger.SetVerdicts(last.rows, run.at)
@@ -1677,7 +1677,7 @@ function Teacher.Finish(now)
         Judge(function() Done({ skip = "no fight" }) end)
         return
     end
-    if IsNumber(now) then fight.duration = now - fight.at + (fight.carried or 0) end
+    if IsNumber(now) then fight.duration, fight.ended = now - fight.at + (fight.carried or 0), now end
     if not Meter.Available() then
         Judge(function() Skipped(fight.at, "meter off") end)
         return

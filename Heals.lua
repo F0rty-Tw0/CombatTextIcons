@@ -137,8 +137,8 @@ local couples = {}
 -- draw under (its own ID, else its base's, as the newest read listing either names it; else a pulsing walk's
 -- HitRow or DualRow; nil until one was found), its newest SAMPLES counted casts, each
 -- { with = the other helpful casts on its stamp, and when it walked a train: period, size (the middle tick), low,
--- high, ticks, luck (how often luck alone gives the walk; nil in older saves: WALK_ALPHA) }, and the read that last
--- counted it
+-- high, ticks, luck (how often luck alone gives the walk; nil in older saves: WALK_ALPHA), cut (true when the
+-- fight's end may have cut it; nil in older saves: not cut) }, and the read that last counted it
 local trains = {}
 local ready = {} -- by cast ID: its learned train { row, period, size, low, high, ticks } (Judge), rebuilt per read
 -- the trains running now: { castID, at = the cast's stamp, last = its last tick's, k = that tick's slot, misses,
@@ -671,7 +671,9 @@ end
 -- multiply to TRAIN_LUCK at most, they are TRAIN_SHARE of its counted casts and it has a heal row. A direct heal
 -- learns only its tail (Tails): TAIL_WALKS walks or more whose shares agree. Its tick count is the agreeing
 -- walks' median: a walk can run on into the next cast's ticks or a foreign heal (synthetic Renew 139 walked 8, 9, 13
--- and 16 ticks; the longest claimed a foreign heal two periods past its 8th tick).
+-- and 16 ticks; the longest claimed a foreign heal two periods past its 8th tick). A walk the fight's end may have cut
+-- (its `cut`) counts only when every agreeing walk was cut, then the most of theirs: shamanresto F2's last Healing
+-- Rain ran 12 ticks to the fight's end, F1's ran its full 14.
 local function Judge(castID, entry)
     if not entry.row then return nil end
     local direct = Direct(castID)
@@ -704,14 +706,14 @@ local function Judge(castID, entry)
     local luck = 1
     for _, walk in ipairs(best) do luck = luck * (walk.luck or WALK_ALPHA) end
     if luck > TRAIN_LUCK then return nil end
-    local train, ticks = { row = entry.row, period = 0, low = math.huge, high = 0 }, {}
+    local train, ticks, most = { row = entry.row, period = 0, low = math.huge, high = 0 }, {}, 0
     for _, walk in ipairs(best) do
         train.period = train.period + walk.period / #best
         train.low, train.high = math.min(train.low, walk.low), math.max(train.high, walk.high)
-        ticks[#ticks + 1] = walk.ticks
+        if walk.cut then most = math.max(most, walk.ticks) else ticks[#ticks + 1] = walk.ticks end
     end
     table.sort(ticks)
-    train.ticks = ticks[math.ceil(#ticks / 2)]
+    train.ticks = ticks[math.ceil(#ticks / 2)] or most
     train.size = math.sqrt(train.low * train.high)
 
     return train
@@ -805,18 +807,19 @@ local function HitRow(walk, duals, rowAt, stamped)
 end
 
 -- How many ticks a walk ran: its heal ticks, then each due one (SLACK either side; MISSES missed in a row end it)
--- that holds a hit drawn or learned under its row (`at`: their stamps). shamanresto F2's last Healing Rain healed you
--- 9 ticks, then hit the mobs on 3 more: a train learned from 9 ended F4's trains 5 ticks early.
-local function RanOn(walk, at)
+-- that holds a hit drawn or learned under its row (`at`: their stamps; nil: none). shamanresto F2's last Healing Rain
+-- healed you 9 ticks, then hit the mobs on 3 more: a train learned from 9 ended F4's trains 5 ticks early. Also
+-- whether a tick it missed was due after the fight's end (`ended`, nil: unknown): the end may have cut it short.
+local function RanOn(walk, at, ended)
     local ticks, last, misses = walk.ticks, walk.ats[#walk.ats], 0
-    while misses < MISSES do
+    while at and misses < MISSES do
         local due, found = last + walk.period * (1 + misses), nil
         for stamp in pairs(at) do
             if math.abs(stamp - due) <= SLACK and (not found or stamp < found) then found = stamp end
         end
         if found then ticks, last, misses = ticks + 1, found, 0 else misses = misses + 1 end
     end
-    return ticks
+    return ticks, ended ~= nil and last + MISSES * walk.period > ended or nil
 end
 
 -- Each helpful cast of a clear read counts its stamp's walk (one per stamp, nil: none) with the stamp's other casts.
@@ -828,8 +831,9 @@ end
 -- (279267.757: a 5641 heal and five hits of 11.6-23.7K). shamanresto's 73921 is no heal row at all (overhealed), and
 -- each read holds other castless damage rows, so only the hits under 73921 tell its row.
 -- A stamp whose casts are all direct heals walks with its largest heal no learned size names (`largest`) as the head
--- of a tail (WalkFrom). A walk's ticks run on through its row's hits (RanOn). Returns the cast IDs counted.
-local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest, rowAt)
+-- of a tail (WalkFrom). A walk's ticks run on through its row's hits (RanOn); `ended`: the fight's end (RanOn).
+-- Returns the cast IDs counted.
+local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest, rowAt, ended)
     local sorted, stamped, count = {}, {}, 0
     for _, heal in ipairs(fightHeals) do
         if IsNumber(heal.size) and heal.size > 0 and IsNumber(heal.at) then
@@ -872,10 +876,10 @@ local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt, larg
             for _, other in ipairs(stamps[at]) do
                 if other ~= castID then with[#with + 1] = other end
             end
-            local hits = entry.row and rowAt[entry.row]
+            local ticks, cut = walk.ticks, nil
+            if walk.ats then ticks, cut = RanOn(walk, entry.row and rowAt[entry.row], ended) end
             table.insert(entry.walks, { with = with, period = walk.period, size = walk.size, low = walk.low,
-                high = walk.high, ticks = hits and walk.ats and RanOn(walk, hits) or walk.ticks, luck = walk.luck,
-                share = walk.share })
+                high = walk.high, ticks = ticks, luck = walk.luck, share = walk.share, cut = cut })
             if #entry.walks > SAMPLES then table.remove(entry.walks, 1) end
             entry.seen = reads
             counted[#counted + 1] = castID
@@ -889,10 +893,10 @@ end
 -- session's healing-done `rows`, the fight's `duration` in seconds, its drawn hits (`drawn`, each { spellID,
 -- amount, at, school }; nil: none) and its damage side (`damage`, nil: none): { rows = the damage rows ({ spellID }),
 -- cast = { [ID] = true } of its harmful casts and their bases, hits = its '?' hits ({ at }), named = the '?' hits
--- this read learned a row for ({ spellID, at }; nil: none) }.
-function Heals.Learn(fightHeals, helps, rows, duration, drawn, damage)
+-- this read learned a row for ({ spellID, at }; nil: none) }, and the stamp the fight ended at (`ended`, nil: unknown).
+function Heals.Learn(fightHeals, helps, rows, duration, drawn, damage, ended)
     if not (IsNumber(duration) and duration > 0) then return end
-    damage = damage or {}
+    damage, ended = damage or {}, IsNumber(ended) and ended or nil
     local hitAt = {} -- the stamps that hold a hit of yours, drawn or '?'
     for _, list in ipairs({ drawn or {}, damage.hits or {} }) do
         for _, hit in ipairs(list) do
@@ -952,7 +956,7 @@ function Heals.Learn(fightHeals, helps, rows, duration, drawn, damage)
             counted[#counted + 1] = spellID
         end
     end
-    local walked = LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest, rowAt)
+    local walked = LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest, rowAt, ended)
     Ready()
     if not ns.Debug then return end
     local told = {}
@@ -961,9 +965,9 @@ function Heals.Learn(fightHeals, helps, rows, duration, drawn, damage)
         if entry and not told[castID] then
             told[castID] = true
             local walk = entry.walks[#entry.walks]
-            ns.Debug("TEACH healtrain %d row=%s period=%s ticks=%s -> %s", castID, tostring(entry.row),
+            ns.Debug("TEACH healtrain %d row=%s period=%s ticks=%s%s -> %s", castID, tostring(entry.row),
                 walk.period and string.format("%.2f", walk.period) or "none", tostring(walk.ticks),
-                ready[castID] and "learned" or "open")
+                walk.cut and " cut" or "", ready[castID] and "learned " .. ready[castID].ticks or "open")
         end
     end
     local said = {}
@@ -1034,7 +1038,7 @@ end
 -- Keeps a saved counted cast with a list of the other casts' IDs (junk IDs dropped) and, when it walked, positive
 -- finite sizes low <= size <= high, a positive period and a whole tick count; drops the rest. A luck outside 0 to
 -- WALK_ALPHA is dropped alone: the walk then counts as WALK_ALPHA. A tail's share (none in older saves) is from 0 to 1,
--- else the walk is dropped.
+-- else the walk is dropped. A cut other than true counts as none: the walk ran to its end.
 local function ValidWalk(walk)
     if type(walk) ~= "table" or type(walk.with) ~= "table" then return nil end
     local with = {}
@@ -1051,7 +1055,7 @@ local function ValidWalk(walk)
     local luck = IsNumber(walk.luck) and walk.luck >= 0 and walk.luck <= WALK_ALPHA and walk.luck or nil
 
     return { with = with, period = walk.period, size = walk.size, low = walk.low, high = walk.high, ticks = walk.ticks,
-        luck = luck, share = walk.share }
+        luck = luck, share = walk.share, cut = walk.cut == true or nil }
 end
 
 -- Keeps a saved train with a valid row (or none yet) and its valid counted casts (the newest SAMPLES); drops the rest.

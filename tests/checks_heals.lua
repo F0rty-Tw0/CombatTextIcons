@@ -398,7 +398,7 @@ return function(T)
             for t = from, 100, step do heals[#heals + 1] = { size = 11000, amount = 11000, at = t } end
             table.sort(heals, function(a, b) return a.at < b.at end)
         end
-        H.Learn(heals, helps, rows, 100, opts.drawn, opts.damage)
+        H.Learn(heals, helps, rows, 100, opts.drawn, opts.damage, opts.ended)
     end
 
     do -- trains: learning
@@ -633,6 +633,24 @@ return function(T)
             H.IsTrainLearned(TIDE) and claimed == 8 and next(ninth) == nil)
     end
 
+    do -- trains: walks of 8 and 5 ticks; the fight ended 1 s after the 5th (shamanresto F2's last Healing Rain)
+        local function Ticks(ended)
+            local H = T.Boot().Heals
+            TrainRead(H, { TIDE })
+            TrainRead(H, { TIDE }, { ticks = 5, ended = ended })
+            H.Cast(TIDE, 100)
+            local claimed = 0
+            for tick = 1, 9 do
+                if H.Claim({}, { { size = 11000 } }, nil, 100 + 1.5 * tick)[1] == TIDE then claimed = claimed + 1 end
+            end
+            return claimed, T.Store().healTrains[TIDE].walks[2].cut
+        end
+        local cut, flagged = Ticks(18.5)
+        local whole, unflagged = Ticks(nil)
+        Check("trains: a walk the fight's end cut short gives no tick count while a whole walk does (" .. cut .. " vs "
+            .. whole .. ")", cut == 8 and flagged == true and whole == 5 and unflagged == nil)
+    end
+
     do -- the saved store is checked, never trusted
         local ns = T.Boot(function()
             local walk = { with = {}, period = 1.5, size = 10500, low = 9600, high = 11700, ticks = 8 }
@@ -649,6 +667,9 @@ return function(T)
                 [109304] = { row = 109304, walks = { { with = {}, period = 1, size = 4396, low = 4396, high = 4397,
                     ticks = 6, share = 0.05 }, { with = {}, period = 1, size = 4396, low = 4396, high = 4397, ticks = 6,
                     share = 2 } } },
+                [974] = { row = 974, walks = { { with = {}, period = 1.5, size = 10500, low = 9600, high = 11700,
+                    ticks = 8, cut = true }, { with = {}, period = 1.5, size = 10500, low = 9600, high = 11700,
+                    ticks = 8, cut = "yes" } } },
             } }
         end)
         local saved = T.Store().healTrains
@@ -661,6 +682,8 @@ return function(T)
             and saved[77472].walks[2].with[1] == CHAIN_HEAL and #saved[77472].walks[2].with == 1)
         Check("tails: a saved walk keeps a share from 0 to 1; a walk with another share is dropped; none is no share",
             #saved[109304].walks == 1 and saved[109304].walks[1].share == 0.05 and saved[TIDE].walks[1].share == nil)
+        Check("trains: a saved walk keeps a cut of true; any other cut, or none (older saves), is none",
+            saved[974].walks[1].cut == true and saved[974].walks[2].cut == nil and saved[TIDE].walks[1].cut == nil)
     end
 
     do -- the saved store is checked, never trusted
@@ -802,10 +825,16 @@ return function(T)
             ns.Teacher.Unknown("nameplate1", 8, 1, 10 + 1.5 * tick)
         end
         for t = 0.75, 100, 3 do ns.Teacher.Healed(11000, "", t) end
+        local learn, ended = ns.Heals.Learn, nil
+        ns.Heals.Learn = function(...)
+            ended = select(7, ...)
+            return learn(...)
+        end
         ns.Teacher.Finish(100)
         FireAll(S)
         Check("heals: the fight's damage rows and '?' hits reach the teacher, and a pulsing walk takes their one row",
             ns.Heals.IsTrainLearned(444995) and T.Store().healTrains[444995].row == 73921)
+        Check("heals: the fight's end stamp reaches the teacher", ended == 100)
     end
 
     -- Core wiring: once Chain Heal is learned (saved: 40000-42000, padded 28000-84000), a heal on you waits for its
