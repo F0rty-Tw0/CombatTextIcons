@@ -681,6 +681,17 @@ local function Covers(group, way, row)
     return high <= COVER_SPREAD * low and way.sum >= row.total - tol and way.sum <= row.total + row.overkill + tol
 end
 
+-- Whether `way` is an area fan (Fan) of COVER_CASTS casts or more that meets `row` to COVER_TOL: every cast put its hit
+-- and like-sized splash on the plates around, and the whole sum is the row's. It teaches at once (Pass), as Covers.
+-- Run hunter F1: 392060's two casts each put a 58K crit and a 14357 splash on the target and 14357s on 4 other plates,
+-- 288046 = row 392058 exactly; learned from 3 casts only, its 279136 of F2 went by as '?'.
+local function FanCovers(way, row)
+    if not (way.fan and way.area and way.covered >= COVER_CASTS) then return false end
+    local tol = math.max(1, row.total * COVER_TOL)
+
+    return way.sum >= row.total - tol and way.sum <= row.total + row.overkill + tol
+end
+
 local function Pairs(group, way, row, owners)
     if way == group and group.mixed or way == group.all and group.cand.casts > SHORT_CASTS
         or way == group.fan and not way.area then
@@ -787,14 +798,17 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
                 -- its one-cast pairs cost Lightning Bolt 188196 1.9 pt, in run druid2 it drew Ravage past its row.
                 -- Run dk with every pair at one cast: Outbreak 77575's one-cast alias of row 317792 made that row
                 -- owned (Procs.lua Owned), so its proc never learned (-0.65 pt late). A cand that Covers a short kill's
-                -- two casts is exact too: no later read of that kill would add a third.
+                -- two casts is exact too: no later read of that kill would add a third. So is an area fan that
+                -- meets the row (FanCovers).
                 local exact = row.spellID == group.castID and way ~= group.all or Covers(group, way, row)
+                    or FanCovers(way, row)
                 -- An exact way's frame mates are its cast's area (Fingerprints.SetArea), no chain hops: a chain draws
                 -- from its own plate's hit on, and run shaman6 F2's Meteor 117588 hit its 4 mates before its target in
                 -- one frame, so as a chain it drew 61504 of 371725. A fan's mates (Fan) are its area too, and so are
                 -- the mates of a cast a fan marked area before: run priest4, 1227280's cand met its alias row in F7 (a
                 -- mate as a hop), its fan taught area in F10, its cand met the row again in F11, and with those mates
                 -- as chain hops its record took a second frame on the plates it had hit (F12 drew 31914 against 20644).
+                -- A fan's mates share its own hits' frames, so the area it teaches is those frames' (areaFrame).
                 local before = Fingerprints.Get(group.castID)
                 local area = (exact or way.fan or before ~= nil and before.area == true) and way.mates ~= nil
                     and next(way.mates) ~= nil
@@ -810,7 +824,7 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
                     Fingerprints.SetAlias(row.spellID, group.castID)
                 end
                 Fingerprints.SetPerCast(group.castID, OwnHitsPerCast(way))
-                if area then Fingerprints.SetArea(group.castID) end
+                if area then Fingerprints.SetArea(group.castID, nil, way.fan == true) end
                 learned[#learned + 1] = way
                 rewritten[position] = true
                 results[item.index] = { spellID = group.castID, meterID = row.spellID, tally = way.sum,

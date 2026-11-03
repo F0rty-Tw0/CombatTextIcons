@@ -2052,6 +2052,18 @@ return function(T)
                 .. "row 21000 of another ID -> alias, Z learned from 12 hits as an area spell, not a chain",
                 F.Alias(Y) == Z and F.IsLearned(Z) and F.Get(Z).area == true and F.Get(Z).pattern ~= "chain"
                 and last.learned[Z] == 12 and Find(last, Z).verdict == "agree")
+            -- Run hunter F1 had two such casts, 288046 = row 392058 exactly; learned from 3 casts only, 392060 drew none
+            -- of F2's 279136. Two casts' fan (2 x 7000) meets row 14000 exactly: Z learns at once, and as its mates were
+            -- its frame's, its records take other plates' hits in its window or its own hits' frames only (run priest3
+            -- F11: 1227280 learned so took a 4155 on a third plate 0.24 s past its window, row over by 4155).
+            local PAIR = {}
+            for index = 1, 8 do PAIR[index] = FAN[index] end
+            rig = Rig({})
+            ReadWith(rig, PAIR, { { Y, 14000 } })
+            F = rig.ns.Fingerprints
+            Check("candidates: a fan of two casts that meets row 14000 of another ID exactly -> Z learned at once, area "
+                .. "of its frames only", F.Alias(Y) == Z and F.IsLearned(Z) and F.Get(Z).area == true
+                and F.Get(Z).areaFrame == true)
             local ALONE = {}
             for _, t in ipairs({ 60, 70, 80, 90 }) do
                 ALONE[#ALONE + 1] = { 32, 4000, "", nil, t + 0.5, { Candidate(Z, t) } }
