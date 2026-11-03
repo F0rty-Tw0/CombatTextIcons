@@ -3167,6 +3167,23 @@ return function(T)
             Outcome() == "rows=0" and rig.ns.Fingerprints.Get(EARTHQUAKE) == nil
             and rig.ns.Fingerprints.Alias(OTHER_ROW) == nil)
 
+        -- Run shaman6 F1: the walks took 1612349 under a fight gap of 1.47M, and a never-cast row of the quake's school
+        -- (2210556) bounded them beside 77478 (2008647); the pass learned only in F2. Here the ticks (468000) leave
+        -- rows 600000 and 700000 both in bounds: 4 rowless Fire hits (204000) keep the read clear, unseen 628000.
+        local FAR_ROW = 447425
+        local function Rowless()
+            for index = 1, 4 do rig.Hit(4 + index, "nameplate4", 51000, 4) end
+        end
+        rig = Rig({})
+        QuakeFight(rig, CASTS, { Row(QUAKE_ROW, 600000), Row(FAR_ROW, 700000) }, Rowless)
+        Check("ground (c2): two never-cast rows bound the ticks (600000, 700000) -> the nearer one is aliased, learned",
+            Outcome() == "learned" and rig.ns.Fingerprints.Alias(QUAKE_ROW) == EARTHQUAKE
+            and rig.ns.Fingerprints.Alias(FAR_ROW) == nil)
+        rig = Rig({})
+        QuakeFight(rig, CASTS, { Row(QUAKE_ROW, 600000), Row(FAR_ROW, 600000) }, Rowless)
+        Check("ground (c3): two bounding rows equally near (600000 each) -> rows=2, nothing learned",
+            Outcome() == "rows=2" and rig.ns.Fingerprints.Get(EARTHQUAKE) == nil)
+
         rig = Rig({})
         QuakeFight(rig, { 10, 20 }, { Row(QUAKE_ROW, 600000) })
         Check("ground (d): 2 casts are under MIN_CASTS -> the pass never tries the spell",

@@ -395,6 +395,19 @@ local function Bounds(sum, open, rewritten, owned, unseen)
     return positions
 end
 
+-- Of several bounding rows (`positions` in `open`), the one whose total lies nearest `sum` alone, the rest dropped;
+-- a tie keeps them all. Run shaman6 F1: Earthquake's walks took 1612349 under a fight gap of 1.47M, so both 77478
+-- (2008647) and a castless row of its school (2210556) bounded them, and the cast learned only in F2.
+local function Nearest(positions, open, sum)
+    local best, away, tie = nil, math.huge, false
+    for _, position in ipairs(positions) do
+        local gap = open[position].row.total - sum
+        if gap < away then best, away, tie = position, gap, false elseif gap == away then tie = true end
+    end
+
+    return (best and not tie) and { best } or positions
+end
+
 -- A walk's crit scale: each crit's size over the median normal size Near the band in its tick's frame, the median;
 -- nil when no frame held both. Shaman5 F1: Earthquake's crits were ~3x its normals (~19.5K beside 6.2-7.3K; scale
 -- 1.55), past Streams.CRIT_HI, so no halved crit was Near and only a frame's normal anchored a tick (Casts.lua).
@@ -481,7 +494,8 @@ function Ground.Learn(run, rows, open, rewritten, results, learned)
             if pattern then
                 pattern.castID, pattern.spell = castID, spell
                 pattern.hits, pattern.sum = Taken(pattern)
-                pattern.rows = Bounds(pattern.sum, open, rewritten, owned, math.max(0, total - run.seen))
+                pattern.rows = Nearest(Bounds(pattern.sum, open, rewritten, owned, math.max(0, total - run.seen)),
+                    open, pattern.sum)
                 found[#found + 1] = pattern
                 outcome = #pattern.rows == 1 and "learned" or ("rows=" .. #pattern.rows)
             end
