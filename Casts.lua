@@ -73,6 +73,13 @@ end
 local CHAIN_GAP = 0.15   -- each later hit lands this long after the previous one at most
 local CHAIN_MAX = 5      -- hits one chain shows at most
 Casts.CHAIN_GAP, Casts.CHAIN_MAX = CHAIN_GAP, CHAIN_MAX -- the chain pass (Chain.lua) walks chains the same way
+-- A chain's echo (Chain Lightning's overloads, filed under its row) walks the plates the chain hit once more, one or
+-- more hits a plate per frame: its first frame lands past one hop gap and within two after the chain's first hit, each
+-- later one within CHAIN_GAP of the last on a plate the echo has not hit. Run shaman5 F5: cast 200323.746 hit
+-- nameplate6 at 0.204 s and hopped to 4 more plates 0.08-0.10 s apart; 0.201 s after its first hit 3 hits like its own
+-- (15.2-15.6K, a 47.6K crit) landed on nameplate6, then 3 a frame on each other plate 0.09-0.11 s apart, all '?' while
+-- the row ran 1.23M under.
+local ECHO_WAIT = 2 * CHAIN_GAP
 
 local UNKNOWN_WAIT = 1.5 -- a hit is explained by a cast at most this long before it
 local LOG_MAX = 20       -- cast log entries kept at most
@@ -212,7 +219,10 @@ local function Live(record, now)
     end
     local _, high = RecordWindow(record)
     local limit = record.at + (record.seen and SEEN_LIFE * high or LateTop(high)) + SLACK
-    if fp.pattern == "chain" and record.hops >= 1 then limit = math.max(limit, record.last + CHAIN_GAP) end
+    if fp.pattern == "chain" and record.hops >= 1 then
+        limit = math.max(limit, record.last + CHAIN_GAP, record.firstAt + ECHO_WAIT)
+        if record.echo then limit = math.max(limit, record.echo.at + CHAIN_GAP) end
+    end
     if fp.pattern ~= "chain" and record.seen and Splashed(record) then
         limit = math.max(limit, record.at + record.seen[1] + SPLASH)
     end
@@ -341,6 +351,18 @@ local function HopSize(record, size, now)
     return small == nil or size >= (1 - Streams.SIZE_GUARD) * small
 end
 
+-- Whether a hit of normal-scale `size` on `plate`, a plate the chain `record` hit, is its echo's (ECHO_WAIT): the
+-- echo's first frame, its plate again in the frame of its last hit, another plate it has not hit in that frame or a
+-- later one within CHAIN_GAP. Sized as a hop in a later frame (HopSize).
+local function Echoes(record, plate, now, size)
+    if not HopSize(record, size, math.huge) then return false end
+    local echo = record.echo
+    if not echo then return now > record.firstAt + CHAIN_GAP and now <= record.firstAt + ECHO_WAIT end
+    if now == echo.at then return plate == echo.plate or not echo.plates[plate] end
+
+    return not echo.plates[plate] and now - echo.at <= CHAIN_GAP
+end
+
 -- Whether a hit of `school` on `plate`, another plate than the cast's, is the cast's splash: a plate it has not hit
 -- yet, NearSizes, in a later frame than the first hit the record saw on its own plate (Watch) and at most SPLASH after
 -- it, while no unclaimed hit of its school NearSizes landed on another plate in the QUIET before that own hit (wounds).
@@ -389,7 +411,7 @@ end
 -- Does `record` still wait for a hit of `school` on `plate` at `now`? "in": its first hit
 -- lands on the cast's plate inside its delay window (RecordWindow), or a chain's later hit lands on a
 -- new plate within CHAIN_GAP of the one before (CHAIN_MAX in all), in a later frame no smaller than its learned sizes
--- (HopSize).
+-- (HopSize), or a hit on a plate it hit is its echo's (Echoes).
 -- "late": a first hit past the
 -- window, up to LateTop (Mind Blast's travel varies with distance), while the record has
 -- seen no hit in its watch range: one it saw was its own, spoiled (Darkglare's beam took Shadow Bolt's
@@ -432,8 +454,11 @@ local function Fits(record, fp, plate, school, now, size, crit)
         return plate == record.plate and record.hops < (fp.perCast or 1) and age >= low - SLACK
             and age <= high + SLACK and "in"
     end
-    return fp.pattern == "chain" and not record.plates[plate] and now - record.last <= CHAIN_GAP
-        and record.hops < CHAIN_MAX and HopSize(record, size, now) and "in"
+    if not record.plates[plate] then
+        return now - record.last <= CHAIN_GAP and record.hops < CHAIN_MAX and HopSize(record, size, now) and "in"
+    end
+
+    return Echoes(record, plate, now, size) and "in"
 end
 
 -- A first hit of the record's school on its plate, in band, within WATCH of its window: one more seen.
@@ -659,8 +684,16 @@ function Casts.Accept(record, plate, now, size)
         end
     end
     if size == 0 then return end
+    local fp = Fingerprints.Get(record.base)
+    if fp and fp.pattern == "chain" and record.hops >= 1 and record.plates[plate] then
+        -- a plate the chain hit again: its echo's hit (Echoes)
+        local echo = record.echo or { plates = {} }
+        record.echo, echo.at, echo.plate, echo.plates[plate] = echo, now, plate, true
+        return
+    end
     record.plates[plate] = true
     if plate ~= record.plate and record.hops == 0 then return end
+    if record.hops == 0 then record.firstAt = now end
     record.hops, record.last = record.hops + 1, now
 end
 

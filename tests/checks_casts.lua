@@ -1356,6 +1356,28 @@ do -- Phase 3: records and Claim
         return ns.Casts.Claim(Plate("nameplate2"), 8, 20.3, 11583) == "learned"
             and ns.Casts.Claim(Plate("nameplate2"), 8, 20.3, 9000) == nil
     end)
+    -- Run shaman5 F5: cast 200323.746's overloads, 3 hits a frame like its own, landed on its first plate 0.201 s after
+    -- its first hit, then on each plate it had hit 0.09-0.11 s apart.
+    Scenario("claim: a chain's echo walks the plates it hit, from past one hop gap after its first hit", function()
+        local ns, S = Rig(function(n) Learn3(n, CL, 8, 0.2, 3) end)
+        Cast(ns, S, CL, 20, "nameplate1")
+        local P = function(i) return Plate("nameplate" .. i) end
+        local _, record = ns.Casts.Claim(P(1), 8, 20.2)
+        ns.Casts.Accept(record, P(1), 20.2)
+        ns.Casts.Accept(record, P(2), 20.3)
+        ns.Casts.Accept(record, P(3), 20.4)
+        local soon = ns.Casts.Claim(P(1), 8, 20.3)
+        local start = ns.Casts.Claim(P(1), 8, 20.41)
+        ns.Casts.Accept(record, P(1), 20.41)
+        local again = ns.Casts.Claim(P(1), 8, 20.41)
+        local back = ns.Casts.Claim(P(1), 8, 20.5)
+        local hop = ns.Casts.Claim(P(2), 8, 20.5)
+        ns.Casts.Accept(record, P(2), 20.5)
+        local stranger = ns.Casts.Claim(P(6), 8, 20.6) -- the chain itself is done: 0.2 s after its last hop
+        return soon == nil and start == "learned" and again == "learned" and back == nil and stranger == nil
+            and hop == "learned" and record.hops == 3 and ns.Casts.Claim(P(3), 8, 20.6) == "learned"
+            and ns.Casts.Claim(P(3), 8, 20.7) == nil
+    end)
     Scenario("accept: a single-pattern record takes no second hit", function()
         local ns, S = Rig(Wand)
         Cast(ns, S, WAND, 10, "nameplate1")
