@@ -1333,6 +1333,21 @@ do -- Phase 3: records and Claim
         Cast(ns, S, SB, 200, "nameplate1")
         return ns.Casts.Claim(Plate("nameplate1"), 32, 201.6, 10321) == "learned"
     end)
+    -- Run shaman5 F5: the pet's Fire Blast 57984 (delay 0) cast 0.21 s after a Lava Burst 51505 on its target; its hit
+    -- fit both records, and Lava Burst's own crit 0.2 s later found its record spent on a hit that was the pet's.
+    Scenario("late: a hit two spells' records both fit is no one's seen; the record still takes its late hit", function()
+        local PET = 57984
+        local ns, S = Rig(function(n)
+            LearnSized(n, 8092, 8092, { 18000, 21000, 25000 })
+            LearnSized(n, PET, PET, { 19000, 20000, 21000 }, { 0, 0, 0 })
+        end)
+        local p1 = Plate("nameplate1")
+        Cast(ns, S, 8092, 10, "nameplate1")
+        Cast(ns, S, PET, 10.2, "nameplate1")
+        local tie = ns.Casts.Claim(p1, 32, 10.2, 20000)
+        local kind, record = ns.Casts.Claim(p1, 32, 10.45, 24000)
+        return tie == "ambiguous" and kind == "learned" and record.base == 8092
+    end)
     Scenario("claim: no side effects (record, plates and a second answer unchanged)", function()
         local ns, S = Rig(Wand)
         Cast(ns, S, WAND, 10, "nameplate1")

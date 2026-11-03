@@ -446,7 +446,8 @@ end
 -- "late": a first hit past the
 -- window, up to LateTop (Mind Blast's travel varies with distance), while the record has
 -- seen no hit in its watch range: one it saw was its own, spoiled (Darkglare's beam took Shadow Bolt's
--- late slot after an ambiguous hit, run 20261025T180045Z). An early first hit, up to WATCH under the
+-- late slot after an ambiguous hit, run 20261025T180045Z); a hit another spell's record fits as well is no
+-- one's seen (Claim, Tied). An early first hit, up to WATCH under the
 -- window, fits the same weak way when `size` is inside the learned sizes, unpadded: Lava Burst learned
 -- at 0.50-0.60 s in a first fight landed at 0.37-0.44 s in every later one. A hit on another plate fits a
 -- non-chain record the same weak way when it is the cast's Splash, or its AreaHit. A non-chain record that took its
@@ -508,6 +509,21 @@ local function Count(found, fits, record)
     if found and found.spellID ~= record.spellID then fits = fits + 1 end
 
     return found or record, math.max(fits, 1)
+end
+
+-- The records a hit fits in their windows when records of two spells do (`fits` 2 or more), as a set: the hit is as
+-- much the other spell's, so none of them has seen its own hit and a late one stays open (Fits). Run shaman5 F5: the
+-- pet's Fire Blast 57984 cast on its target 0.21-0.23 s after a Lava Burst 51505, and its 41.3-41.4K (normal scale, the
+-- pet's own F5 sizes) fit both; Lava Burst's own target crits (100932, 118503: its other plates' 75-96K at 0.77-0.8 of
+-- them) came 0.13-0.19 s later and went '?' (shaman5 right 27.0 -> 27.6 %, every other log unchanged).
+local function Tied(fitting, fits, sized)
+    local tied = {}
+    if fits < 2 then return tied end
+    for _, entry in ipairs(fitting) do
+        if entry.fit == "in" and not (sized and entry.padded) then tied[entry.record] = true end
+    end
+
+    return tied
 end
 
 -- Whether the logged cast `entry` cannot have made a hit of `school`, on what the meter taught: its base's row is a
@@ -672,10 +688,6 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
             sized = sized or not padded
         end
     end
-    -- sized: a record fits the hit near its learned sizes, so the padded ones neither fit nor see it
-    for _, entry in ipairs(watched) do
-        if not (sized and Padded(entry.record, size)) then Watch(entry.record, entry.fp, plate, school, now, size) end
-    end
     local found, fits, late, lateFits = nil, 0, nil, 0
     for _, entry in ipairs(fitting) do
         local kept = not (sized and entry.padded)
@@ -683,6 +695,13 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
             found, fits = Count(found, fits, entry.record)
         elseif kept and entry.fit == "late" then
             late, lateFits = Count(late, lateFits, entry.record)
+        end
+    end
+    local tied = Tied(fitting, fits, sized)
+    -- sized: a record fits the hit near its learned sizes, so the padded ones neither fit nor see it
+    for _, entry in ipairs(watched) do
+        if not (sized and Padded(entry.record, size)) and not tied[entry.record] then
+            Watch(entry.record, entry.fp, plate, school, now, size)
         end
     end
     wounds[#wounds + 1] = { plate = plate, school = school, size = size, at = now }
