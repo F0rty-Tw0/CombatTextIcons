@@ -2449,6 +2449,46 @@ return function(T)
         Check("rhythm pair: a learned DoT's cast at the plate in the hit's window, of the hit's school -> ?",
             rig.Hit(11, "nameplate1", 350, 106) == UNKNOWN and rig.ns.Teacher.fight.tally[X] == nil)
 
+        -- Onset links: a cast (LEAD, on another plate) leads each burst's first tick by 1.5 s; the tick a period later
+        -- pairs and teaches the link. Two bursts make it sure: the third burst's first tick draws the rhythm icon.
+        local LEAD = 205180
+        local function Burst(r, at, delay)
+            r.Cast(at, "nameplate2", LEAD)
+            local first = r.Hit(at + (delay or 1.5), "nameplate1", 350, 106)
+            r.Hit(at + (delay or 1.5) + 1, "nameplate1", 350, 106)
+            return first
+        end
+        rig = RhythmRig()
+        local firsts = { Burst(rig, 10), Burst(rig, 30) }
+        rig.Cast(50, "nameplate2", LEAD)
+        local onsetTally = rig.ns.Teacher.fight.tally[X]
+        Check("onset link: after two bursts led by one cast at 1.5 s, the third burst's first tick draws the rhythm icon",
+            firsts[1] == UNKNOWN and firsts[2] == UNKNOWN and rig.Hit(51.5, "nameplate1", 350, 106) == ICON
+            and rig.ns.Teacher.fight.tally[X] == onsetTally + 350 and Logged("TEACH onset " .. X))
+        rig = RhythmRig()
+        Burst(rig, 10)
+        rig.Cast(30, "nameplate2", LEAD)
+        Check("onset link: one burst is no proof -> the next first tick is ?", rig.Hit(31.5, "nameplate1", 350, 106) == UNKNOWN)
+        rig = RhythmRig()
+        Burst(rig, 10)
+        Burst(rig, 30)
+        rig.Cast(50, "nameplate2", LEAD)
+        Check("onset link: a hit at another delay after the cast (0.8 s) -> ?", rig.Hit(50.8, "nameplate1", 350, 106) == UNKNOWN)
+        rig = RhythmRig()
+        Burst(rig, 10)
+        Burst(rig, 30)
+        rig.Cast(50, "nameplate2", LEAD) -- no burst follows: the cast leads the rhythm no more
+        rig.Cast(60, "nameplate2", 8092)
+        rig.Cast(70, "nameplate2", LEAD)
+        Check("onset link: a cast with no burst after it drops the link -> the next first tick is ?",
+            rig.Hit(71.5, "nameplate1", 350, 106) == UNKNOWN)
+        rig = RhythmRig()
+        Burst(rig, 10)
+        Burst(rig, 30)
+        rig.ns.Teacher.area = "crowded"
+        rig.Cast(50, "nameplate2", LEAD)
+        Check("onset link: crowded -> no onset route", rig.Hit(51.5, "nameplate1", 350, 106) ~= ICON)
+
         rig = RhythmRig()
         rig.ns.Teacher.area = "crowded"
         for _ = 1, 4 do Wound(rig) end

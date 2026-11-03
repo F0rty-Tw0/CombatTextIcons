@@ -316,9 +316,11 @@ local function ProcWound(plate, school, amount, flagText, now)
     return true
 end
 
--- Draws a hit with a learned rhythm proc's icon and tallies it; returns true.
-local function DrawRhythm(plate, rhythmID, school, amount, flagText)
+-- Draws a hit with a learned rhythm proc's icon and tallies it; returns true. `onsetAt` is the first tick of the
+-- burst the hit belongs to, when known: the onset links learn from it (Procs.Drew).
+local function DrawRhythm(plate, rhythmID, school, amount, flagText, now, onsetAt)
     if ns.Debug then ns.Debug("  -> rhythm %s", ShowValue(rhythmID)) end
+    Procs.Drew(rhythmID, now, onsetAt)
     Drawn(rhythmID, amount)
     Ledger.Add("damage", rhythmID, amount)
     Display.Plate(plate, SpellTexture(rhythmID), HitText(flagText, amount), flagText, school)
@@ -329,12 +331,23 @@ end
 -- Draws a hit whose stream fits a learned rhythm proc (ticks that share no size band) with that row's icon; a
 -- hit before its stream is born is named by a logged cast of the proc's row that its band holds (Procs.NameCast).
 -- `candidates` is Casts.Candidates for the hit. Returns whether it drew.
-local function RhythmWound(plate, stream, school, amount, flagText, candidates)
-    local rhythmID = Teacher.NotCrowded()
-        and (Procs.NameStream(stream) or Procs.NameCast(school, amount, flagText, candidates))
+local function RhythmWound(plate, stream, school, amount, flagText, candidates, now)
+    if not Teacher.NotCrowded() then return false end
+    local rhythmID, onsetAt = Procs.NameStream(stream), stream and stream.birth
+    if not rhythmID then rhythmID, onsetAt = Procs.NameCast(school, amount, flagText, candidates), now end
     if not rhythmID then return false end
 
-    return DrawRhythm(plate, rhythmID, school, amount, flagText)
+    return DrawRhythm(plate, rhythmID, school, amount, flagText, now, onsetAt)
+end
+
+-- Draws a loose hit (no stream took it) that a learned rhythm's onset link names (Procs.NameOnset): the burst's
+-- first tick, at its link's delay after the cast that leads it. Returns whether it drew.
+local function OnsetWound(plate, stream, school, amount, flagText, now)
+    if stream or not Teacher.NotCrowded() then return false end
+    local rhythmID = Procs.NameOnset(school, amount, flagText, now)
+    if not rhythmID then return false end
+
+    return DrawRhythm(plate, rhythmID, school, amount, flagText, now)
 end
 
 -- Draws a loose hit (no stream took it) that pairs with the tick one learned rhythm period before it on the plate
@@ -348,10 +361,10 @@ local function PairWound(plate, stream, school, amount, flagText, candidates, no
         if not Fingerprints.IsLearned(cast.castID) then return false end
     end
     if Casts.TickerAt(plate, now, school) then return false end
-    local rhythmID = Procs.NamePair(Streams.Loose(plate, school), school, amount, flagText, now)
+    local rhythmID, partnerAt = Procs.NamePair(Streams.Loose(plate, school), school, amount, flagText, now)
     if not rhythmID then return false end
 
-    return DrawRhythm(plate, rhythmID, school, amount, flagText)
+    return DrawRhythm(plate, rhythmID, school, amount, flagText, now, partnerAt)
 end
 
 local QueueFlush -- the next frame flushes what waits for its frame's end (below)
@@ -472,7 +485,8 @@ end
 -- the question mark; so does a learned rhythm proc that fits the stream the hit extends or births
 -- (Procs.NameStream), or that a recent cast of its row and the hit's size name before the stream is born
 -- (Procs.NameCast), ranked below the Tracker and Casts; last, below the stack series, one whose tick a period
--- before the hit is still loose on the plate (Procs.NamePair). Solo, a hit on a creature with no threat list that does
+-- before the hit is still loose on the plate (Procs.NamePair), then one whose onset link's cast leads the hit
+-- (Procs.NameOnset: a burst's first tick). Solo, a hit on a creature with no threat list that does
 -- not fight you, which the tracker does not name, waits for its frame's end instead of hiding (Hold, Core.FlushMates).
 -- The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
@@ -560,7 +574,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if solo then
         if ProcWound(plate, school, amount, flagText, now) then return end
         candidates = Casts.Candidates(plate, now, school) -- one list for both: drawing changes no cast log
-        if RhythmWound(plate, stream, school, amount, flagText, candidates) then return end
+        if RhythmWound(plate, stream, school, amount, flagText, candidates, now) then return end
     end
     -- A learned stack spell's tick (Casts.StackTick) takes a hit nothing named on a mob fighting you, after the
     -- streams saw it and, solo, the procs had it: lock2 fight 4, Agony 980's ticks agree with Unstable Affliction's
@@ -577,6 +591,8 @@ local function Wound(plate, unit, flagText, amount, school, now)
     -- A loose tick pairs with the one a learned rhythm period before it only after the stack spells had it: lock3
     -- F2, Unstable Affliction's 7821 (2 stacks x 3258 x 1.2) at 199540.864 sits in Darkglare's band.
     if solo and PairWound(plate, stream, school, amount, flagText, candidates, now) then return end
+    -- A burst's first tick, which no tick a period before pairs, is named by the cast that leads it (onset link).
+    if solo and OnsetWound(plate, stream, school, amount, flagText, now) then return end
     -- A learned DoT's twin (Tracker.Twin) is the last solo route before the question mark: the meter taught its share.
     local twinID = solo and Tracker.Twin(plate, school, amount, flagText, now)
     if twinID then
@@ -856,6 +872,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     end
     local now = GetTime()
     if (unit == "player" or unit == "pet") and Plain(spellID) then
+        Procs.NoteCast(spellID, now) -- a rhythm's onset may follow any cast (a totem's is not harmful)
         local harmful = C_Spell.IsSpellHarmful and C_Spell.IsSpellHarmful(spellID)
         if Plain(harmful) and harmful then
             local plate = Casts.NoteCast(spellID, now, castGUID, unit == "pet")

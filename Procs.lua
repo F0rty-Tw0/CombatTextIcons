@@ -51,6 +51,23 @@ local function Valid(id, entry)
     return lo > 0 and lo <= hi
 end
 
+-- A rhythm's saved onset links (Onset links, below), or nil when none survive: each a cast ID with plain delays and
+-- a burst count.
+local function ValidLinks(links)
+    if not (Plain(links) and type(links) == "table") then return nil end
+    local kept
+    for castID, link in pairs(links) do
+        local ok = IsNumber(castID) and Plain(link) and type(link) == "table" and IsNumber(link.lo) and IsNumber(link.hi)
+            and IsNumber(link.n) and link.lo >= 0 and link.lo <= link.hi and link.n >= 1
+        if ok then
+            kept = kept or {}
+            kept[castID] = { lo = link.lo, hi = link.hi, n = math.floor(link.n) }
+        end
+    end
+
+    return kept
+end
+
 -- Procs.Init(charDB): adopts charDB.procs as the live store, dropping and repairing bad saved data.
 function Procs.Init(charDB)
     if type(charDB.procs) ~= "table" then charDB.procs = {} end
@@ -65,6 +82,7 @@ function Procs.Init(charDB)
             entry.floor = IsNumber(entry.floor) and entry.floor > 0 and entry.floor < entry.lo and entry.floor or nil
             entry.critSeen = entry.critSeen ~= false
             entry.critOnly = entry.critOnly == true or nil
+            entry.onset = entry.period and ValidLinks(entry.onset) or nil
         else
             bad[#bad + 1] = id
         end
@@ -907,7 +925,8 @@ end
 
 -- Procs.NamePair(loose, school, amount, flagText, now): the one learned rhythm entry of the school whose padded band
 -- holds the hit and one loose hit of the plate (Streams.Loose, oldest first) one period before it, within the stream
--- slack, the band's only hit since; nil for none or several. Names a known rhythm's ticks from its second on, where a
+-- slack, the band's only hit since, and that hit's time (the onset links learn from it); nil for none or several.
+-- Names a known rhythm's ticks from its second on, where a
 -- stream is born only on the fourth: run lock3 F2, Darkglare 205231's first beams (199520.955, 199522.823,
 -- 199524.681, 8.5-10.3K, 1.77 s) hit 5 plates each and went by as '?' until the stream at 199526.558. The band is
 -- the size test: the two ticks need not be within SIZE_GUARD of each other. Run lock4 F3: Darkglare's 12322 then
@@ -917,20 +936,159 @@ end
 function Procs.NamePair(loose, school, amount, flagText, now)
     local crit = Procs.Crit(flagText)
     if not (IsNumber(school) and IsNumber(amount) and IsNumber(now)) or crit == nil or school == 1 then return nil end
-    local found
+    local found, foundAt
     for id, entry in pairs(procs) do
         if entry.learned == true and entry.period and entry.school == school and InBand(entry, amount, crit) then
             local slack = Streams.Slack(entry.period)
-            local inBand, partner = 0, false
+            local inBand, partnerAt = 0, nil
             for _, hit in ipairs(loose or {}) do
                 local gap = now - hit.at
                 if gap > 0 and gap <= entry.period + slack and hit.amount and InBand(entry, hit.amount, hit.crit) then
                     inBand = inBand + 1
-                    partner = partner or gap >= entry.period - slack
+                    if gap >= entry.period - slack then partnerAt = partnerAt or hit.at end
                 end
             end
             -- a crowd's in-band hits come denser than one a period
-            if partner and inBand == 1 then
+            if partnerAt and inBand == 1 then
+                if found then return nil end
+                found, foundAt = id, partnerAt
+            end
+        end
+    end
+
+    return found, foundAt
+end
+
+-- Onset links ----------------------------------------------------------------------------------------
+-- A burst's first tick has no tick a period before it (NamePair) and no stream yet, so it drew '?': Surging Totem
+-- 73921's first pulse on 5 plates 1.68-1.79 s after each cast of 444995 (shamanresto F2, F4), Darkglare 205231's
+-- first beams 1.83-1.91 s after each Summon Darkglare 205180 (lock4 F3, F7, F13). A cast that led every burst of a
+-- learned rhythm by one delay is the burst's onset: its link names an in-band hit at that delay (NameOnset). Learned
+-- by watching (Drew): at each burst's start, the casts ONSET_SPAN before its first tick; a link survives only while
+-- every burst finds its cast at its delay again, and a cast with no burst after it in that window drops its link
+-- (Malevolence 442726 came 0.43-0.48 s before each Darkglare onset, yet was cast 11 times to Darkglare's 6).
+-- entry.onset = { [castID] = { lo, hi, n } }: the delays seen and the bursts it led.
+local ONSET_SPAN = 2.5  -- seconds a cast may lead its rhythm's first tick
+local ONSET_SLACK = 0.15 -- seconds a delay may stray from a link's learned delays
+local ONSET_SURE = 2    -- bursts a link must lead before it names a hit
+local BURST_GAP = 3     -- periods with no draw that end a rhythm's burst
+local CAST_KEEP = 12    -- seconds a cast is kept for the links (a burst may start being drawn a stream later)
+
+-- recent = { { id, at }, ... } this session's casts, oldest first; lastDrawn[id] = the rhythm's last draw;
+-- pending = { { id, cast, at }, ... } casts of a link whose burst has not shown yet.
+local recent, lastDrawn, pending = {}, {}, {}
+
+local function Link(id, castID)
+    local entry = procs[id]
+
+    return entry and entry.learned == true and entry.period and entry.onset and entry.onset[castID], entry
+end
+
+-- A pending lead whose window closed with no burst of its rhythm: the cast leads it no more. The window runs to the
+-- stream's birth (the fourth tick) and a period more, the latest a burst's first draw comes.
+local function Expire(now)
+    local kept = {}
+    for _, lead in ipairs(pending) do
+        local link, entry = Link(lead.id, lead.cast)
+        if link and now - lead.at <= link.hi + ONSET_SLACK + (BURST_GAP + 1) * entry.period then
+            kept[#kept + 1] = lead
+        elseif link then
+            entry.onset[lead.cast] = nil
+            if next(entry.onset) == nil then entry.onset = nil end
+        end
+    end
+    pending = kept
+end
+
+-- Procs.NoteCast(castID, now): a cast of the player or the pet, harmful or not (a totem's is not).
+function Procs.NoteCast(castID, now)
+    if not (IsNumber(castID) and IsNumber(now)) then return end
+    Expire(now)
+    local kept = {}
+    for _, cast in ipairs(recent) do
+        if now - cast.at <= CAST_KEEP then kept[#kept + 1] = cast end
+    end
+    kept[#kept + 1] = { id = castID, at = now }
+    recent = kept
+    for id in pairs(procs) do
+        if Link(id, castID) then pending[#pending + 1] = { id = id, cast = castID, at = now } end
+    end
+end
+
+-- The casts ONSET_SPAN before `onsetAt`: castID -> its delay (the nearest cast of an ID).
+local function Leads(onsetAt)
+    local delays = {}
+    for _, cast in ipairs(recent) do
+        local delay = onsetAt - cast.at
+        if delay >= 0 and delay <= ONSET_SPAN then delays[cast.id] = delay end
+    end
+
+    return delays
+end
+
+-- A burst's first tick at `onsetAt`: each cast that leads it counts one more burst for its link at that delay (a
+-- link at another delay starts over), a new one starts a link. A burst no cast leads changes no link: a rhythm whose
+-- targets ran out of reach resumes with no cast (shamanresto F3: 73921 at 265011.190).
+local function Learn(entry, onsetAt)
+    for castID, delay in pairs(Leads(onsetAt)) do
+        entry.onset = entry.onset or {}
+        local link = entry.onset[castID]
+        if link and delay >= link.lo - ONSET_SLACK and delay <= link.hi + ONSET_SLACK then
+            link.lo, link.hi, link.n = math.min(link.lo, delay), math.max(link.hi, delay), link.n + 1
+        else
+            entry.onset[castID] = { lo = delay, hi = delay, n = 1 }
+        end
+    end
+end
+
+-- Procs.Drew(id, now, onsetAt): the rhythm `id` drew a hit at `now`. A draw BURST_GAP periods past its last starts a
+-- burst: its pending leads are met, and `onsetAt` (its first tick: the stream's birth, the pair's partner) teaches
+-- the links; nil (a hit its link named) teaches none.
+function Procs.Drew(id, now, onsetAt)
+    local entry = Procs.Get(id)
+    if not (entry and entry.period and IsNumber(now)) then return end
+    local last = lastDrawn[id]
+    lastDrawn[id] = now
+    if last and now - last <= BURST_GAP * entry.period then return end
+    local first = IsNumber(onsetAt) and onsetAt or now
+    local kept = {}
+    for _, lead in ipairs(pending) do
+        local link = lead.id == id and Link(id, lead.cast)
+        local delay = first - lead.at
+        local met = link and delay >= link.lo - ONSET_SLACK and delay <= link.hi + ONSET_SLACK
+        if not met then kept[#kept + 1] = lead end
+    end
+    pending = kept
+    if not IsNumber(onsetAt) then return end
+    Learn(entry, onsetAt)
+    if ns.Debug then
+        local links = {}
+        for castID, link in pairs(entry.onset or {}) do
+            links[#links + 1] = string.format("%s@%.2f-%.2fx%d", castID, link.lo, link.hi, link.n)
+        end
+        table.sort(links)
+        ns.Debug("TEACH onset %s at %.3f links=%s", id, onsetAt, table.concat(links, " "))
+    end
+end
+
+-- Procs.NameOnset(school, amount, flagText, now): the one learned rhythm entry of the school whose padded band holds
+-- the hit and one of whose sure links (ONSET_SURE bursts) has its cast at its delay before `now`; nil for none or
+-- several.
+function Procs.NameOnset(school, amount, flagText, now)
+    if not (IsNumber(school) and IsNumber(amount) and IsNumber(now)) then return nil end
+    Expire(now)
+    local crit = Procs.Crit(flagText)
+    local found
+    for id, entry in pairs(procs) do
+        if entry.learned == true and entry.period and entry.onset and entry.school == school and InBand(entry, amount, crit) then
+            local led = false
+            for _, cast in ipairs(recent) do
+                local link, delay = entry.onset[cast.id], now - cast.at
+                if link and link.n >= ONSET_SURE and delay >= link.lo - ONSET_SLACK and delay <= link.hi + ONSET_SLACK then
+                    led = true
+                end
+            end
+            if led then
                 if found then return nil end
                 found = id
             end
