@@ -23,6 +23,8 @@ local RHYTHM_STREAK = 2 -- fights a row's rhythm must pair in (gaps allowed) bef
 local TWIN = 0.002     -- two hits of one frame on two plates are one split hit's shares when their sizes differ by at
                        -- most this share
 local SPLITS_MAX = 4   -- extra size bands (splits) a learned size proc keeps
+local SHARES_MAX = 8   -- plates a split proc's rule (Rule) predicts a share size for
+local PREDICT_PAD = 0.02 -- a predicted share size's slack, each way
 
 -- Whether two tick periods are one rhythm.
 local function PeriodNear(a, b)
@@ -41,7 +43,8 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 -- [spellID] = { school, lo, hi, streak, learned, unpaired, seen, period, floor, critSeen }; the saved table itself.
 -- period is set on a rhythm proc only; floor is the lowest cut-short tick seen, kept only below lo. critSeen: a group
 -- that paired the proc's row held a crit (false: none yet, so Name draws no crit; a store saved before it: true).
--- splits: a learned size proc's extra bands { lo, hi, twin } (Split), nil for none.
+-- splits: a learned size proc's extra bands { lo, hi, twin, k } (Split), nil for none. k (the entry's and each split's):
+-- the plates each hit of its band landed on with its like shares (Shares), nil when unknown or mixed.
 local procs = {}
 
 local function Count(value) return IsNumber(value) and value >= 0 and value == math.floor(value) and value or 0 end
@@ -73,8 +76,13 @@ local function ValidLinks(links)
     return kept
 end
 
--- A size proc's saved splits (Split, below), or nil when none survive: each a plain band lo <= hi above 0, and twin
--- true or false.
+-- A saved plate count (Shares, below): a whole number from 1, else nil.
+local function ValidK(k)
+    return IsNumber(k) and k >= 1 and k == math.floor(k) and k or nil
+end
+
+-- A size proc's saved splits (Split, below), or nil when none survive: each a plain band lo <= hi above 0, twin
+-- true or false, and its plate count k or nil.
 local function ValidSplits(splits)
     if not (Plain(splits) and type(splits) == "table") then return nil end
     local kept
@@ -83,7 +91,7 @@ local function ValidSplits(splits)
             and band.lo <= band.hi and #(kept or {}) < SPLITS_MAX
         if ok then
             kept = kept or {}
-            kept[#kept + 1] = { lo = band.lo, hi = band.hi, twin = band.twin == true }
+            kept[#kept + 1] = { lo = band.lo, hi = band.hi, twin = band.twin == true, k = ValidK(band.k) }
         end
     end
 
@@ -106,6 +114,7 @@ function Procs.Init(charDB)
             entry.critOnly = entry.critOnly == true or nil
             entry.onset = entry.period and ValidLinks(entry.onset) or nil
             entry.splits = not entry.period and ValidSplits(entry.splits) or nil
+            entry.k = not entry.period and ValidK(entry.k) or nil
         else
             bad[#bad + 1] = id
         end
@@ -416,6 +425,10 @@ local function Floor(entry) return entry.floor or entry.lo end
 local function SetFloor(entry, floor) entry.floor = floor < entry.lo and floor or nil end
 local function Overlaps(entry, group) return entry.lo * PAD_LO <= group.hi and group.lo * PAD_LO <= entry.hi end
 local function Widens(entry, group) return group.lo < entry.lo or group.hi > entry.hi or (group.floor or group.lo) < Floor(entry) end
+-- A group's plate count (Shares) as a band's own: a plain size group's only.
+local function KOf(group) return not (group.rest or group.drawn or group.critOnly) and group.k or nil end
+-- A band seen again keeps its plate count only when the group's is the same.
+local function SameK(band, group) if band.k ~= KOf(group) then band.k = nil end end
 local function Union(entry, group)
     local floor = math.min(Floor(entry), group.floor or group.lo)
     entry.lo, entry.hi = math.min(entry.lo, group.lo), math.max(entry.hi, group.hi)
@@ -431,6 +444,7 @@ local function Grow(entry, group, sure)
     local sameSchool = entry.school == group.school
     if sameSchool and Overlaps(entry, group) then
         Union(entry, group)
+        SameK(entry, group)
         entry.streak, entry.unpaired = entry.streak + 1, 0
         if entry.streak < LEARN_STREAK and not sure then return "" end
         entry.learned = true
@@ -440,7 +454,7 @@ local function Grow(entry, group, sure)
     entry.unpaired = entry.unpaired + 1
     if sameSchool and entry.streak > 0 and entry.unpaired < UNPAIRED_MAX and not sure then return " miss" end
     entry.school, entry.lo, entry.hi, entry.streak, entry.unpaired = group.school, group.lo, group.hi, 1, 0
-    entry.critSeen, entry.critOnly = group.critCount > 0, group.critOnly
+    entry.critSeen, entry.critOnly, entry.k = group.critCount > 0, group.critOnly, KOf(group)
     SetFloor(entry, group.floor or group.lo)
     if sure then
         entry.learned = true
@@ -464,11 +478,12 @@ local function Split(entry, group, missed)
         if Overlaps(band, group) then
             band.lo, band.hi = math.min(band.lo, group.lo), math.max(band.hi, group.hi)
             band.twin = band.twin and (group.twin or missed == true)
+            if not missed then SameK(band, group) end
             return " split"
         end
     end
     if #splits >= SPLITS_MAX then return nil end
-    splits[#splits + 1] = { lo = group.lo, hi = group.hi, twin = group.twin == true }
+    splits[#splits + 1] = { lo = group.lo, hi = group.hi, twin = group.twin == true, k = KOf(group) }
     entry.splits = splits
 
     return " split"
@@ -520,7 +535,9 @@ local function Step(entry, group, target, sure)
         local plain = not (group.rest or group.drawn or group.critOnly)
         return plain and target.overkill == 0 and Split(entry, group) or nil
     end
-    if not Widens(entry, group) then return nil end
+    local k = entry.k
+    SameK(entry, group)
+    if not Widens(entry, group) then return k ~= entry.k and " k" or nil end
     Union(entry, group)
 
     return " widen"
@@ -556,7 +573,7 @@ local function Apply(target, group, sure)
     if not group then return nil end
     local learned = (group.rest == true or sure == true) and target.overkill == 0
     procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, streak = 1, learned = learned, unpaired = 0, seen = 0,
-        rest = group.rest, critSeen = group.critCount > 0, critOnly = group.critOnly }
+        rest = group.rest, critSeen = group.critCount > 0, critOnly = group.critOnly, k = KOf(group) }
     SetFloor(procs[target.id], group.floor or group.lo)
 
     return learned and " learned" or ""
@@ -815,33 +832,36 @@ local function Whole(hits, ticks, matches, targets)
     return whole
 end
 
--- Whether every normal '?' hit the group holds has a share like it (TWIN) in its frame on another plate, a crit by its
--- normal-scale size: the group is a split hit's shares (Split).
-local function Twinned(hits, group)
+-- The group's shares: for each normal '?' hit it holds, the plates in its frame with a hit like it (TWIN; a crit by its
+-- normal-scale size), its own plate included. Returns whether every normal has another (twin: a split hit's shares,
+-- Split), and k, that plate count when every normal has the same one (nil when they differ or none is held).
+local function Shares(hits, group)
     local function Like(hit, size)
         local other = hit.crit == true and Streams.NormalAmount(hit.amount, "CRITICAL") or hit.amount
         return IsNumber(other) and math.abs(other - size) <= TWIN * size
     end
-    local any = false
+    local twin, k = true, nil
     for _, hit in ipairs(hits) do
         local amount = hit.amount
         local held = hit.crit == false and hit.school == group.school and IsNumber(amount)
             and (group.floor or group.lo) <= amount and amount <= group.hi
         if held then
-            local twin = false
+            local plates, count = {}, 1
+            if hit.at ~= nil and hit.plate ~= nil then plates[hit.plate] = true end
             for _, other in ipairs(hits) do
-                if other ~= hit and other.school == hit.school and hit.at ~= nil and other.at == hit.at
-                    and other.plate ~= hit.plate and Like(other, amount) then
-                    twin = true
-                    break
+                if plates[hit.plate] and other.at == hit.at and other.school == hit.school and other.plate ~= nil
+                    and not plates[other.plate] and Like(other, amount) then
+                    plates[other.plate], count = true, count + 1
                 end
             end
-            if not twin then return false end
-            any = true
+            twin = twin and count >= 2
+            if k ~= nil and k ~= count then k = false end
+            if k == nil then k = count end
         end
     end
+    if k == nil then return false, nil end
 
-    return any
+    return twin, k or nil
 end
 
 -- Read: the size pass, the remainder pass, then the rhythm pass when the fight's streams are given.
@@ -858,7 +878,7 @@ function Procs.Read(hits, open, results, rows, at, ticks, streams)
     for index, target in ipairs(targets) do
         local group, isNew = matches[index], procs[target.id] == nil
         local sure = group ~= nil and target.kind == "open" and target.overkill == 0 and whole[group.school] == true
-        if group then group.twin = Twinned(hits, group) end
+        if group then group.twin, group.k = Shares(hits, group) end
         local suffix = Apply(target, group, sure)
         if suffix then
             local entry = procs[target.id]
@@ -924,9 +944,55 @@ local function Own(entry, amount, crit)
     return size ~= nil and entry.lo <= size and size <= entry.hi
 end
 
--- The entry's split band (Split) whose padded range holds the hit, twin bands only for a hit with a twin in its frame
--- (`twin`), and whether that band's own sizes hold it; nil when none does.
+-- The share size a split proc lands on k plates, from its bands' plate counts (Shares): each hit's damage d spread
+-- over k plates with a bonus per plate past the first lands total T(k) = a + b x k, a share of a / k + b. Two bands of
+-- distinct k fix a and b; every other band must sit on that line within PREDICT_PAD, else nil (no rule). Run priest4:
+-- 1291657 learned 62639 on 2 plates (F3) and 45774 on 4 (F10): a 67460, b 28909, and alone 96369 (F15 hit 96370).
+local function Rule(entry)
+    local points = {}
+    if entry.k then points[1] = { k = entry.k, size = (entry.lo + entry.hi) / 2 } end
+    for _, band in ipairs(entry.splits or {}) do
+        if band.k then points[#points + 1] = { k = band.k, size = (band.lo + band.hi) / 2 } end
+    end
+    local first, second
+    for _, point in ipairs(points) do
+        if not first then first = point elseif not second and point.k ~= first.k then second = point end
+    end
+    if not second then return nil end
+    local a = (first.size - second.size) / (1 / first.k - 1 / second.k)
+    local b = first.size - a / first.k
+    if a <= 0 then return nil end
+    for _, point in ipairs(points) do
+        if math.abs(a / point.k + b - point.size) > PREDICT_PAD * point.size then return nil end
+    end
+
+    return a, b, points
+end
+
+-- Whether the hit fits a share size the entry's rule (Rule) gives for a plate count no band has seen, within
+-- PREDICT_PAD: alone (k 1) any hit, on 2..SHARES_MAX plates only one with a twin in its frame. A crit by its
+-- normal-scale size.
+local function Predicted(entry, amount, crit, twin)
+    if not (entry.k or entry.splits) then return false end
+    local a, b, points = Rule(entry)
+    if not a then return false end
+    local size = crit and Streams.NormalAmount(amount, "CRITICAL") or amount
+    if size == nil then return false end
+    for k = 1, twin and SHARES_MAX or 1 do
+        local seen = false
+        for _, point in ipairs(points) do seen = seen or point.k == k end
+        local share = a / k + b
+        if not seen and share > 0 and math.abs(size - share) <= PREDICT_PAD * share then return true end
+    end
+
+    return false
+end
+
+-- Whether the hit fits the entry's rule (Predicted, its own size then) or a split band (Split) whose padded range holds
+-- it, twin bands only for a hit with a twin in its frame (`twin`), and whether that band's own sizes hold it; nil when
+-- none does.
 local function SplitFits(entry, amount, crit, twin)
+    if crit ~= nil and Predicted(entry, amount, crit, twin) then return true, true end
     for _, band in ipairs(entry.splits or {}) do
         if twin or not band.twin then
             local lo, hi = band.lo * PAD_LO, band.hi * PAD_HI

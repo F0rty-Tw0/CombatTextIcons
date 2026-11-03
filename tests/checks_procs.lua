@@ -57,8 +57,8 @@ return function(T)
                 [24] = { school = 8, lo = 100, hi = 120, floor = 40 },
                 [25] = { school = 8, lo = 100, hi = 120, floor = 100 },
                 [26] = { school = 8, lo = 100, hi = 120, floor = "x" },
-                [27] = { school = 8, lo = 100, hi = 120, learned = true, splits = { { lo = 60, hi = 62, twin = true },
-                    { lo = 9, hi = 3 }, "x", { lo = 0, hi = 5 }, { lo = 200, hi = Secret(210) }, { lo = 300, hi = 310, twin = "yes" } } },
+                [27] = { school = 8, lo = 100, hi = 120, learned = true, k = 2.5, splits = { { lo = 60, hi = 62, twin = true, k = 3 },
+                    { lo = 9, hi = 3 }, "x", { lo = 0, hi = 5 }, { lo = 200, hi = Secret(210) }, { lo = 300, hi = 310, twin = "yes", k = 0 } } },
                 [28] = { school = 8, lo = 100, hi = 120, splits = "junk" },
                 [29] = { school = 8, lo = 100, hi = 120, period = 2, splits = { { lo = 60, hi = 62 } } },
             } }
@@ -75,6 +75,8 @@ return function(T)
         Check("procs load: splits keep only plain bands lo <= hi above 0, twin true or false; junk splits and a rhythm's go",
             kept and #kept == 2 and kept[1].lo == 60 and kept[1].hi == 62 and kept[1].twin == true and kept[2].lo == 300
             and kept[2].twin == false and procs[28].splits == nil and procs[29].splits == nil and procs[10].splits == nil)
+        Check("procs load: a plate count k is kept only as a whole number from 1 (3 kept; 2.5 and 0 dropped)",
+            kept[1].k == 3 and kept[2].k == nil and procs[27].k == nil)
         Check("procs load: a floor is kept only as a number under lo (40 kept; 100 = lo and 'x' dropped)",
             procs[24].floor == 40 and procs[25].floor == nil and procs[26].floor == nil)
         Check("procs load: a valid learned entry is kept as saved",
@@ -459,6 +461,23 @@ return function(T)
         Check("procs read split: a row paired under by a share its split meets grows the split, twin kept; the base stays",
             Is(missed[7], 106, 7104, 7104, 3, true) and missed[7].floor == nil and missed[7].splits[1].lo == 3880
             and missed[7].splits[1].twin == true)
+        -- run priest4: 1291657 learned 62639 on 2 plates (a normal and a crit), then 45774 on each of 4 (F10)
+        local based = Once({ At(N(8, 62639), 5, "p1"), At(C(8, 125280), 5, "p2") }, { { id = 9, total = 187919 } })
+        Check("procs read split: a new entry keeps the plates its shares landed on (k 2: a normal and a crit's normal size)",
+            based[9] ~= nil and based[9].k == 2 and based[9].lo == 62639)
+        local four = Once({ At(N(8, 45774), 5, "p1"), At(N(8, 45774), 5, "p2"), At(N(8, 45774), 5, "p3"), At(N(8, 45777), 5, "p4") },
+            { { id = 9, total = 183099 } }, function(procs) procs[9] = Entry(8, 62639, 62639, 1, true) procs[9].k = 2 end)
+        Check("procs read split: four like shares in one frame make a twin split of k 4",
+            four[9].splits and four[9].splits[1].k == 4 and four[9].splits[1].twin == true and four[9].k == 2)
+        local mixed = Once({ At(N(8, 45774), 5, "p1"), At(N(8, 45774), 5, "p2"), At(N(8, 45775), 6, "p1") },
+            { { id = 9, total = 3 * 45774 + 1 } }, function(procs) procs[9] = Entry(8, 62639, 62639, 1, true) procs[9].k = 2 end)
+        Check("procs read split: shares on 2 plates and one alone: a lone split with no plate count",
+            mixed[9].splits and mixed[9].splits[1].k == nil and mixed[9].splits[1].twin == false)
+        local _, _, again = Once({ At(N(8, 62639), 7, "p1") }, { { id = 9, total = 62639 } }, function(procs)
+            procs[9] = Entry(8, 62639, 62639, 1, true) procs[9].k = 2
+        end)
+        Check("procs read split: the base band seen alone (k 1, not 2) loses its plate count: no rule from a fixed size",
+            again[1] == "TEACH proc 9 school=8 band=62639-62639 streak=1 k")
         local unlearned = Once({ N(106, 5500) }, { { id = 7, total = 5500 } }, Seed(7, 106, 339, 364, 2))
         Check("procs read split: a candidate off its band restarts as before, no split",
             unlearned[7].splits == nil and unlearned[7].lo == 5500)
@@ -658,6 +677,16 @@ return function(T)
             Name(1, 96370, "") == 1276284 and Name(1, 96370, "", true) == 1276284 and Name(1, 7104, "") == 1276284
             and Name(1, 60000, "") == nil)
         procs[1276284].splits = nil
+        -- run priest4: 1291657 learned 62639 on 2 plates and 45774-45777 on 4; its rule (a / k + b) gives 96369 alone
+        -- (F15 hit 96370) and 51396 on 3 plates
+        procs[1291657] = Entry(8, 62639, 62639, 1, true)
+        procs[1291657].k, procs[1291657].splits = 2, { { lo = 45774, hi = 45777, twin = true, k = 4 } }
+        Check("procs name split rule: a share size no band saw names within 2 %: alone (96370) any hit, on 3 plates a twin",
+            Name(8, 96370, "") == 1291657 and Name(8, 192740, "CRITICAL") == 1291657 and Name(8, 51396, "", true) == 1291657
+            and Name(8, 51396, "") == nil and Name(8, 100088, "") == nil and Name(8, 93000, "") == nil)
+        procs[1291657].splits[2] = { lo = 30000, hi = 30000, twin = true, k = 3 }
+        Check("procs name split rule: a band off the line (30000 on 3 plates) leaves no rule", Name(8, 96370, "") == nil)
+        procs[1291657] = nil
         -- a rhythm entry's band (Procs.NamePair) takes the same floor: a 1620 crit (0.81 of 1000 halved) is no tick of
         -- it, so the normal one period back is the band's only hit
         local rhythm = Rig()
