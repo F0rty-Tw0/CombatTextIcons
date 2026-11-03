@@ -443,6 +443,29 @@ return function(T)
         TrainRead(H, { 85673 }, { size = function(tick) return tick % 2 == 0 and 721 or 720 end })
         Check("trains: ticks all of one size (a castless proc's) are no cast's train", not H.IsTrainLearned(85673))
 
+        -- hunter: Exhilaration heals 87925 on its stamp, then 4396 (1/20 of it) each tick under its own row
+        local EXHILARATION = 109304
+        local function Tail(tick) return tick % 2 == 0 and 4397 or 4396 end
+        ns = T.Boot()
+        H = ns.Heals
+        TrainRead(H, { EXHILARATION }, { direct = 87925, ticks = 6, size = Tail })
+        Check("tails: one walk of one size after a direct heal teaches nothing yet",
+            not H.IsTrainLearned(EXHILARATION) and T.Store().healTrains[EXHILARATION].walks[1].share ~= nil)
+        TrainRead(H, { EXHILARATION }, { direct = 87925, ticks = 6, size = Tail })
+        H.Cast(EXHILARATION, 100)
+        local head = H.Claim({ EXHILARATION }, { { size = 87925 } }, nil, 100)
+        Check("tails: two walks of one size at one share of the direct heal teach its tail under its row",
+            H.IsTrainLearned(EXHILARATION) and head[1] == EXHILARATION
+            and H.Claim({}, { { size = 4396 } }, nil, 101.5)[1] == EXHILARATION
+            and H.Claim({}, { { size = 4397 } }, nil, 103)[1] == EXHILARATION)
+
+        -- a rune of 720 ticking after a direct heal that heals 60000, then 80000: no one share
+        ns = T.Boot()
+        H = ns.Heals
+        TrainRead(H, { 85673 }, { direct = 60000, size = function(tick) return tick % 2 == 0 and 721 or 720 end })
+        TrainRead(H, { 85673 }, { direct = 80000, size = function(tick) return tick % 2 == 0 and 721 or 720 end })
+        Check("tails: one-size walks after a direct heal at shares that differ are no tail", not H.IsTrainLearned(85673))
+
         ns = T.Boot()
         H = ns.Heals
         TrainRead(H, { TIDE }, { filler = true })
@@ -571,6 +594,9 @@ return function(T)
                     ticks = 8, luck = 1e-6 } } },
                 [1267068] = { row = 1267068, walks = { { with = {}, period = 1.5, size = 10500, low = 9600,
                     high = 11700, ticks = 8, luck = -1 } } },
+                [109304] = { row = 109304, walks = { { with = {}, period = 1, size = 4396, low = 4396, high = 4397,
+                    ticks = 6, share = 0.05 }, { with = {}, period = 1, size = 4396, low = 4396, high = 4397, ticks = 6,
+                    share = 2 } } },
             } }
         end)
         local saved = T.Store().healTrains
@@ -581,6 +607,8 @@ return function(T)
         Check("trains: saved trains with a bad row or junk are dropped", saved[TOTEM] == nil and saved[CHAIN_HEAL] == nil)
         Check("trains: a saved train keeps its valid walks, each with only valid IDs", #saved[77472].walks == 2
             and saved[77472].walks[2].with[1] == CHAIN_HEAL and #saved[77472].walks[2].with == 1)
+        Check("tails: a saved walk keeps a share from 0 to 1; a walk with another share is dropped; none is no share",
+            #saved[109304].walks == 1 and saved[109304].walks[1].share == 0.05 and saved[TIDE].walks[1].share == nil)
     end
 
     do -- the saved store is checked, never trusted

@@ -44,7 +44,8 @@
 -- the cast's counted casts, learn it under the cast's heal row (else its base's); then each cast starts the train,
 -- and its due ticks are that row's. A cast with neither row takes the read's one heal row that is also a damage row
 -- of no cast's ID, once a walk's ticks share their frames with the fight's hits beyond luck: Healing Rain (casts
--- 444995 base 73920 and 1298679, row 73921) heals you and hits the mobs on each tick.
+-- 444995 base 73920 and 1298679, row 73921) heals you and hits the mobs on each tick. A direct heal learns no train
+-- but its tail: ticks of one size at one share of the heal on its cast's stamp (Tails, hunter's Exhilaration).
 -- Kept apart from the damage stores: an ID can be both a damage and a heal row (Healing Rain 73921).
 -- Saved data is checked on load and never trusted.
 
@@ -107,6 +108,11 @@ local WALK_ALPHA = 0.01 -- a walk luck alone gives this often or less is a train
 local PERIOD_TOL, AGREE = 0.1, 2
 local TRAIN_LUCK, TRAIN_SHARE = WALK_ALPHA * WALK_ALPHA, 0.6
 local TRAIN_CAP = 32    -- casts kept; the one seen least recently goes first
+-- Tails: a direct heal that also heals you over time ticks one size, a fixed share of the heal on its cast's stamp
+-- (hunter's Exhilaration 109304 heals 87925, then 4396 each second, 1/20 of it, under its own row). A walk of one size
+-- is a castless proc's as often (Fixed sizes), so a tail learns from TAIL_WALKS walks whose shares agree within
+-- SHARE_TOL: a proc's size over a direct heal that varies gives no one share.
+local TAIL_WALKS, SHARE_TOL = 2, 0.01
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -554,10 +560,12 @@ local function TickAt(sorted, due, size)
 end
 
 -- The walk of a cast at `at` from its first tick `first` (a period after the cast): { period, size (the middle
--- tick), low, high, ticks, ats = the ticks' stamps }. Nil when a tick of its size was due a period before the cast (a train already running:
--- a rune's, a totem cast before), or when its ticks are all one size: a castless proc's (Fixed sizes), and paladin's
--- Word of Glory starts a 720 rune train under the rune's ID (1287665).
-local function WalkFrom(sorted, at, first)
+-- tick), low, high, ticks, ats = the ticks' stamps, share }. Nil when a tick of its size was due a period before the
+-- cast (a train already running: a rune's, a totem cast before), or when its ticks are all one size: a castless
+-- proc's (Fixed sizes), and paladin's Word of Glory starts a 720 rune train under the rune's ID (1287665). A direct
+-- heal's stamp (`head`, its largest heal; nil: none or no direct heal's stamp) keeps a one-size walk as its tail, with
+-- `share` its tick size over the head (Tails).
+local function WalkFrom(sorted, at, first, head)
     local period = first.at - at
     if TickAt(sorted, at - period, first.size) then return nil end
     local sizes, ats, last, k, misses = { first.size }, { first.at }, first, 1, 0
@@ -571,16 +579,20 @@ local function WalkFrom(sorted, at, first)
         end
     end
     table.sort(sizes)
-    if sizes[#sizes] - sizes[1] <= 2 * SIZE_TOL then return nil end
+    local size, share = sizes[math.ceil(#sizes / 2)], nil
+    if sizes[#sizes] - sizes[1] <= 2 * SIZE_TOL then
+        if not (head and head > size) then return nil end
+        share = size / head
+    end
 
-    return { period = (last.at - at) / k, size = sizes[math.ceil(#sizes / 2)], low = sizes[1], high = sizes[#sizes],
-        ticks = #sizes, ats = ats }
+    return { period = (last.at - at) / k, size = size, low = sizes[1], high = sizes[#sizes], ticks = #sizes,
+        ats = ats, share = share }
 end
 
 -- A cast's longest walk of TRAIN_TICKS or more that luck alone gives WALK_ALPHA often at most (walk.luck), else nil.
 -- Luck: any of the heals a period range after the cast may be the first tick, then each later tick is a heal of its
--- size inside its 2 x SLACK window, at the fight's rate of heals that size.
-local function Walk(sorted, at, duration)
+-- size inside its 2 x SLACK window, at the fight's rate of heals that size. `head`: WalkFrom's.
+local function Walk(sorted, at, duration, head)
     local best, firsts = nil, 0
     for index = From(sorted, at), #sorted do
         local heal = sorted[index]
@@ -588,7 +600,7 @@ local function Walk(sorted, at, duration)
         if period > PERIOD_HI then break end
         if period >= PERIOD_LO then
             firsts = firsts + 1
-            local walk = WalkFrom(sorted, at, heal)
+            local walk = WalkFrom(sorted, at, heal, head)
             if walk and walk.ticks >= TRAIN_TICKS and (not best or walk.ticks > best.ticks) then best = walk end
         end
     end
@@ -630,12 +642,13 @@ end
 -- heals or casts of the same row (shamanheal casts each totem with Chain Heal on its stamp: the totem's walks count
 -- once Chain Heal, cast alone too, has samples; Chain Heal's walks on those stamps never count). Of twins of one row
 -- only the lower ID learns, so one train runs per cast (Healing Rain: 444995). Learned when its agreeing walks' lucks
--- multiply to TRAIN_LUCK at most, they are TRAIN_SHARE of its counted casts, it has a heal row and it is no direct
--- heal itself. Its tick count is the agreeing
+-- multiply to TRAIN_LUCK at most, they are TRAIN_SHARE of its counted casts and it has a heal row. A direct heal
+-- learns only its tail (Tails): TAIL_WALKS walks or more whose shares agree. Its tick count is the agreeing
 -- walks' median: a walk can run on into the next cast's ticks or a foreign heal (synthetic Renew 139 walked 8, 9, 13
 -- and 16 ticks; the longest claimed a foreign heal two periods past its 8th tick).
 local function Judge(castID, entry)
-    if not entry.row or Direct(castID) then return nil end
+    if not entry.row then return nil end
+    local direct = Direct(castID)
     local function Same(other) return trains[other] ~= nil and trains[other].row == entry.row end
     for _, other in ipairs(entry.walks[1] and entry.walks[1].with or {}) do
         if other < castID and Same(other) and Twins(castID, other) then return nil end
@@ -646,7 +659,7 @@ local function Judge(castID, entry)
         for _, other in ipairs(walk.with) do alone = alone and (Direct(other) or Same(other)) end
         if alone then
             counted = counted + 1
-            if walk.period then walks[#walks + 1] = walk end
+            if walk.period and (walk.share ~= nil) == direct then walks[#walks + 1] = walk end
         end
     end
     local best
@@ -654,13 +667,14 @@ local function Judge(castID, entry)
         local group = {}
         for _, walk in ipairs(walks) do
             if math.abs(walk.period - center.period) <= PERIOD_TOL
-                and math.max(walk.size, center.size) <= AGREE * math.min(walk.size, center.size) then
+                and math.max(walk.size, center.size) <= AGREE * math.min(walk.size, center.size)
+                and (not direct or math.abs(walk.share - center.share) <= SHARE_TOL * center.share) then
                 group[#group + 1] = walk
             end
         end
         if not best or #group > #best then best = group end
     end
-    if not best or #best < TRAIN_SHARE * counted then return nil end
+    if not best or #best < TRAIN_SHARE * counted or (direct and #best < TAIL_WALKS) then return nil end
     local luck = 1
     for _, walk in ipairs(best) do luck = luck * (walk.luck or WALK_ALPHA) end
     if luck > TRAIN_LUCK then return nil end
@@ -720,8 +734,9 @@ end
 -- tick, under one ID. shamanheal's Healing Rain (444995 base 73920 with 1298679, row 73921) heals you in 9-15 ticks
 -- each 1.7 s, its walks luck 1e-7 or less, and 73921 is a damage row too: its nature hits on the mobs share the
 -- ticks' frames (279267.757: a 5641 heal and five hits of 11.6-23.7K).
--- Returns the cast IDs counted.
-local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt)
+-- A stamp whose casts are all direct heals walks with its largest heal no learned size names (`largest`) as the head
+-- of a tail (WalkFrom). Returns the cast IDs counted.
+local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest)
     local sorted, stamped, struck, rate = {}, {}, 0, 0
     for _, heal in ipairs(fightHeals) do
         if IsNumber(heal.size) and heal.size > 0 and IsNumber(heal.at) then
@@ -748,7 +763,9 @@ local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt)
     end
     local counted = {}
     for _, at in ipairs(order) do
-        local walk = Walk(sorted, at, duration) or {}
+        local direct = true
+        for _, castID in ipairs(stamps[at]) do direct = direct and Direct(castID) end
+        local walk = Walk(sorted, at, duration, direct and largest[at] or nil) or {}
         local pulse = dual and walk.ats and Pulses(walk, hitAt, rate) and dual or nil
         for _, castID in ipairs(stamps[at]) do
             local entry = trains[castID]
@@ -764,7 +781,7 @@ local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt)
                 if other ~= castID then with[#with + 1] = other end
             end
             table.insert(entry.walks, { with = with, period = walk.period, size = walk.size, low = walk.low,
-                high = walk.high, ticks = walk.ticks, luck = walk.luck })
+                high = walk.high, ticks = walk.ticks, luck = walk.luck, share = walk.share })
             if #entry.walks > SAMPLES then table.remove(entry.walks, 1) end
             entry.seen = reads
             counted[#counted + 1] = castID
@@ -831,7 +848,7 @@ function Heals.Learn(fightHeals, helps, rows, duration, drawn, damage)
             counted[#counted + 1] = spellID
         end
     end
-    local walked = LearnTrains(fightHeals, helps, own, duration, damage, hitAt)
+    local walked = LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest)
     Ready()
     if not ns.Debug then return end
     local told = {}
@@ -912,7 +929,8 @@ end
 
 -- Keeps a saved counted cast with a list of the other casts' IDs (junk IDs dropped) and, when it walked, positive
 -- finite sizes low <= size <= high, a positive period and a whole tick count; drops the rest. A luck outside 0 to
--- WALK_ALPHA is dropped alone: the walk then counts as WALK_ALPHA.
+-- WALK_ALPHA is dropped alone: the walk then counts as WALK_ALPHA. A tail's share (none in older saves) is from 0 to 1,
+-- else the walk is dropped.
 local function ValidWalk(walk)
     if type(walk) ~= "table" or type(walk.with) ~= "table" then return nil end
     local with = {}
@@ -924,11 +942,12 @@ local function ValidWalk(walk)
         and walk.low <= walk.size and walk.size <= walk.high and IsCount(walk.ticks) and walk.ticks > 0) then
         return nil
     end
+    if walk.share ~= nil and not (Positive(walk.share) and walk.share < 1) then return nil end
 
     local luck = IsNumber(walk.luck) and walk.luck >= 0 and walk.luck <= WALK_ALPHA and walk.luck or nil
 
     return { with = with, period = walk.period, size = walk.size, low = walk.low, high = walk.high, ticks = walk.ticks,
-        luck = luck }
+        luck = luck, share = walk.share }
 end
 
 -- Keeps a saved train with a valid row (or none yet) and its valid counted casts (the newest SAMPLES); drops the rest.
