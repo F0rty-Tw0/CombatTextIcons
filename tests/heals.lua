@@ -11,8 +11,9 @@
 -- named + ? + hidden + out = 100 %.
 --   wrong    named under an ID no player cast ties to (Ties) in that ID's life before the heal (or 0.01 s after: a
 --            cast on the same stamp later in the line order), under a castless proc's ID (TRUTH sizes) at another
---            size, or under an ID that is no "TEACH heal" row anywhere in that log (strict orphan); a share of the
---            raw amount, inside named
+--            size, or under an ID that is no meter row anywhere in that log, heal ("TEACH heal") or damage ("TEACH
+--            row") (strict orphan); a share of the raw amount, inside named. A damage row counts: shamanresto's
+--            Healing Rain heals land under 73921, which that log's meter shows only as a damage row
 --   control  named on a party unit in a log whose player heals nobody but itself (not `healer`): an ally's heal, so
 --            anything here is wrong; a share of the raw amount, must stay 0
 -- The meter's heal rows are EFFECTIVE healing on every target, the HEAL lines RAW healing on player and party: the two
@@ -126,15 +127,19 @@ local function AddTime(times, id, t)
 end
 
 -- What the log itself says: casts[id] = the times of its "CAST player <id>" lines, ties[id] = the times of the casts
--- that tie a heal drawn under id (Ties), meter[id] = its "TEACH heal <id>" rows summed over the reads, raw = the
--- summed amount of its HEAL lines on the player or a party unit.
+-- that tie a heal drawn under id (Ties), meter[id] = its "TEACH heal <id>" rows summed over the reads, damage[id] =
+-- true when a "TEACH row <id>" damage row names it, raw = the summed amount of its HEAL lines on the player or a
+-- party unit.
 local function LogFacts(lines)
-    local facts = { casts = {}, ties = {}, meter = {}, raw = 0, heals = 0 }
+    local facts = { casts = {}, ties = {}, meter = {}, damage = {}, raw = 0, heals = 0 }
     for _, line in ipairs(lines) do
         local t, castID = line:match("^([%d%.]+) CAST player (%d+)")
         local healID, meter = line:match("^[%d%.]+ TEACH heal (%d+) meter=(%d+) ")
+        local damageID = line:match("^[%d%.]+ TEACH row (%d+) ")
         local unit, amount = line:match("^[%d%.]+ HEAL (%S+) school=%d+ amount=(%d+) ")
-        if castID then
+        if damageID then
+            facts.damage[tonumber(damageID)] = true
+        elseif castID then
             castID, t = tonumber(castID), tonumber(t)
             AddTime(facts.casts, castID, t)
             for _, id in ipairs(Ties(castID, line:match(" base=(%S+)"))) do AddTime(facts.ties, id, t) end
@@ -177,7 +182,7 @@ local function ScoreHeals(heals, facts, healer, into)
                 into.named, stat.named = into.named + amount, stat.named + amount
                 local tied = TRUTH[id] and TRUTH[id].sizes and TrueSize(id, amount, heal.event.flag)
                     or CastWithin(facts.ties[id], id, heal.event.t)
-                if not facts.meter[id] or not tied then
+                if not (facts.meter[id] or facts.damage[id]) or not tied then
                     into.wrong, stat.wrong = into.wrong + amount, stat.wrong + amount
                 end
                 if not healer and unit ~= "player" then
@@ -201,7 +206,7 @@ local function AddHeals(into, score)
 end
 
 do -- self-check: casts of 10 at 100; rows 10; heals of 100 each on the player unless said
-    local facts = { ties = { [10] = { 100 } }, meter = { [10] = 1 }, raw = 800, heals = 8 }
+    local facts = { ties = { [10] = { 100 } }, meter = { [10] = 1 }, damage = {}, raw = 800, heals = 8 }
     local function Heal(t, texture, unit) return { event = { t = t, unit = unit or "player", amount = 100 },
         shown = texture ~= false and { texture = texture } or nil } end
     local heals = { Heal(101, "tex:10"), Heal(100 + WINDOW + 0.02, "tex:10"), Heal(101, "tex:20"), Heal(101, 134400),
@@ -214,8 +219,8 @@ do -- self-check: casts of 10 at 100; rows 10; heals of 100 each on the player u
         "heals self-check: a cast WINDOW + 0.02 s before is wrong (0.005 s after is not), an ID with no row is wrong")
     assert(check.control == 100 and check.byID[10].control == 100, "heals self-check: a named party heal is control")
     local healer = NewHeals("healer")
-    ScoreHeals({ Heal(101, "tex:10", "party1") }, { ties = facts.ties, meter = facts.meter, raw = 300, heals = 3 },
-        true, healer)
+    ScoreHeals({ Heal(101, "tex:10", "party1") }, { ties = facts.ties, meter = facts.meter, damage = {}, raw = 300,
+        heals = 3 }, true, healer)
     assert(healer.control == 0 and healer.wrong == 0 and healer.out == 200,
         "heals self-check: a healer's party heal is no control; heals the replay never saw are out")
     local tied = LogFacts({ "100.000 CAST player 77472 base=8004,8004", "200.000 CAST player 444995 base=73920,73920",
@@ -226,11 +231,16 @@ do -- self-check: casts of 10 at 100; rows 10; heals of 100 each on the player u
         tied, false, truth)
     assert(truth.named == 400 and truth.wrong == 100 and truth.byID[1064].wrong == 100,
         "heals self-check: a cast ties its base= IDs and TRUTH's rows; a direct heal's cast 1 s before is wrong")
+    local damageOnly = NewHeals("damage only")
+    ScoreHeals({ Heal(101, "tex:30") }, LogFacts({ "100.000 CAST player 30 base=30",
+        "1.0 TEACH row 30 total=1 overkill=0 override=30" }), false, damageOnly)
+    assert(damageOnly.named == 100 and damageOnly.wrong == 0,
+        "heals self-check: a tied heal under an ID the log's meter shows only as a damage row is right")
     local function Sized(amount, flag) return { event = { t = 500, unit = "player", amount = amount, flag = flag },
         shown = { texture = "tex:1287908" } } end
     local castless = NewHeals("castless")
     ScoreHeals({ Sized(5764), Sized(11526, "CRITICAL"), Sized(5000) },
-        { ties = {}, meter = { [1287908] = 1 }, raw = 22290, heals = 3 }, false, castless)
+        { ties = {}, meter = { [1287908] = 1 }, damage = {}, raw = 22290, heals = 3 }, false, castless)
     assert(castless.named == 22290 and castless.wrong == 5000,
         "heals self-check: a castless proc named at its size (a crit twice it) is right with no cast; another size is wrong")
 end
