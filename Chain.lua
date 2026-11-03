@@ -9,7 +9,10 @@
 -- in the window, then each hop the oldest like-sized hit on a new plate within Casts.CHAIN_GAP of the last,
 -- Casts.CHAIN_MAX hits at most, but here in a later frame only: a burst on every plate in one frame (Earthquake's
 -- ticks, Voltaic Blaze) is no chain. The hops must beat luck: each tried hop finds one by luck with the fight's share
--- of hits that a like hit on another plate follows that way (0.22 in fight 1), Poisson tail times the seeds tried.
+-- of hits that a like hit on another plate follows that way (0.22 in fight 1), binomial tail of the hops over the
+-- tries, times the seeds tried. Not Poisson: in a dense area the share is high and Poisson lets hops run past the
+-- tries. shaman6 F1: Earthquake and overloads around 5 dummies put the share at 0.40, and Chain Lightning 188443's 17
+-- hops of 18 tries came out luck 0.061 under Poisson (0.0013 times 47 seeds), 9e-05 under the binomial.
 -- The meter bounds from below only: the hits the chained walks take (D) are at most the row. The row holds more than
 -- the walks can take (the overload chains, the instant casts, the hops on mobs with no plate), so row - D bounds
 -- nothing: fight 1 walks 5 chains (D 527541) and row - D is 2.02M, past the fight's unseen damage (1.90M). Learned,
@@ -103,16 +106,17 @@ local function Best(casts, lists, rates, at)
     end
     local best, luck = nil, nil
     for _, seed in ipairs(seeds) do
-        local walks, chained, hops, expected = {}, 0, 0, 0
+        local walks, chained, hops, tried = {}, 0, 0, 0
         for index, cast in ipairs(casts) do
             local walk = Walk(cast, seed.school, seed.low, lists[seed.school], at)
             walks[index] = walk
             if #walk.hits - 1 >= MIN_HOPS then chained = chained + 1 end
             hops = hops + math.max(0, #walk.hits - 1)
-            expected = expected + walk.tried * rates[seed.school]
+            tried = tried + walk.tried
         end
+        local expected = tried * rates[seed.school]
         if chained >= MIN_CASTS then
-            local p = math.min(1, ns.Learn.PoissonTail(expected, hops) * #seeds)
+            local p = math.min(1, ns.Learn.BinomialTail(tried, rates[seed.school], hops) * #seeds)
             if p > ALPHA then
                 luck = math.min(luck or p, p)
             elseif not best or p < best.p then

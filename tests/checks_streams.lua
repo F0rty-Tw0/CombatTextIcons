@@ -474,6 +474,9 @@ return function(T)
         Check("poisson: HoT, 3 votes at expected 0.438 = 0.0101, just above ALPHA", Learn.PoissonTail(0.438, 3) > 0.01
             and Near(Learn.PoissonTail(0.438, 3), 0.0101, 0.0002))
         Check("poisson: 0 votes -> 1, no expectation and 1 vote -> 0", Learn.PoissonTail(0.5, 0) == 1 and Learn.PoissonTail(0, 1) == 0)
+        Check("binomial: P(Bin(18, 0.4) >= 17) = 1.92e-06; P(Bin(10, 0.5) >= 5) = 0.623; past the tries 0, none 1",
+            Near(Learn.BinomialTail(18, 0.4, 17), 1.924e-06, 1e-09) and Near(Learn.BinomialTail(10, 0.5, 5), 0.623, 0.001)
+            and Learn.BinomialTail(4, 0.9, 5) == 0 and Learn.BinomialTail(4, 0.1, 0) == 1)
 
         -- Learn.Haste
         local S = T.State()

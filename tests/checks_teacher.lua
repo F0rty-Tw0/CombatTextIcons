@@ -3244,6 +3244,33 @@ return function(T)
         ChainFight(rig, { 10, 20, 30, 40, 50 }, { Row(CHAIN_LIGHTNING, 150000), Row(OTHER_ROW, 600000) })
         Check("chain (b): the chains (271000) over the own row (150000) -> nothing learned",
             Outcome() == "over" and not rig.ns.Fingerprints.IsLearned(CHAIN_LIGHTNING))
+
+        -- shaman6 F1: Earthquake and overloads around 5 dummies made a like hop follow 40 % of the hits, and the
+        -- chains' 17 hops of 18 tries came out luck under Poisson. Here 5 casts hop over 5 plates (20 hops of 20
+        -- tries) among 25 pairs of like hits 0.05 s apart on two plates: 45 of the 75 hits are followed (0.6).
+        -- Poisson(12) >= 20 is 0.021, past ALPHA; the binomial 0.6^20 is 3.7e-05.
+        rig = Rig({})
+        local S, Core = rig.S, rig.ns.Core
+        SlashCmdList.COMBATTEXTICONS("debug")
+        S.now = 8
+        Core.PLAYER_REGEN_DISABLED()
+        for index, t in ipairs({ 10, 20, 30, 40, 50 }) do
+            rig.Cast(t, "nameplate1", CHAIN_LIGHTNING)
+            local crit = index % 2 == 0
+            rig.Hit(t + 0.2, "nameplate1", crit and 36000 or 11000, 8, crit and "CRITICAL" or nil)
+            for hop = 2, 5 do rig.Hit(t + 0.1 + 0.1 * hop, "nameplate" .. hop, 11000, 8) end
+            for k = 2, 6 do
+                rig.Hit(t + k, "nameplate" .. (k % 5 + 1), 11000, 8)
+                rig.Hit(t + k + 0.05, "nameplate" .. ((k + 1) % 5 + 1), 11000, 8)
+            end
+        end
+        S.now = 60
+        Core.PLAYER_REGEN_ENABLED()
+        S.sessions = { Session(nextSession, { Row(CHAIN_LIGHTNING, 400000), Row(OTHER_ROW, 600000) }) }
+        nextSession = nextSession + 1
+        pcall(rig.Fire)
+        Check("chain (c): 20 hops of 20 tries where a like hop follows 60 % of the hits -> learned (binomial tail)",
+            Outcome() == "learned" and rig.ns.Fingerprints.IsLearned(CHAIN_LIGHTNING))
     end
 
     do -- stack pass (Stack.lua): a DoT whose casts add stacks ticks live stacks x one stack's size

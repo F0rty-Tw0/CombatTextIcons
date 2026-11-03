@@ -270,6 +270,26 @@ function Learn.PoissonTail(lambda, count)
     return math.max(0, 1 - below)
 end
 
+-- P(Binomial(trials, chance) >= count): how often luck alone wins that many of `trials` tries that each win with
+-- `chance`. Poisson(trials * chance) stands for it only while the chance is small: it lets the wins run past the
+-- tries.
+function Learn.BinomialTail(trials, chance, count)
+    if count <= 0 then return 1 end
+    if count > trials then return 0 end
+    if chance >= 1 then return 1 end
+    if chance <= 0 then return 0 end
+    -- the first term, C(trials, count) chance^count (1 - chance)^(trials - count), in logs
+    local log = count * math.log(chance) + (trials - count) * math.log(1 - chance)
+    for k = 1, count do log = log + math.log(trials - count + k) - math.log(k) end
+    local term, sum = math.exp(log), 0
+    for k = count, trials do
+        sum = sum + term
+        term = term * (trials - k) / (k + 1) * chance / (1 - chance)
+    end
+
+    return math.min(1, sum)
+end
+
 -- Vote store ------------------------------------------------------------------------------
 
 function Learn.Votes(spellID)
