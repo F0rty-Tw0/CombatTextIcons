@@ -479,12 +479,14 @@ end
 -- hits on all 5 dummies came 0.67 s before Primal Wrath 285381's cast, and its 4 mates of that size drew its row 7690
 -- over (druid2 over 0.00 % -> 0.06 %).
 -- A held hit with no mate is drawn when a learned proc names it (ProcWound) on a plate one of your hits drew on in the
--- MINE_WAIT before (MineRecently), else hidden. Run warrior F3: proc 435791's 697818 on a dummy came 0.03 s after
+-- MINE_WAIT before (MineRecently), else hidden, and kept for the teacher as a stranger (Teacher.Stranger): an AoE's
+-- splash a frame apart from its target hit is one too. Run warrior F3: proc 435791's 697818 on a dummy came 0.03 s after
 -- 435222's mate on that dummy, alone in its frame, and hid (row 1403166 drew half). Run druid F11: a stranger's holy hits
 -- (2.5-3.2K) on dummies you never drew on fit learned proc 1260076's band; with no plate test they drew wrong (0.1 %).
 local function DrawMate(hit, mated)
     if not mated then
         if MineRecently(hit.plate, hit.at) and ProcWound(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, true) then return end
+        Teacher.Stranger(hit.plate, hit.school, hit.amount, hit.at, hit.flagText)
         if ns.Debug then ns.Debug("  -> HIDDEN") end
         return
     end

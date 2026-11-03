@@ -1622,7 +1622,11 @@ return function(T)
             rig.ns.Teacher.Start(10, group)
             for _, hit in ipairs(hits) do
                 local plate = hit[7] and rig.Plate(hit[7]) or P1
-                rig.ns.Teacher.Unknown(plate, hit[1], hit[2], hit[5] or 60.25, hit[4], hit[3] or "", hit[6])
+                if hit[8] then -- a held hit with no solo hit in its frame (Core.FlushMates)
+                    rig.ns.Teacher.Stranger(plate, hit[1], hit[2], hit[5], hit[3] or "")
+                else
+                    rig.ns.Teacher.Unknown(plate, hit[1], hit[2], hit[5] or 60.25, hit[4], hit[3] or "", hit[6])
+                end
             end
             rig.ns.Teacher.Seen(seen or total)
             rig.ns.Teacher.Finish(20)
@@ -2064,6 +2068,37 @@ return function(T)
             Check("candidates: a fan of two casts that meets row 14000 of another ID exactly -> Z learned at once, area "
                 .. "of its frames only", F.Alias(Y) == Z and F.IsLearned(Z) and F.Get(Z).area == true
                 and F.Get(Z).areaFrame == true)
+            -- Run paladin F2: Hammer of Light 427453's two casts put their target hit and, a frame later, their splash on
+            -- 4 other plates (that frame held no own hit: strangers to Core), 509668 = its row exactly. Z cast at 60 and
+            -- 70: a 4000 on the target 0.3 s later, 2000s on nameplate2 and nameplate3 at 0.5 s. Across frames the two
+            -- casts meet Z's row 16000 exactly: Z learned at once as its frames' area.
+            local function Across(splashAt, stranger)
+                local hits = {}
+                for _, t in ipairs({ 60, 70 }) do
+                    hits[#hits + 1] = { 32, 4000, "", nil, t + 0.3, { Candidate(Z, t) } }
+                    hits[#hits + 1] = { 32, 2000, "", nil, t + splashAt, nil, "nameplate2", stranger }
+                    hits[#hits + 1] = { 32, 2000, "", nil, t + splashAt, nil, "nameplate3", stranger }
+                end
+                return hits
+            end
+            for _, case in ipairs({ { "'?' hits", false }, { "strangers", true } }) do
+                rig = Rig({})
+                ReadWith(rig, Across(0.5, case[2]), { { Z, 16000 } })
+                F = rig.ns.Fingerprints
+                Check("candidates: two casts' target hits and their splash a frame later (" .. case[1] .. ") meet row "
+                    .. "16000 exactly -> Z learned at once, area of its frames", F.IsLearned(Z) and F.Get(Z).area == true
+                    and F.Get(Z).areaFrame == true and F.Get(Z).pattern ~= "chain")
+            end
+            rig = Rig({})
+            ReadWith(rig, Across(0.5), { { Z, 16100 } })
+            Check("candidates: the same casts against row 16100 (0.6 % off) -> nothing learned",
+                not rig.ns.Fingerprints.IsLearned(Z))
+            -- Run druid2 F1: Ravage's hits on the plates around landed on Ferocious Bite 22568's cast stamp and met its
+            -- row; in F2 the meter filed them under 441591, and Bite's area drew 293575 against its row's 202485.
+            rig = Rig({})
+            ReadWith(rig, Across(0), { { Z, 16000 } })
+            Check("candidates: the splash on the casts' own stamps meets row 16000 -> nothing learned (no splash lands "
+                .. "before its cast does)", not rig.ns.Fingerprints.IsLearned(Z))
             local ALONE = {}
             for _, t in ipairs({ 60, 70, 80, 90 }) do
                 ALONE[#ALONE + 1] = { 32, 4000, "", nil, t + 0.5, { Candidate(Z, t) } }

@@ -495,6 +495,52 @@ local function BurstRow(open, unknown)
     end
 end
 
+-- The '?' hits, frame mates and strangers (Teacher.Stranger) of a read by "school:second" of their stamp.
+local function PoolOf(lists)
+    local pool = {}
+    for _, hits in ipairs(lists) do
+        for _, hit in ipairs(hits) do
+            local key = hit.school .. ":" .. math.floor(hit.at)
+            pool[key] = pool[key] or {}
+            table.insert(pool[key], hit)
+        end
+    end
+
+    return pool
+end
+
+-- The hits of `pool` (PoolOf) of `school` in one other frame than `top`'s within Casts.SPLASH of it and after the
+-- cast's stamp `castAt`: the frame of the largest such hit on a plate not in `plates`, and the hits there like it
+-- (Streams.SIZE_GUARD), one per such plate. Hits in `spent` or `taken` are skipped. No splash lands before its cast
+-- does: run druid2 F1, Ravage's hits on the plates around came on Ferocious Bite 22568's cast stamps and met Bite's
+-- row, but F2's meter filed them under 441591, and Bite's area drew 293575 against its row's 202485.
+local function Beyond(top, castAt, school, pool, plates, spent, taken)
+    local near = {}
+    for second = math.floor(top.at - ns.Casts.SPLASH), math.floor(top.at + ns.Casts.SPLASH) do
+        for _, hit in ipairs(pool[school .. ":" .. second] or {}) do near[#near + 1] = hit end
+    end
+    local function Free(hit)
+        return hit.size and not plates[hit.plate] and not spent[hit] and not taken[hit]
+    end
+    local best
+    for _, hit in ipairs(near) do
+        if hit.at ~= top.at and hit.at > castAt and math.abs(hit.at - top.at) <= ns.Casts.SPLASH and Free(hit)
+            and (not best or hit.amount > best.amount) then
+            best = hit
+        end
+    end
+    local found, hitPlates = {}, {}
+    for _, hit in ipairs(best and near or {}) do
+        if hit.at == best.at and Free(hit) and not hitPlates[hit.plate]
+            and math.abs(hit.size - best.size) <= Streams.SIZE_GUARD * math.max(hit.size, best.size) then
+            hitPlates[hit.plate] = true
+            found[#found + 1] = hit
+        end
+    end
+
+    return found
+end
+
 -- A group's `fan` = { castID, sum, hits, castOf, mates, area, covered, casts, fan }: per cast, every '?' hit of its
 -- school on its largest hit's plate in that hit's frame (an AoE's primary and its own splash there), plus the '?' hits
 -- and frame mates (Teacher.Mate, `mates`) of that school in that frame on other plates within Streams.SIZE_GUARD of one
@@ -502,7 +548,13 @@ end
 -- like its largest hit only: run hunter F1, 392060's two casts each put a 58K crit and a 14357 splash on the target and
 -- 14357s (a 28713 crit) on 4 other plates 0.52 s later, 288046 = row 392058 exactly; its cand (largest + mates like it)
 -- summed 115763, and that row (10-14 % of both hunter logs) stayed '?' in every fight.
-local function Fan(group, frames, mates, spent)
+-- With `pool` (Beyond), each cast's way also takes one other frame within Casts.SPLASH of its largest hit (Beyond) as
+-- mates: an AoE whose target hit and splash on the plates around land in two frames, either first. That way is the
+-- group's `across`, which pairs only when it meets the row exactly over COVER_CASTS casts or more (FanCovers). Run
+-- paladin F2: Hammer of Light 427453's first cast put 47635 on its target 0.30 s after it and two crits and two
+-- normal hits (26-27K normal size) on 4 other plates 0.30 s later, its second a 94782 crit and 4 plates 0.16 s later:
+-- 509668, its row exactly. Learned at F3's read instead, it left that fight's 294718 '?'.
+local function Fan(group, frames, mates, spent, pool)
     local cand = group.cand
     local fan = { castID = group.castID, sum = 0, hits = {}, castOf = {}, mates = {}, area = true, fan = true,
         covered = 0, casts = cand.casts }
@@ -530,7 +582,7 @@ local function Fan(group, frames, mates, spent)
                     sizes[#sizes + 1] = hit.size
                 end
             end
-            local mated = false
+            local mated, plates = false, { [top.plate] = true }
             for _, others in ipairs({ frames[top.at .. ":" .. group.school] or {}, mateFrames[top.at] or {} }) do
                 for _, hit in ipairs(others) do
                     local like = false
@@ -539,10 +591,15 @@ local function Fan(group, frames, mates, spent)
                             and math.abs(hit.size - size) <= Streams.SIZE_GUARD * math.max(hit.size, size)
                     end
                     if like and hit.plate ~= top.plate and not spent[hit] and not fan.castOf[hit] then
-                        fan.mates[hit], mated = true, true
+                        fan.mates[hit], mated, plates[hit.plate] = true, true, true
                         Take(hit, candidate)
                     end
                 end
+            end
+            local beyond = pool and Beyond(top, candidate.castAt, group.school, pool, plates, spent, fan.castOf)
+            for _, hit in ipairs(beyond or {}) do
+                fan.mates[hit], mated = true, true
+                Take(hit, candidate)
             end
             fan.area = fan.area and mated
         end
@@ -569,7 +626,7 @@ end
 -- lands on the bolt's plate ~0.45x its size, and Lightning Bolt 188196's row holds both (ele log F3: 63230 + 28817 +
 -- 64483 + 26106 + 25821 = row 208457), so its cand stays under the row. It pairs only in short fights (SHORT_CASTS).
 -- `all` leaves out each hit `Lone(hit, castID)` names the whole of another row.
-local function CandidateGroups(unknown, spent, Lone, mates)
+local function CandidateGroups(unknown, spent, Lone, mates, strangers)
     local byKey, list = {}, {}
     for _, hit in ipairs(unknown) do
         local newest = {}
@@ -642,10 +699,12 @@ local function CandidateGroups(unknown, spent, Lone, mates)
             castsOf[candidate.castID][candidate.castAt] = true
         end
     end
+    local pool = PoolOf({ unknown, mates or {}, strangers or {} })
     for _, group in ipairs(list) do
         group.stamps = castsOf[group.castID] or {}
         for _ in pairs(group.stamps) do group.cand.casts = group.cand.casts + 1 end
         group.fan = Fan(group, frames, mates, spent)
+        group.across = Fan(group, frames, mates, spent, pool)
     end
     table.sort(list, function(a, b)
         if a.castID ~= b.castID then return a.castID < b.castID end
@@ -717,7 +776,7 @@ end
 
 local function Pairs(group, way, row, owners)
     if way == group and group.mixed or way == group.all and group.cand.casts > SHORT_CASTS
-        or way == group.fan and not way.area then
+        or way == group.fan and not way.area or way == group.across and not FanCovers(way, row) then
         return false
     end
     local whole = way == group or way.area or Covers(group, way, row)
@@ -1060,7 +1119,7 @@ local function Learn(run, results, open, rows)
     for _, way in ipairs(learned) do
         for _, hit in ipairs(way.hits) do spent[hit] = true end
     end
-    local candGroups = CandidateGroups(run.unknown, spent, LoneRow(open), run.mates)
+    local candGroups = CandidateGroups(run.unknown, spent, LoneRow(open), run.mates, run.strangers)
     local candSeen = { rows = seen.rows, groups = {} }
     -- A cast a '?' hit names as a candidate is cast this fight too, so its row is its own (Owners): run shaman6 F1,
     -- Meteor 117588's cand (its 112583 crit on the target and 4 mates of 56-58K) met its row 341245 exactly, and so
@@ -1069,6 +1128,7 @@ local function Learn(run, results, open, rows)
     Pass(candGroups, open, owners, function(group) return group.cand end, candSeen, results, learned, rewritten)
     Pass(candGroups, open, owners, function(group) return group.all end, candSeen, results, learned, rewritten)
     Pass(candGroups, open, owners, function(group) return group.fan end, candSeen, results, learned, rewritten)
+    Pass(candGroups, open, owners, function(group) return group.across end, candSeen, results, learned, rewritten)
     Teacher.Yield()
     for _, way in ipairs(Steady.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     Teacher.Yield()
@@ -1208,6 +1268,8 @@ local function Carry(run, into)
     for spellID, amount in pairs(run.tally) do into.tally[spellID] = (into.tally[spellID] or 0) + amount end
     for index, hit in ipairs(run.unknown) do table.insert(into.unknown, index, hit) end
     for index, hit in ipairs(run.mates or {}) do table.insert(into.mates, index, hit) end
+    into.strangers = into.strangers or {}
+    for index, hit in ipairs(run.strangers or {}) do table.insert(into.strangers, index, hit) end
     for index, tick in ipairs(run.ticks or {}) do table.insert(into.ticks, index, tick) end
     for index, cast in ipairs(run.casts or {}) do table.insert(into.casts, index, cast) end
     for index, heal in ipairs(run.heals or {}) do table.insert(into.heals, index, heal) end
@@ -1404,8 +1466,8 @@ end
 -- Combat began: open a fight (an unfinished one is replaced).
 function Teacher.Start(now, group)
     local streams = Streams.NewFight()
-    Teacher.fight = { at = now, tally = {}, unknown = {}, mates = {}, ticks = {}, casts = {}, seen = 0, plates = {},
-        live = 0,        schools = {}, group = group, streams = streams, heals = {}, helps = {}, drawn = {} }
+    Teacher.fight = { at = now, tally = {}, unknown = {}, mates = {}, strangers = {}, ticks = {}, casts = {}, seen = 0,
+        plates = {}, live = 0, schools = {}, group = group, streams = streams, heals = {}, helps = {}, drawn = {} }
 end
 
 -- A wound landed while the player was grouped: the fight's read will not learn.
@@ -1526,6 +1588,17 @@ function Teacher.Mate(plate, school, amount, now, flagText)
         return
     end
     fight.mates[#fight.mates + 1] = { school = school, amount = amount, at = now, plate = plate,
+        crit = Procs.Crit(flagText), size = Streams.NormalAmount(amount, flagText) }
+end
+
+-- A held hit with no solo hit of its school in its frame (Core.FlushMates): a stranger's, or an AoE's splash a frame
+-- apart from its target hit. Only a cast's `across` way weighs it (Fan), where the meter must prove it exactly.
+function Teacher.Stranger(plate, school, amount, now, flagText)
+    local fight = Teacher.fight
+    if not (fight and plate ~= nil and IsNumber(school) and IsNumber(amount) and IsNumber(now)) or amount <= 0 then
+        return
+    end
+    fight.strangers[#fight.strangers + 1] = { school = school, amount = amount, at = now, plate = plate,
         crit = Procs.Crit(flagText), size = Streams.NormalAmount(amount, flagText) }
 end
 
