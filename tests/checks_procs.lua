@@ -57,6 +57,10 @@ return function(T)
                 [24] = { school = 8, lo = 100, hi = 120, floor = 40 },
                 [25] = { school = 8, lo = 100, hi = 120, floor = 100 },
                 [26] = { school = 8, lo = 100, hi = 120, floor = "x" },
+                [27] = { school = 8, lo = 100, hi = 120, learned = true, splits = { { lo = 60, hi = 62, twin = true },
+                    { lo = 9, hi = 3 }, "x", { lo = 0, hi = 5 }, { lo = 200, hi = Secret(210) }, { lo = 300, hi = 310, twin = "yes" } } },
+                [28] = { school = 8, lo = 100, hi = 120, splits = "junk" },
+                [29] = { school = 8, lo = 100, hi = 120, period = 2, splits = { { lo = 60, hi = 62 } } },
             } }
             CombatTextIconsCharDB.procs[secretKey] = { school = 106, lo = 339, hi = 364 }
         end)
@@ -66,7 +70,11 @@ return function(T)
         local ids = {}
         for id in pairs(procs) do ids[#ids + 1] = type(id) == "number" and id or -1 end
         table.sort(ids)
-        Check("procs load: only the valid entries 10, 11, 22-26 are kept", table.concat(ids, ",") == "10,11,22,23,24,25,26" and procs[secretKey] == nil)
+        Check("procs load: only the valid entries 10, 11, 22-29 are kept", table.concat(ids, ",") == "10,11,22,23,24,25,26,27,28,29" and procs[secretKey] == nil)
+        local kept = procs[27].splits
+        Check("procs load: splits keep only plain bands lo <= hi above 0, twin true or false; junk splits and a rhythm's go",
+            kept and #kept == 2 and kept[1].lo == 60 and kept[1].hi == 62 and kept[1].twin == true and kept[2].lo == 300
+            and kept[2].twin == false and procs[28].splits == nil and procs[29].splits == nil and procs[10].splits == nil)
         Check("procs load: a floor is kept only as a number under lo (40 kept; 100 = lo and 'x' dropped)",
             procs[24].floor == 40 and procs[25].floor == nil and procs[26].floor == nil)
         Check("procs load: a valid learned entry is kept as saved",
@@ -415,13 +423,45 @@ return function(T)
             and #lines == 1 and lines[1] == "TEACH proc 7 school=106 band=330-370 streak=3 widen")
 
         local otherSchool, _, l1 = Once({ N(32, 340), N(32, 360) }, { { id = 7, total = 700 } }, Seed(7, 106, 339, 364, 3, true))
-        local disjoint, _, l2 = Once({ N(106, 5500) }, { { id = 7, total = 5500 } }, Seed(7, 106, 339, 364, 3, true))
+        local overkill, _, l2 = Once({ N(106, 5500) }, { { id = 7, total = 5500, overkill = 40 } }, Seed(7, 106, 339, 364, 3, true))
         local noMatch, _, l3 = Once({ N(106, 50) }, { { id = 7, total = 700 } }, Seed(7, 106, 339, 364, 3, true))
         local inside, _, l4 = Once({ N(106, 345), N(106, 355) }, { { id = 7, total = 700 } }, Seed(7, 106, 339, 364, 3, true))
-        Check("procs read state: learned + other school, disjoint band, no match, or a group inside the band -> unchanged, no line, no new entry",
-            Is(otherSchool[7], 106, 339, 364, 3, true) and Is(disjoint[7], 106, 339, 364, 3, true)
+        Check("procs read state: learned + other school, disjoint band in an overkill window, no match, or a group inside the band -> unchanged, no line, no new entry",
+            Is(otherSchool[7], 106, 339, 364, 3, true) and Is(overkill[7], 106, 339, 364, 3, true) and overkill[7].splits == nil
             and Is(noMatch[7], 106, 339, 364, 3, true) and Is(inside[7], 106, 339, 364, 3, true)
-            and Count(otherSchool) == 1 and Count(disjoint) == 1 and #l1 + #l2 + #l3 + #l4 == 0)
+            and Count(otherSchool) == 1 and Count(overkill) == 1 and #l1 + #l2 + #l3 + #l4 == 0)
+
+        -- A split proc: one hit's damage shared by the plates it hits, one size per plate count (Procs' Split).
+        local function At(hit, at, plate) hit.at, hit.plate = at, plate return hit end
+        local lone, _, l5 = Once({ N(106, 5500) }, { { id = 7, total = 5500 } }, Seed(7, 106, 339, 364, 3, true))
+        Check("procs read split: learned + open row paired exactly by a lone hit off its band -> a lone split band, base kept",
+            Is(lone[7], 106, 339, 364, 3, true) and #lone[7].splits == 1 and lone[7].splits[1].lo == 5500
+            and lone[7].splits[1].twin == false and #l5 == 1 and l5[1] == "TEACH proc 7 school=106 band=339-364 splits=5500-5500 streak=3 split")
+        local shares = { At(N(106, 3894), 5, "p1"), At(N(106, 3894), 5, "p2"), At(N(106, 3896), 5, "p3"),
+            At(N(106, 3895), 9, "p1"), At(C(106, 7790), 9, "p2") }
+        local twin = Once(shares, { { id = 7, total = 3894 + 3894 + 3896 + 3895 + 7790 } }, Seed(7, 106, 7104, 7104, 3, true))
+        Check("procs read split: shares like each other in one frame on other plates (a crit by its normal size) -> a twin band",
+            #twin[7].splits == 1 and twin[7].splits[1].lo == 3894 and twin[7].splits[1].hi == 3896 and twin[7].splits[1].twin == true)
+        local apart = Once({ At(N(106, 3894), 5, "p1"), At(N(106, 3894), 6, "p2"), At(N(106, 3894), 7, "p1"), At(N(106, 3894), 7, "p1") },
+            { { id = 7, total = 4 * 3894 } }, Seed(7, 106, 7104, 7104, 3, true))
+        Check("procs read split: like hits in other frames or on one plate -> a lone band (no twin)",
+            #apart[7].splits == 1 and apart[7].splits[1].twin == false)
+        local grown = Once({ N(106, 5000) }, { { id = 7, total = 5000 } }, function(procs)
+            Seed(7, 106, 339, 364, 3, true)(procs)
+            procs[7].splits = { { lo = 5500, hi = 5500, twin = true } }
+        end)
+        Check("procs read split: a group whose padded band meets a split grows it (5000-5500), lone now",
+            #grown[7].splits == 1 and grown[7].splits[1].lo == 5000 and grown[7].splits[1].hi == 5500 and grown[7].splits[1].twin == false)
+        local missed = Once({ N(106, 3880) }, { { id = 7, total = 19470, tally = 15590, verdict = "under" } }, function(procs)
+            Seed(7, 106, 7104, 7104, 3, true)(procs)
+            procs[7].splits = { { lo = 3894, hi = 3896, twin = true } }
+        end)
+        Check("procs read split: a row paired under by a share its split meets grows the split, twin kept; the base stays",
+            Is(missed[7], 106, 7104, 7104, 3, true) and missed[7].floor == nil and missed[7].splits[1].lo == 3880
+            and missed[7].splits[1].twin == true)
+        local unlearned = Once({ N(106, 5500) }, { { id = 7, total = 5500 } }, Seed(7, 106, 339, 364, 2))
+        Check("procs read split: a candidate off its band restarts as before, no split",
+            unlearned[7].splits == nil and unlearned[7].lo == 5500)
 
         local under = { id = 7, total = 5000, tally = 3000, verdict = "under" } -- complement window [2000, 2000]
         procs, world, lines = Once({ N(106, 2000) }, { under }, Seed(7, 106, 330, 360, 3, true))
@@ -608,6 +648,16 @@ return function(T)
         procs[1276284].critSeen = true
         Check("procs name crit floor: a crit under twice the padded band names nothing (11505, 1.62x); its own 14207 does",
             Name(1, 11505, "CRITICAL") == nil and Name(1, 14207, "CRITICAL") == 1276284)
+        -- run paladin2 F5-F7: 1276284 hit 3894 on each of 3 plates; a twin split band names a share with a twin only
+        procs[1276284].splits = { { lo = 3894, hi = 3896, twin = true } }
+        Check("procs name split: a twin band names a share with a twin in its frame (3894, its crit 7790), not one alone",
+            Name(1, 3894, "", true) == 1276284 and Name(1, 7790, "CRITICAL", true) == 1276284
+            and Name(1, 3894, "", false) == nil and Name(1, 3894, "") == nil)
+        procs[1276284].splits = { { lo = 96370, hi = 96370, twin = false } }
+        Check("procs name split: a lone band names a hit with or without a twin; the base band still names its own",
+            Name(1, 96370, "") == 1276284 and Name(1, 96370, "", true) == 1276284 and Name(1, 7104, "") == 1276284
+            and Name(1, 60000, "") == nil)
+        procs[1276284].splits = nil
         -- a rhythm entry's band (Procs.NamePair) takes the same floor: a 1620 crit (0.81 of 1000 halved) is no tick of
         -- it, so the normal one period back is the band's only hit
         local rhythm = Rig()
@@ -1012,5 +1062,31 @@ return function(T)
         ns, procs = Rig()
         Pass(ns, {}, X, nil)
         Check("procs rhythm pass: with streams = nil and no hits the store stays empty", next(procs) == nil)
+    end
+
+    -- Core draws a split proc's shares: run paladin2 F6, 1276284's 3894 on 3 plates in one frame. The first share has
+    -- no twin yet and waits for its frame's end (HoldShare); a lone share in another frame is a '?' the teacher keeps.
+    do
+        local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+        local S = T.State()
+        ns.Procs.Init(T.Store())
+        local entry = Entry(1, 7104, 7104, 3, true)
+        entry.splits = { { lo = 3894, hi = 3896, twin = true } }
+        T.Store().procs[1276284] = entry
+        ns.Teacher.area = "clear"
+        local drawn = {}
+        ns.Display.Plate = function(plate, texture) drawn[#drawn + 1] = texture end
+        S.now, S.target = 30, "nameplate1"
+        ns.Core.PLAYER_REGEN_DISABLED()
+        S.now = 30.2
+        for _, unit in ipairs({ "nameplate1", "nameplate2", "nameplate3" }) do ns.Core.UNIT_COMBAT(unit, "WOUND", "", 3894, 1) end
+        S.now = 31.2
+        ns.Core.UNIT_COMBAT("nameplate1", "WOUND", "", 3894, 1)
+        ns.Core.FlushMates()
+        local shares = 0
+        for index = 1, 3 do if drawn[index] == "tex:1276284" then shares = shares + 1 end end
+        Check("procs core split: three like shares in one frame all draw the proc (the first held to the frame's end); "
+            .. "a lone one is the teacher's '?'",
+            #drawn == 4 and shares == 3 and drawn[4] ~= "tex:1276284" and #ns.Teacher.fight.unknown == 1)
     end
 end

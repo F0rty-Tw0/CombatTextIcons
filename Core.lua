@@ -314,13 +314,28 @@ local function HiddenRoute()
     return Teacher.NotCrowded() and "HIDDEN (new area)" or "HIDDEN (crowded)"
 end
 
+-- Whether a hit of `school` like this one (normal-scale sizes within Procs.TWIN) landed on another plate earlier in
+-- its frame (frameHits): a split hit's other share, which a proc's twin band needs (Procs.Name).
+local function FrameTwin(plate, school, amount, flagText, now)
+    local size = Streams.NormalAmount(amount, flagText)
+    if not size or frameHits.at ~= now then return false end
+    for index = 1, #frameHits.list - 1 do
+        local entry = frameHits.list[index]
+        local other = entry.school == school and entry.plate ~= plate
+            and Streams.NormalAmount(entry.amount, entry.flagText)
+        if other and math.abs(other - size) <= Procs.TWIN * size then return true end
+    end
+
+    return false
+end
+
 -- A solo hit on a mob fighting you that a learned proc names, while the area is not crowded (Teacher.NotCrowded):
 -- draws the proc's icon and tallies it. Returns whether it drew; false leaves the hit to the question-mark route.
 -- An unlearned cast of another spell whose samples place a hit like it here (Casts.SampledAt) keeps it from the proc.
 -- `held`: the hit was held to its frame's end (DrawMate), so Drawn names its frame entry by amount.
 local function ProcWound(plate, school, amount, flagText, now, held)
-    local procID = Teacher.NotCrowded() and Procs.Name(school, amount, flagText)
-    if not procID or Casts.SampledAt(plate, now, school, Streams.NormalAmount(amount, flagText), procID) then
+    local twin = FrameTwin(plate, school, amount, flagText, now)
+    local procID = Teacher.NotCrowded() and Procs.Name(school, amount, flagText, twin)    if not procID or Casts.SampledAt(plate, now, school, Streams.NormalAmount(amount, flagText), procID) then
         return false
     end
     if ns.Debug then ns.Debug("  -> proc %s", ShowValue(procID)) end
@@ -475,14 +490,46 @@ local function DrawMate(hit, mated)
     Display.Plate(hit.plate, SpellTexture(record.spellID), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
 end
 
+-- A solo hit on a mob fighting you that nothing named: the teacher learns from it (Teacher.Unknown), and it draws the
+-- question mark while the area is clear and the school is one a clear read saw. `cast` is Casts.SoleCast at the hit.
+local function Question(plate, school, amount, flagText, now, cast, candidates)
+    Teacher.Unknown(plate, school, amount, now, cast, flagText, candidates)
+    if not Teacher.AreaClear() then
+        if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
+        return
+    end
+    -- no clear read ever saw this school: a stranger's (shamanally2: an ally's physical hits on a resto shaman)
+    if not Teacher.OwnSchool(school) then
+        if ns.Debug then ns.Debug("  -> HIDDEN (school)") end
+        return
+    end
+    if ns.Debug then ns.Debug("  -> unknown-solo") end
+    Ledger.Add("damage", UnknownKey(school), amount)
+    Display.Plate(plate, UnknownTexture(), HitText(flagText, amount), flagText, school)
+end
+
+-- A held share (HoldShare) at its frame's end: drawn as its proc when a later share in its frame drew it (that one
+-- had this one for its twin, Procs.Name), else the question mark route it was held from (Question).
+local function DrawShare(hit)
+    if not DrawnInFrame(hit.share, hit.at) then
+        return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates)
+    end
+    if ns.Debug then ns.Debug("  -> share %s", ShowValue(hit.share)) end
+    Drawn(hit.share, hit.amount, hit.at)
+    Ledger.Add("damage", hit.share, hit.amount)
+    Display.Plate(hit.plate, SpellTexture(hit.share), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
+end
+
 -- Ends the held hits' frame once `now` is past its stamp, or with nil (the fight ended; the replays end each frame
--- with it too): each is a mate or a stranger's (DrawMate).
+-- with it too): each is a mate or a stranger's (DrawMate), or a split proc's share (DrawShare).
 function Core.FlushMates(now)
     local hits = held.hits
     if #hits == 0 or (now and now <= held.at) then return end
     local own = ownFrame.at == held.at and ownFrame.schools or {}
     held = { hits = {} }
-    for _, hit in ipairs(hits) do DrawMate(hit, own[hit.school] == true) end
+    for _, hit in ipairs(hits) do
+        if hit.share then DrawShare(hit) else DrawMate(hit, own[hit.school] == true) end
+    end
 end
 
 -- Holds a hit on a creature with no threat list that does not fight you until its frame ends (held).
@@ -492,6 +539,18 @@ local function Hold(plate, flagText, amount, school, now, kind, record)
     held.hits[#held.hits + 1] = { plate = plate, school = school, amount = amount, flagText = flagText, at = now,
         kind = kind, record = record }
     if ns.Debug then ns.Debug("  .. held") end
+    QueueFlush()
+end
+
+-- Holds a solo '?' hit that a learned proc's twin split band holds (Procs.Name) until its frame ends: a split hit's
+-- first share has no twin yet, its later shares in the frame do (run paladin2 F6: 1276284's 3894 on 3 plates, the
+-- first of each frame left '?'). DrawShare decides.
+local function HoldShare(plate, school, amount, flagText, now, procID, cast, candidates)
+    Core.FlushMates(now)
+    if held.at ~= now then held = { at = now, hits = {} } end
+    held.hits[#held.hits + 1] = { plate = plate, school = school, amount = amount, flagText = flagText, at = now,
+        share = procID, cast = cast, candidates = candidates }
+    if ns.Debug then ns.Debug("  .. share") end
     QueueFlush()
 end
 
@@ -508,8 +567,8 @@ end
 -- (Procs.NameCast), ranked below the Tracker and Casts; last, below the stack series, one whose tick a period
 -- before the hit is still loose on the plate (Procs.NamePair), then one whose onset link's cast leads the hit
 -- (Procs.NameOnset: a burst's first tick). Solo, a hit on a creature with no threat list that does
--- not fight you, which the tracker does not name, waits for its frame's end instead of hiding (Hold, Core.FlushMates).
--- The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
+-- not fight you, which the tracker does not name, waits for its frame's end instead of hiding (Hold, Core.FlushMates),
+-- and so does a solo '?' hit a learned proc's twin split band holds (HoldShare). The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
 -- (run 153349Z: strangers on 8 nearby dummies made both reads crowded). Frame mates reach the area pass only
 -- (Teacher.Mate), never the crowd check.
@@ -586,7 +645,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     -- A hit a learned proc names is no DoT tick: fed to the streams, its rhythm gave its votes to a cast
     -- in the proc's frame (Surging Totem's ~12K hits learned Lava Burst as a DoT, run 20261025T182530Z).
     local stream
-    if not Procs.Name(school, amount, flagText) then
+    if not Procs.Name(school, amount, flagText, FrameTwin(plate, school, amount, flagText, now)) then
         stream = Streams.Feed(plate, school, amount, flagText, now, solo)
         -- A learned DoT spread to a plate it was never cast on takes the stream there (Tracker.AdoptSpread).
         if stream and solo and not crowded then Tracker.AdoptSpread(plate, stream, now) end
@@ -623,19 +682,13 @@ local function Wound(plate, unit, flagText, amount, school, now)
         return Display.Plate(plate, SpellTexture(twinID), text, flagText, school)
     end
     if solo then
-        Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now, school), flagText, candidates)
-        if not Teacher.AreaClear() then
-            if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
-            return
-        end
-        -- no clear read ever saw this school: a stranger's (shamanally2: an ally's physical hits on a resto shaman)
-        if not Teacher.OwnSchool(school) then
-            if ns.Debug then ns.Debug("  -> HIDDEN (school)") end
-            return
-        end
-        if ns.Debug then ns.Debug("  -> unknown-solo") end
-        Ledger.Add("damage", UnknownKey(school), amount)
-        return Display.Plate(plate, UnknownTexture(), text, flagText, school)
+        local cast = Casts.SoleCast(plate, now, school)
+        -- a split proc's first share in its frame waits for a twin (HoldShare)
+        local share = Teacher.NotCrowded() and not Procs.Name(school, amount, flagText, false)
+            and Procs.Name(school, amount, flagText, true)
+        if share then return HoldShare(plate, school, amount, flagText, now, share, cast, candidates) end
+
+        return Question(plate, school, amount, flagText, now, cast, candidates)
     end
     if holds then return Hold(plate, flagText, amount, school, now, kind, record) end
     if ns.Debug then ns.Debug("  -> HIDDEN") end

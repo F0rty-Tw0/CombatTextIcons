@@ -20,6 +20,9 @@ local PAD_LO, PAD_HI = 0.85, 1.15 -- draw pads; two bands are also the same proc
 local RHYTHM_PERIOD = 0.1 -- two tick periods are one rhythm when they differ by at most this share of the longer
 local RHYTHM_FIT = 0.05 -- a rhythm group's sum may fall short of a row's total, or pass its overkill, by this share of the total
 local RHYTHM_STREAK = 2 -- fights a row's rhythm must pair in (gaps allowed) before it is learned; an exact pair: one
+local TWIN = 0.002     -- two hits of one frame on two plates are one split hit's shares when their sizes differ by at
+                       -- most this share
+local SPLITS_MAX = 4   -- extra size bands (splits) a learned size proc keeps
 
 -- Whether two tick periods are one rhythm.
 local function PeriodNear(a, b)
@@ -29,6 +32,7 @@ end
 Procs.LEARN_STREAK = LEARN_STREAK
 Procs.RHYTHM_STREAK = RHYTHM_STREAK
 Procs.PeriodNear = PeriodNear
+Procs.TWIN = TWIN
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -37,6 +41,7 @@ local function IsNumber(value) return Plain(value) and type(value) == "number" e
 -- [spellID] = { school, lo, hi, streak, learned, unpaired, seen, period, floor, critSeen }; the saved table itself.
 -- period is set on a rhythm proc only; floor is the lowest cut-short tick seen, kept only below lo. critSeen: a group
 -- that paired the proc's row held a crit (false: none yet, so Name draws no crit; a store saved before it: true).
+-- splits: a learned size proc's extra bands { lo, hi, twin } (Split), nil for none.
 local procs = {}
 
 local function Count(value) return IsNumber(value) and value >= 0 and value == math.floor(value) and value or 0 end
@@ -68,6 +73,23 @@ local function ValidLinks(links)
     return kept
 end
 
+-- A size proc's saved splits (Split, below), or nil when none survive: each a plain band lo <= hi above 0, and twin
+-- true or false.
+local function ValidSplits(splits)
+    if not (Plain(splits) and type(splits) == "table") then return nil end
+    local kept
+    for _, band in ipairs(splits) do
+        local ok = Plain(band) and type(band) == "table" and IsNumber(band.lo) and IsNumber(band.hi) and band.lo > 0
+            and band.lo <= band.hi and #(kept or {}) < SPLITS_MAX
+        if ok then
+            kept = kept or {}
+            kept[#kept + 1] = { lo = band.lo, hi = band.hi, twin = band.twin == true }
+        end
+    end
+
+    return kept
+end
+
 -- Procs.Init(charDB): adopts charDB.procs as the live store, dropping and repairing bad saved data.
 function Procs.Init(charDB)
     if type(charDB.procs) ~= "table" then charDB.procs = {} end
@@ -83,6 +105,7 @@ function Procs.Init(charDB)
             entry.critSeen = entry.critSeen ~= false
             entry.critOnly = entry.critOnly == true or nil
             entry.onset = entry.period and ValidLinks(entry.onset) or nil
+            entry.splits = not entry.period and ValidSplits(entry.splits) or nil
         else
             bad[#bad + 1] = id
         end
@@ -428,6 +451,38 @@ local function Grow(entry, group, sure)
     return " restart"
 end
 
+-- A learned size proc's row paired exactly by a group of its school off its band: one more band of the proc (a split).
+-- A proc that splits one hit's damage over the plates it hits lands one size per plate count, each plate's share
+-- the same: run priest4, 1291657 hit 62639 on each of 2 plates (learned), 96370 alone and 45774 on each of 4 (rows
+-- exactly, '?'); run paladin2, 1276284 learned 7104 alone, then hit 3894 on each of 3 plates (F5-F7, '?').
+-- A group whose every normal has a like share in its frame on another plate (group.twin) draws only so (Name).
+-- A band the group's padded band meets grows to hold it; a lone sighting keeps it drawing lone, unless `missed`: the
+-- shares the draws left of a row they paired under (their twins drew).
+local function Split(entry, group, missed)
+    local splits = entry.splits or {}
+    for _, band in ipairs(splits) do
+        if Overlaps(band, group) then
+            band.lo, band.hi = math.min(band.lo, group.lo), math.max(band.hi, group.hi)
+            band.twin = band.twin and (group.twin or missed == true)
+            return " split"
+        end
+    end
+    if #splits >= SPLITS_MAX then return nil end
+    splits[#splits + 1] = { lo = group.lo, hi = group.hi, twin = group.twin == true }
+    entry.splits = splits
+
+    return " split"
+end
+
+-- Whether one of the entry's splits meets the group's band (Overlaps).
+local function SplitMeets(entry, group)
+    for _, band in ipairs(entry.splits or {}) do
+        if Overlaps(band, group) then return true end
+    end
+
+    return false
+end
+
 -- The state x event table for one target; returns the log suffix of a change, nil when nothing changed.
 -- A crit-only group never widens a proc that has normals: its crits are halved to normal scale on a guess, and widening
 -- learned 1310088 (shaman3) with one moved its band off its hits until Unpaired dropped it.
@@ -441,6 +496,8 @@ local function Step(entry, group, target, sure)
 
             return " crits"
         end
+        -- the shares of a split the draws missed (a split hit's first share has no twin yet) grow that split
+        if not Overlaps(entry, group) and SplitMeets(entry, group) then return Split(entry, group, true) end
         -- one lone hit below the band is a cut-short tick: it lowers the floor, not the band
         if group.count == 1 and group.hi < entry.lo then
             SetFloor(entry, math.min(Floor(entry), group.lo))
@@ -458,7 +515,12 @@ local function Step(entry, group, target, sure)
         return " reset"
     end
     if not entry.learned then return Grow(entry, group, sure) end
-    if crossed or not (entry.school == group.school and Overlaps(entry, group) and Widens(entry, group)) then return nil end
+    if crossed or entry.school ~= group.school then return nil end
+    if not Overlaps(entry, group) then
+        local plain = not (group.rest or group.drawn or group.critOnly)
+        return plain and target.overkill == 0 and Split(entry, group) or nil
+    end
+    if not Widens(entry, group) then return nil end
     Union(entry, group)
 
     return " widen"
@@ -753,6 +815,35 @@ local function Whole(hits, ticks, matches, targets)
     return whole
 end
 
+-- Whether every normal '?' hit the group holds has a share like it (TWIN) in its frame on another plate, a crit by its
+-- normal-scale size: the group is a split hit's shares (Split).
+local function Twinned(hits, group)
+    local function Like(hit, size)
+        local other = hit.crit == true and Streams.NormalAmount(hit.amount, "CRITICAL") or hit.amount
+        return IsNumber(other) and math.abs(other - size) <= TWIN * size
+    end
+    local any = false
+    for _, hit in ipairs(hits) do
+        local amount = hit.amount
+        local held = hit.crit == false and hit.school == group.school and IsNumber(amount)
+            and (group.floor or group.lo) <= amount and amount <= group.hi
+        if held then
+            local twin = false
+            for _, other in ipairs(hits) do
+                if other ~= hit and other.school == hit.school and hit.at ~= nil and other.at == hit.at
+                    and other.plate ~= hit.plate and Like(other, amount) then
+                    twin = true
+                    break
+                end
+            end
+            if not twin then return false end
+            any = true
+        end
+    end
+
+    return any
+end
+
 -- Read: the size pass, the remainder pass, then the rhythm pass when the fight's streams are given.
 function Procs.Read(hits, open, results, rows, at, ticks, streams)
     local targets = Targets(open, results, rows, Cast(hits))
@@ -767,13 +858,19 @@ function Procs.Read(hits, open, results, rows, at, ticks, streams)
     for index, target in ipairs(targets) do
         local group, isNew = matches[index], procs[target.id] == nil
         local sure = group ~= nil and target.kind == "open" and target.overkill == 0 and whole[group.school] == true
+        if group then group.twin = Twinned(hits, group) end
         local suffix = Apply(target, group, sure)
         if suffix then
             local entry = procs[target.id]
             entry.seen = at
             if ns.Debug then
-                ns.Debug("TEACH proc %s school=%s band=%s-%s%s streak=%s%s", target.id, entry.school, entry.lo, entry.hi,
-                    entry.floor and (" floor=" .. entry.floor) or "", entry.streak, suffix)
+                local splits = {}
+                for _, band in ipairs(entry.splits or {}) do
+                    splits[#splits + 1] = band.lo .. "-" .. band.hi .. (band.twin and "x" or "")
+                end
+                ns.Debug("TEACH proc %s school=%s band=%s-%s%s%s streak=%s%s", target.id, entry.school, entry.lo,
+                    entry.hi, entry.floor and (" floor=" .. entry.floor) or "",
+                    #splits > 0 and (" splits=" .. table.concat(splits, ",")) or "", entry.streak, suffix)
             end
             if suffix == " learned" then
                 results[target.index] = Agree(target, group.sum)
@@ -827,12 +924,32 @@ local function Own(entry, amount, crit)
     return size ~= nil and entry.lo <= size and size <= entry.hi
 end
 
--- Procs.Name(school, amount, flagText): the one learned proc whose padded range holds the hit, or nil for none.
+-- The entry's split band (Split) whose padded range holds the hit, twin bands only for a hit with a twin in its frame
+-- (`twin`), and whether that band's own sizes hold it; nil when none does.
+local function SplitFits(entry, amount, crit, twin)
+    for _, band in ipairs(entry.splits or {}) do
+        if twin or not band.twin then
+            local lo, hi = band.lo * PAD_LO, band.hi * PAD_HI
+            local normal = lo <= amount and amount <= hi
+            local big = entry.critSeen ~= false and CritFits(amount, lo, hi)
+            if (crit ~= true and normal) or (crit ~= false and big) then
+                local size = crit and Streams.NormalAmount(amount, "CRITICAL") or amount
+                return true, crit ~= nil and size ~= nil and band.lo <= size and size <= band.hi
+            end
+        end
+    end
+
+    return nil
+end
+
+-- Procs.Name(school, amount, flagText, twin): the one learned proc whose padded range holds the hit, or nil for none.
 -- A plain flag picks the normal or the crit range (Big); a nil or secret flag fits either (as Streams.Size).
 -- When several padded ranges hold it, the one whose own sizes hold it (Own) names it; none or several: nil. The pads
 -- are drift slack, the own sizes are the hits the row paired: run shamanele F6, crit-only 285452 (13017-13460) and
 -- 447419 (10571-11342) both held the fixed 22680 crits (11340 a normal, 447419's own top), which stayed '?'.
-function Procs.Name(school, amount, flagText)
+-- A proc's split bands (SplitFits) are ranges too; `twin`: a like hit of the school landed on another plate in the
+-- hit's frame (Core), which a twin band needs.
+function Procs.Name(school, amount, flagText, twin)
     if not (IsNumber(school) and IsNumber(amount)) then return nil end
     local crit = Procs.Crit(flagText) -- nil: unknown
     local found, contested, several, owner, owners = nil, false, false, nil, 0
@@ -841,10 +958,11 @@ function Procs.Name(school, amount, flagText)
             local lo, hi, floor = entry.lo * PAD_LO, entry.hi * PAD_HI, Floor(entry) * PAD_LO
             local normal = not entry.critOnly and lo <= amount and amount <= hi
             local big = Big(entry, amount, lo, hi)
-            if (crit ~= true and normal) or (crit ~= false and big) then
+            local split, splitOwn = SplitFits(entry, amount, crit, twin)
+            if (crit ~= true and normal) or (crit ~= false and big) or split then
                 several = several or found ~= nil
                 found = found or id
-                if Own(entry, amount, crit) then owner, owners = id, owners + 1 end
+                if Own(entry, amount, crit) or splitOwn then owner, owners = id, owners + 1 end
             end
             -- below the band down to its floor a cut-short tick of this proc may be the hit: no proc names it
             local short = floor <= amount and amount < lo
@@ -857,7 +975,8 @@ function Procs.Name(school, amount, flagText)
         found = owner
     end
     -- a normal hit inside a proc's own band (unpadded) is that proc's, cut-short ticks or not
-    local own = found and crit == false and procs[found].lo <= amount and amount <= procs[found].hi
+    local own = found and crit == false and (procs[found].lo <= amount and amount <= procs[found].hi
+        or select(2, SplitFits(procs[found], amount, crit, twin)))
     if contested and not own then return nil end
 
     return found
