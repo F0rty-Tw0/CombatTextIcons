@@ -1502,7 +1502,7 @@ local function Judging(run, sessionID, rows, reason)
         for _, group in ipairs(learnedGroups) do last.learned[group.castID] = #group.hits end
         local hits, openRows = Leftover(run.unknown, learnedGroups), StillOpen(open, rewritten)
         Teacher.Yield()
-        Procs.Read(hits, openRows, results, rows, run.at, run.ticks, run.streams)
+        Procs.Read(hits, openRows, results, rows, run.at, run.ticks, run.streams, run.casts)
         Teacher.Yield()
         local named = Ground.Castless(run, hits, openRows, rows, results)
         if healRows then

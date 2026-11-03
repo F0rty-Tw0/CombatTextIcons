@@ -547,6 +547,41 @@ return function(T)
             shared[7] == nil and Is(shared[8], 106, 400, 400, 1, true))
     end
 
+    -- A size group a cast's learned hit band meets teaches no proc while that cast is also a learned DoT ---------------
+    -- (run hunter2: proc 1264485's 11304-12960 met Black Arrow 466930's hit 12156-14588 and drew its hits once learned)
+    do
+        local function Masking(dot, sizes)
+            return function(_, ns)
+                for castAt, size in ipairs(sizes) do
+                    ns.Fingerprints.Add(9, { school = 32, delay = 0.3, castAt = castAt, hops = 1, spell = 9, size = size })
+                end
+                if dot then T.Store().learned[9] = { school = 32, period = 1, kind = "dot", misses = 0 } end
+                ns.Learn.Init(T.Store())
+            end
+        end
+        local function Read(seed, casts, size)
+            local ns, procs = Rig()
+            local lines = {}
+            ns.Debug = function(format, ...) lines[#lines + 1] = string.format(format, ...) end
+            seed(procs, ns)
+            local world = World({ { id = 1, total = 2 * size } })
+            ns.Procs.Read({ N(32, size), N(32, size) }, world.open, world.results, world.rows, AT, nil, nil, casts)
+
+            return procs, table.concat(lines, "\n"), ns
+        end
+        local cast = { { spellID = 9, base = 9 } }
+        local band = { 12156, 13000, 14588 }
+        local masked, lines, ns = Read(Masking(true, band), cast, 12000)
+        Check("procs read mask: a group (12000) a cast's learned DoT and hit band (12156-14588) meet teaches no proc",
+            ns.Fingerprints.IsLearned(9) and ns.Learn.Get(9) ~= nil and masked[1] == nil and lines:find("masked by 9") ~= nil)
+        local noDot = Read(Masking(false, band), cast, 12000)
+        local apart = Read(Masking(true, band), cast, 5000)
+        local uncast = Read(Masking(true, band), {}, 12000)
+        Check("procs read mask: ... a cast with no learned DoT, a band apart (5000) or no cast this fight leaves it learned",
+            Is(noDot[1], 32, 12000, 12000, 1, true) and Is(apart[1], 32, 5000, 5000, 1, true)
+            and Is(uncast[1], 32, 12000, 12000, 1, true))
+    end
+
     -- Rev 4b: a row whose saved alias names a learned fingerprint is owned too ---------------------------
     do
         local function AliasToLearned(_, ns)

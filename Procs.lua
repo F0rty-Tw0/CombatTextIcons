@@ -1021,8 +1021,26 @@ local function SwingPass(hits, open, results, rows, at, taken, streams)
     end
 end
 
+-- The spell of this fight's casts (`casts`, each { spellID, base }) that is both a learned hit (a fingerprint) and a
+-- learned DoT (Learn) of the group's school, its hit's size band (Fingerprints.Band) one the group's band meets
+-- (Overlaps), or nil. The tracker names that DoT on the cast's plate, and a hit it names so goes to a learned proc before
+-- the cast's own claim (Core's Wound): a proc learned from the group would draw the cast's hits. Run hunter2: proc
+-- 1264485's group (11304-12960, school 32) paired its row in F1, F3, F7 and F10, each a fight Black Arrow 466930 (hit
+-- 12156-14588, DoT ticks 1185, school 32) was cast in; learned at F10, it drew Black Arrow's 12672 on its cast's stamp
+-- in F14 (the tracker named 466930) and a 30409 crit 0.51 s after its cast in F13. A cast with no learned DoT keeps its
+-- claim first: run mage, proc 210833 (7221-15812) meets Arcane Barrage 44425's band (5138-13990) and drew only its own.
+local function Masked(group, casts)
+    for _, cast in ipairs(casts or {}) do
+        local fp, dot = ns.Fingerprints.Get(cast.base), ns.Learn.Get(cast.base) or ns.Learn.Get(cast.spellID)
+        local low, high = ns.Fingerprints.Band(cast.base, cast.spellID)
+        local same = low and dot and fp.school == group.school and dot.school == group.school
+        if same and Overlaps({ lo = low, hi = high }, group) then return cast.base end
+    end
+end
+
 -- Read: the size pass, the remainder pass, the swing pass, then the rhythm pass when the fight's streams are given.
-function Procs.Read(hits, open, results, rows, at, ticks, streams)
+-- `casts` (optional): the fight's casts; a size group Masked names a cast for teaches no unlearned proc.
+function Procs.Read(hits, open, results, rows, at, ticks, streams, casts)
     local targets = Targets(open, results, rows, Cast(hits))
     local groups = Groups(hits, ticks)
     local matches = Matches(groups, targets)
@@ -1036,7 +1054,11 @@ function Procs.Read(hits, open, results, rows, at, ticks, streams)
         local group, isNew = matches[index], procs[target.id] == nil
         local sure = group ~= nil and target.kind == "open" and target.overkill == 0 and whole[group.school] == true
         if group then group.twin, group.k = Shares(hits, group) end
-        local suffix = Apply(target, group, sure)
+        local masked = group and not (procs[target.id] and procs[target.id].learned) and Masked(group, casts)
+        if masked and ns.Debug then
+            ns.Debug("TEACH proc %s school=%s band=%s-%s masked by %s", target.id, group.school, group.lo, group.hi, masked)
+        end
+        local suffix = not masked and Apply(target, group, sure)
         if suffix then
             local entry = procs[target.id]
             entry.seen = at
