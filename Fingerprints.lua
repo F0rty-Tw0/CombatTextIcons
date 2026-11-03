@@ -246,21 +246,23 @@ function Fingerprints.Window(spellID, castSpell)
     return low, high
 end
 
--- The size band (low, high) of a learned entry for a hit of `castSpell`: the smallest and biggest
+-- The size band (low, high, count) of a learned entry for a hit of `castSpell`: the smallest and biggest
 -- size among its kept sized samples of that cast spell, else among all its sized samples (as
--- Window). nil when not learned or when no kept sample has a size (saved before sizes were kept).
+-- Window), and how many samples gave it. nil when not learned or when no kept sample has a size (saved before sizes
+-- were kept).
 function Fingerprints.Band(spellID, castSpell)
     local entry = Fingerprints.Get(spellID)
     if not (entry and entry.learned) then return nil end
     for _, ofSpell in ipairs({ true, false }) do
-        local low, high
+        local low, high, count = nil, nil, 0
         for _, sample in ipairs(entry.samples) do
             if sample.size and sample.school == entry.school and (sample.spell == castSpell or not ofSpell) then
                 if not low or sample.size < low then low = sample.size end
                 if not high or sample.size > high then high = sample.size end
+                count = count + 1
             end
         end
-        if low then return low, high end
+        if low then return low, high, count end
     end
 end
 

@@ -112,7 +112,13 @@ local PAD_LO, PAD_HI = 0.7, 2 -- a sized hit fits a cast's band from 0.7 of its 
 -- (F6, F7) where its 2552-2594 ones came after.
 local AREA_LO = 0.4
 Casts.AREA_LO = AREA_LO -- the area pass (Area.lua) falls back to this floor for other plates' hits
-local SHRINK = 0.5      -- an unlearned cast's hits may shrink to this share of its samples (SampledAt)
+-- An unlearned cast's hits may shrink to SHRINK of its samples (SampledAt). A band one sized sample taught (InBand) has
+-- shown no spread of its own yet, so it starts at SHRINK of that sample too, not PAD_LO. Run shamanele: the pet's Fire
+-- Blast 57984 learned at 58716 from one F3 hit, and its five F7 hits came at 0.63-0.68 of it (36900-39834 normal-scale,
+-- summing to its row 303125 exactly); druid2's Ravage 441591 (57184, one hit) took a 38025 (0.66). Bands of two or more
+-- samples keep PAD_LO: Shadow Bolt 686 (8407-12782, six) would draw 5.2-5.7K hits not its own. Right rose 25.8 -> 29.6 %
+-- of shamanele's meter and 17.5 -> 17.9 % of druid2's.
+local SHRINK = 0.5
 local RECORD_MAX = 20   -- open records at most; the oldest is dropped
 local records = {}      -- oldest first: { spellID, base, at, plate, hops, plates, last, seen, settled }
 local SPLASH = 0.5      -- a cast's splash lands on other plates at most this long after its own hit (Splash)
@@ -564,14 +570,15 @@ end
 
 -- Does a hit of normal-scale `size` fit the learned size band (padded) of `castSpell` under `base`? A
 -- Shadow DoT tick (0.9-6K) is not Mind Blast (18-25K) though it lands in its window. No size (nil, 0)
--- or no band (unlearned, or saved before sizes were kept) fits. `floor` (optional, default PAD_LO) is the share of the
--- smallest size the band starts at (AREA_LO for an areaLow spell's other plates).
+-- or no band (unlearned, or saved before sizes were kept) fits. `floor` (optional) is the share of the smallest size
+-- the band starts at (AREA_LO for an areaLow spell's other plates); by default PAD_LO, or SHRINK for a band of one
+-- sized sample.
 function Casts.InBand(base, castSpell, size, floor)
     if not (IsNumber(size) and size > 0) then return true end
-    local low, high = Fingerprints.Band(base, castSpell)
+    local low, high, count = Fingerprints.Band(base, castSpell)
     if not low then return true end
 
-    return Casts.InSizes(low, high, size, floor)
+    return Casts.InSizes(low, high, size, floor or count == 1 and SHRINK or nil)
 end
 
 -- Whether normal-scale `size` (nil or 0: any) fits the padded band of sizes `low`-`high`, from `floor` (default
