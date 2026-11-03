@@ -13,8 +13,8 @@
 -- also takes other spells' hits: druid2 F1's Swipe 106785 summed 21 hits (209345) in a room of 212108, the lower floor
 -- added a 4765 one (214110), and paladin2's 53600 went from 5 hits (12741, room 12971) to 8 (16493). Of those hits
 -- the ones that share their frame with another on another plate or an own hit must explain the residual too (Framed),
--- and their sum must not be another row's with nothing drawn under it (OtherRowSum). A base marked so is areaLow
--- (Fingerprints.SetArea).
+-- and their sum must not be the row of a spell the fight cast with nothing drawn under it (OtherRowSum). A base
+-- marked so is areaLow (Fingerprints.SetArea).
 -- Run shaman6 F2: Lava Burst 51505 (learned, window 0.12-0.28 s) drew 570245 of its 1183551 row; 9 Fire hits on 4
 -- other plates in that span summed 613306 against a residual of 625142. Hunter F3's Kill Command 17253 drew 22960 of
 -- 29658, and Beast Cleave's 84 hits on 4 plates (151786) are far past its residual: no area.
@@ -139,14 +139,18 @@ local function Beside(way, own)
 end
 
 -- Whether `way`'s hits sum to a row of another ID than `own` with nothing drawn under it (Teacher's Judge: within 1 %
--- of its total, overkill above it): that row's hits, which Procs.Read then learns. Run druid F10: the lower floor
--- gathered Ravage 441591's 8 hits on other plates in its casts' frames (17596-51399, 0.54-0.79 of its smallest),
--- 259771 in a room of 401762; the meter files them under Ferocious Bite 22568, 259771 exactly, and without them
--- Ferocious Bite's splashes in F11-F12 stayed '?'.
-local function OtherRowSum(way, own, rows, tally)
+-- of its total, overkill above it) whose spell this fight cast, by its ID, its base or the spell it overrides
+-- (`named`): that row's hits, which Procs.Read then learns. Run druid F10: the lower floor gathered Ravage 441591's
+-- 8 hits on other plates in its casts' frames (17596-51399, 0.54-0.79 of its smallest), 259771 in a room of 401762;
+-- the meter files them under Ferocious Bite 22568, the spell Ravage overrides, 259771 exactly, and without them
+-- Ferocious Bite's splashes in F11-F12 stayed '?'. A row of a spell no cast of the fight names is no such owner: in a fight that drew
+-- nothing yet every row has nothing under it, and one may sit within 1 % of the sum by chance. Run dk F2: Epidemic
+-- 207317's 75 splash hits on the dummies around (48103, room 87215) met row 1300330's 48052, a row also dealt in F1
+-- with no Epidemic cast; refused, F3's splash went '?'.
+local function OtherRowSum(way, own, rows, tally, named)
     for _, row in ipairs(rows) do
         local tol = math.max(1, row.total / 100)
-        if row.spellID ~= own.spellID and not tally[row.spellID] and way.sum >= row.total - tol
+        if row.spellID ~= own.spellID and named[row.spellID] and not tally[row.spellID] and way.sum >= row.total - tol
             and way.sum <= row.total + row.overkill + tol then
             return true
         end
@@ -182,7 +186,10 @@ function Area.Learn(run, rows, learned)
         end
         for _, hit in ipairs(way.hits) do spent[hit] = true end
     end
-    local castsOf, order = {}, {}
+    local castsOf, order, named = {}, {}, {}
+    for _, item in ipairs(run.casts or {}) do
+        named[item.spellID], named[item.base], named[Casts.Overridden(item.spellID)] = true, true, true
+    end
     for _, cast in ipairs(run.casts or {}) do
         if not castsOf[cast.base] then
             castsOf[cast.base] = {}
@@ -221,8 +228,8 @@ function Area.Learn(run, rows, learned)
             local low = not Explains(way, true)
             if low then way = Way(Casts.AREA_LO) end
             local held = low or steady[castID] ~= nil
-            local fits = Explains(way, not low)
-                and not (held and (not Explains(Framed(way, own), not low) or OtherRowSum(way, row, rows, run.tally)))
+            local fits = Explains(way, not low) and not (held
+                and (not Explains(Framed(way, own), not low) or OtherRowSum(way, row, rows, run.tally, named)))
             if fits then
                 Fingerprints.SetArea(castID, low, way.framed)
                 ways[#ways + 1] = way

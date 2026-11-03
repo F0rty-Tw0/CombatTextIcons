@@ -15,6 +15,15 @@ local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
+-- The spell `castID` overrides as the API answers (C_SpellBook.FindBaseSpellByID, else the deprecated global): a
+-- number, or nil when there is no API or no plain number answer.
+local function FindBase(castID)
+    local find = (C_SpellBook and C_SpellBook.FindBaseSpellByID) or FindBaseSpellByID
+    if not find then return nil end
+    local ok, base = pcall(find, castID)
+    if ok and IsNumber(base) then return base end
+end
+
 -- The spell `castID` overrides, else `castID` itself: C_SpellBook.FindBaseSpellByID (retail
 -- 12.0.0+, Forever 1.60.1), else the deprecated global. A missing API, an error or a nil,
 -- secret or non-number answer leaves the cast its own base.
@@ -29,13 +38,17 @@ local ownRows = {}      -- spellID -> true: the meter showed a row of this ID; t
 
 function Casts.Base(castID)
     if ownRows[castID] then return castID end
-    local find = (C_SpellBook and C_SpellBook.FindBaseSpellByID) or FindBaseSpellByID
-    if not find then return castID end
-    local ok, base = pcall(find, castID)
-    if not (ok and IsNumber(base)) then return castID end
+    local base = FindBase(castID)
+    if not base then return castID end
     if base ~= castID then remembered[castID] = base end
 
     return remembered[castID] or base
+end
+
+-- The spell `castID` overrides as the API answers now, whether or not the meter files it under its own row (Base
+-- keeps such a cast its own); `castID` itself when there is no plain answer.
+function Casts.Overridden(castID)
+    return FindBase(castID) or castID
 end
 
 -- Login: the saved own rows, checked (only number keys with the value true stay).

@@ -1022,8 +1022,8 @@ do -- Phase 3: records and Claim
     -- row of another spell the fight drew nothing under. `stamps`: when the 21000 drew (run.drawn), default none.
     Scenario("area pass: other plates' hits that fit the residual and explain half of it teach area, else nothing",
         function()
-            local function Try(total, hits, other, stamps)
-                local ns = Rig(MindBlast)
+            local function Try(total, hits, other, stamps, extra)
+                local ns, S = Rig(MindBlast)
                 local unknown = {}
                 for _, hit in ipairs(hits) do
                     unknown[#unknown + 1] = { at = hit[4] or 30.2, plate = hit[2], school = hit[3] or 32, size = hit[1],
@@ -1033,6 +1033,12 @@ do -- Phase 3: records and Claim
                 for _, at in ipairs(stamps or {}) do drawn[#drawn + 1] = { spellID = 8092, amount = 21000, at = at } end
                 local run = { casts = { { at = 30, base = 8092, spellID = 8092, plate = "p1" } }, tally = { [8092] = 21000 },
                     unknown = unknown, drawn = drawn }
+                -- extra: another cast of the fight { spellID, overrides }, which may name row 22568 by its ID or as
+                -- the spell it overrides (the API's answer; Casts.Base keeps it its own)
+                if extra then
+                    S.baseSpells[extra.spellID] = extra.overrides
+                    table.insert(run.casts, 1, { at = 20, base = extra.spellID, spellID = extra.spellID, plate = "p1" })
+                end
                 local rows = { { spellID = 8092, total = total, overkill = 0 } }
                 if other then rows[2] = { spellID = 22568, total = other, overkill = 0 } end
                 local ways = ns.Area.Learn(run, rows, {})
@@ -1050,10 +1056,14 @@ do -- Phase 3: records and Claim
             local splashSum, splash, splashLow = Try(45000, { { 11000, "p2" }, { 10000, "p3" } }) -- room 24450
             local _, tiny = Try(45000, { { 7000, "p2" }, { 7000, "p3" } })
             -- run priest4 F2: under PAD_LO the hits must share frames on other plates (Devouring Plague 335467's
-            -- lone ones); run druid F10: nor may they sum to another row the fight drew nothing under (Ravage
-            -- 441591's splash is Ferocious Bite 22568's)
+            -- lone ones); run druid F10: nor may they sum to another row the fight drew nothing under whose spell a
+            -- cast of the fight names (Ravage 441591's splash is Ferocious Bite 22568's, the spell Ravage overrides);
+            -- run dk F2: a row no cast names (1300330 beside Epidemic 207317) only met the sum by chance
             local _, alone = Try(45000, { { 11000, "p2", 32, 30.2 }, { 10000, "p3", 32, 30.25 } })
-            local _, owned = Try(45000, { { 11000, "p2" }, { 10000, "p3" } }, 21000)
+            local _, owned = Try(45000, { { 11000, "p2" }, { 10000, "p3" } }, 21000, nil, { spellID = 22568 })
+            local _, overridden = Try(45000, { { 11000, "p2" }, { 10000, "p3" } }, 21000, nil,
+                { spellID = 441591, overrides = 22568 })
+            local _, stranger = Try(45000, { { 11000, "p2" }, { 10000, "p3" } }, 21000)
             local _, notOwned = Try(45000, { { 11000, "p2" }, { 10000, "p3" } }, 30000)
             -- only when the padded band's hits do not fit: druid2 F1's Swipe 106785 fit with them, a smaller hit of
             -- another spell pushed the sum past the room
@@ -1069,7 +1079,7 @@ do -- Phase 3: records and Claim
                 { 30.2, 30.25 })
             return sum == 39000 and area and overSum == 0 and not over and not small and not lone and not own and not school
                 and apart and not apartLow and splashSum == 21000 and splash and splashLow and not tiny
-                and not alone and not owned and notOwned and mixedSum == 39000 and beside and not open
+                and not alone and not owned and not overridden and stranger and notOwned and mixedSum == 39000 and beside and not open
                 and not elsewhere and ownFramed and ownFramedLow
         end)
     -- Run druid2 F3: Swipe 106785's area span held 108 hits (1136262) in a room of 641187, other spells' among them;
