@@ -30,6 +30,7 @@ ns.Core = Core
 
 local PREFIX = "|cff66ccffCombat Text Icons:|r "
 local TEST_SPELL = 6603 -- Auto Attack, for /cti test
+local MINE_WAIT = 1.5   -- a held hit no mate explains may be a learned proc's on a plate yours drew on this long before
 -- Blizzard's floating numbers this addon replaces.
 local CVARS = {
     "floatingCombatTextCombatDamage_v2",
@@ -263,6 +264,16 @@ local events = CreateFrame("Frame")
 -- (Heals.Claim), a held hit like one drawn is that spell's (LikeDrawn)
 local frameHits = { list = {} }
 
+-- mine[plate] = the stamp of the newest hit drawn with your icon on that plate (Drawn); a removed plate forgets it.
+local mine = {}
+
+-- Whether a hit of yours drew on the plate in the MINE_WAIT before `now`.
+local function MineRecently(plate, now)
+    local at = mine[plate]
+
+    return at ~= nil and now - at <= MINE_WAIT
+end
+
 -- A hit on an enemy plate at `now`: its frame keeps it for the frame's heals (Drawn names it). Heals and held hits
 -- (Core.FlushMates) of an earlier frame still waiting are drawn first, before their frame's hits give way.
 local function FrameHit(amount, school, now, flagText, plate)
@@ -289,7 +300,10 @@ local function Drawn(spellID, amount, at)
         end
     end
     Teacher.Drawn(spellID, amount, now, hit and hit.school)
-    if hit then hit.spellID = spellID end
+    if hit then
+        hit.spellID = spellID
+        mine[hit.plate] = now
+    end
 end
 
 -- Why a solo unexplained hit or heal stays hidden when the area is not clear: no meter to
@@ -303,13 +317,14 @@ end
 -- A solo hit on a mob fighting you that a learned proc names, while the area is not crowded (Teacher.NotCrowded):
 -- draws the proc's icon and tallies it. Returns whether it drew; false leaves the hit to the question-mark route.
 -- An unlearned cast of another spell whose samples place a hit like it here (Casts.SampledAt) keeps it from the proc.
-local function ProcWound(plate, school, amount, flagText, now)
+-- `held`: the hit was held to its frame's end (DrawMate), so Drawn names its frame entry by amount.
+local function ProcWound(plate, school, amount, flagText, now, held)
     local procID = Teacher.NotCrowded() and Procs.Name(school, amount, flagText)
     if not procID or Casts.SampledAt(plate, now, school, Streams.NormalAmount(amount, flagText), procID) then
         return false
     end
     if ns.Debug then ns.Debug("  -> proc %s", ShowValue(procID)) end
-    Drawn(procID, amount)
+    Drawn(procID, amount, held and now or nil)
     Ledger.Add("damage", procID, amount)
     Display.Plate(plate, SpellTexture(procID), HitText(flagText, amount), flagText, school)
 
@@ -376,7 +391,8 @@ local QueueFlush -- the next frame flushes what waits for its frame's end (below
 -- on a mob fighting you shares the frame (ownFrame): a learned cast that claimed it (its area, Casts.lua) and drew in
 -- that frame draws it (DrawMate), else the area pass may weigh it (Teacher.Mate). A mate is never a '?', no '?' hit the other passes learn from, and
 -- no wound of the crowd check: fed to the '?' hits, mates cut shaman5's right from 22.5 % to 15.0 % (its Earthquake
--- ground ticks). A hit with no such hit in its frame is a stranger's and stays hidden.
+-- ground ticks). A hit with no such hit in its frame is a stranger's and stays hidden, unless a learned proc names it
+-- on a plate yours drew on just before (DrawMate).
 -- ownFrame = { at = a frame's stamp, schools = { [school] = true } }; held = { at = the frame's stamp, hits = { {
 -- plate, school, amount, flagText, kind, record }, ... } } (kind, record: its Casts.Claim answer).
 local ownFrame, held = { schools = {} }, { hits = {} }
@@ -424,8 +440,13 @@ end
 -- the target; drawn, their 4701 ran past its row (mage over 0.46 % -> 0.68 %). Run druid2 F3: another spell's ~10.5K
 -- hits on all 5 dummies came 0.67 s before Primal Wrath 285381's cast, and its 4 mates of that size drew its row 7690
 -- over (druid2 over 0.00 % -> 0.06 %).
+-- A held hit with no mate is drawn when a learned proc names it (ProcWound) on a plate one of your hits drew on in the
+-- MINE_WAIT before (MineRecently), else hidden. Run warrior F3: proc 435791's 697818 on a dummy came 0.03 s after
+-- 435222's mate on that dummy, alone in its frame, and hid (row 1403166 drew half). Run druid F11: a stranger's holy hits
+-- (2.5-3.2K) on dummies you never drew on fit learned proc 1260076's band; with no plate test they drew wrong (0.1 %).
 local function DrawMate(hit, mated)
     if not mated then
+        if MineRecently(hit.plate, hit.at) and ProcWound(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, true) then return end
         if ns.Debug then ns.Debug("  -> HIDDEN") end
         return
     end
@@ -917,6 +938,7 @@ function Core.NAME_PLATE_UNIT_REMOVED(unit)
     if Plain(plate) then
         Tracker.OnPlateRemoved(plate, PlainGUID(unit), GetTime())
         Display.ReleasePlate(plate)
+        mine[plate] = nil
     end
 end
 

@@ -898,6 +898,45 @@ do -- Phase 3: records and Claim
                 and fedLoud == 1 and unlike == nil and fedUnlike == 1 and stranger == nil
                 and fedStranger == 0 and lone == nil and loud == nil and notDrawn == nil and twice == 2
         end)
+    -- Run warrior F3: proc 435791's 697818 on a dummy no one fights came 0.03 s after 435222's mate on that dummy, alone
+    -- in its frame, and hid. A held hit with no mate that a learned proc names draws as it on a plate one of your hits
+    -- drew on in the MINE_WAIT before; run druid F11: a stranger's holy hits on dummies you never drew on fit a learned
+    -- proc's band and stay hidden.
+    Scenario("frame mates: a lone dummy hit a learned proc names draws as it on a plate yours just drew on, else hides",
+        function()
+            -- hits { t, amount, unit, school } after a Mind Blast cast at 30 (nameplate1 the target; nameplate2 and
+            -- nameplate3 dummies no one fights); proc 435791 learned at 4800-5200, school 8. Returns nameplate2's and
+            -- nameplate3's last icons.
+            local function Run(hits)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                MindBlast(ns)
+                T.Store().procs = { [435791] = { school = 8, lo = 4800, hi = 5200, streak = 3, learned = true } }
+                ns.Procs.Init(T.Store())
+                ns.Teacher.area = "clear"
+                for _, unit in ipairs({ "nameplate2", "nameplate3" }) do
+                    S.threat[unit], S.guids[unit] = false, "Creature-0-1-2-3-107483-0000" .. unit
+                end
+                local drawn = {}
+                ns.Display.Plate = function(plate, texture) drawn[plate] = texture end
+                S.now, S.target = 30, "nameplate1"
+                ns.Core.PLAYER_REGEN_DISABLED()
+                ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 8092)
+                for _, hit in ipairs(hits) do
+                    S.now = hit[1]
+                    ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], hit[4] or 32)
+                end
+                ns.Core.FlushMates()
+                return drawn[Plate("nameplate2")], drawn[Plate("nameplate3")]
+            end
+            local PROC = "tex:435791"
+            local mate = { { 30.2, 20000, "nameplate2" }, { 30.2, 21000, "nameplate1" } }
+            local soon = Run({ mate[1], mate[2], { 30.23, 5000, "nameplate2", 8 } })
+            local _, never = Run({ mate[1], mate[2], { 30.23, 5000, "nameplate3", 8 } })
+            local late = Run({ mate[1], mate[2], { 32, 5000, "nameplate2", 8 } })
+            local unlike = Run({ mate[1], mate[2], { 30.23, 9000, "nameplate2", 8 } })
+            return soon == PROC and never == nil and late == "tex:8092" and unlike == "tex:8092"
+        end)
     -- The area pass (Area.lua): Mind Blast cast at plate p1 drew its 21000 hit; '?' Shadow hits on other plates
     -- 0.2 s after the cast (or at hit[4]) sum against the row's residual (total + overkill + 1 % - 21000). `other`: a
     -- row of another spell the fight drew nothing under. `stamps`: when the 21000 drew (run.drawn), default none.
