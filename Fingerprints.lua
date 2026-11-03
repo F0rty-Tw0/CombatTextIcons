@@ -19,7 +19,7 @@
 -- A meter-proven way may teach `perCast` (hits one cast lands on its plate, SetPerCast) and the area pass `area` (its
 -- casts also hit the plates around their target, SetArea, Area.lua), with `areaLow` when only the hits from
 -- Casts.AREA_LO of its smallest showed it, and `areaFrame` when only the hits in its own hits' frames did; Casts.lua
--- reads them.
+-- reads them. An exact way that left out bigger hits in its casts' windows teaches `cap` (SetCap): the band stops below.
 -- Saved data is checked on load and never trusted.
 
 local _, ns = ...
@@ -200,6 +200,7 @@ function Fingerprints.Add(spellID, sample)
         life = Positive(sample.life), crit = Positive(sample.crit), exact = sample.exact == true or nil }
     entry.samples[#entry.samples + 1] = kept
     if #entry.samples > SAMPLES then table.remove(entry.samples, 1) end
+    if entry.cap and kept.size and kept.size >= entry.cap then entry.cap = nil end
     entry.lastSeen = castAt
     if entry.learned and LaterTick(kept) then
         Refresh(entry)
@@ -319,6 +320,15 @@ function Fingerprints.SetPerCast(spellID, count)
     entry.perCast = math.min(PER_CAST_MAX, math.max(entry.perCast or 1, math.floor(count)))
 end
 
+-- A way the meter proved exactly (Teacher's ExactWay) left out a hit of normal-scale `size` in its casts' windows, past
+-- its own sizes: the entry's band stops below the smallest such size (Casts.InBand), until a sample that size or bigger
+-- comes (Add).
+function Fingerprints.SetCap(spellID, size)
+    local entry = Fingerprints.Get(spellID)
+    if not (entry and HitSize(size)) then return end
+    entry.cap = math.min(entry.cap or size, size)
+end
+
 -- The meter showed a cast's row holding its hits on the plates around its target (Area.lua): its records take them.
 -- `low`: the hits from Casts.AREA_LO of its smallest showed it, so its records take such hits from there (Casts.Claim).
 -- `framed`: only the hits in its own hits' frames showed it, so its records take only those (Casts' AreaHit).
@@ -427,6 +437,7 @@ local function Repair(entry)
     entry.area = entry.area == true or nil
     entry.areaLow = entry.area and entry.areaLow == true or nil
     entry.areaFrame = entry.area and entry.areaFrame == true or nil
+    entry.cap = HitSize(entry.cap)
     Refresh(entry)
 end
 

@@ -828,6 +828,66 @@ local function SameStamps(a, b)
     return count >= COVER_CASTS
 end
 
+-- Whether `sum` meets `row` exactly: from its total up to its overkill.
+local function Meets(sum, row) return sum >= row.total and sum <= row.total + row.overkill end
+
+-- The way the cand pass tries for `group` against `row`: its `cand`, unless that agrees with the cast's own row only
+-- inside the tolerance (Judge) while exactly one size window of its casts' own-plate hits (`all`, sorted by size, the
+-- largest within COVER_SPREAD of the smallest) meets the row exactly and holds a hit of each cast the cand covers,
+-- COVER_CASTS casts or more. That window is the way. Run paladin2 F1: a castless proc (row 383921) hit 0.13-0.15 s after
+-- 2 of Judgment 20271's 3 casts, 8012 and 8265, and as those casts' largest hits they summed with the first cast's 5574
+-- to 21851 against Judgment's row 21917; its hits were 5574 + 5429 + 5395 + 5519, the row exactly. Learned on the 8K
+-- hits, its band drew F4's 8628 of the proc as Judgment. The way's `cap` is the smallest of the casts' largest hits it
+-- left out past its own sizes: no hit of the spell (Fingerprints.SetCap), so its padded band stops below it, and F4's
+-- 8628 and 16914 crit of the proc (25542, row 383921 exactly) stay '?'. With no `row` (Twins) it is the cand.
+local function ExactWay(group, row)
+    local cand = group.cand
+    if not row or row.spellID ~= group.castID or Meets(cand.sum, row)
+        or Judge(cand.sum, row.total, row.overkill) ~= "agree" then
+        return cand
+    end
+    local covered, plateOf = {}, {}
+    for _, hit in ipairs(cand.hits) do
+        if not cand.mates[hit] then
+            local castAt = cand.castOf[hit].castAt
+            covered[castAt], plateOf[castAt] = true, hit.plate
+        end
+    end
+    local all, hits = group.all, {}
+    for _, hit in ipairs(all.hits) do
+        if hit.size and plateOf[all.castOf[hit].castAt] == hit.plate then hits[#hits + 1] = hit end
+    end
+    table.sort(hits, function(a, b)
+        if a.size ~= b.size then return a.size < b.size end
+
+        return a.at < b.at
+    end)
+    local found
+    for first = 1, #hits do
+        local sum, stamps = 0, {}
+        for last = first, #hits do
+            if hits[last].size > COVER_SPREAD * hits[first].size then break end
+            sum = sum + hits[last].amount
+            stamps[all.castOf[hits[last]].castAt] = true
+            if Meets(sum, row) and SameStamps(stamps, covered) then
+                if found then return cand end
+                found = { first = first, last = last, sum = sum }
+            end
+        end
+    end
+    if not found then return cand end
+    local way = { castID = group.castID, sum = found.sum, hits = {}, castOf = all.castOf, mates = {},
+        covered = cand.covered, casts = cand.casts }
+    for index = found.first, found.last do way.hits[#way.hits + 1] = hits[index] end
+    for _, hit in ipairs(cand.hits) do
+        if not cand.mates[hit] and hit.size and hit.size > hits[found.last].size then
+            way.cap = math.min(way.cap or hit.size, hit.size)
+        end
+    end
+
+    return way
+end
+
 -- The groups that are twins of an earlier one, by index: two cast IDs with no meter row of their own that the game
 -- logs on the same stamps every time (COVER_CASTS or more), whose ways hold the same hits in one school. The earlier
 -- (lower ID) stands for both, or the row both agree with pairs with neither. Run warrior F1: Execute logs casts of
@@ -856,15 +916,15 @@ local function Twins(groups, WayOf, owners)
     return twin
 end
 
--- One pairing pass over the rows and groups `seen` does not hold yet: `WayOf(group)` is the
--- group's sum to try. A row and a group that agree only with each other are learned; every row
+-- One pairing pass over the rows and groups `seen` does not hold yet: `WayOf(group, row)` is the
+-- group's sum to try against that row. A row and a group that agree only with each other are learned; every row
 -- and group that agreed with anything goes into `seen`, so a later pass never revisits them.
 local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritten)
     local groupsOf, rowsOf, twin = {}, {}, Twins(groups, WayOf, owners)
     for position, item in ipairs(open) do
         for groupIndex, group in ipairs(groups) do
             if not seen.rows[position] and not seen.groups[groupIndex] and not twin[groupIndex]
-                and Pairs(group, WayOf(group), item.row, owners) then
+                and Pairs(group, WayOf(group, item.row), item.row, owners) then
                 groupsOf[position] = (groupsOf[position] or 0) + 1
                 rowsOf[groupIndex] = (rowsOf[groupIndex] or 0) + 1
             end
@@ -873,7 +933,8 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
 
     for position, item in ipairs(open) do
         for groupIndex, group in ipairs(groups) do
-            local row, way = item.row, WayOf(group)
+            local row = item.row
+            local way = WayOf(group, row)
             if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Pairs(group, way, row, owners) then
                 -- A sum that met the cast's own row is exact and teaches from one cast (Fingerprints EXACT_CASTS);
                 -- an alias row's keeps LEARN_CASTS, and so does an `all` sum, which mixes sizes: in run shamanele
@@ -906,6 +967,7 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
                     Fingerprints.SetAlias(row.spellID, group.castID)
                 end
                 Fingerprints.SetPerCast(group.castID, OwnHitsPerCast(way))
+                if way.cap then Fingerprints.SetCap(group.castID, way.cap) end
                 if area then Fingerprints.SetArea(group.castID, nil, way.fan == true) end
                 learned[#learned + 1] = way
                 rewritten[position] = true
@@ -1125,7 +1187,7 @@ local function Learn(run, results, open, rows)
     -- Meteor 117588's cand (its 112583 crit on the target and 4 mates of 56-58K) met its row 341245 exactly, and so
     -- did Ascendance 114050's cand of the same hits as an alias, so neither paired (shaman5 F3 alike).
     for _, group in ipairs(candGroups) do owners.casts[group.castID] = true end
-    Pass(candGroups, open, owners, function(group) return group.cand end, candSeen, results, learned, rewritten)
+    Pass(candGroups, open, owners, ExactWay, candSeen, results, learned, rewritten)
     Pass(candGroups, open, owners, function(group) return group.all end, candSeen, results, learned, rewritten)
     Pass(candGroups, open, owners, function(group) return group.fan end, candSeen, results, learned, rewritten)
     Pass(candGroups, open, owners, function(group) return group.across end, candSeen, results, learned, rewritten)

@@ -577,8 +577,9 @@ function Casts.InBand(base, castSpell, size, floor)
     if not (IsNumber(size) and size > 0) then return true end
     local low, high, count = Fingerprints.Band(base, castSpell)
     if not low then return true end
+    local cap = Fingerprints.Get(base).cap
 
-    return Casts.InSizes(low, high, size, floor or count == 1 and SHRINK or nil)
+    return Casts.InSizes(low, high, size, floor or count == 1 and SHRINK or nil) and not (cap and size >= cap)
 end
 
 -- Whether normal-scale `size` (nil or 0: any) fits the padded band of sizes `low`-`high`, from `floor` (default

@@ -2203,6 +2203,38 @@ return function(T)
             Check("burst: a hit whose frame sums to another row whole (1005 + 600 + 600 = row Y) is no cast's largest "
                 .. "-> Z learns its ten 1000s at 0.22 s, tally 10000",
                 F.IsLearned(Z) and #sizes == 10 and sizes[10] == 1000 and Find(last, Z).tally == 10000)
+
+            -- Run paladin2 F1: a castless proc hit 8012 and 8265 0.13-0.15 s after 2 of Judgment 20271's 3 casts; as
+            -- those casts' largest they summed with the first cast's 5574 to 21851 against its row 21917 (inside the 1 %
+            -- tolerance), while its own hits 5574 + 5429 + 5395 + 5519 met it exactly, and learned on the 8K hits its band
+            -- drew F4's 8628 of the proc. Z cast at 60, 70 and 80: its 1000 + 980, 990 and 1010; the proc's 1450 and 1500.
+            local proc = {}
+            for _, hit in ipairs({ { 60, 1000, 0.16 }, { 60, 980, 0.40 }, { 70, 1450, 0.13 }, { 70, 990, 0.38 },
+                { 80, 1500, 0.15 }, { 80, 1010, 0.44 } }) do
+                proc[#proc + 1] = { 32, hit[2], "", nil, hit[1] + hit[3], { Candidate(Z, hit[1]) } }
+            end
+            rig = Rig({})
+            ReadWith(rig, proc, { { Z, 3980 } })
+            F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            sizes = {}
+            for _, sample in ipairs(F.Get(Z) and F.Get(Z).samples or {}) do sizes[#sizes + 1] = sample.size end
+            table.sort(sizes)
+            local InBand = rig.ns.Casts.InBand
+            Check("exact way: each cast's largest (1000 + 1450 + 1500) agrees with row 3980 only inside the tolerance, "
+                .. "its own hits meet it exactly -> Z learns 980-1010, 2 hits a cast, its band stops below the 1450 left out",
+                F.IsLearned(Z) and #sizes == 4 and sizes[1] == 980 and sizes[4] == 1010 and F.Get(Z).perCast == 2
+                and Find(last, Z).tally == 3980 and InBand(Z, Z, 1449) and not InBand(Z, Z, 1450))
+            F.Add(Z, { school = 32, delay = 0.4, castAt = 90, spell = Z, size = 1500 })
+            Check("exact way: a sample the cap's size or bigger lifts the cap", InBand(Z, Z, 1450))
+            rig = Rig({})
+            ReadWith(rig, proc, { { Z, 3950 } })
+            sizes = {}
+            for _, sample in ipairs(rig.ns.Fingerprints.Get(Z) and rig.ns.Fingerprints.Get(Z).samples or {}) do
+                sizes[#sizes + 1] = sample.size
+            end
+            table.sort(sizes)
+            Check("exact way: each cast's largest meeting row 3950 exactly stays the way (1000, 1450, 1500)",
+                #sizes == 3 and sizes[1] == 1000 and sizes[3] == 1500 and rig.ns.Fingerprints.Get(Z).cap == nil)
         end
 
         do -- Rev 4b: the saved-alias pass and rule 2 never pair a row Procs tracks
