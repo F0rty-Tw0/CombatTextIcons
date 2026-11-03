@@ -43,8 +43,9 @@
 -- when a tick of its size ran a period before the cast, when its ticks are all one size (a castless proc's: paladin's
 -- Word of Glory starts a 720 rune train under the rune's ID 1287665), or when luck gives it more than WALK_ALPHA
 -- often. Agreeing walks that luck alone gives TRAIN_LUCK often at most (two walks, or one sure walk), TRAIN_SHARE of
--- the cast's counted casts, learn it under the cast's heal row (else its base's); then each cast starts the train,
--- and its due ticks are that row's. A cast with neither row takes the one damage row of no cast's ID whose hits
+-- the cast's counted casts that walked one, learn it under the cast's heal row (else its base's); then each cast
+-- starts the train, and its due ticks are that row's. A cast with neither row takes the one damage row of no cast's
+-- ID whose hits
 -- (drawn, or learned this read) share their frames with a walk's ticks beyond luck, else the read's one heal row
 -- that is also such a damage row, once a walk's ticks share their frames with the fight's hits beyond luck: Healing
 -- Rain (casts 444995 base 73920 and 1298679, row 73921) heals you and hits the mobs on each tick. A direct heal
@@ -105,10 +106,10 @@ local MISSES = 2        -- missed ticks in a row end a train
 local TRAIN_TICKS = 5   -- a walk of fewer ticks is no train
 local WALK_ALPHA = 0.01 -- a walk luck alone gives this often or less is a train
 -- Walks agree on one train within PERIOD_TOL s and their middle sizes within AGREE x; agreeing walks whose lucks
--- multiply to TRAIN_LUCK at most, TRAIN_SHARE of the cast's counted casts, teach it. TRAIN_LUCK is two walks at
--- WALK_ALPHA, so one walk teaches alone when luck gives it that seldom: shamanheal casts Healing Tide 108280 three
--- times, its first walk (5 ticks of ~30K every 1.76 s) luck 2.1e-05, and two walks named only its third cast's ticks
--- (its second cast's ticks, 3.2 % of the log's raw healing, went '?').
+-- multiply to TRAIN_LUCK at most, TRAIN_SHARE of the cast's counted casts that walked, teach it. TRAIN_LUCK is two
+-- walks at WALK_ALPHA, so one walk teaches alone when luck gives it that seldom: shamanheal casts Healing Tide 108280
+-- three times, its first walk (5 ticks of ~30K every 1.76 s) luck 2.1e-05, and two walks named only its third cast's
+-- ticks (its second cast's ticks, 3.2 % of the log's raw healing, went '?').
 local PERIOD_TOL, AGREE = 0.1, 2
 local TRAIN_LUCK, TRAIN_SHARE = WALK_ALPHA * WALK_ALPHA, 0.6
 local TRAIN_CAP = 32    -- casts kept; the one seen least recently goes first
@@ -732,11 +733,14 @@ local function Twins(a, b)
     return Always(a, b) and Always(b, a)
 end
 
--- A cast's learned train, else nil. Its counted casts are those whose stamp's other helpful casts are all direct
--- heals or casts of the same row (shamanheal casts each totem with Chain Heal on its stamp: the totem's walks count
--- once Chain Heal, cast alone too, has samples; Chain Heal's walks on those stamps never count). Of twins of one row
--- only the lower ID learns, so one train runs per cast (Healing Rain: 444995). Learned when its agreeing walks' lucks
--- multiply to TRAIN_LUCK at most, they are TRAIN_SHARE of its counted casts and it has a heal row. A direct heal
+-- A cast's learned train, else nil. Its counted casts are those that walked a train and whose stamp's other helpful
+-- casts are all direct heals or casts of the same row (shamanheal casts each totem with Chain Heal on its stamp: the
+-- totem's walks count once Chain Heal, cast alone too, has samples; Chain Heal's walks on those stamps never count).
+-- A cast that walked none is no count against a train, only a walk of another period or size is: a train can end
+-- early or hide in a busy fight (shamanheal F3's Stormstream 1267068 healed you twice, 1.5 s apart, then stopped, and
+-- F4's 12 ticks drew '?'). Of twins of one row only the lower ID learns, so one train runs per cast (Healing Rain:
+-- 444995). Learned when its agreeing walks' lucks multiply to TRAIN_LUCK at most, they are TRAIN_SHARE of its
+-- counted casts and it has a heal row. A direct heal
 -- learns only its tail (Tails): TAIL_WALKS walks or more whose shares agree. Its tick count is the agreeing
 -- walks' median: a walk can run on into the next cast's ticks or a foreign heal (synthetic Renew 139 walked 8, 9, 13
 -- and 16 ticks; the longest claimed a foreign heal two periods past its 8th tick). A walk the fight's end may have cut
@@ -753,9 +757,9 @@ local function Judge(castID, entry)
     for _, walk in ipairs(entry.walks) do
         local alone = true
         for _, other in ipairs(walk.with) do alone = alone and (Direct(other) or Same(other)) end
-        if alone then
+        if alone and walk.period then
             counted = counted + 1
-            if walk.period and (walk.share ~= nil) == direct then walks[#walks + 1] = walk end
+            if (walk.share ~= nil) == direct then walks[#walks + 1] = walk end
         end
     end
     local best

@@ -488,8 +488,14 @@ return function(T)
         Check("trains: walks counted before the cast's ID was a heal row teach once a read lists it; a walk under 5 "
             .. "ticks is none", H.IsTrainLearned(TIDE) and T.Store().healTrains[TIDE].row == TIDE
             and T.Store().healTrains[TIDE].walks[3].period == nil)
+        -- shamanheal F3: Stormstream healed you twice, then stopped; its F2 walk was sure, and F4's ticks drew '?'
         TrainRead(H, { TIDE }, { ticks = 4 })
-        Check("trains: 2 walks of 4 counted casts are below the train share", not H.IsTrainLearned(TIDE))
+        Check("trains: casts that walked no train (ticks cut short) are no count against it",
+            H.IsTrainLearned(TIDE) and #T.Store().healTrains[TIDE].walks == 4)
+        local function Big(tick) return 30000 - 300 * tick end
+        TrainRead(H, { TIDE }, { size = Big })
+        TrainRead(H, { TIDE }, { size = Big })
+        Check("trains: 2 agreeing walks of 4 walked casts are below the train share", not H.IsTrainLearned(TIDE))
 
         ns = T.Boot()
         H = ns.Heals
