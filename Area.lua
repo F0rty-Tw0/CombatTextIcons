@@ -272,7 +272,9 @@ function Area.Twins(run, rows, learned)
     local ways = {}
     for _, spellID in ipairs(order) do
         local dot, row = ns.Learn.Get(spellID), ns.Steady.RowOf(spellID, rows)
-        if dot and row then
+        -- a ramping DoT's ticks on other plates are their own ramps, at no fixed share of its own (run lock4 F5: Agony
+        -- 980 taught 0.83 and drew Drain Life 234153's 1281s in F7 as its twins, then went over its row and dropped)
+        if dot and row and not ns.Learn.Ramp(spellID) then
             local matched = {}
             for _, hit in ipairs(run.unknown) do
                 local newest

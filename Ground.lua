@@ -634,13 +634,21 @@ end
 
 -- The castless pass of one clear read, after the proc passes. `run` is the fight, `hits` its '?' hits no learned way
 -- took, `open` the rows still open and `rows` the session's rows; a learned row's verdict goes to `results`.
+-- A learned DoT's school holds its missed ticks, so its hits stay out; a ramping DoT's (Learn.Ramp) only up to a ramp
+-- step past its biggest tick, the most its tracker draws: run lock4, Agony 980 (a ramp, ticks to ~4.6K) kept Darkglare
+-- 205231's 9-13K beams out, and its row (0.44M of right in later fights) stayed '?'.
 function Ground.Castless(run, hits, open, rows, results)
-    local dotSchools = {}
-    for _, entry in ipairs(ns.Learn.List()) do dotSchools[entry.school] = true end
+    local dotSchools = {} -- [school] = the size a hit must pass to be no learned DoT's tick
+    for _, entry in ipairs(ns.Learn.List()) do
+        local dot = ns.Learn.Ramp(entry.spellID) and ns.Learn.Get(entry.spellID)
+        local top = dot and dot.size and Streams.RAMP_STEP * dot.size or math.huge
+        dotSchools[entry.school] = math.max(dotSchools[entry.school] or 0, top)
+    end
     local kept, first, last = {}, nil, nil
     for _, hit in ipairs(hits) do
         first, last = math.min(first or hit.at, hit.at), math.max(last or hit.at, hit.at)
-        if hit.size and hit.size > 0 and not dotSchools[hit.school] then kept[#kept + 1] = hit end
+        local top = dotSchools[hit.school]
+        if hit.size and hit.size > 0 and not (top and hit.size <= top) then kept[#kept + 1] = hit end
     end
     local frames = Frames(kept)
     local owned, total = {}, 0

@@ -274,7 +274,8 @@ end
 -- 1.13-1.16 s apart, 120K against its 81K row), while its own ticks land within 0.07 s (run lock3 F2: gaps 1.27-1.40
 -- on 1.33). A spread instance (Tracker.AdoptSpread) is held within Streams.RAMP_STEP of its last tick either way: no
 -- cast vouches for its window (run lock3 F2: Agony 980 spread to nameplate9 took a 1379 hit of Shadow of Nathreza
--- 1262710 at 0.43x its last tick, a 6462 crit). So is a channel whose last STEADY_RUN ticks were like-sized: run priest3
+-- 1262710 at 0.43x its last tick, a 6462 crit), and so is a ramp DoT's (Learn.Ramp): it steps by less (run lock4: Agony
+-- 980 drew 14K wrong of other Shadow hits 0.4-2.5x its last tick without it). So is a channel whose last STEADY_RUN ticks were like-sized: run priest3
 -- F8, Void Torrent 263165 ticked 7224, 7199, 7224, took a 3213 Shadow hit due in its next window, and its own 14550
 -- crit tick in that frame went '?'. Two like-sized ticks are not enough: on run shadow-forget5 F3 a learned Mind Flay
 -- 15407 opened on two 2914 hits of another spell, and held to them it never took its own 5003 ticks after them.
@@ -300,7 +301,7 @@ local function Phase(instance, school, amount, flagText, now, strict)
             local low, high = AMOUNT_LOW, AMOUNT_HIGH
             if strict or instance.channel and (instance.likeRun or 0) >= STEADY_RUN then
                 low, high = 1 - Streams.SIZE_GUARD, 1 / (1 - Streams.SIZE_GUARD)
-            elseif instance.spread then
+            elseif instance.spread or instance.fromLearn and Learn.Ramp(instance.icon) then
                 low, high = 1 / Streams.RAMP_STEP, Streams.RAMP_STEP
             end
             if tested and (normal < low * last or normal > high * last) then

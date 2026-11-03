@@ -1352,6 +1352,27 @@ return function(T)
         Check("spread: grouped, the castless stream is not adopted", Spread(true) == nil)
         Check("spread: two learned DoTs fit the stream, neither adopts it", Spread(false, true) == nil)
     end
+    do -- ramp DoT (Learn.Ramp, run lock4: Agony 980 drew other Shadow hits 0.4-2.5x its last tick): its cast's ticks
+        -- step within Streams.RAMP_STEP; a plain learned DoT keeps the wider AMOUNT_LOW-AMOUNT_HIGH band
+        local function Ramped(ramp)
+            local rig = Rig()
+            rig.Seed(9503, 32, 1.4, "dot")
+            rig.Learned(9503).ramp, rig.Learned(9503).size = ramp, 1000
+            rig.Cast(0, 9503)
+            local first, second = rig.Hit(1.4, 1000, 32), rig.Hit(2.8, 1400, 32)
+            return first, second, rig.Hit(4.2, 2600, 32), rig
+        end
+        local first, second, far, rig = Ramped(true)
+        Check("ramp: a ramp DoT's ticks stepping up 1.4x are drawn", first == "tex:9503" and second == "tex:9503")
+        Check("ramp: a hit 1.86x its last tick is not a ramp DoT's (" .. tostring(far) .. ")", far ~= "tex:9503")
+        Check("ramp: Learn.Ramp reads the stored mark", rig.ns.Learn.Ramp(9503) == true)
+        local _, _, plain, plainRig = Ramped(nil)
+        Check("ramp: a plain DoT draws the same 1.86x hit (" .. tostring(plain) .. ")", plain == "tex:9503")
+        Check("ramp: an entry with no mark (an old save) is no ramp", plainRig.ns.Learn.Ramp(9503) == false)
+        Check("ramp: Learn.Teach marks a ramp only when asked", plainRig.ns.Learn.Teach(9504, 32, 1.4, true)
+            and plainRig.ns.Learn.Ramp(9504) and plainRig.ns.Learn.Teach(9505, 32, 1.4)
+            and not plainRig.ns.Learn.Ramp(9505))
+    end
     do -- twin (run mage: Arcane Missiles 5143's ticks struck the plates around at 0.5 of each tick, row 7268): a learned
         -- channel with a taught share draws its twin on another plate within a period of its tick; off the share, or
         -- with no share taught, the hit is not the channel's
@@ -1423,6 +1444,18 @@ return function(T)
         end
         Check("twin pass: four hits at 0.5 of the tick before them, inside the room, teach 0.5", Teach(6100) == 0.5)
         Check("twin pass: past the row's room nothing is taught", Teach(5000) == nil)
+        do -- run lock4 F5: Agony 980, a ramp, taught 0.83 and drew Drain Life's hits as its twins in F7
+            local ns = T.Boot()
+            SeedLearned(9002, 32, 1.0, "dot")
+            T.Store().learned[9002].ramp = true
+            local run = { tally = { [9002] = 4000 }, ticks = {}, unknown = {} }
+            for index = 1, 4 do
+                run.ticks[index] = { spellID = 9002, at = 100 + index, plate = "P", size = 1000 }
+                run.unknown[index] = { school = 32, amount = 500, size = 500, at = 100.1 + index, plate = "Q" }
+            end
+            ns.Area.Twins(run, { { spellID = 9002, total = 6100, overkill = 0 } }, {})
+            Check("twin pass: a ramp DoT is taught no share", ns.Learn.Twin(9002) == nil)
+        end
 
         -- ticks of 1000 at 101-104 (`crit`: the one at 104 lands as a 2000 crit); `twins` hits on plate Q, each
         -- { at, amount }; `taught`: a share taught before

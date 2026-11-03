@@ -3419,6 +3419,22 @@ return function(T)
         Check("castless (b): the ticks (126000) are over the row (122000) -> no row bounds them, nothing learned",
             Outcome() == "rows=0" and rig.ns.Procs.Get(NATHREZA) == nil)
 
+        -- Run lock4: Agony 980, a ramp learned with ticks to ~4.6K, kept Darkglare 205231's 9-13K beams out of the
+        -- pass. A learned DoT of the school keeps its hits out; a ramp DoT only those up to a ramp step past its size.
+        local function Behind(ramp)
+            local held = Rig({})
+            held.ns.Learn.Teach(980, 32, 1.4, ramp)
+            held.ns.Learn.Sized(980, 1000)
+            AuraFight(held, 130000, 1000)
+            return Outcome(), held.ns.Procs.Get(NATHREZA)
+        end
+        local found, proc = Behind(true)
+        Check("castless (c): a ramp DoT of the school sized 1000 leaves the 2000-2400 ticks to the pass -> learned ("
+            .. tostring(found) .. ")", found == tostring(NATHREZA) and proc ~= nil)
+        found, proc = Behind(nil)
+        Check("castless (d): a plain learned DoT of the school keeps them out -> nothing learned (" .. tostring(found)
+            .. ")", found ~= tostring(NATHREZA) and proc == nil)
+
         rig = Rig({})
         AuraFight(rig, 130000, 1000, function()
             T.Store().learned[445468] = { school = 32, period = 1.4, kind = "dot", misses = 0 }
@@ -3662,6 +3678,51 @@ return function(T)
         Check("sliced read: a fight that opens mid-judging pauses it; its end resumes it, and its own read is judged "
             .. "after (the same session: a duplicate)",
             ran and paused and pausedLast == nil and #outcomes == 2 and second.skip == "duplicate session")
+    end
+
+    do -- ramp pass (Ramp.lua): a DoT whose ticks step up by one fixed amount from its cast is learned as a ramp
+        -- Run lock4 F15: Agony 980 ticked 2016, 2420, 2823 every ~1.47 s while its school held other rows, so the DoT
+        -- pass never learned it. Here one cast at 10 ticks every 1.4 s from 11.4, sized by `Size(k)` for tick k = 0..9,
+        -- and a stranger's steady 1500 Shadow hits land 0.7 s after each tick.
+        local AGONY, STRANGER = 980, 5740
+        -- The outcome of the TEACH ramp line for Agony (nil for none) and whether it was learned as a ramp.
+        local function RampFight(Size)
+            local rig = Rig({})
+            local S, Core = rig.S, rig.ns.Core
+            SlashCmdList.COMBATTEXTICONS("debug")
+            S.now = 8
+            Core.PLAYER_REGEN_DISABLED()
+            rig.Cast(10, "nameplate1", AGONY)
+            local sum, noise = 0, 0
+            for k = 0, 9 do
+                local at = 11.4 + 1.4 * k
+                rig.Hit(at, "nameplate1", Size(k), 32)
+                rig.Hit(at + 0.7, "nameplate1", 1500, 32)
+                sum, noise = sum + Size(k), noise + 1500
+            end
+            S.now = 30
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(nextSession, { Row(AGONY, sum + 3000), Row(STRANGER, noise) }) }
+            nextSession = nextSession + 1
+            pcall(rig.Fire)
+            local outcome
+            for _, line in ipairs(CombatTextIconsDB.debugLog) do
+                outcome = line:match("TEACH ramp " .. AGONY .. " casts=%d+ .* %-> (%S+)") or outcome
+            end
+            return outcome, rig.ns.Learn.Ramp(AGONY)
+        end
+        local outcome, ramp = RampFight(function(k) return 1000 + 500 * k end)
+        Check("ramp (a): ticks 1000, 1500, ... 5500 from the cast -> learned as a ramp (" .. tostring(outcome) .. ")",
+            outcome == "learned" and ramp)
+        outcome, ramp = RampFight(function(k) return 2000 + 400 * k end)
+        Check("ramp (b): ticks 2000, 2400, ... rising by a fixed step from far above nothing at the cast (run druid F11:"
+            .. " Rake) -> not learned (" .. tostring(outcome) .. ")", outcome == nil and not ramp)
+        outcome, ramp = RampFight(function(k) return 1000 + 10 * k end)
+        Check("ramp (c): ticks 1000, 1010, 1020, ... rising by rounding (run dk F1: 343294) -> not learned ("
+            .. tostring(outcome) .. ")", outcome == nil and not ramp)
+        outcome, ramp = RampFight(function(k) return 1000 + 500 * k + (k % 2 == 1 and 100 or 0) end)
+        Check("ramp (d): ticks rising by no fixed step (run priest4 F1: Void Torrent) -> not learned ("
+            .. tostring(outcome) .. ")", outcome == nil and not ramp)
     end
 
     do -- own row: a read that shows Lava Burst's own row (51505) keys its next cast by 51505, not API base 73899

@@ -231,12 +231,20 @@ function Learn.Paired(spellID)
     if entry then entry.unpaired = 0 end
 end
 
--- The teacher's DoT pass (Teacher.lua) learned `spellID` from its meter row: a DoT of `school` at base period `base`.
--- Its votes give way. False when an argument is not a plain number or the period is no tick rhythm.
-function Learn.Teach(spellID, school, base)
+-- Whether the learned spell ramps (the ramp pass, Ramp.lua, taught it): its ticks step within Streams.RAMP_STEP.
+function Learn.Ramp(spellID)
+    local entry = IsId(spellID) and learned[spellID]
+
+    return entry and entry.ramp == true or false
+end
+
+-- The teacher's DoT pass (Teacher.lua) learned `spellID` from its meter row: a DoT of `school` at base period `base`;
+-- `ramp` when the ramp pass (Ramp.lua) taught it. Its votes give way. False when an argument is not a plain number or
+-- the period is no tick rhythm.
+function Learn.Teach(spellID, school, base, ramp)
     if not (IsId(spellID) and IsId(school) and IsId(base)) then return false end
     if base < PERIOD_MIN or base > PERIOD_MAX then return false end
-    learned[spellID] = { school = school, period = base, kind = "dot", misses = 0, unpaired = 0 }
+    learned[spellID] = { school = school, period = base, kind = "dot", misses = 0, unpaired = 0, ramp = ramp == true or nil }
     votes[spellID] = nil
 
     return true
