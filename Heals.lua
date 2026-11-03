@@ -19,7 +19,7 @@
 -- of the fight's heals on you of one size (crits at normal scale), that size is the row's, a row that did not
 -- overheal and healed only you in that fight (druid's Frenzied Regeneration row 217748 = 4 x 54437). Checked per row,
 -- never assumed per fight: a healer's fight overheals, so its rows match no sum (shamanheal). SIZE_READS reads of
--- one size teach it; then each heal on you of that size is the row's, cast or not, unless two learned rows share it.
+-- one size teach it (one read when its row sums SURE_RUN heals); then each heal on you of that size is the row's, cast or not, unless two learned rows share it.
 -- Coupled heals: a spell that heals you a fixed share k of each of its hits, on the hit's stamp (Devouring Plague
 -- 335467 heals 0.3 x its hit, priest3; Drain Life 234153 heals 7 x its tick, lock3). When a clear read's hits drawn
 -- under an ID that is also one of its heal rows share one k with the heals on you on their stamps (the raw amounts:
@@ -72,6 +72,9 @@ local PAD_LO, PAD_HI = 0.7, 2
 -- a crit's half, 5763.5). A row matches a size's sum within SUM_TOL (the meter's own rounding).
 local SIZE_TOL, SUM_TOL = 1, 1
 local SIZE_READS = 2    -- reads whose row matched one size teach it
+-- A row that sums SURE_RUN or more heals of one size teaches it in one read: paladin F3's rune rows 1287908 (8 heals
+-- of 5763, crits at normal scale) and 1287665 (16 of 720) match to 1, as no chance size does that often.
+local SURE_RUN = 4
 local SIZE_CAP = 32     -- sizes kept; the one seen least recently goes first
 -- A coupled heal is k x its hit within COUPLE_TOL (the game rounds: 0.3 x 2391 heals 717). COUPLE_PAIRS heals of one k
 -- in a read sample it: priest3's clear fights hold 1 to 9 heals next to a hit drawn 335467.
@@ -340,7 +343,8 @@ local function CountCast(spellID, size, chance, row)
 end
 
 -- The fight's heals on you in runs of one size: sorted by size, a run grows while the next size is within SIZE_TOL
--- of its last. Returns { { size = its middle, sum = its amounts summed }, ... } of the runs spanning SIZE_TOL at most.
+-- of its last. Returns { { size = its middle, sum = its amounts summed, heals = how many }, ... } of the runs spanning
+-- SIZE_TOL at most.
 local function SizeRuns(fightHeals)
     local sorted = {}
     for _, heal in ipairs(fightHeals) do
@@ -350,15 +354,17 @@ local function SizeRuns(fightHeals)
     local runs, run = {}, nil
     for _, heal in ipairs(sorted) do
         if run and heal.size - run.last <= SIZE_TOL then
-            run.last, run.sum = heal.size, run.sum + heal.amount
+            run.last, run.sum, run.heals = heal.size, run.sum + heal.amount, run.heals + 1
         else
-            run = { first = heal.size, last = heal.size, sum = heal.amount }
+            run = { first = heal.size, last = heal.size, sum = heal.amount, heals = 1 }
             runs[#runs + 1] = run
         end
     end
     local kept = {}
     for _, each in ipairs(runs) do
-        if each.last - each.first <= SIZE_TOL then kept[#kept + 1] = { size = (each.first + each.last) / 2, sum = each.sum } end
+        if each.last - each.first <= SIZE_TOL then
+            kept[#kept + 1] = { size = (each.first + each.last) / 2, sum = each.sum, heals = each.heals }
+        end
     end
 
     return kept
@@ -377,8 +383,9 @@ local function EvictOldest(entries, cap)
     if count >= cap then entries[oldestID] = nil end
 end
 
--- One read's sample of `spellID`'s size: the same size as its last adds a read, another starts over.
-local function SampleSize(spellID, size)
+-- One read's sample of `spellID`'s size from a run of `count` heals: the same size as its last adds a read, another
+-- starts over; a run of SURE_RUN or more teaches it alone.
+local function SampleSize(spellID, size, count)
     local entry = sizes[spellID]
     if entry and math.abs(entry.size - size) <= SIZE_TOL then
         entry.reads = entry.reads + 1
@@ -387,6 +394,7 @@ local function SampleSize(spellID, size)
         entry = { reads = 1 }
         sizes[spellID] = entry
     end
+    if count >= SURE_RUN then entry.reads = math.max(entry.reads, SIZE_READS) end
     entry.size, entry.seen = size, reads
     if ns.Debug then
         ns.Debug("TEACH healsize %d size=%.1f reads=%d -> %s", spellID, size, entry.reads,
@@ -412,7 +420,7 @@ local function LearnSizes(fightHeals, rows)
         end
     end
     for index, rowIDs in pairs(matches) do
-        if #rowIDs == 1 then SampleSize(rowIDs[1], runs[index].size) end
+        if #rowIDs == 1 then SampleSize(rowIDs[1], runs[index].size, runs[index].heals) end
     end
 end
 

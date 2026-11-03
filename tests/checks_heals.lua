@@ -189,6 +189,14 @@ return function(T)
             SizeOf(ORDER).reads == 1 and SizeOf(ORDER).size == 6046
             and H.Claim({}, { { size = 11527 } })[1] == 1263002)
 
+        -- paladin F3: the rune row 1287665 sums 16 heals of 720; one read teaches it
+        H.Forget()
+        local many = {}
+        for k = 1, 16 do many[k] = { size = 720, amount = 720, at = k } end
+        H.Learn(many, {}, { Sized(1287665, 11520) }, 100)
+        Check("sizes: one read whose row sums SURE_RUN heals of one size teaches it alone",
+            SizeOf(1287665).reads == 2 and H.Claim({}, { { size = 720 } })[1] == 1287665)
+
         -- a learned size claims before a cast, and is no cast's sample: paladin's Word of Glory stamps hold a proc
         ns = T.Boot()
         H = ns.Heals
