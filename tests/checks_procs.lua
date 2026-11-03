@@ -1157,9 +1157,28 @@ return function(T)
         procs = Once(Fight(GAPS_SOON), ROWS)
         Check("procs swing pass: two band hits on the plate half the period apart or closer keep no swing (no entry)",
             procs[6603] == nil)
-        procs = Once(Fight(GAPS, { 150592, 150592, 150592, 150592, 200179, 167500 }), { { id = 6603, total = 2811335 + 167500 } })
-        Check("procs swing pass: a hit within SWING_STEP below the band joins it, so the band past SWING_SPREAD is none",
+        procs = Once(Fight(GAPS, { 150592, 150592, 150592, 150592, 200179, 167500, 163000 }),
+            { { id = 6603, total = 2811335 + 167500 + 163000 } })
+        Check("procs swing pass: hits within SWING_STEP below the band join it, so the band past SWING_SPREAD is none",
             procs[6603] == nil)
+        -- a stray of the school keeps the size pass from splitting it whole, so its pair is a candidate (streak 1)
+        procs = Once(Fight(GAPS, { 1600000 }), { { id = 6603, total = 2811335 } })
+        Check("procs swing pass: a band the size pass also paired with its row (a candidate, streak 1) learns a swing",
+            procs[6603] ~= nil and procs[6603].learned == true and procs[6603].swing ~= nil and procs[6603].period == nil)
+        -- run warrior F2: Devastator 236282's 11 normals (297734-318587, spread 7.0 %) and 2 crits on the target summed to
+        -- its row 4645358 exactly; the size pass paired them too, a candidate beside the stray
+        local DEVASTATOR = { 620397, 306624, 297734, 304096, 305474, 315837, 313077, 311896, 310699, 318587, 619055, 310857, 311025 }
+        local DEVASTATOR_AT = { 457.635, 460.086, 462.134, 464.182, 467.314, 469.312, 471.601, 474.128, 476.167, 478.222,
+            480.288, 482.324, 484.416 }
+        local devastator = {}
+        for i, amount in ipairs(DEVASTATOR) do
+            devastator[i] = { school = 1, amount = amount, crit = amount > 600000, at = DEVASTATOR_AT[i], plate = "p1" }
+        end
+        devastator[#devastator + 1] = { school = 1, amount = 1600000, crit = false, at = 470, plate = "p1" }
+        procs = Once(devastator, { { id = 236282, total = 4645358 } })
+        Check("procs swing pass: a band of 7 % spread, steps 2.1 % at most, learns a swing (warrior F2 Devastator)",
+            procs[236282] ~= nil and procs[236282].learned == true and procs[236282].lo == 297734 and procs[236282].hi == 318587
+            and procs[236282].swing ~= nil)
         procs = Once(Fight(GAPS), { { id = 6603, total = 2811335, overkill = 5 } })
         Check("procs swing pass: a row with overkill teaches no swing (an exact sum only)", procs[6603] == nil)
         procs = Once(Fight(GAPS), ROWS, function(store)

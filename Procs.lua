@@ -27,7 +27,8 @@ local SHARES_MAX = 8   -- plates a split proc's rule (Rule) predicts a share siz
 local PREDICT_PAD = 0.02 -- a predicted share size's slack, each way
 local SWING_STEP = 0.03  -- a swing band's sorted normals step at most this share apart; its crits (halved) and draws sit
                          -- in the band widened by this share each way
-local SWING_SPREAD = 0.06 -- a swing band's top over its bottom, at most
+local SWING_SPREAD = 0.08 -- a swing band's top over its bottom, at most (run warrior F2: Devastator 236282's 11 normals
+                          -- 297734-318587 step at most 2.1 % apart and spread 7.0 %)
 local SWING_MIN = 6      -- normals a swing band needs, and its hits on its busiest plate
 local SWING_SOON = 0.5   -- a band hit this share of the swing period or less after the last on its plate is no swing
 local SWING_TICKED = 0.75 -- a band whose hits this fight's tick streams hold this share of, or more, is a DoT's ticks
@@ -981,16 +982,17 @@ local function SwingGroups(hits, streams)
     return groups
 end
 
--- The swing pass of Read: the open rows with no overkill that the size pass left (taken) and no learned entry but a
--- swing holds, against this fight's swing bands. A pair learns a swing entry at once; one it replaces was a candidate
--- (a rhythm candidate's false stream, run warrior F1: 6603's p 2.09 band was another spell's) or a swing whose band
--- drew none of its row (new gear moved the swings off it). Marks its rows taken.
+-- The swing pass of Read: the open rows with no overkill and no learned entry but a swing holds, against this fight's
+-- swing bands. A pair learns a swing entry at once; one it replaces was a candidate (a rhythm candidate's false stream,
+-- run warrior F1: 6603's p 2.09 band was another spell's; or the size pass's candidate of this read, run warrior F2:
+-- Devastator 236282's band paired its row as a size group too, a streak of 1 of 3 it would never finish in three
+-- fights) or a swing whose band drew none of its row (new gear moved the swings off it). Marks its rows taken.
 local function SwingPass(hits, open, results, rows, at, taken, streams)
     local targets = {}
     for _, target in ipairs(Targets(open, results, rows, Cast(hits))) do
         local entry = procs[target.id]
         local held = entry and entry.learned and not entry.swing
-        if target.kind == "open" and target.overkill == 0 and not taken[target.id] and not held then
+        if target.kind == "open" and target.overkill == 0 and not held then
             targets[#targets + 1] = target
         end
     end
