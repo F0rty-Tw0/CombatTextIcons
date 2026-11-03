@@ -1369,6 +1369,34 @@ return function(T)
         Check("twin: a hit off the share is not the channel's (" .. tostring(off) .. ")", off ~= "tex:9002")
         local _, untaught = Twin(nil)
         Check("twin: with no share taught the hit is not the channel's", untaught ~= "tex:9002")
+        do -- run priest3 F8: Void Torrent's 14398 crit tick put 2879 hits (0.20 of it as landed) on the plates around
+            local rig = Rig()
+            rig.Seed(9002, 32, 1.0, "channel")
+            rig.Learned(9002).twin = 0.2
+            rig.Channel(100, 9002)
+            local crit = rig.Hit(101, 2000, 32, "nameplate1", "CRITICAL")
+            Check("twin: a hit at the share of a crit tick as it landed is the channel's",
+                crit == "tex:9002" and rig.Hit(101, 400, 32, "nameplate2") == "tex:9002")
+        end
+        do -- run priest3 F8: a steady channel (Void Torrent 7224, 7199, 7224) took a 3213 Shadow hit due in its window,
+            -- and its own 14550 crit tick in that frame went '?'
+            local rig = Rig()
+            rig.Seed(9002, 32, 1.0, "channel")
+            rig.Channel(100, 9002)
+            for _, t in ipairs({ 101, 102, 103 }) do rig.Hit(t, 1000, 32) end
+            local stranger = rig.Hit(104, 440, 32)
+            Check("channel: a steady channel's window takes no hit past the size guard (" .. tostring(stranger) .. ")",
+                stranger ~= "tex:9002")
+            Check("channel: its own crit tick in that frame is the channel's",
+                rig.Hit(104, 2020, 32, "nameplate1", "CRITICAL") == "tex:9002")
+            -- run shadow-forget5 F3: Mind Flay opened on two like-sized hits of another spell; its own ticks came next
+            local opened = Rig()
+            opened.Seed(9002, 32, 1.0, "channel")
+            opened.Channel(100, 9002)
+            for _, t in ipairs({ 101, 102 }) do opened.Hit(t, 600, 32) end
+            Check("channel: after two like-sized ticks a hit past the size guard is still the channel's",
+                opened.Hit(103, 1000, 32) == "tex:9002")
+        end
 
         -- the twin pass teaches the share the ratios agree on, only while their sum fits the row's room
         local function Teach(total)

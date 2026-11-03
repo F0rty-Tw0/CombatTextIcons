@@ -274,7 +274,11 @@ end
 -- 1.13-1.16 s apart, 120K against its 81K row), while its own ticks land within 0.07 s (run lock3 F2: gaps 1.27-1.40
 -- on 1.33). A spread instance (Tracker.AdoptSpread) is held within Streams.RAMP_STEP of its last tick either way: no
 -- cast vouches for its window (run lock3 F2: Agony 980 spread to nameplate9 took a 1379 hit of Shadow of Nathreza
--- 1262710 at 0.43x its last tick, a 6462 crit).
+-- 1262710 at 0.43x its last tick, a 6462 crit). So is a channel whose last STEADY_RUN ticks were like-sized: run priest3
+-- F8, Void Torrent 263165 ticked 7224, 7199, 7224, took a 3213 Shadow hit due in its next window, and its own 14550
+-- crit tick in that frame went '?'. Two like-sized ticks are not enough: on run shadow-forget5 F3 a learned Mind Flay
+-- 15407 opened on two 2914 hits of another spell, and held to them it never took its own 5003 ticks after them.
+local STEADY_RUN = 3
 local function Phase(instance, school, amount, flagText, now, strict)
     if instance.school ~= school then return nil end
     local tolerance = PhaseTolerance(instance.period, strict)
@@ -294,7 +298,7 @@ local function Phase(instance, school, amount, flagText, now, strict)
             local last = instance.lastAmount
             local tested = normal and last and last > 0
             local low, high = AMOUNT_LOW, AMOUNT_HIGH
-            if strict then
+            if strict or instance.channel and (instance.likeRun or 0) >= STEADY_RUN then
                 low, high = 1 - Streams.SIZE_GUARD, 1 / (1 - Streams.SIZE_GUARD)
             elseif instance.spread then
                 low, high = 1 / Streams.RAMP_STEP, Streams.RAMP_STEP
@@ -485,9 +489,10 @@ local function Ticked(instance, multiple, amount, flagText, now, back)
             instance.back = { tick = lastTick, amount = lastAmount, period = period, rising = instance.rising }
         end
         instance.steady = like
+        instance.likeRun = like and (instance.likeRun or 1) + 1 or 1 -- like-sized ticks in a row, this one included
         instance.ticks = (instance.ticks or 0) + 1
         instance.rising = lastAmount and instance.ticks <= RAMP_TICKS and RampStep(normal, lastAmount)
-        instance.lastAmount = normal
+        instance.lastAmount, instance.lastRaw = normal, amount -- lastRaw: as it landed, crit included (Tracker.Twin)
         if instance.fromLearn then Learn.Sized(instance.icon, normal) end
     end
     instance.deadline = now + 3 * instance.period
@@ -722,6 +727,14 @@ end
 -- spell's when exactly one instance fits it, else nil. Run mage F2-F7: Arcane Missiles 5143's ticks on the target were
 -- drawn, while each tick's twins at 0.47-0.53 of it on up to 3 other plates (row 7268) stayed '?'; run priest3: Void
 -- Torrent 263165's twins at 0.20 of each tick landed on one other plate in the tick's own frame.
+-- A twin may also take the share of the tick as it landed, crit included (lastRaw), and not crit itself: run priest3
+-- F8, Void Torrent's 14398 crit tick put 2879 hits (0.20 of 14398) on three plates, twice the share of its normal size.
+local function TwinSized(instance, share, normal, amount)
+    local function Near(size, tick) return tick and math.abs(size - share * tick) <= Streams.SIZE_GUARD * share * tick end
+
+    return Near(normal, instance.lastAmount) or Near(amount, instance.lastRaw)
+end
+
 function Tracker.Twin(plate, school, amount, flagText, now)
     local normal = Streams.NormalAmount(amount, flagText)
     if not (Plain(plate) and Plain(school) and normal and normal > 0) then return nil end
@@ -730,8 +743,7 @@ function Tracker.Twin(plate, school, amount, flagText, now)
         for _, instance in ipairs(key ~= plate and list or NONE) do
             local share = instance.fromLearn and instance.lastTick and Learn.Twin(instance.icon)
             local gap = share and now - instance.lastTick
-            local like = share and instance.school == school and instance.lastAmount
-                and math.abs(normal - share * instance.lastAmount) <= Streams.SIZE_GUARD * share * instance.lastAmount
+            local like = share and instance.school == school and TwinSized(instance, share, normal, amount)
             if like and gap >= 0 and gap <= instance.period then
                 if found and found ~= instance.icon then return nil end
                 found = instance.icon
