@@ -458,6 +458,9 @@ return function(T)
         local frame = H.Claim({}, { { size = 11700 }, { size = 11600 } }, nil, 101.5)
         Check("trains: twin casts with no heal row learn one train under the heal and damage row their ticks hit with",
             H.IsTrainLearned(RAIN) and not H.IsTrainLearned(TWIN) and frame[1] == nil and frame[2] == ROW)
+        TrainRead(H, { RAIN, TWIN }, { rows = { Row(RAIN) }, sparse = true })
+        Check("trains: a read that lists a cast's own ID as a heal row moves its train there",
+            T.Store().healTrains[RAIN].row == RAIN)
 
         H = Boot()
         Read(H, Damage({ off = 0.5 }))

@@ -111,7 +111,8 @@ local sizes = {}
 -- when they mixed or none had one)
 local couples = {}
 -- the spec store's `healTrains` = { [cast spell ID] = { row, walks = { walk, ... }, seen } }: the heal row its ticks
--- draw under (its own ID, else its base's; nil until one was a heal row), its newest SAMPLES counted casts, each
+-- draw under (its own ID, else its base's, as the newest read listing either names it; else a pulsing walk's
+-- DualRow; nil until one was found), its newest SAMPLES counted casts, each
 -- { with = the other helpful casts on its stamp, and when it walked a train: period, size (the middle tick), low,
 -- high, ticks, luck (how often luck alone gives the walk; nil in older saves: WALK_ALPHA) }, and the read that last
 -- counted it
@@ -703,7 +704,7 @@ local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt)
                 trains[castID] = entry
             end
             local base = ns.Casts.Base(castID)
-            entry.row = entry.row or (own[castID] and castID) or (own[base] and base) or pulse
+            entry.row = (own[castID] and castID) or (own[base] and base) or entry.row or pulse
             local with = {}
             for _, other in ipairs(stamps[at]) do
                 if other ~= castID then with[#with + 1] = other end
