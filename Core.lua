@@ -476,9 +476,10 @@ local function LikeDrawn(hit)
 end
 
 -- Draws a hit held to its frame's end as the learned cast `record` (`route` for /cti debug) and tallies it.
-local function DrawHeld(hit, record, route)
+-- `accepted`: the record took the hit when it was claimed (HoldTick).
+local function DrawHeld(hit, record, route, accepted)
     if ns.Debug then ns.Debug("  -> %s %s", route, ShowValue(record.spellID)) end
-    Casts.Accept(record, hit.plate, hit.at, Streams.NormalAmount(hit.amount, hit.flagText))
+    if not accepted then Casts.Accept(record, hit.plate, hit.at, Streams.NormalAmount(hit.amount, hit.flagText)) end
     Tracker.OnDirectHit(hit.plate, record.spellID, hit.at)
     Streams.Landed(hit.plate, record.spellID, hit.at)
     Drawn(record.base, hit.amount, hit.at)
@@ -502,14 +503,15 @@ end
 -- splash a frame apart from its target hit is one too. Run warrior F3: proc 435791's 697818 on a dummy came 0.03 s after
 -- 435222's mate on that dummy, alone in its frame, and hid (row 1403166 drew half). Run druid F11: a stranger's holy hits
 -- (2.5-3.2K) on dummies you never drew on fit learned proc 1260076's band; with no plate test they drew wrong (0.1 %).
-local function DrawMate(hit, mated)
+-- `ticked[base]`: a ground cast's held hits of the frame draw as its tick (FlushMates).
+local function DrawMate(hit, mated, ticked)
     if not mated then
         if MineRecently(hit.plate, hit.at) and ProcWound(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, true) then return end
         Teacher.Stranger(hit.plate, hit.school, hit.amount, hit.at, hit.flagText)
         if ns.Debug then ns.Debug("  -> HIDDEN") end
         return
     end
-    local claimed = hit.kind == "learned" and DrawnInFrame(hit.record.base, hit.at)
+    local claimed = hit.kind == "learned" and (DrawnInFrame(hit.record.base, hit.at) or ticked[hit.record.base])
         and Casts.Quiet(hit.record, hit.school, hit.at)
     if not claimed then
         local base = LikeDrawn(hit)
@@ -569,13 +571,46 @@ local function DrawGround(hit, plates)
     DrawHeld(hit, hit.ground, "ground")
 end
 
+-- A ground cast's hit held to its frame's end (HoldTick): drawn as the cast when its frame is a tick (`ticked`), else
+-- the frame was none (Casts.Overrun) and the hit is the question mark solo, hidden in a group.
+local function DrawTick(hit, ticked)
+    if ticked[hit.tick.base] then return DrawHeld(hit, hit.tick, "cast", true) end
+    if hit.solo then return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates) end
+    if ns.Debug then ns.Debug("  -> HIDDEN") end
+end
+
+-- The ground bases whose held hits (HoldTick) of the frame at `at` draw as their tick, as a set: those whose frame is
+-- one (Casts.Overrun); the records of the others step back (Casts.Unstep).
+local function Ticks(hits, at)
+    local counts = {} -- counts[base][plate] = the base's held hits on the plate
+    for _, hit in ipairs(hits) do
+        local base = hit.tick and hit.tick.base
+        if base then
+            counts[base] = counts[base] or {}
+            counts[base][hit.plate] = (counts[base][hit.plate] or 0) + 1
+        end
+    end
+    local ticked = {}
+    for base, plates in pairs(counts) do
+        if Casts.Overrun(base, at, plates) then
+            if ns.Debug then ns.Debug("  .. no tick %s", ShowValue(base)) end
+            Casts.Unstep(base, at)
+        else
+            ticked[base] = true
+        end
+    end
+
+    return ticked
+end
+
 -- Ends the held hits' frame once `now` is past its stamp, or with nil (the fight ended; the replays end each frame
--- with it too): each is a mate or a stranger's (DrawMate), a split proc's share (DrawShare), or a crit that may start
--- a ground cast's first tick (DrawGround).
+-- with it too): each is a mate or a stranger's (DrawMate), a split proc's share (DrawShare), a crit that may start
+-- a ground cast's first tick (DrawGround), or a ground cast's hit (DrawTick).
 function Core.FlushMates(now)
     local hits = held.hits
     if #hits == 0 or (now and now <= held.at) then return end
     local own = ownFrame.at == held.at and ownFrame.schools or {}
+    local ticked = Ticks(hits, held.at)
     held = { hits = {} }
     local plates, seen = {}, {} -- plates[record] = plates its held crits hit; seen[record][plate] = true
     for _, hit in ipairs(hits) do
@@ -592,8 +627,10 @@ function Core.FlushMates(now)
             DrawShare(hit)
         elseif hit.ground then
             DrawGround(hit, plates[hit.ground])
+        elseif hit.tick then
+            DrawTick(hit, ticked)
         else
-            DrawMate(hit, own[hit.school] == true)
+            DrawMate(hit, own[hit.school] == true, ticked)
         end
     end
 end
@@ -632,8 +669,21 @@ local function HoldGround(plate, school, amount, flagText, now, record, cast, ca
     QueueFlush()
 end
 
+-- Holds a hit a learned ground cast claimed (`record`, which took it: Casts.Accept) until its frame ends: the frame's
+-- hits on each plate tell a tick from another spell's burst on its lattice (Casts.Overrun). DrawTick decides. `solo`,
+-- `cast`, `candidates`: the question mark route's, should the frame be no tick.
+local function HoldTick(plate, school, amount, flagText, now, record, solo, cast, candidates)
+    Core.FlushMates(now)
+    if held.at ~= now then held = { at = now, hits = {} } end
+    held.hits[#held.hits + 1] = { plate = plate, school = school, amount = amount, flagText = flagText, at = now,
+        tick = record, solo = solo, cast = cast, candidates = candidates }
+    if ns.Debug then ns.Debug("  .. held") end
+    QueueFlush()
+end
+
 -- The hit route: the tracker names DoT and channel ticks and a learned cast fingerprint
--- names a direct hit (Casts.Claim); both draw at once, in a group too. Two learned DoTs that
+-- names a direct hit (Casts.Claim); both draw at once, in a group too, except a learned ground cast's hit, which
+-- draws at its frame's end once the frame shows a tick (HoldTick). Two learned DoTs that
 -- both fit draw the question mark at once. Whatever nothing names is fed to the streams; solo
 -- on a mob fighting you a hit no proc names may tick a learned stack spell's series (Casts.StackTick)
 -- and draw it, else it also goes to the teacher, and draws the question mark only while the
@@ -697,6 +747,12 @@ local function Wound(plate, unit, flagText, amount, school, now)
     if not claimed then
         kind, record = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText), crowded,
             flagText)
+    end
+    if kind == "learned" and fightsYou and Casts.IsGround(record) then
+        Casts.Accept(record, plate, now, Streams.NormalAmount(amount, flagText))
+        local cast = solo and Casts.SoleCast(plate, now, school)
+        return HoldTick(plate, school, amount, flagText, now, record, solo, cast,
+            solo and Casts.Candidates(plate, now, school))
     end
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end

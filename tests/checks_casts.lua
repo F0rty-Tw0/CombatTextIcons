@@ -1225,9 +1225,11 @@ do -- Phase 3: records and Claim
                 S.now, S.target = 30, nil
                 ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 462620)
                 for _, hit in ipairs(hits) do
+                    ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (Core.HoldTick)
                     S.now, drawn = hit[1], nil
                     ns.Core.UNIT_COMBAT(hit[3], "WOUND", hit[4] or "", hit[2], 8)
                 end
+                ns.Core.FlushMates()
                 return drawn
             end
             local EQ, first = "tex:462620", { 31, 6500, "nameplate2" }
@@ -1264,9 +1266,11 @@ do -- Phase 3: records and Claim
             S.now, S.target = 30, nil
             ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 462620)
             for _, hit in ipairs(hits) do
+                ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (Core.HoldTick)
                 S.now, drawn = hit[1], nil
                 ns.Core.UNIT_COMBAT(hit[3], "WOUND", hit[4] or "", hit[2], 8)
             end
+            ns.Core.FlushMates()
             return drawn
         end
         local EQ, first = "tex:462620", { 31, 6500, "nameplate2" }
@@ -1341,9 +1345,11 @@ do -- Phase 3: records and Claim
                     S.now = second
                     ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c32", 462620)
                 end
+                ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (Core.HoldTick)
                 S.now, drawn = hit[1], nil
                 ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 8)
             end
+            ns.Core.FlushMates()
             return drawn
         end
         local EQ = "tex:462620"
@@ -1378,15 +1384,58 @@ do -- Phase 3: records and Claim
                     S.now, S.target = castAt, "nameplate2"
                     ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c99", 589)
                 end
+                ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (Core.HoldTick)
                 S.now, drawn = hit[1], nil
                 ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 8)
             end
+            ns.Core.FlushMates()
             return drawn
         end
         local EQ = "tex:462620"
         local ticks = { { 31, 6500, "nameplate2" }, { 32, 6500, "nameplate2" } }
         return Last(ticks, 31.5) == EQ and Last(ticks, 99) == EQ and Last({ ticks[1] }, 30.5) ~= EQ
     end)
+    -- shaman6 F3: 25 hits of another spell, 5 on each of 5 plates (0.76x Earthquake's size), landed 0.93 s after the
+    -- tick of Earthquake 462620's two live casts, on their lattice; both stepped to it and drew all 25 (304034), and
+    -- their real tick 0.04 s later (2 a plate) went '?'. Learned here: first tick 1.0 s, period 1.0, 6 ticks; one cast,
+    -- so a tick lands once a plate. A frame of 3 hits on every plate is no tick: it draws nothing and the tick after it
+    -- draws; an extra hit on one plate of a tick's frame still draws with it.
+    Scenario("ground: a frame with more hits on every plate than the live casts is no tick, and the tick after draws",
+        function()
+            local function Count(hits)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                for castAt = 1, 3 do
+                    ns.Fingerprints.Add(462620, { school = 8, delay = 1, castAt = castAt, hops = 1, size = 6400,
+                        tick = 0 })
+                    ns.Fingerprints.Add(462620, { school = 8, delay = 6, castAt = castAt, hops = 1, size = 6600,
+                        tick = 5 })
+                end
+                local drawn = 0
+                ns.Display.Plate = function(_, texture)
+                    if texture == "tex:462620" then drawn = drawn + 1 end
+                end
+                S.now, S.target = 30, nil
+                ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 462620)
+                for _, hit in ipairs(hits) do
+                    S.now = hit[1]
+                    ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 8)
+                end
+                ns.Core.FlushMates()
+                return drawn
+            end
+            local plates = { "nameplate2", "nameplate3", "nameplate4" }
+            local function Frame(at, size, each, into)
+                for _, plate in ipairs(plates) do
+                    for _ = 1, each do into[#into + 1] = { at, size, plate } end
+                end
+                return into
+            end
+            local burst = Frame(32, 6500, 1, Frame(31.93, 6100, 3, Frame(31, 6500, 1, {})))
+            local stray = Frame(32, 6500, 1, Frame(31, 6500, 1, {}))
+            stray[#stray + 1] = { 32, 6300, "nameplate2" }
+            return Count(burst) == 6 and Count(stray) == 7
+        end)
 
     -- Run 134732Z: Mind Blast cast at nameplate4, the target moved on to the next mob before the cast
     -- finished, the killing hit landed on nameplate4 -> '?'. The cast's plate is the target at its start.

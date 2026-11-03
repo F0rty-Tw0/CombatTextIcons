@@ -3237,10 +3237,17 @@ return function(T)
         rig.S.now = 99
         rig.ns.Core.PLAYER_REGEN_DISABLED()
         rig.Cast(100, nil, EARTHQUAKE)
+        -- a tick draws at its frame's end (Core.HoldTick)
+        local function Tick(t, unit, amount)
+            local before = #rig.draws
+            rig.Hit(t, unit, amount, 8)
+            rig.ns.Core.FlushMates()
+            return #rig.draws > before and rig.draws[#rig.draws] or nil
+        end
         Check("ground (a2): the next cast, no target, draws its ticks on any plate, not a hit between two ticks",
-            rig.Hit(101, "nameplate2", 6500, 8) == "tex:" .. EARTHQUAKE
-            and rig.Hit(101.5, "nameplate3", 6500, 8) ~= "tex:" .. EARTHQUAKE
-            and rig.Hit(102, "nameplate3", 6550, 8) == "tex:" .. EARTHQUAKE)
+            Tick(101, "nameplate2", 6500) == "tex:" .. EARTHQUAKE
+            and Tick(101.5, "nameplate3", 6500) ~= "tex:" .. EARTHQUAKE
+            and Tick(102, "nameplate3", 6550) == "tex:" .. EARTHQUAKE)
 
         rig = Rig({})
         QuakeFight(rig, CASTS, { Row(QUAKE_ROW, 400000), Row(OTHER_ROW, 300000) })

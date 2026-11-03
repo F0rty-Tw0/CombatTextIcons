@@ -707,8 +707,12 @@ function Casts.Claim(plate, school, now, size, strict, flagText)
             -- ticks 0.12-0.18 s later (200338.568, 200339.519, 200340.508, 200341.528) fit no record
             fit = false
         elseif fit and ground then
-            -- every ground record a hit fits steps to its tick, whichever record draws it
+            -- every ground record a hit fits steps to its tick, whichever record draws it; the tick it stood on before
+            -- this frame comes back if the frame turns out to be no tick (Casts.Unstep)
             if record.tickAt then continued[record.base] = true end
+            if not (record.back and record.back.at == now) then
+                record.back = { at = now, tick = record.tick, tickAt = record.tickAt, latticeAt = record.latticeAt }
+            end
             if record.tickAt and tick > record.tick then record.latticeAt = now end
             record.tick, record.tickAt = tick, now
         elseif fp then
@@ -786,6 +790,47 @@ function Casts.GroundStarts(record, at, plates)
     return true
 end
 
+-- Whether `record` is a learned ground cast's: its hits draw at their frame's end (Core), once the frame shows a tick.
+function Casts.IsGround(record)
+    local fp = Fingerprints.Get(record.base)
+
+    return fp ~= nil and fp.pattern == "ground"
+end
+
+-- Whether the frame at `at`, whose hits the ground spell `base` took (`counts[plate]` = how many on each plate), is no
+-- tick of it: a tick lands once a plate for each of its live records, and every plate took more. Two casts' ticks
+-- may share a frame while one record stepped to it (run shaman5 F5, 200337.391: 2 a plate on 5 plates).
+-- Run shaman6 F3: 25 hits, 5 on each of 5 plates (5.6-5.8K, crits 3x), came 0.57 s after a Chain Lightning 188443
+-- cast and 0.93 s after the tick of the two Earthquake 462620 casts, which stepped to it and drew all 25 (304034); the
+-- casts' real tick 0.04 s later (2 a plate, 7.4-7.6K) found their lattice moved and went '?'.
+function Casts.Overrun(base, at, counts)
+    local cap = 0
+    for _, record in ipairs(records) do
+        if record.base == base and Live(record, at) then cap = cap + 1 end
+    end
+    local any = false
+    for _, count in pairs(counts) do
+        if count <= cap then return false end
+        any = true
+    end
+
+    return any
+end
+
+-- The frame at `at` was no tick of the ground spell `base` (Casts.Overrun): each of its records that stepped to it
+-- stands on its tick from before that frame again, and the frame's hits it accepted are unclaimed.
+function Casts.Unstep(base, at)
+    for _, record in ipairs(records) do
+        local back = record.base == base and record.back
+        if back and back.at == at then
+            record.tick, record.tickAt, record.latticeAt, record.back = back.tick, back.tickAt, back.latticeAt, nil
+        end
+    end
+    for _, wound in ipairs(wounds) do
+        if wound.at == at and wound.by == base then wound.claimed, wound.by = nil, nil end
+    end
+end
+
 -- The hit is drawn: the record has taken one more hit, and the hit (Claim's newest wound on its plate and stamp: a
 -- frame mate is drawn at its frame's end, Core.FlushMates) is claimed. A splash while the record's own first hit is
 -- unclaimed (ambiguous) leaves that hit open. A hit of normal-scale `size` 0 spends nothing:
@@ -801,7 +846,7 @@ function Casts.Accept(record, plate, now, size)
         local wound = wounds[index]
         if wound.at ~= now then break end
         if wound.plate == plate then
-            wound.claimed = true
+            wound.claimed, wound.by = true, record.base
             break
         end
     end
