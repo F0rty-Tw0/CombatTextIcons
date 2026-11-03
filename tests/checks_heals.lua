@@ -398,7 +398,7 @@ return function(T)
             for t = from, 100, step do heals[#heals + 1] = { size = 11000, amount = 11000, at = t } end
             table.sort(heals, function(a, b) return a.at < b.at end)
         end
-        H.Learn(heals, helps, rows, 100, nil, opts.damage)
+        H.Learn(heals, helps, rows, 100, opts.drawn, opts.damage)
     end
 
     do -- trains: learning
@@ -537,6 +537,34 @@ return function(T)
         H = Boot()
         Read(H, Damage({ rows = { Row(ROW), Row(OTHER) } }))
         Check("trains: two rows that heal and damage name neither", not H.IsTrainLearned(RAIN))
+
+        -- shamanresto: 73921 is no heal row (its ticks overheal), and each read holds more castless damage rows
+        -- (F1: 1307222, 1310088); the hits drawn or learned under 73921 share the ticks' frames
+        local PROC, PROC2 = 1307222, 1310088
+        local function Under(spellID, off)
+            local hits = {}
+            for tick = 1, 8 do hits[tick] = { spellID = spellID, at = 10 + 1.5 * tick + (off or 0) } end
+            return hits
+        end
+        local function Mixed(named)
+            local damage = Damage({ rows = { Row(PROC), Row(ROW), Row(PROC2) } })
+            damage.named = named
+            return damage
+        end
+        local function Learns(opts)
+            local learner = Boot()
+            TrainRead(learner, { RAIN, TWIN }, { rows = { Row(OTHER) }, sparse = opts.sparse, drawn = opts.drawn,
+                damage = Mixed(opts.named) })
+            return learner.IsTrainLearned(RAIN) and T.Store().healTrains[RAIN].row or nil
+        end
+        Check("trains: of three castless damage rows none a heal row, the one whose learned hits share the ticks' "
+            .. "frames is the row, in a fight whose heals are all the walk's", Learns({ named = Under(ROW) }) == ROW)
+        Check("trains: so is the one whose drawn hits share them", Learns({ sparse = true, drawn = Under(ROW) }) == ROW)
+        local both = Under(ROW)
+        for _, hit in ipairs(Under(PROC)) do both[#both + 1] = hit end
+        Check("trains: two castless damage rows whose hits share the ticks' frames name neither",
+            Learns({ named = both }) == nil)
+        Check("trains: hits of a row off the ticks' frames name no row", Learns({ named = Under(ROW, 0.5) }) == nil)
     end
 
     do -- trains: the claim of a running train's ticks (learned: 9600-11700 every 1.5 s, 8 ticks)

@@ -633,7 +633,8 @@ local function Series(school, low, high, frames, span)
 end
 
 -- The castless pass of one clear read, after the proc passes. `run` is the fight, `hits` its '?' hits no learned way
--- took, `open` the rows still open and `rows` the session's rows; a learned row's verdict goes to `results`.
+-- took, `open` the rows still open and `rows` the session's rows; a learned row's verdict goes to `results`. Returns
+-- the learned rows' hits ({ spellID = the row, at }), for Heals.Learn to tell which row a heal train ticks with.
 -- A learned DoT's school holds its missed ticks, so its hits stay out; a ramping DoT's (Learn.Ramp) only up to a ramp
 -- step past its biggest tick, the most its tracker draws: run lock4, Agony 980 (a ramp, ticks to ~4.6K) kept Darkglare
 -- 205231's 9-13K beams out, and its row (0.44M of right in later fights) stayed '?'.
@@ -681,7 +682,7 @@ function Ground.Castless(run, hits, open, rows, results)
         end
     end
 
-    local learned = {}
+    local learned, named = {}, {}
     for _, pattern in ipairs(found) do
         local position = #pattern.rows == 1 and pattern.rows[1]
         for _, hit in ipairs(pattern.hits) do
@@ -695,6 +696,9 @@ function Ground.Castless(run, hits, open, rows, results)
             Procs.Teach(item.row.spellID, pattern.school, pattern.low, pattern.high, pattern.period, run.at)
             results[item.index] = { spellID = item.row.spellID, meterID = item.row.spellID, tally = pattern.sum,
                 meter = item.row.total, verdict = "under" }
+            for _, hit in ipairs(pattern.hits) do named[#named + 1] = { spellID = item.row.spellID, at = hit.at } end
         end
     end
+
+    return named
 end

@@ -3503,6 +3503,22 @@ return function(T)
             rig.Hit(103, "nameplate2", 2000, 32) == "tex:" .. NATHREZA)
 
         rig = Rig({})
+        local named = {}
+        local learn = rig.ns.Heals.Learn
+        rig.ns.Heals.Learn = function(...)
+            local damage = select(6, ...)
+            for _, hit in ipairs(damage and damage.named or {}) do
+                if hit.spellID == NATHREZA then named[hit.at] = (named[hit.at] or 0) + 1 end
+            end
+            return learn(...)
+        end
+        AuraFight(rig, 130000, 1000)
+        local stamps, each = 0, true
+        for _, count in pairs(named) do stamps, each = stamps + 1, each and count == 4 end
+        Check("castless (a3): the learned row's hits, with their stamps, reach the heal teacher's read (" .. stamps
+            .. " stamps)", stamps == 15 and each and named[10] == 4 and named[24] == 4)
+
+        rig = Rig({})
         AuraFight(rig, 122000, 5000)
         Check("castless (b): the ticks (126000) are over the row (122000) -> no row bounds them, nothing learned",
             Outcome() == "rows=0" and rig.ns.Procs.Get(NATHREZA) == nil)

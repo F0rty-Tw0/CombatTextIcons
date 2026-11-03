@@ -42,10 +42,12 @@
 -- Word of Glory starts a 720 rune train under the rune's ID 1287665), or when luck gives it more than WALK_ALPHA
 -- often. Agreeing walks that luck alone gives TRAIN_LUCK often at most (two walks, or one sure walk), TRAIN_SHARE of
 -- the cast's counted casts, learn it under the cast's heal row (else its base's); then each cast starts the train,
--- and its due ticks are that row's. A cast with neither row takes the read's one heal row that is also a damage row
--- of no cast's ID, once a walk's ticks share their frames with the fight's hits beyond luck: Healing Rain (casts
--- 444995 base 73920 and 1298679, row 73921) heals you and hits the mobs on each tick. A direct heal learns no train
--- but its tail: ticks of one size at one share of the heal on its cast's stamp (Tails, hunter's Exhilaration).
+-- and its due ticks are that row's. A cast with neither row takes the one damage row of no cast's ID whose hits
+-- (drawn, or learned this read) share their frames with a walk's ticks beyond luck, else the read's one heal row
+-- that is also such a damage row, once a walk's ticks share their frames with the fight's hits beyond luck: Healing
+-- Rain (casts 444995 base 73920 and 1298679, row 73921) heals you and hits the mobs on each tick. A direct heal
+-- learns no train but its tail: ticks of one size at one share of the heal on its cast's stamp (Tails, hunter's
+-- Exhilaration).
 -- Kept apart from the damage stores: an ID can be both a damage and a heal row (Healing Rain 73921).
 -- Saved data is checked on load and never trusted.
 
@@ -133,7 +135,7 @@ local sizes = {}
 local couples = {}
 -- the spec store's `healTrains` = { [cast spell ID] = { row, walks = { walk, ... }, seen } }: the heal row its ticks
 -- draw under (its own ID, else its base's, as the newest read listing either names it; else a pulsing walk's
--- DualRow; nil until one was found), its newest SAMPLES counted casts, each
+-- HitRow or DualRow; nil until one was found), its newest SAMPLES counted casts, each
 -- { with = the other helpful casts on its stamp, and when it walked a train: period, size (the middle tick), low,
 -- high, ticks, luck (how often luck alone gives the walk; nil in older saves: WALK_ALPHA) }, and the read that last
 -- counted it
@@ -696,22 +698,32 @@ local function Ready()
     for castID, entry in pairs(trains) do ready[castID] = Judge(castID, entry) end
 end
 
--- The read's one heal row (`own`) that is also a damage row (`damage.rows`) and no cast of the fight files under
--- (its own ID or its base's, helpful or harmful: `damage.cast`), and that is no learned heal, size or couple; nil when
--- none or two are. Every log's rows that are both: Healing Rain 73921 (no cast of that ID), Drain Life 234153,
--- Devouring Plague 335467, Vampiric Touch 34914 (each cast under its own ID).
-local function DualRow(own, helps, damage)
+-- The read's damage rows (`damage.rows`) no cast of the fight files under (its own ID or its base's, helpful or
+-- harmful: `damage.cast`) and that are no learned heal, size or couple: the rows a spell that heals you and damages
+-- the mobs on one tick may draw under. shamanresto F1: Healing Rain 73921, and two castless procs, 1307222 and 1310088.
+local function Duals(helps, damage)
     local cast = {}
     for spellID in pairs(damage.cast or {}) do cast[spellID] = true end
     for _, help in ipairs(helps) do cast[help.spellID], cast[ns.Casts.Base(help.spellID)] = true, true end
-    local found
+    local found = {}
     for _, row in ipairs(damage.rows or {}) do
         local spellID = row.spellID
-        local learned = (heals[spellID] and Learned(heals[spellID]))
+        local learned = IsID(spellID) and ((heals[spellID] and Learned(heals[spellID]))
             or (sizes[spellID] and sizes[spellID].reads >= SIZE_READS)
-            or (couples[spellID] and couples[spellID].reads >= COUPLE_READS)
-        if IsID(spellID) and own[spellID] and not cast[spellID] and not learned then
-            if found and found ~= spellID then return nil end
+            or (couples[spellID] and couples[spellID].reads >= COUPLE_READS))
+        if IsID(spellID) and not cast[spellID] and not learned then found[#found + 1] = spellID end
+    end
+    return found
+end
+
+-- The one of `duals` that is also a heal row (`own`); nil when none or two are. Every log's rows that are both:
+-- Healing Rain 73921 (no cast of that ID), Drain Life 234153, Devouring Plague 335467, Vampiric Touch 34914 (each
+-- cast under its own ID).
+local function DualRow(own, duals)
+    local found
+    for _, spellID in ipairs(duals) do
+        if own[spellID] then
+            if found then return nil end
             found = spellID
         end
     end
@@ -728,28 +740,68 @@ local function Pulses(walk, hitAt, rate)
     return ns.Learn.BinomialTail(#walk.ats, rate, count) <= ALPHA
 end
 
+-- The share of the heal stamps (`stamped`, `count` of them) that hold a stamp of `hitAt`.
+local function Rate(stamped, count, hitAt)
+    local struck = 0
+    for at in pairs(stamped) do
+        if hitAt[at] then struck = struck + 1 end
+    end
+    return count > 0 and struck / count or 0
+end
+
+-- The share of the heal stamps (`stamped`) off the walk's ticks that hold a stamp of `hitAt`, one stamp that holds
+-- one and one that holds none added: a walk can be most of a fight's heal stamps (shamanresto F1: 14 of 18), and a
+-- share over all of them would count its own ticks as luck.
+local function OffRate(walk, stamped, hitAt)
+    local on, struck, count = {}, 1, 2
+    for _, at in ipairs(walk.ats) do on[at] = true end
+    for at in pairs(stamped) do
+        if not on[at] then
+            count = count + 1
+            if hitAt[at] then struck = struck + 1 end
+        end
+    end
+    return struck / count
+end
+
+-- The one of `duals` whose own hits (`rowAt`[ID]: the stamps of the hits drawn or learned under it this read) pulse
+-- with the walk's ticks at their share of the fight's other heal stamps (OffRate); nil when none or two do.
+-- shamanresto F1: Healing Rain's 14 ticks each share a frame with the nature hits the castless pass learned as
+-- 73921; 1307222's hits and 1310088's share none.
+local function HitRow(walk, duals, rowAt, stamped)
+    local found
+    for _, spellID in ipairs(duals) do
+        local at = rowAt[spellID]
+        if at and Pulses(walk, at, OffRate(walk, stamped, at)) then
+            if found then return nil end
+            found = spellID
+        end
+    end
+    return found
+end
+
 -- Each helpful cast of a clear read counts its stamp's walk (one per stamp, nil: none) with the stamp's other casts.
--- A cast whose own ID and base are no heal rows takes the read's DualRow as its row when its walk pulses with the
--- fight's hits (`hitAt`: the stamps of its '?' and drawn hits): one spell that heals you and damages the mobs on one
--- tick, under one ID. shamanheal's Healing Rain (444995 base 73920 with 1298679, row 73921) heals you in 9-15 ticks
--- each 1.7 s, its walks luck 1e-7 or less, and 73921 is a damage row too: its nature hits on the mobs share the
--- ticks' frames (279267.757: a 5641 heal and five hits of 11.6-23.7K).
+-- A cast whose own ID and base are no heal rows takes as its row the one castless damage row (Duals) whose own hits
+-- (`rowAt`) pulse with its walk (HitRow); else the read's DualRow when its walk pulses with the fight's hits (`hitAt`:
+-- the stamps of its '?' and drawn hits): one spell that heals you and damages the mobs on one tick, under one ID.
+-- shamanheal's Healing Rain (444995 base 73920 with 1298679, row 73921) heals you in 9-15 ticks each 1.7 s, its
+-- walks luck 1e-7 or less, and 73921 is a damage row too: its nature hits on the mobs share the ticks' frames
+-- (279267.757: a 5641 heal and five hits of 11.6-23.7K). shamanresto's 73921 is no heal row at all (overhealed), and
+-- each read holds other castless damage rows, so only the hits under 73921 tell its row.
 -- A stamp whose casts are all direct heals walks with its largest heal no learned size names (`largest`) as the head
 -- of a tail (WalkFrom). Returns the cast IDs counted.
-local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest)
-    local sorted, stamped, struck, rate = {}, {}, 0, 0
+local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest, rowAt)
+    local sorted, stamped, count = {}, {}, 0
     for _, heal in ipairs(fightHeals) do
         if IsNumber(heal.size) and heal.size > 0 and IsNumber(heal.at) then
             sorted[#sorted + 1] = heal
-            if not stamped[heal.at] then
-                stamped[heal.at], rate = true, rate + 1
-                if hitAt[heal.at] then struck = struck + 1 end
-            end
+            if not stamped[heal.at] then stamped[heal.at], count = true, count + 1 end
         end
     end
-    rate = rate > 0 and struck / rate or 0
+    local rate = Rate(stamped, count, hitAt)
     table.sort(sorted, function(a, b) return a.at < b.at end)
-    local dual = DualRow(own, helps, damage)
+    local duals = Duals(helps, damage)
+    local dual = DualRow(own, duals)
     local stamps, order = {}, {} -- by stamp: its helpful cast IDs, each once; the stamps in cast order
     for _, cast in ipairs(helps) do
         local ids = stamps[cast.at]
@@ -766,7 +818,8 @@ local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt, larg
         local direct = true
         for _, castID in ipairs(stamps[at]) do direct = direct and Direct(castID) end
         local walk = Walk(sorted, at, duration, direct and largest[at] or nil) or {}
-        local pulse = dual and walk.ats and Pulses(walk, hitAt, rate) and dual or nil
+        local pulse = walk.ats and (HitRow(walk, duals, rowAt, stamped)
+            or (dual and Pulses(walk, hitAt, rate) and dual)) or nil
         for _, castID in ipairs(stamps[at]) do
             local entry = trains[castID]
             if not entry then
@@ -794,7 +847,8 @@ end
 -- A clear solo read: the fight's heals on you ({ size, amount, at }), its helpful casts ({ spellID, at }), the
 -- session's healing-done `rows`, the fight's `duration` in seconds, its drawn hits (`drawn`, each { spellID,
 -- amount, at, school }; nil: none) and its damage side (`damage`, nil: none): { rows = the damage rows ({ spellID }),
--- cast = { [ID] = true } of its harmful casts and their bases, hits = its '?' hits ({ at }) }.
+-- cast = { [ID] = true } of its harmful casts and their bases, hits = its '?' hits ({ at }), named = the '?' hits
+-- this read learned a row for ({ spellID, at }; nil: none) }.
 function Heals.Learn(fightHeals, helps, rows, duration, drawn, damage)
     if not (IsNumber(duration) and duration > 0) then return end
     damage = damage or {}
@@ -802,6 +856,15 @@ function Heals.Learn(fightHeals, helps, rows, duration, drawn, damage)
     for _, list in ipairs({ drawn or {}, damage.hits or {} }) do
         for _, hit in ipairs(list) do
             if IsNumber(hit.at) then hitAt[hit.at] = true end
+        end
+    end
+    local rowAt = {} -- by spell ID: the stamps that hold a hit drawn or learned under it
+    for _, list in ipairs({ drawn or {}, damage.named or {} }) do
+        for _, hit in ipairs(list) do
+            if IsID(hit.spellID) and IsNumber(hit.at) then
+                rowAt[hit.spellID] = rowAt[hit.spellID] or {}
+                rowAt[hit.spellID][hit.at] = true
+            end
         end
     end
     reads = reads + 1
@@ -848,7 +911,7 @@ function Heals.Learn(fightHeals, helps, rows, duration, drawn, damage)
             counted[#counted + 1] = spellID
         end
     end
-    local walked = LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest)
+    local walked = LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest, rowAt)
     Ready()
     if not ns.Debug then return end
     local told = {}

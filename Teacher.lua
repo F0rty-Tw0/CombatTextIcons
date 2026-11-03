@@ -1504,10 +1504,10 @@ local function Judging(run, sessionID, rows, reason)
         Teacher.Yield()
         Procs.Read(hits, openRows, results, rows, run.at, run.ticks, run.streams)
         Teacher.Yield()
-        Ground.Castless(run, hits, openRows, rows, results)
+        local named = Ground.Castless(run, hits, openRows, rows, results)
         if healRows then
             Heals.Learn(run.heals, run.helps, healRows, run.duration, run.drawn,
-                { rows = rows, cast = fight.cast, hits = run.unknown })
+                { rows = rows, cast = fight.cast, hits = run.unknown, named = named })
         end
     end
     Ledger.SetVerdicts(last.rows, run.at)
