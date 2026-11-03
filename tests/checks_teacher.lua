@@ -3914,6 +3914,16 @@ return function(T)
             .. tostring(frame) .. ")", first == TEX and frame ~= TEX)
         Check("flat (g): nor a 7300 tick 4 % past its last (" .. tostring(off) .. "), nor a 2500 first tick ("
             .. tostring(small) .. ")", off ~= TEX and small ~= TEX)
+        -- Its ticks may come early once haste rises (run priest3 F4: Devouring Plague ticked 6675 1.47 s apart on its
+        -- 1.89 s period): a tick of its last one's size 1.0 s on, 0.67 of its 1.5 s period, is its; one 0.4 s on is not.
+        rig.Cast(61, "nameplate3", PLAGUE)
+        rig.Hit(62.5, "nameplate3", 7000, 32)
+        local early = rig.Hit(63.5, "nameplate3", 7000, 32)
+        rig.Cast(71, "nameplate4", PLAGUE)
+        rig.Hit(72.5, "nameplate4", 7000, 32)
+        local soon = rig.Hit(72.9, "nameplate4", 7000, 32)
+        Check("flat (h): a tick of its last one's size 0.67 of a period on is its (" .. tostring(early)
+            .. "), one 0.27 of a period on is not (" .. tostring(soon) .. ")", early == TEX and soon ~= TEX)
     end
 
     do -- train pass (Train.lua): a learned cast hit's DoT ticking a size of its own through recasts is learned as a DoT

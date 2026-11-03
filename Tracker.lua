@@ -297,6 +297,22 @@ local STEADY_RUN = 3
 -- its instance passed its own tick by and took a 3602 crit of Shadow of Nathreza 1262710 0.17 s later, the read went
 -- over (8655), and Agony was dropped for F9-F15.
 local RAMP_RISE = 1.7
+-- A flat DoT's tick (Learn.Flat) held within Flat.HOLD of its last may also come early, from FLAT_EARLY of its period
+-- on: haste moves its ticks faster than the period it learned. Run priest3 F4, Devouring Plague 335467 learned 1.89 s
+-- and ticked 6675 crit, 6675 crit, 6674 1.53 and 1.47 s apart; the window (1.51-2.27 s) missed its second tick by
+-- 0.04 s and the rest went '?'. Only while its last tick lies in the cast hit's band (Flat.OwnSize): without that run
+-- priest4 drew 3-6K hits on F5's dummies as Plague's (band 6921-7491), 9K wrong.
+local FLAT_EARLY = 0.6
+local function FlatEarly(instance, amount, flagText, now, strict)
+    if strict or not (instance.fromLearn and instance.lastTick and Learn.Flat(instance.icon)) then return false end
+    local gap, normal, last = now - instance.lastTick, Streams.NormalAmount(amount, flagText), instance.lastAmount
+    if not (normal and last and ns.Flat.OwnSize(instance.icon, last)) or gap < FLAT_EARLY * instance.period
+        or gap >= instance.period then
+        return false
+    end
+
+    return normal >= (1 - ns.Flat.HOLD) * last and normal * (1 - ns.Flat.HOLD) <= last
+end
 local function Phase(instance, school, amount, flagText, now, strict)
     if instance.school ~= school then return nil end
     local tolerance = PhaseTolerance(instance.period, strict)
@@ -331,6 +347,7 @@ local function Phase(instance, school, amount, flagText, now, strict)
             return multiple
         end
     end
+    if FlatEarly(instance, amount, flagText, now, strict) then return 1 end
     if restarted then return 0 end
 end
 
