@@ -24,7 +24,7 @@
 -- frozen: they judge for the Ledger and change no learned state (no agree, strike, drop, alias or vote), so what
 -- was learned keeps drawing and learning goes on at the next clear read. Each map keeps the verdict last decided on it, which comes back on entering the
 -- world there (EnterWorld); a map with none starts "unknown" (learned procs draw, '?' stays hidden: AreaClear and
--- NotCrowded) until its first solo read decides. Mid-fight, seen wounds far past the best pace
+-- NotCrowded) until its first solo read decides. Mid-fight, one plate's seen wounds far past the best pace
 -- a clear read measured make that fight crowded at once (Teacher.Seen), before its read. With /cti debug each
 -- outcome logs TEACH lines.
 -- Each fight's outcome, a read or a skip, ends with one Teacher.OnRead(Teacher.last) call
@@ -40,10 +40,12 @@ local Teacher = {}
 ns.Teacher = Teacher
 
 local READ_DELAY = 1 -- seconds after combat the session is read
--- The live crowd check: a fight's seen wounds past CROWD_PACE times the best pace a clear read measured (meter total
--- per second of fight) make it crowded at once, after its first CROWD_WAIT seconds (an opener burst is no crowd).
--- lock3 F3: the area was clear, then a world boss had strangers' wounds at 30x the best pace (clear fights peak below
--- 2.1x), and a learned proc drew 234195 against its row's 15682 before the read could turn the area crowded.
+-- The live crowd check: one plate's seen wounds past CROWD_PACE times the best pace a clear read measured (meter total
+-- per second of fight) make the fight crowded at once, after its first CROWD_WAIT seconds (an opener burst is no
+-- crowd). lock3 F3: the area was clear, then a world boss had strangers' wounds at 30x the best pace (clear fights
+-- peak below 2.1x), and a learned proc drew 234195 against its row's 15682 before the read could turn the area
+-- crowded. Per plate, not the fight's sum: your own AoE on five dummies passed 4x summed (priest4 F2 at 7.9 s,
+-- paladin2 F2), though their reads were clear; strangers pile onto the one plate they fight.
 local CROWD_PACE, CROWD_WAIT = 4, 5
 -- The DoT pass's slack: a stream records no tick before its birth, so a row may run past its school's stream ticks by
 -- this share of the row, and past its '?' hits by the fight's unseen damage, at most this share too. lock3 F1:
@@ -68,8 +70,9 @@ local function Plain(value) return not issecretvalue(value) and value ~= nil end
 local function IsNumber(value) return Plain(value) and type(value) == "number" end
 
 -- the open fight: { at, tally = { [spellID] = sum }, unknown = { entry, ... }, ticks = { tick, ... },
---   casts = { { spellID, base, at, plate }, ... }, streams = { [stream] = record }, seen = sum, live = this fight's
---   own seen (no carried fight's), crowded = the live crowd check fired, carried = seconds of fights carried in,
+--   casts = { { spellID, base, at, plate }, ... }, streams = { [stream] = record }, seen = sum, plates = { [plate] =
+--   this fight's own seen on it (no carried fight's) }, live = the busiest plate's, crowded = the live crowd check
+--   fired, carried = seconds of fights carried in,
 --   duration = seconds in combat (set at Finish), group, heals = { { size, amount, at }, ... } on you, helps = { { spellID,
 --   at }, ... } your helpful casts and drawn = { { spellID, amount, at, school }, ... } the hits drawn with an icon
 --   (for Heals.Learn) }
@@ -1203,8 +1206,8 @@ end
 -- Combat began: open a fight (an unfinished one is replaced).
 function Teacher.Start(now, group)
     local streams = Streams.NewFight()
-    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, casts = {}, seen = 0, live = 0, schools = {},
-        group = group, streams = streams, heals = {}, helps = {}, drawn = {} }
+    Teacher.fight = { at = now, tally = {}, unknown = {}, ticks = {}, casts = {}, seen = 0, plates = {}, live = 0,
+        schools = {}, group = group, streams = streams, heals = {}, helps = {}, drawn = {} }
 end
 
 -- A wound landed while the player was grouped: the fight's read will not learn.
@@ -1212,12 +1215,15 @@ function Teacher.Grouped()
     if Teacher.fight then Teacher.fight.group = true end
 end
 
--- A wound of this size and `school` that may be yours was seen at `now`, drawn or not (Core's Wound decides which
--- count). Past the live crowd check's bound (CROWD_PACE) the fight is crowded until it ends.
-function Teacher.Seen(amount, now, school)
+-- A wound of this size and `school` that may be yours was seen on `plate` at `now`, drawn or not (Core's Wound decides
+-- which count; a wound without a plate counts on one shared key). Past the live crowd check's bound (CROWD_PACE) on
+-- one plate the fight is crowded until it ends.
+function Teacher.Seen(amount, now, school, plate)
     local fight = Teacher.fight
     if not (fight and IsNumber(amount)) then return end
-    fight.seen, fight.live = fight.seen + amount, fight.live + amount
+    local key = plate or fight.plates
+    local onPlate = (fight.plates[key] or 0) + amount
+    fight.seen, fight.plates[key], fight.live = fight.seen + amount, onPlate, math.max(fight.live, onPlate)
     if IsNumber(school) then fight.schools[school] = (fight.schools[school] or 0) + amount end
     local pace = store and store.pace
     if fight.crowded or not (pace and IsNumber(now)) then return end

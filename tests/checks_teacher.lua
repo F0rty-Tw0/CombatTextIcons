@@ -950,8 +950,9 @@ return function(T)
 
             local PROC = 1287663
             -- A clear-area fight from t 10 at saved pace `pace`: a proc hit (350, school 106) at 11, a stranger's wound
-            -- of `crowd` at 12, then a proc hit at 13 and at 30. Returns what the last three proc hits drew.
-            local function Boss(pace, crowd)
+            -- of `crowd` at 12 (on `crowdUnit`, default the same plate), then a proc hit at 13. Returns what the two proc
+            -- hits drew and whether the area is still clear.
+            local function Boss(pace, crowd, crowdUnit)
                 local rig = Rig({})
                 SeedProc(rig, PROC, true)
                 T.Store().pace = pace
@@ -960,7 +961,7 @@ return function(T)
                 rig.S.now = 10
                 rig.ns.Core.PLAYER_REGEN_DISABLED()
                 local first = rig.Hit(11, "nameplate1", 350, 106)
-                rig.Hit(12, "nameplate1", crowd, 1)
+                rig.Hit(12, crowdUnit or "nameplate1", crowd, 1)
                 return first, rig.Hit(13, "nameplate1", 350, 106), rig.ns.Teacher.AreaClear()
             end
             local tex = "tex:" .. PROC
@@ -971,6 +972,10 @@ return function(T)
                 first == tex and after == nil and not clear and Logged("TEACH crowd live seen=2001 pace=100"))
             first, after, clear = Boss(100, 1300)
             Check("crowd live: seen at the bound (2000) keeps the fight clear", first == tex and after == tex and clear)
+            -- priest4 F2, paladin2 F2: your own AoE on five dummies passed the bound summed, though their reads were clear
+            first, after, clear = Boss(100, 1301, "nameplate2")
+            Check("crowd live: the bound is per plate (1301 on another plate, 700 on this one: 2001 summed) and keeps the fight clear",
+                first == tex and after == tex and clear)
             first, after = Boss(nil, 100000)
             Check("crowd live: with no saved pace (no clear read yet) nothing turns crowded",
                 first == tex and after == tex)
