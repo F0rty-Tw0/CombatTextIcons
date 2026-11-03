@@ -706,13 +706,19 @@ local function Replay(name, opts)
     for _, event in ipairs(events) do
         if event.group ~= nil then S.group = event.group break end
     end
-    Core.PLAYER_REGEN_DISABLED()
+    -- opts.combatAt (SplitFights' CombatAt): the events before it land out of combat, with no fight open
+    local opened = opts.combatAt == nil
+    if opened then Core.PLAYER_REGEN_DISABLED() end
     for _, event in ipairs(events) do
         if event.t > S.now then
             FlushHeals(event.t)
             FlushMates(event.t)
         end
         S.now, phase = event.t, event.phase
+        if not opened and event.t >= opts.combatAt then
+            opened = true
+            Core.PLAYER_REGEN_DISABLED()
+        end
         if targets then S.target = TargetAt(targets, event.t) end
         S.pending, S.pendingTag = {}, ""
         if event.kind == "U" then
@@ -806,10 +812,37 @@ local FIGHT_FIXTURES = { -- startArea: each log's first unexplained route (shado
     -- logThreat: the hits' threat= answers drive the stub and seen is the replay's own (strangers on other dummies)
     [REPLAY_CROWD] = { startArea = "crowded", logThreat = true },
 }
+-- Combat ends before its read (Teacher's READ_DELAY), and a DoT's last ticks may land after the read, out of combat:
+-- the addon's teacher holds no fight then (Teacher.Finish closes it, PLAYER_REGEN_DISABLED opens the next), so they
+-- are none of the next fight's hits. A slice's leading hits, heals and casts that land within LEFTOVER_AFTER of the
+-- read before it, with LEFTOVER_QUIET of no such event after them, replay before its fight opens (combatAt). Run
+-- paladin: Wake of Ashes 255937's ticks 1427 and 407 landed 1.2-1.8 s after F2's read and 22.7 s before F3's first
+-- cast; in game F3's read learned its proc (band 410-8642: the sum was exact without them), the replay's sum was 1834
+-- over the row and learned nothing. Run druid F3: 142 hits 0.1-3.6 s after F2's read, 31 s before the next event and
+-- 120 s before the game's combat began (dur=22), stretched the '?' span Steady's luck divides by; with them Swipe
+-- 106785 learned in F3, without them its luck is 0.12 and it learns in F4.
+local LEFTOVER_AFTER, LEFTOVER_QUIET = 5, 10
+
+-- The stamp the slice's fight opens at, or nil (at its first event): the first event after its leading leftovers.
+local function CombatAt(events, readAt)
+    if not readAt then return nil end
+    local timed = {}
+    for _, event in ipairs(events) do
+        if event.kind == "U" or event.kind == "H" or event.kind == "C" then timed[#timed + 1] = event.t end
+    end
+    for index = 1, #timed - 1 do
+        if timed[index] - readAt > LEFTOVER_AFTER then return nil end
+        if timed[index + 1] - timed[index] >= LEFTOVER_QUIET then return timed[index + 1] end
+    end
+
+    return nil
+end
+
 -- A TEACH-bearing log splits into fights: each is the slice of events after the previous TEACH clean line up to
 -- its own; the tail after the last one is a slice with no rows (its read skips). opts.log (debug lines) and
 -- opts.fixture stand in for a fixture file; opts.label names the log for StartArea (default name).
--- slices[i] = { log, name, events, rows = the log's meter rows, healRows, seen, logThreat, replayThreat, startArea }.
+-- slices[i] = { log, name, events, rows = the log's meter rows, healRows, seen, logThreat, replayThreat, startArea,
+-- combatAt (CombatAt) }.
 local function SplitFights(name, opts)
     local fixture = opts.fixture or assert(FIGHT_FIXTURES[name], "no fight fixture " .. name)
     local log = opts.log or LoadLog(name .. ".sv.lua")
@@ -837,9 +870,11 @@ local function SplitFights(name, opts)
         -- a read with no damage events (a heal-only "fight", seen=0 meter=0) is no slice, its heals are not replayed;
         -- the fights after it still are
         if damage > 0 then
+            local readAt = prevEnd > 0 and tonumber(log[prevEnd]:match("^([%d%.]+) ")) or nil
             slices[#slices + 1] = { log = opts.label or name, name = name, events = events, rows = fight and fight.rows,
                 healRows = fight and fight.healRows, seen = not fixture.logThreat and fight and fight.seen or nil,
-                logThreat = fixture.logThreat, replayThreat = fixture.replayThreat, startArea = fixture.startArea }
+                logThreat = fixture.logThreat, replayThreat = fixture.replayThreat, startArea = fixture.startArea,
+                combatAt = CombatAt(events, readAt) }
         end
         prevEnd = endLine
     end
@@ -869,6 +904,7 @@ local function ReplaySlices(slices, opts)
             haste = opts.haste, meter = true, sessionRows = slice.rows, healRows = slice.healRows,
             logThreat = slice.logThreat, replayThreat = slice.replayThreat, seen = slice.seen,
             area = StartArea(slices, i, area, charDB), charDB = charDB and DeepCopy(charDB), setup = opts.setup,
+            combatAt = slice.combatAt,
         })
         runs[#runs + 1] = { hits = hits, info = info, last = info.teacher.last, rows = slice.rows }
         charDB, area = info.charDB, info.teacher.area
@@ -1546,6 +1582,30 @@ local function ReplayFightsChecks()
     Check("SplitFights: a TEACH skip ends a slice with no rows; the next fight keeps its own rows",
         #skipped == 3 and skipped[2].rows == nil and skipped[2].events[1].t == 2.0 and skipped[3].events[1].t == 3.0
         and skipped[3].rows[1].totalAmount == 7)
+    -- a DoT's last ticks 1-1.5 s after a read, then 18.5 s of nothing: out of combat, the next fight opens at its cast
+    local leftLog = { "0.500 CAST player 1", "1.000 TEACH clean seen=5 meter=5 -> clear",
+        "1.000 TEACH 1 tally=0 meter=5 verdict=unpaired",
+        "2.000 HIT nameplate1 school=4 amount=30 flag= fps=60 target=true", "2.000   -> unknown-solo",
+        "2.500 HIT nameplate1 school=4 amount=20 flag= fps=60 target=true", "2.500   -> unknown-solo",
+        "20.000 CAST player 1", "20.000 HIT nameplate1 school=1 amount=7 flag= fps=60 target=true",
+        "20.000   -> unknown-solo", "21.000 TEACH clean seen=7 meter=7 -> clear",
+        "21.000 TEACH 1 tally=0 meter=7 verdict=unpaired",
+        "28.000 HIT nameplate1 school=4 amount=30 flag= fps=60 target=true", "28.000   -> unknown-solo",
+        "40.000 CAST player 1", "41.000 TEACH clean seen=0 meter=0 -> clear" }
+    local leftSlices = SplitFights("x", { log = leftLog, fixture = { startArea = "clear" } })
+    Check("SplitFights: hits within LEFTOVER_AFTER of the read before, then LEFTOVER_QUIET of nothing, land before combatAt",
+        #leftSlices == 3 and leftSlices[1].combatAt == nil and leftSlices[2].combatAt == 20.0
+        and leftSlices[3].combatAt == nil)
+    local openedAt = {}
+    ReplaySlices({ leftSlices[2] }, { setup = function(ns, state)
+        local open = ns.Core.PLAYER_REGEN_DISABLED
+        ns.Core.PLAYER_REGEN_DISABLED = function(...)
+            openedAt[#openedAt + 1] = state.now
+            return open(...)
+        end
+    end })
+    Check("Replay: a slice with combatAt opens its fight once, at combatAt, after its leftovers",
+        #openedAt == 1 and openedAt[1] == 20.0)
     local rhythm = ParseTeach({ "1.0 TEACH clean seen=5 meter=5 -> clear",
         "1.0 TEACH rhythm 7 school=32 p=1.70 band=1-2 streak=1", "1.0 TEACH 7 tally=0 meter=5 verdict=unpaired" })
     Check("ParseTeach: a rhythm line between the clean line and the rows keeps the rows",
