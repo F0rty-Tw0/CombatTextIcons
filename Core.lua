@@ -721,6 +721,14 @@ local function Wound(plate, unit, flagText, amount, school, now)
         Ledger.Add("damage", volleyID, amount)
         return Display.Plate(plate, SpellTexture(volleyID), text, flagText, school)
     end
+    -- A learned link's hit (Link.Name): a cast's like-sized hit on the plates around its target, filed under another row.
+    local linkID = solo and Teacher.NotCrowded() and ns.Link.Name(plate, school, amount, flagText, now)
+    if linkID then
+        if ns.Debug then ns.Debug("  -> link %s", ShowValue(linkID)) end
+        Drawn(linkID, amount)
+        Ledger.Add("damage", linkID, amount)
+        return Display.Plate(plate, SpellTexture(linkID), text, flagText, school)
+    end
     -- A learned DoT's twin (Tracker.Twin) is the last solo route before the question mark: the meter taught its share.
     local twinID = solo and Tracker.Twin(plate, school, amount, flagText, now)
     if twinID then
@@ -911,6 +919,7 @@ local function UseSpec()
     Casts.InitOwnRows(store)
     Procs.Init(store)
     ns.Volley.Init(store)
+    ns.Link.Init(store)
     Ledger.Init(store)
     Teacher.Init(store)
     Tracker.Reset()
@@ -1001,6 +1010,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
         if Plain(harmful) and harmful then
             local plate = Casts.NoteCast(spellID, now, castGUID, unit == "pet")
             Teacher.Cast(spellID, Casts.Base(spellID), now, plate, unit == "pet")
+            ns.Link.NoteCast(spellID, now, plate)
         elseif Plain(harmful) and unit == "player" then
             if frameCasts.at ~= now then frameCasts = { at = now, ids = {}, seen = {} } end
             if not frameCasts.seen[spellID] then
@@ -1118,6 +1128,7 @@ SlashCmdList.COMBATTEXTICONS = function(message)
         Heals.Forget()
         Procs.Forget()
         ns.Volley.Forget()
+        ns.Link.Forget()
         Ledger.Forget()
         print(PREFIX .. "forgot this spec's learned spells")
         return

@@ -24,6 +24,7 @@ Flat.lua
 Train.lua
 Area.lua
 Volley.lua
+Link.lua
 Teacher.lua
 Display.lua
 Progress.lua

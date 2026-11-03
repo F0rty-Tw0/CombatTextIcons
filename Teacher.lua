@@ -1163,9 +1163,10 @@ end
 -- open row, before the DoT pass: a proven chain is direct hits, so they leave the school's '?' sum the DoT pass
 -- bounds; then the DoT pass learns a cast's DoT from its school's streams, bounded by its own open row; then the
 -- stack pass (Stack.lua) learns a stacking DoT's ticks on its cast's plate under its own open row, and the flat pass
--- (Flat.lua) a learned cast hit's same-size DoT ticks on its plate under its row's room; last, the area
+-- (Flat.lua) a learned cast hit's same-size DoT ticks on its plate under its row's room; then the area
 -- pass (Area.lua) marks a spell learned before this read, or by the steady pass alone at it, whose row's residual its
--- hits on other plates explain.
+-- hits on other plates explain; last, the link pass (Link.lua) gathers a cast's evidence for a row of another ID that
+-- its hits on the plates around its target meet exactly.
 -- A way the meter proved also teaches how many hits one cast landed on its plate (Fingerprints.SetPerCast), and an
 -- exact way with frame mates that its casts hit the plates around their target (Fingerprints.SetArea).
 -- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so
@@ -1208,6 +1209,7 @@ local function Learn(run, results, open, rows)
     for _, way in ipairs(ns.Volley.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Area.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Area.Twins(run, rows, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Link.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(learned) do
         local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)
         if dot and fp and fp.learned and fp.school ~= dot.school then ns.Learn.Drop(way.castID) end

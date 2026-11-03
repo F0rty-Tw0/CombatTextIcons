@@ -38,6 +38,13 @@ local ownRows = {}      -- spellID -> true: the meter showed a row of this ID; t
 
 function Casts.Base(castID)
     if ownRows[castID] then return castID end
+
+    return Casts.GameBase(castID)
+end
+
+-- Casts.GameBase(castID): the base the game names for `castID` (the above without the meter's own rows); the link
+-- pass (Link.lua) groups a cast with its override family by it.
+function Casts.GameBase(castID)
     local base = FindBase(castID)
     if not base then return castID end
     if base ~= castID then remembered[castID] = base end
