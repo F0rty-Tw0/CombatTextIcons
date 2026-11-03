@@ -258,19 +258,20 @@ end
 -- The event frame: its handlers are the Core functions below.
 local events = CreateFrame("Frame")
 
--- frameHits = { at = a frame's stamp, list = its hits on enemy plates, each { amount, school, spellID = the icon it
--- drew, nil when none } }: a heal on you in that frame may be a learned share of one (Heals.Claim)
+-- frameHits = { at = a frame's stamp, list = its hits on enemy plates, each { amount, school, flagText, plate,
+-- spellID = the icon it drew, nil when none } }: a heal on you in that frame may be a learned share of one
+-- (Heals.Claim), a held hit like one drawn is that spell's (LikeDrawn)
 local frameHits = { list = {} }
 
 -- A hit on an enemy plate at `now`: its frame keeps it for the frame's heals (Drawn names it). Heals and held hits
 -- (Core.FlushMates) of an earlier frame still waiting are drawn first, before their frame's hits give way.
-local function FrameHit(amount, school, now)
+local function FrameHit(amount, school, now, flagText, plate)
     if frameHits.at ~= now then
         Core.FlushHeals(now)
         Core.FlushMates(now)
         frameHits = { at = now, list = {} }
     end
-    frameHits.list[#frameHits.list + 1] = { amount = amount, school = school }
+    frameHits.list[#frameHits.list + 1] = { amount = amount, school = school, flagText = flagText, plate = plate }
 end
 
 -- A hit was drawn with this spell's icon: the teacher tallies it, and its frame entry (FrameHit) takes the ID: the
@@ -383,9 +384,28 @@ local function DrawnInFrame(base, at)
     return false
 end
 
+-- The one spell a held hit is like: the ID every hit of its school drawn in its frame within Streams.SIZE_GUARD of
+-- its normal-scale size drew, while no unclaimed hit like that drawn hit landed on another plate than its own in the
+-- QUIET before (Casts.QuietNear), else nil. Run warrior F3: Thunder Clap 6343, learned on a lone target, drew 561131
+-- and 1176829 (crit) on its target while its 547076 and 614887 on the dummy beside it hid; the area pass learned it
+-- only at the fight's end, the log's last.
+local function LikeDrawn(hit)
+    local base, size = nil, Streams.NormalAmount(hit.amount, hit.flagText)
+    for _, entry in ipairs(frameHits.at == hit.at and frameHits.list or {}) do
+        local own = entry.spellID and entry.school == hit.school and Streams.NormalAmount(entry.amount, entry.flagText)
+        if own and math.abs(own - size) <= Streams.SIZE_GUARD * math.max(own, size)
+            and Casts.QuietNear(entry.plate, hit.school, own, hit.at) then
+            if base ~= nil and base ~= entry.spellID then return nil end
+            base = entry.spellID
+        end
+    end
+
+    return base
+end
+
 -- A held hit at its frame's end, when `mated`: drawn when a learned cast claimed it and drew a hit in its frame (an
 -- AoE lands on its target and the plates around at once) while no unclaimed hit like it landed on another plate in
--- the QUIET before (Casts.Quiet), else given to the area pass. Run shaman5 F2: 470057's 4 crits on other dummies came
+-- the QUIET before (Casts.Quiet), or when it is LikeDrawn, else given to the area pass. Run shaman5 F2: 470057's 4 crits on other dummies came
 -- in the frame of its own 50953 on the target, and draw. Run mage F7: Arcane Blast 30451's record took 3 Arcane hits on
 -- 3 other dummies (1152-2387) as its Splash, 0.45 s after its own hit, in the frame of an Arcane Missiles 5143 tick on
 -- the target; drawn, their 4701 ran past its row (mage over 0.46 % -> 0.68 %). Run druid2 F3: another spell's ~10.5K
@@ -399,6 +419,14 @@ local function DrawMate(hit, mated)
     local claimed = hit.kind == "learned" and DrawnInFrame(hit.record.base, hit.at)
         and Casts.Quiet(hit.record, hit.school, hit.at)
     if not claimed then
+        local base = LikeDrawn(hit)
+        if base then
+            if ns.Debug then ns.Debug("  -> like %s", ShowValue(base)) end
+            Drawn(base, hit.amount, hit.at)
+            Ledger.Add("damage", base, hit.amount)
+            Display.Plate(hit.plate, SpellTexture(base), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
+            return
+        end
         Teacher.Mate(hit.plate, hit.school, hit.amount, hit.at, hit.flagText)
         if ns.Debug then ns.Debug("  -> HIDDEN (mate)") end
         return
@@ -451,7 +479,7 @@ end
 -- (run 153349Z: strangers on 8 nearby dummies made both reads crowded). Frame mates reach the area pass only
 -- (Teacher.Mate), never the crowd check.
 local function Wound(plate, unit, flagText, amount, school, now)
-    FrameHit(amount, school, now)
+    FrameHit(amount, school, now, flagText, plate)
     local fightsYou = FightsYou(unit, now)
     local grouped = InGroup()
     if grouped then Teacher.Grouped() end

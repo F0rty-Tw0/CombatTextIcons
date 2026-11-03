@@ -845,8 +845,10 @@ do -- Phase 3: records and Claim
     -- never learned) came the line before its target hit, in one frame. Such a hit waits for its frame's end
     -- (Core.FlushMates): a learned area cast that drew in that frame draws it, while no unclaimed hit like it landed on
     -- another plate in the QUIET before (run druid2 F3); without a solo hit of its school in the frame it is a stranger's
-    -- and stays hidden; one no learned cast drew joins the fight's mates (Teacher.Mate) for the area pass, never '?'.
-    Scenario("frame mates: a dummy's hit no one fights draws as a learned area cast that drew in its frame, else hides",
+    -- and stays hidden; one within SIZE_GUARD of a hit drawn in its frame draws as that hit's spell (LikeDrawn), under
+    -- the same QUIET guard; any other joins the fight's mates (Teacher.Mate) for the area pass, never '?'.
+    Scenario("frame mates: a dummy's hit no one fights draws as a learned area cast that drew in its frame, or as a "
+        .. "like-sized drawn hit's spell, else hides",
         function()
             -- hits { t, amount, unit, school } (amount "cast": a Mind Blast cast at t), after a cast at 30: nameplate2 and
             -- nameplate3 are dummies no one fights, nameplate1 the target. Returns nameplate2's last icon, the fight's
@@ -879,7 +881,11 @@ do -- Phase 3: records and Claim
             local MB = "tex:8092"
             local splashFirst = { { 30.2, 20000, "nameplate2" }, { 30.2, 21000, "nameplate1" } }
             local drawnFirst, fedDrawn = Run(splashFirst, true)
+            -- run warrior F3: a cast not learned as area drew its target hit; the like-sized mate in its frame is its
+            -- (LikeDrawn), unless a like hit landed on another plate before (loud) or the mate's size is not like (15000)
             local unlearned, fed = Run(splashFirst)
+            local unlearnedLoud, fedLoud = Run({ { 29.6, 20000, "nameplate3" }, splashFirst[1], splashFirst[2] })
+            local unlike, fedUnlike = Run({ { 30.2, 15000, "nameplate2" }, splashFirst[2] })
             local stranger, fedStranger = Run({ { 30.2, 20000, "nameplate2" }, { 30.2, 21000, "nameplate1", 4 } }, true)
             local lone = Run({ { 30.2, 20000, "nameplate2" } }, true)
             local loud = Run({ { 29.6, 20000, "nameplate3" }, splashFirst[1], splashFirst[2] }, true)
@@ -888,7 +894,8 @@ do -- Phase 3: records and Claim
             -- a drawn mate is claimed (Casts.Accept finds its wound), so the next cast's mate 1 s later still draws
             local _, _, twice = Run({ splashFirst[1], splashFirst[2], { 31, "cast" }, { 31.2, 20000, "nameplate2" },
                 { 31.2, 21000, "nameplate1" } }, true)
-            return drawnFirst == MB and fedDrawn == 0 and unlearned == nil and fed == 1 and stranger == nil
+            return drawnFirst == MB and fedDrawn == 0 and unlearned == MB and fed == 0 and unlearnedLoud == nil
+                and fedLoud == 1 and unlike == nil and fedUnlike == 1 and stranger == nil
                 and fedStranger == 0 and lone == nil and loud == nil and notDrawn == nil and twice == 2
         end)
     -- The area pass (Area.lua): Mind Blast cast at plate p1 drew its 21000 hit; '?' Shadow hits on other plates

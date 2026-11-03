@@ -393,6 +393,20 @@ function Casts.Quiet(record, school, at)
     return true
 end
 
+-- Quiet for a drawn hit of normal-scale `size` on `plate` instead of a record's learned sizes: no unclaimed hit of
+-- `school` within Streams.SIZE_GUARD of `size` landed on another plate in the QUIET before `at`.
+function Casts.QuietNear(plate, school, size, at)
+    for _, wound in ipairs(wounds) do
+        if not wound.claimed and wound.plate ~= plate and wound.school == school and wound.at < at
+            and at - wound.at <= QUIET and IsNumber(wound.size)
+            and math.abs(wound.size - size) <= Streams.SIZE_GUARD * math.max(wound.size, size) then
+            return false
+        end
+    end
+
+    return true
+end
+
 -- Whether a hit on `plate`, another plate than the cast's, is an area spell's (Area.lua: the meter showed its row
 -- holding such hits): a plate the record has not hit yet, SLACK below its window to SPLASH past its top, and once
 -- the record took its own hit at most SPLASH past that hit, as Splash. Run paladin2 F7: 408385 (window top past 0.5 s)
