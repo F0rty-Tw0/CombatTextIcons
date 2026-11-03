@@ -64,6 +64,9 @@ local ALIAS_SPREAD = 0.3
 -- a sum over many cast windows takes in other spells' hits (Surging Totem's ticks among Lightning Bolts, run
 -- 20261025T192458Z).
 local SHORT_CASTS = 3
+-- A cand that covers every cast of a short kill (Covers): this many casts, its sum within this share of the row, its
+-- hits' sizes within this ratio (Steady's FILL_TOL and SIZE_SPREAD).
+local COVER_CASTS, COVER_TOL, COVER_SPREAD = 2, 0.001, 1.5
 
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
@@ -561,7 +564,8 @@ local function CandidateGroups(unknown, spent, Lone)
         end
     end
     for _, group in ipairs(list) do
-        for _ in pairs(castsOf[group.castID] or {}) do group.cand.casts = group.cand.casts + 1 end
+        group.stamps = castsOf[group.castID] or {}
+        for _ in pairs(group.stamps) do group.cand.casts = group.cand.casts + 1 end
     end
     table.sort(list, function(a, b)
         if a.castID ~= b.castID then return a.castID < b.castID end
@@ -577,7 +581,8 @@ end
 -- spec 3.1 Rev 4), the cast has no row of its own this session, and the row is not the own row
 -- of another cast this fight (`owners.rows`, `owners.casts`; Rev 5). A cast's own row still pairs.
 -- A `top`, a `cand` or an `all` pairs only with the cast's own row: one largest hit often equals some other spell's
--- one-hit row by chance. An `area` cand (each cast's largest with its frame mates) is a whole sum and may.
+-- one-hit row by chance. An `area` cand (each cast's largest with its frame mates) is a whole sum and may, and so is
+-- a cand that covers a short kill's casts (Covers).
 -- An `all` pairs only with at most SHORT_CASTS casts, and may mix sizes: overloads are the cast's own.
 -- A row of another ID also needs the way in at least half the cast's casts:
 -- a castless proc's lone hit in one of many cast frames is no hit of the cast (run 153349Z: one holy
@@ -598,9 +603,30 @@ local function DelaySpan(way)
     return high - low
 end
 
+-- Whether `way` is a cand of exactly COVER_CASTS casts with no frame mates, one hit from each, like-sized (within
+-- COVER_SPREAD), that meets `row` to COVER_TOL while no cast holds that row as an alias: a whole sum of a short kill,
+-- which may pair a row of another ID and teaches at once (Pass). One cast is luck (one largest hit often equals another
+-- spell's one-hit row); from 3 casts on the steady pass reads the rhythm and fills or refuses odd sizes (Steady.lua).
+-- Run warrior F1: two Execute casts left one hit each 1.01 s later, 1608442 + 1840536 = row 5308's 3448978, and with
+-- the cand held to the cast's own row its 11.4M row of F2 (32 % of that fight) went by as '?'.
+local function Covers(group, way, row)
+    if way ~= group.cand or way.casts ~= COVER_CASTS or way.covered ~= COVER_CASTS or #way.hits ~= COVER_CASTS
+        or next(way.mates) ~= nil or Fingerprints.Alias(row.spellID) ~= nil then
+        return false
+    end
+    local low, high = math.huge, 0
+    for _, hit in ipairs(way.hits) do
+        if not hit.size then return false end
+        low, high = math.min(low, hit.size), math.max(high, hit.size)
+    end
+    local tol = math.max(1, row.total * COVER_TOL)
+
+    return high <= COVER_SPREAD * low and way.sum >= row.total - tol and way.sum <= row.total + row.overkill + tol
+end
+
 local function Pairs(group, way, row, owners)
     if way == group and group.mixed or way == group.all and group.cand.casts > SHORT_CASTS then return false end
-    local whole = way == group or way.area
+    local whole = way == group or way.area or Covers(group, way, row)
     local own = row.spellID == group.castID or Fingerprints.Alias(row.spellID) == group.castID
         and Fingerprints.Filled(group.castID) and not Procs.Has(row.spellID)
     if not own
@@ -635,14 +661,56 @@ local function OwnHitsPerCast(way)
     return most
 end
 
+-- Whether two stamp sets hold the same cast times, at least COVER_CASTS of them.
+local function SameStamps(a, b)
+    local count = 0
+    for at in pairs(a) do
+        if not b[at] then return false end
+        count = count + 1
+    end
+    for at in pairs(b) do
+        if not a[at] then return false end
+    end
+
+    return count >= COVER_CASTS
+end
+
+-- The groups that are twins of an earlier one, by index: two cast IDs with no meter row of their own that the game
+-- logs on the same stamps every time (COVER_CASTS or more), whose ways hold the same hits in one school. The earlier
+-- (lower ID) stands for both, or the row both agree with pairs with neither. Run warrior F1: Execute logs casts of
+-- 163201 and 260798 on one stamp, the meter files the hits under 5308, and both cands summed to that row (3448978)
+-- exactly. One shared stamp is no twin: shaman6 F1 cast Ascendance 114050 on Meteor 117588's only stamp, and Meteor's
+-- own row then paired with neither.
+local function Twins(groups, WayOf, owners)
+    local twin = {}
+    for index, group in ipairs(groups) do
+        local way = WayOf(group)
+        for earlier = 1, index - 1 do
+            local other, otherWay = groups[earlier], WayOf(groups[earlier])
+            local same = group.stamps and other.stamps and other.school == group.school
+                and not owners.rows[group.castID] and not owners.rows[other.castID]
+                and #otherWay.hits == #way.hits and SameStamps(group.stamps, other.stamps)
+            for position, hit in ipairs(same and way.hits or {}) do
+                if otherWay.hits[position] ~= hit then same = false end
+            end
+            if same and not twin[earlier] then
+                twin[index] = true
+                break
+            end
+        end
+    end
+
+    return twin
+end
+
 -- One pairing pass over the rows and groups `seen` does not hold yet: `WayOf(group)` is the
 -- group's sum to try. A row and a group that agree only with each other are learned; every row
 -- and group that agreed with anything goes into `seen`, so a later pass never revisits them.
 local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritten)
-    local groupsOf, rowsOf = {}, {}
+    local groupsOf, rowsOf, twin = {}, {}, Twins(groups, WayOf, owners)
     for position, item in ipairs(open) do
         for groupIndex, group in ipairs(groups) do
-            if not seen.rows[position] and not seen.groups[groupIndex]
+            if not seen.rows[position] and not seen.groups[groupIndex] and not twin[groupIndex]
                 and Pairs(group, WayOf(group), item.row, owners) then
                 groupsOf[position] = (groupsOf[position] or 0) + 1
                 rowsOf[groupIndex] = (rowsOf[groupIndex] or 0) + 1
@@ -658,8 +726,9 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
                 -- an alias row's keeps LEARN_CASTS, and so does an `all` sum, which mixes sizes: in run shamanele
                 -- its one-cast pairs cost Lightning Bolt 188196 1.9 pt, in run druid2 it drew Ravage past its row.
                 -- Run dk with every pair at one cast: Outbreak 77575's one-cast alias of row 317792 made that row
-                -- owned (Procs.lua Owned), so its proc never learned (-0.65 pt late).
-                local exact = row.spellID == group.castID and way ~= group.all
+                -- owned (Procs.lua Owned), so its proc never learned (-0.65 pt late). A cand that Covers a short kill's
+                -- two casts is exact too: no later read of that kill would add a third.
+                local exact = row.spellID == group.castID and way ~= group.all or Covers(group, way, row)
                 -- An exact way's frame mates are its cast's area (Fingerprints.SetArea), no chain hops: a chain draws
                 -- from its own plate's hit on, and run shaman6 F2's Meteor 117588 hit its 4 mates before its target in
                 -- one frame, so as a chain it drew 61504 of 371725.

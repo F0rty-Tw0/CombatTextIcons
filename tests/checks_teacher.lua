@@ -1912,6 +1912,50 @@ return function(T)
             Check("candidates: ... while a plain saved alias keeps row Y another ID's: nothing learned (control)",
                 rig.ns.Fingerprints.Get(Z) == nil and rig.ns.Fingerprints.Alias(Y) == Z)
 
+            -- Run warrior F1: two Execute casts left one hit each 1.01 s later, and the two summed to row 5308 exactly.
+            -- Z cast at 60 and 70, one hit 1.0 s after each (1000 and 1100): a short kill's whole sum meets row Y.
+            local function Short(sizes, ids)
+                local hits = {}
+                for index, size in ipairs(sizes) do
+                    local t, candidates = 50 + 10 * index, {}
+                    for _, id in ipairs(ids) do candidates[#candidates + 1] = Candidate(id, t) end
+                    hits[#hits + 1] = { 32, size, "", nil, t + 1.0, candidates }
+                end
+                return hits
+            end
+            rig = Rig({})
+            ReadWith(rig, Short({ 1000, 1100 }, { Z }), { { Y, 2100 } })
+            F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            Check("candidates: a cand of a short kill's 2 casts, one like-sized hit each, meets row Y exactly -> alias, Z "
+                .. "learned at once from its 2 hits",
+                F.IsLearned(Z) and F.Alias(Y) == Z and last.learned[Z] == 2 and Find(last, Z).verdict == "agree")
+            rig = Rig({})
+            ReadWith(rig, Short({ 1000, 1100 }, { Z }), { { Y, 2110 } })
+            Check("candidates: ... a sum 0.5 % off the row is no whole sum: nothing learned (control)",
+                rig.ns.Fingerprints.Get(Z) == nil and rig.ns.Fingerprints.Alias(Y) == nil)
+            rig = Rig({})
+            ReadWith(rig, Short({ 1000, 2000 }, { Z }), { { Y, 3000 } })
+            Check("candidates: ... hits of two sizes (1000, 2000) are no whole sum: nothing learned (control)",
+                rig.ns.Fingerprints.Get(Z) == nil and rig.ns.Fingerprints.Alias(Y) == nil)
+            rig = Rig({})
+            ReadWith(rig, Short({ 1000 }, { Z }), { { Y, 1000 } })
+            Check("candidates: ... one cast's hit meeting row Y is luck: nothing learned (control)",
+                rig.ns.Fingerprints.Get(Z) == nil and rig.ns.Fingerprints.Alias(Y) == nil)
+            -- Execute logs casts of 163201 and 260798 on one stamp: Z and W cast together at 60 and 70, rowless twins.
+            rig = Rig({})
+            ReadWith(rig, Short({ 1000, 1100 }, { Z, W }), { { Y, 2100 } })
+            F, last = rig.ns.Fingerprints, rig.ns.Teacher.last
+            Check("candidates: twins (Z and W cast on the same 2 stamps, same hits) -> the lower ID Z stands for both: "
+                .. "alias, Z learned, W nothing",
+                F.IsLearned(Z) and F.Alias(Y) == Z and last.learned[Z] == 2 and F.Get(W) == nil)
+            local apart = Short({ 1000, 1100 }, { Z })
+            for _, hit in ipairs(apart) do table.insert(hit[6], Candidate(W, hit[5] - 0.7)) end
+            rig = Rig({})
+            ReadWith(rig, apart, { { Y, 2100 } })
+            Check("candidates: ... W cast 0.3 s after each Z is no twin: both cands meet row Y, neither pairs (control)",
+                rig.ns.Fingerprints.Alias(Y) == nil and rig.ns.Fingerprints.Get(Z) == nil
+                and rig.ns.Fingerprints.Get(W) == nil)
+
             -- Z cast at 60 and 61: the 1100 hit names both casts and goes to the newest, so 1000 + 1100 meets row 2100
             rig = Rig({})
             ReadWith(rig, { { 32, 1000, "", nil, 60.5, { Candidate(Z, 60) } },
