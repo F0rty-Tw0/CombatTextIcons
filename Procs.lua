@@ -1171,13 +1171,18 @@ end
 -- A plain flag picks the normal or the crit range (Big); a nil or secret flag fits either (as Streams.Size).
 -- When several padded ranges hold it, the one whose own sizes hold it (Own) names it; none or several: nil. The pads
 -- are drift slack, the own sizes are the hits the row paired: run shamanele F6, crit-only 285452 (13017-13460) and
--- 447419 (10571-11342) both held the fixed 22680 crits (11340 a normal, 447419's own top), which stayed '?'.
+-- 447419 (10571-11342) both held the fixed 22680 crits (11340 a normal, 447419's own top), which stayed '?'. A crit
+-- that only crit-only procs hold, none in its own sizes, names the one whose own sizes lie nearest its normal scale (by
+-- ratio; a tie names none): run shamanele F7, 23016 and 23486 sat just over 447419's own top and 25764-26021 just under
+-- 285452's own bottom, and stayed '?' while both rows ran ~220-265K under (right 29.6 -> 31.2 % of the log's meter).
 -- A proc's split bands (SplitFits) are ranges too; `twin`: a like hit of the school landed on another plate in the
 -- hit's frame (Core), which a twin band needs.
 function Procs.Name(school, amount, flagText, twin)
     if not (IsNumber(school) and IsNumber(amount)) then return nil end
     local crit = Procs.Crit(flagText) -- nil: unknown
     local found, contested, several, owner, owners = nil, false, false, nil, 0
+    local nearest, nearAway, tie, allCritOnly = nil, math.huge, false, true
+    local size = crit and Streams.NormalAmount(amount, "CRITICAL")
     for id, entry in pairs(procs) do
         if entry.learned == true and not (entry.period or entry.swing) and entry.school == school then
             local lo, hi, floor = entry.lo * PAD_LO, entry.hi * PAD_HI, Floor(entry) * PAD_LO
@@ -1188,6 +1193,9 @@ function Procs.Name(school, amount, flagText, twin)
                 several = several or found ~= nil
                 found = found or id
                 if Own(entry, amount, crit) or splitOwn then owner, owners = id, owners + 1 end
+                allCritOnly = allCritOnly and entry.critOnly == true and not split
+                local away = size and math.max(entry.lo / size, size / entry.hi) or math.huge
+                if away < nearAway then nearest, nearAway, tie = id, away, false elseif away == nearAway then tie = true end
             end
             -- below the band down to its floor a cut-short tick of this proc may be the hit: no proc names it
             local short = floor <= amount and amount < lo
@@ -1196,8 +1204,9 @@ function Procs.Name(school, amount, flagText, twin)
         end
     end
     if several then
-        if owners ~= 1 then return nil end
-        found = owner
+        local split = owners == 0 and crit == true and allCritOnly and not tie and nearest
+        if owners ~= 1 and not split then return nil end
+        found = owner or split
     end
     -- a normal hit inside a proc's own band (unpadded) is that proc's, cut-short ticks or not
     local own = found and crit == false and (procs[found].lo <= amount and amount <= procs[found].hi

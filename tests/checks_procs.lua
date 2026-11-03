@@ -721,8 +721,16 @@ return function(T)
         procs[447419] = Entry(4, 10571, 11342, 3, true)
         procs[447419].critOnly = true
         Check("procs name tie: a crit both padded bands hold names the proc whose own sizes hold its normal scale"
-            .. " (22680 -> 447419); inside neither own band (25000 -> 12500) or of unknown flag it names nothing",
-            Name(4, 22680, "CRITICAL") == 447419 and Name(4, 25000, "CRITICAL") == nil and Name(4, 22680, nil) == nil)
+            .. " (22680 -> 447419); of unknown flag it names nothing",
+            Name(4, 22680, "CRITICAL") == 447419 and Name(4, 22680, nil) == nil)
+        -- run shamanele F7: 23016 and 23486 crits sat just over 447419's own top, 25764-26021 just under 285452's floor
+        Check("procs name tie: a crit inside neither crit-only proc's own sizes names the one whose own sizes lie nearer"
+            .. " its normal scale (25764 -> 12882 -> 285452; 23486 -> 11743 -> 447419)",
+            Name(4, 25764, "CRITICAL") == 285452 and Name(4, 23486, "CRITICAL") == 447419)
+        procs[447419].critOnly = nil
+        Check("procs name tie: with a proc that has normals among them it names nothing (25764)",
+            Name(4, 25764, "CRITICAL") == nil)
+        procs[447419].critOnly = true
         procs[7] = Entry(8, 100, 120, 3, true)
         procs[8] = Entry(8, 125, 140, 3, true)
         Check("procs name tie: a normal hit both padded bands hold names the proc whose own band holds it (118 -> 7,"
