@@ -49,8 +49,8 @@
 -- (drawn, or learned this read) share their frames with a walk's ticks beyond luck, else the read's one heal row
 -- that is also such a damage row, once a walk's ticks share their frames with the fight's hits beyond luck: Healing
 -- Rain (casts 444995 base 73920 and 1298679, row 73921) heals you and hits the mobs on each tick. A direct heal
--- learns no train but its tail: ticks of one size at one share of the heal on its cast's stamp (Tails, hunter's
--- Exhilaration).
+-- learns its HoT from TAIL_WALKS agreeing walks or more (shamanheal's Riptide 61295), or its tail: ticks of one size
+-- at one share of the heal on its cast's stamp (Tails, hunter's Exhilaration).
 -- Kept apart from the damage stores: an ID can be both a damage and a heal row (Healing Rain 73921).
 -- Saved data is checked on load and never trusted.
 
@@ -116,7 +116,9 @@ local TRAIN_CAP = 32    -- casts kept; the one seen least recently goes first
 -- Tails: a direct heal that also heals you over time ticks one size, a fixed share of the heal on its cast's stamp
 -- (hunter's Exhilaration 109304 heals 87925, then 4396 each second, 1/20 of it, under its own row). A walk of one size
 -- is a castless proc's as often (Fixed sizes), so a tail learns from TAIL_WALKS walks whose shares agree within
--- SHARE_TOL: a proc's size over a direct heal that varies gives no one share.
+-- SHARE_TOL: a proc's size over a direct heal that varies gives no one share. A direct heal's HoT ticks vary in size
+-- (resto's mastery: Riptide's 3.6-5.5K every ~2.6 s), so its walks agree as a train's do, TAIL_WALKS of them at
+-- least: one walk after a direct heal may be a foreign train that started on its heels.
 local TAIL_WALKS, SHARE_TOL = 2, 0.01
 
 local issecretvalue = issecretvalue or function() return false end
@@ -710,7 +712,7 @@ local function Walk(sorted, at, duration, head)
     return best.luck <= WALK_ALPHA and best or nil
 end
 
--- Whether a heal cast has samples on its own stamps: a direct heal, no train's cast.
+-- Whether a heal cast has samples on its own stamps: a direct heal, whose train is only its HoT or tail (Tails).
 local function Direct(spellID)
     return Range(heals[spellID]) ~= nil
 end
@@ -740,12 +742,13 @@ end
 -- early or hide in a busy fight (shamanheal F3's Stormstream 1267068 healed you twice, 1.5 s apart, then stopped, and
 -- F4's 12 ticks drew '?'). Of twins of one row only the lower ID learns, so one train runs per cast (Healing Rain:
 -- 444995). Learned when its agreeing walks' lucks multiply to TRAIN_LUCK at most, they are TRAIN_SHARE of its
--- counted casts and it has a heal row. A direct heal
--- learns only its tail (Tails): TAIL_WALKS walks or more whose shares agree. Its tick count is the agreeing
--- walks' median: a walk can run on into the next cast's ticks or a foreign heal (synthetic Renew 139 walked 8, 9, 13
--- and 16 ticks; the longest claimed a foreign heal two periods past its 8th tick). A walk the fight's end may have cut
--- (its `cut`) counts only when every agreeing walk was cut, then the most of theirs: shamanresto F2's last Healing
--- Rain ran 12 ticks to the fight's end, F1's ran its full 14.
+-- counted casts and it has a heal row. A direct heal needs TAIL_WALKS agreeing walks or more (Tails): its HoT's,
+-- ticks that vary in size (shamanheal's Riptide 61295 walked 2.60, 2.55 and 2.58 s, 7 to 10 ticks, by F5), or its
+-- tail's, one size at shares that agree; a walk of one kind is no agreeing walk of the other. Its tick count is the
+-- agreeing walks' median: a walk can run on into the next cast's ticks or a foreign heal (synthetic Renew 139 walked
+-- 8, 9, 13 and 16 ticks; the longest claimed a foreign heal two periods past its 8th tick). A walk the fight's end
+-- may have cut (its `cut`) counts only when every agreeing walk was cut, then the most of theirs: shamanresto F2's
+-- last Healing Rain ran 12 ticks to the fight's end, F1's ran its full 14.
 local function Judge(castID, entry)
     if not entry.row then return nil end
     local direct = Direct(castID)
@@ -759,7 +762,7 @@ local function Judge(castID, entry)
         for _, other in ipairs(walk.with) do alone = alone and (Direct(other) or Same(other)) end
         if alone and walk.period then
             counted = counted + 1
-            if (walk.share ~= nil) == direct then walks[#walks + 1] = walk end
+            if direct or walk.share == nil then walks[#walks + 1] = walk end
         end
     end
     local best
@@ -768,7 +771,8 @@ local function Judge(castID, entry)
         for _, walk in ipairs(walks) do
             if math.abs(walk.period - center.period) <= PERIOD_TOL
                 and math.max(walk.size, center.size) <= AGREE * math.min(walk.size, center.size)
-                and (not direct or math.abs(walk.share - center.share) <= SHARE_TOL * center.share) then
+                and (walk.share == nil) == (center.share == nil)
+                and (not center.share or math.abs(walk.share - center.share) <= SHARE_TOL * center.share) then
                 group[#group + 1] = walk
             end
         end

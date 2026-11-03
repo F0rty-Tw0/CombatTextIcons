@@ -541,10 +541,17 @@ return function(T)
 
         ns = T.Boot()
         H = ns.Heals
-        TrainRead(H, { TIDE }, { direct = 60000 })
-        TrainRead(H, { TIDE }, { direct = 60000 })
-        Check("trains: a cast with heals on its own stamps is a direct heal, no train's cast",
-            not H.IsTrainLearned(TIDE) and T.Store().heals[TIDE].hits == 2)
+        -- shamanheal: Riptide heals on its stamp, then its HoT ticks 3.6-5.5K every ~2.6 s, the size drifting
+        ns = T.Boot()
+        H = ns.Heals
+        TrainRead(H, { RIPTIDE }, { direct = 60000 })
+        Check("trains: one walk of ticks that vary after a direct heal teaches nothing yet",
+            not H.IsTrainLearned(RIPTIDE) and T.Store().heals[RIPTIDE].hits == 1)
+        TrainRead(H, { RIPTIDE }, { direct = 60000 })
+        H.Cast(RIPTIDE, 100)
+        Check("trains: two walks of ticks that vary after a direct heal teach them as its HoT under its row",
+            H.IsTrainLearned(RIPTIDE) and T.Store().heals[RIPTIDE].hits == 2
+            and H.Claim({}, { { size = 11700 } }, nil, 101.5)[1] == RIPTIDE)
 
         -- shamanheal: each totem goes out on a Chain Heal's stamp; Chain Heal also goes out alone
         ns = T.Boot()
