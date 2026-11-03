@@ -946,14 +946,20 @@ do -- Phase 3: records and Claim
                 and not alone and not owned and notOwned and mixedSum == 39000 and beside and not open
                 and not elsewhere and ownFramed and ownFramedLow
         end)
-    -- Frame mates (Teacher.Mate: hits on dummies no one fights, in a solo hit's frame) are other plates' hits too.
+    -- Frame mates (Teacher.Mate: hits on dummies no one fights, in a solo hit's frame) are other plates' hits too. Run
+    -- paladin2 F2: mates that push the '?' hits past the room are left out, and the '?' hits alone teach.
     Scenario("area pass: frame mates on other plates count with the '?' hits", function()
-        local ns = Rig(MindBlast)
         local function Hit(size, plate) return { at = 30.2, plate = plate, school = 32, size = size, amount = size } end
-        local run = { casts = { { at = 30, base = 8092, spellID = 8092, plate = "p1" } }, tally = { [8092] = 21000 },
-            unknown = { Hit(19000, "p2") }, mates = { Hit(20000, "p3") } }
-        local ways = ns.Area.Learn(run, { { spellID = 8092, total = 60000, overkill = 0 } }, {})
-        return #ways == 1 and ways[1].sum == 39000 and ns.Fingerprints.Get(8092).area == true
+        local function Try(unknown, mates)
+            local ns = Rig(MindBlast)
+            local run = { casts = { { at = 30, base = 8092, spellID = 8092, plate = "p1" } }, tally = { [8092] = 21000 },
+                unknown = unknown, mates = mates }
+            local ways = ns.Area.Learn(run, { { spellID = 8092, total = 60000, overkill = 0 } }, {}) -- room 39600
+            return #ways == 1 and ways[1].sum or 0, ns.Fingerprints.Get(8092).area == true
+        end
+        local sum, area = Try({ Hit(19000, "p2") }, { Hit(20000, "p3") })
+        local bareSum, bare = Try({ Hit(19000, "p2"), Hit(20000, "p3") }, { Hit(19500, "p4") })
+        return sum == 39000 and area and bareSum == 39000 and bare
     end)
     -- The area pass also tries a base the steady pass learned at this read (way.steady): it drew nothing yet, so its
     -- counted 21000 hit stands for the drawn. Run paladin F3: Hammer of Light 427453's target hits taught it at the read

@@ -49,11 +49,11 @@ local function InArea(castID, cast, hit, floor)
         and Casts.InBand(castID, cast.spellID, hit.size, floor)
 end
 
--- The fresh '?' hits and frame mates (Teacher.Mate) of `fp`'s school on other plates than `castID`'s casts that land
--- InArea from `floor`: { castID, sum, hits }.
-local function Gather(run, castID, fp, casts, spent, floor)
+-- The fresh '?' hits, and with `mates` the frame mates (Teacher.Mate), of `fp`'s school on other plates than
+-- `castID`'s casts that land InArea from `floor`: { castID, sum, hits }.
+local function Gather(run, castID, fp, casts, spent, floor, mates)
     local way = { castID = castID, sum = 0, hits = {} }
-    for _, hits in ipairs({ run.unknown, run.mates or {} }) do
+    for _, hits in ipairs({ run.unknown, mates and run.mates or {} }) do
         for _, hit in ipairs(hits) do
             local fresh = not spent[hit] and hit.school == fp.school
             local cast = fresh and OtherPlateCast(casts, hit.at, hit.plate, fp.delayHi + Casts.SPLASH)
@@ -146,6 +146,8 @@ end
 -- brings the drawn up to the row's total (Judge's lower bound): run warrior F1, 435222's one other-plate hit (1259725)
 -- closed its row (room 1316791), so F3 drew its 1307148 splash too. Run hunter F16: Kill Command 17253's one 2610 hit
 -- beside its own, in a room of 3949, left the row open; marked area, F18 drew 65865 over its row.
+-- A way that does not explain with its frame mates is tried on its '?' hits alone: run paladin2 F2, 4 Physical mates
+-- (17385) pushed 408385's 111 hits (519945) past its room of 526678, and its F4-F7 splashes went '?'.
 -- Returns the ways it marked area { castID, sum, hits }.
 function Area.Learn(run, rows, learned)
     local spent, learnedNow, steady = {}, {}, {}
@@ -181,9 +183,17 @@ function Area.Learn(run, rows, learned)
                 return (#way.hits >= MIN_HITS or lone and closes and Beside(way, own)) and way.sum <= room
                     and way.sum >= SHARE * room
             end
-            local way = Gather(run, castID, fp, castsOf[castID], spent)
+            -- frame mates may be another spell's of the school: a way they push past the room tries without them
+            local function Way(floor)
+                local way = Gather(run, castID, fp, castsOf[castID], spent, floor, true)
+                if Explains(way, not floor) then return way end
+                local bare = Gather(run, castID, fp, castsOf[castID], spent, floor, false)
+
+                return Explains(bare, not floor) and bare or way
+            end
+            local way = Way(nil)
             local low = not Explains(way, true)
-            if low then way = Gather(run, castID, fp, castsOf[castID], spent, Casts.AREA_LO) end
+            if low then way = Way(Casts.AREA_LO) end
             local held = low or steady[castID] ~= nil
             local fits = Explains(way, not low)
                 and not (held and (not Explains(Framed(way, own), not low) or OtherRowSum(way, row, rows, run.tally)))
