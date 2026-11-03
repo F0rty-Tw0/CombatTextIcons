@@ -328,16 +328,17 @@ local function GroundSize(fp, size, crit)
     return size
 end
 
--- Whether normal-scale `size` (nil or 0: any) is no smaller than the learned sizes of the record's cast spell: a
--- chain's hop in a later frame than its last hit. Run shaman5 fight 3: Earthquake's 8.1-8.9K ticks landed on other
--- plates 0.02-0.04 s after a Chain Lightning hop (learned 10.6-22.2K, padded down to 7.4K), so both fit and the ticks
--- drew nothing. A hop in the last hit's own frame keeps the padded band: hunter fight 7's Bestial Wrath 19574 drew its
--- 6195 hit on a second plate in its cast's frame.
+-- Whether normal-scale `size` (nil or 0: any) is no smaller than the learned sizes of the record's cast spell, less
+-- Streams.SIZE_GUARD (two hits of a kind): a chain's hop in a later frame than its last hit. Run shaman5 fight 3:
+-- Earthquake's 8.1-8.9K ticks landed on other plates 0.02-0.04 s after a Chain Lightning hop (learned 10.6-22.2K,
+-- padded down to 7.4K), so both fit and the ticks drew nothing. Run shaman6 F2: learned at 11685-22465, the chain
+-- stopped at an 11583 hop; its hits spread 11.4-12.7K. A hop in the last hit's own frame keeps the padded band: hunter
+-- fight 7's Bestial Wrath 19574 drew its 6195 hit on a second plate in its cast's frame.
 local function HopSize(record, size, now)
     if now == record.last or not (IsNumber(size) and size > 0) then return true end
     local small = Fingerprints.Band(record.base, record.spellID)
 
-    return small == nil or size >= small
+    return small == nil or size >= (1 - Streams.SIZE_GUARD) * small
 end
 
 -- Whether a hit of `school` on `plate`, another plate than the cast's, is the cast's splash: a plate it has not hit

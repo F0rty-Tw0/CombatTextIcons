@@ -1341,6 +1341,21 @@ do -- Phase 3: records and Claim
         return record.hops == 5 and record.last == 20.2 + 0.05 * 4 and second == "learned" and repeated == nil
             and tooLate == nil and ns.Casts.Claim(P(6), 8, 20.41) == nil
     end)
+    -- Run shaman6 F2: Chain Lightning 188443 learned at 11685-22465 hopped to an 11583 in a later frame and stopped
+    -- there; its 3 hops after it stayed '?'.
+    Scenario("claim: a chain hop in a later frame fits down to SIZE_GUARD under the smallest learned size", function()
+        local ns, S = Rig(function(n)
+            for index = 1, 3 do
+                n.Fingerprints.Add(CL, { school = 8, delay = 0.2, castAt = index, hops = 1, size = 11685 })
+                n.Fingerprints.Add(CL, { school = 8, delay = 0.2, castAt = index, hops = 5, size = 22465 })
+            end
+        end)
+        Cast(ns, S, CL, 20, "nameplate1")
+        local _, record = ns.Casts.Claim(Plate("nameplate1"), 8, 20.2, 11700)
+        ns.Casts.Accept(record, Plate("nameplate1"), 20.2, 11700)
+        return ns.Casts.Claim(Plate("nameplate2"), 8, 20.3, 11583) == "learned"
+            and ns.Casts.Claim(Plate("nameplate2"), 8, 20.3, 9000) == nil
+    end)
     Scenario("accept: a single-pattern record takes no second hit", function()
         local ns, S = Rig(Wand)
         Cast(ns, S, WAND, 10, "nameplate1")
