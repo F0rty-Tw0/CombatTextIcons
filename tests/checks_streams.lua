@@ -120,6 +120,21 @@ return function(T)
         Check("streams: record: a crit adds to sum and n but not to lo or hi",
             rec.sum == 7500 and rec.n == 6 and rec.lo == 1000 and rec.hi == 1100)
 
+        -- Run lock4 F17: 1259790's stack drew the three loose ticks a stream was born of (7813, 7813, 7981); Core marks
+        -- each loose tick the stack draws, and a birth of three marked by the same spell is that spell's stream.
+        local function Born(marks)
+            rig = Rig(); Streams = rig.ns.Streams
+            for index, t in ipairs({ 0, 2, 4 }) do
+                local none, loose = Streams.Feed("k", 32, 1000, "", t, false)
+                if none == nil and loose then loose.stackID = marks[index] end
+            end
+            return Streams.Feed("k", 32, 1000, "", 6, false)
+        end
+        Check("streams: a loose hit is returned second, and a birth of three ticks one stack drew is that stack's",
+            Born({ 7, 7, 7 }).stackID == 7)
+        Check("streams: a birth with one tick the stack did not draw, or two stacks, is no stack's",
+            Born({ 7, nil, 7 }).stackID == nil and Born({ 7, 7, 8 }).stackID == nil)
+
         -- Run lock2 F3: Darkglare's first beam (10461) came a period before a stream born at 13502, a step up as the
         -- DoTs it counts went on; left loose, it put the stream's sum 5.9 % under the 205231 row.
         local function Led(key, lead)

@@ -483,7 +483,7 @@ end
 -- Public -----------------------------------------------------------------------------
 
 -- An unclaimed hit on a plate. Only `shouldRecord` adds the hit to the current fight's records. Returns the stream the
--- hit extended or created, else nil.
+-- hit extended or created, else nil and the loose hit it kept (nil when it kept none).
 function Streams.Feed(key, school, amount, flagText, now, shouldRecord)
     if key == nil or not Plain(school) or type(school) ~= "number" then return end
     local entry = State(key)
@@ -532,6 +532,9 @@ function Streams.Feed(key, school, amount, flagText, now, shouldRecord)
             -- the birth's frames but the newest (its other plates may land after this hit) each hit WIDE_PLATES
             -- plates: a ground patch's ticks, which Learn gives no votes (Learn.OnBirth)
             wide = Wide(school, older),
+            -- the learned stack spell that drew each of its first three ticks (Core marks them): the stream is that
+            -- spell's. Any one tick is not enough: lock2 F5 then drew 21K less of Agony 980 and 31K less of 1259790.
+            stackID = a.stackID and a.stackID == b.stackID and a.stackID == c.stackID and a.stackID or nil,
             -- instance: set by Tracker when a live instance adopts the stream
         }
         table.remove(hits, third)
@@ -566,6 +569,8 @@ function Streams.Feed(key, school, amount, flagText, now, shouldRecord)
 
     hits[#hits + 1] = hit
     if #hits > LOOSE_CAP then table.remove(hits, 1) end
+
+    return nil, hit
 end
 
 -- The player's cast, as Tracker saw it. kind: "dot" and "channel" key to the target
