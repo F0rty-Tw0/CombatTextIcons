@@ -83,6 +83,50 @@ return function(T)
         Check("volley: nothing learned, no store entry", ns.Volley.Get(CAST) == nil)
     end
 
+    do -- a hit a later route named (Volley.Spent: a DoT's twin) is no bolt's partner
+        local ns = Rig()
+        local run, sum = Read(3, 5)
+        Learn(ns, run, { { spellID = ROW, total = sum } })
+        ns.Volley.NoteCast(CAST, 100)
+        ns.Volley.Name(SHADOW, BOLT, "", 100.1)
+        ns.Volley.Spent(BOLT, "", 100.1)
+        local after = ns.Volley.Name(SHADOW, BOLT, "", 100.2)
+        Check("volley: a hit whose like-sized partner another route named stays '?', and is the next bolt's partner",
+            after == nil and ns.Volley.Name(SHADOW, BOLT, "", 100.3) == ROW)
+    end
+
+    do -- hunter F8: a DoT's tick its twin took on one plate, then a like one on a third plate, is no volley's bolt
+        local DOT = 9004
+        -- the textures drawn for the first hit (nameplate2) and the second (nameplate3); nil: '?' (hidden here)
+        local function Draws(twinFirst)
+            local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+            local S = T.State()
+            ns.Volley.Init(T.Store())
+            local run, sum = Read(3, 5)
+            Learn(ns, run, { { spellID = ROW, total = sum } })
+            local twins = twinFirst and 1 or 0
+            ns.Tracker.Twin = function()
+                twins = twins - 1
+                return twins == 0 and DOT or nil
+            end
+            local drawn
+            ns.Display.Plate = function(_, texture) drawn = texture end
+            S.now, S.target = 100, "nameplate1"
+            ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c100", CAST)
+            S.now = 100.1
+            ns.Core.UNIT_COMBAT("nameplate2", "WOUND", "", BOLT, SHADOW)
+            local first = drawn
+            S.now, drawn = 100.2, nil
+            ns.Core.UNIT_COMBAT("nameplate3", "WOUND", "", BOLT, SHADOW)
+
+            return first, drawn
+        end
+        local twin, after = Draws(true)
+        local unknown, bolt = Draws(false)
+        Check("volley: a bolt whose partner was drawn as a DoT's twin stays '?'; with a '?' partner it draws the row",
+            twin == "tex:" .. DOT and after == nil and unknown == nil and bolt == "tex:" .. ROW)
+    end
+
     do -- a learned volley drawn past its row is dropped by the next clear read
         local ns = Rig()
         local run, sum = Read(3, 5)

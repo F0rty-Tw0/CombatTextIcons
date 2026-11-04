@@ -10,7 +10,8 @@
 -- VOLLEY_MIN bolts or more; SHARE of the casts must volley, in one school. The bolts' sum must fit exactly one open row
 -- no one owns (total + overkill + 1 %) and explain COVER of it: the volley learns that row and its size band.
 -- Drawing (Volley.Name): after a learned volley's cast, a solo hit nothing else named, inside the padded band, whose
--- size a hit of its school GAP or less before it repeats (another stamp), is a bolt: the volley's first bolt stays '?'.
+-- size a hit of its school GAP or less before it repeats (another stamp, no later route's: Volley.Spent), is a bolt:
+-- the volley's first bolt stays '?'.
 -- A clear read that finds the row drawn past it (or gone) drops the volley. With /cti debug each tried cast spell
 -- logs one TEACH volley line.
 
@@ -70,7 +71,8 @@ local function SameSize(a, b) return math.abs(a - b) <= TWIN * math.max(a, b) en
 
 -- Volley.Name(school, amount, flagText, now): the meter row of the one learned volley whose window holds the hit and
 -- whose band holds its normal-scale size, when a hit of its school and size landed GAP or less before it on another
--- stamp; nil otherwise. Every hit offered joins the windows it fits, as the next bolt's partner.
+-- stamp; nil otherwise. Every hit offered joins the windows it fits, as the next bolt's partner, until a later route
+-- names it (Volley.Spent).
 function Volley.Name(school, amount, flagText, now)
     local size = Streams.NormalAmount(amount, flagText)
     if not (IsNumber(school) and size and IsNumber(now)) then return nil end
@@ -99,6 +101,21 @@ function Volley.Name(school, amount, flagText, now)
     end
 
     return not several and found or nil
+end
+
+-- Volley.Spent(amount, flagText, now): a hit Volley.Name saw that a later route (a link, a DoT's twin) named is no
+-- bolt's partner, as the learner pairs '?' hits only. Run hunter F8: Black Arrow 466930 ticked 1103 on its plate, then
+-- on a second plate as its twin 0.16 s later, and the third plate's 1103 0.12 s after that paired with the twin and
+-- drew as Auto Shot 467718's learned volley (row 1264485, which the fight's meter did not show).
+function Volley.Spent(amount, flagText, now)
+    local size = Streams.NormalAmount(amount, flagText)
+    if not (size and IsNumber(now)) then return end
+    for _, state in pairs(live) do
+        for index = #state.recent, 1, -1 do
+            local bolt = state.recent[index]
+            if bolt.at == now and SameSize(bolt.size, size) then table.remove(state.recent, index) end
+        end
+    end
 end
 
 -- Learning ------------------------------------------------------------------------------------------------------------

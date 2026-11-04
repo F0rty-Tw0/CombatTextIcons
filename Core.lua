@@ -827,6 +827,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     local linkID = solo and Teacher.NotCrowded() and ns.Link.Name(plate, school, amount, flagText, now)
     if linkID then
         if ns.Debug then ns.Debug("  -> link %s", ShowValue(linkID)) end
+        ns.Volley.Spent(amount, flagText, now)
         Drawn(linkID, amount)
         Ledger.Add("damage", linkID, amount)
         return Display.Plate(plate, SpellTexture(linkID), text, flagText, school)
@@ -835,6 +836,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     local twinID = solo and Tracker.Twin(plate, school, amount, flagText, now)
     if twinID then
         if ns.Debug then ns.Debug("  -> twin %s", ShowValue(twinID)) end
+        ns.Volley.Spent(amount, flagText, now)
         Drawn(twinID, amount)
         Ledger.Add("damage", twinID, amount)
         return Display.Plate(plate, SpellTexture(twinID), text, flagText, school)
