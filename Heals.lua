@@ -723,13 +723,14 @@ local function From(sorted, at)
     return lo
 end
 
--- The heal of `sorted` due SLACK either side of `due` within STEP of `size`, the nearest that size; nil when none.
-local function TickAt(sorted, due, size)
+-- The heal of `sorted` due SLACK either side of `due` within STEP of `size`, the nearest that size, none of `taken`
+-- (by heal: a learned train's tick, nil: none); nil when none.
+local function TickAt(sorted, due, size, taken)
     local best
     for index = From(sorted, due - 2 * SLACK), #sorted do
         local heal = sorted[index]
         if heal.at > due + 2 * SLACK then break end
-        if math.abs(heal.at - due) <= SLACK and Near(heal.size, size)
+        if math.abs(heal.at - due) <= SLACK and Near(heal.size, size) and not (taken and taken[heal])
             and (not best or Off(heal.size, size) < Off(best.size, size)) then
             best = heal
         end
@@ -742,15 +743,15 @@ end
 -- cast (a train already running: a rune's, a totem cast before), or when its ticks are all one size: a castless
 -- proc's (Fixed sizes), and paladin's Word of Glory starts a 720 rune train under the rune's ID (1287665). A direct
 -- heal's stamp (`head`, its largest heal; nil: none or no direct heal's stamp) keeps a one-size walk as its tail, with
--- `share` its tick size over the head (Tails).
-local function WalkFrom(sorted, at, first, head)
+-- `share` its tick size over the head (Tails). Its ticks are none of `taken` (Walk); `took` = the ticks' heals.
+local function WalkFrom(sorted, at, first, head, taken)
     local period = first.at - at
     if TickAt(sorted, at - period, first.size) then return nil end
-    local sizes, ats, last, k, misses = { first.size }, { first.at }, first, 1, 0
+    local sizes, ats, took, last, k, misses = { first.size }, { first.at }, { first }, first, 1, 0
     while misses < MISSES do
-        local tick = TickAt(sorted, last.at + (last.at - at) / k * (1 + misses), last.size)
+        local tick = TickAt(sorted, last.at + (last.at - at) / k * (1 + misses), last.size, taken)
         if tick then
-            sizes[#sizes + 1], ats[#ats + 1] = tick.size, tick.at
+            sizes[#sizes + 1], ats[#ats + 1], took[#took + 1] = tick.size, tick.at, tick
             k, misses, last = k + 1 + misses, 0, tick
         else
             misses = misses + 1
@@ -764,21 +765,22 @@ local function WalkFrom(sorted, at, first, head)
     end
 
     return { period = (last.at - at) / k, size = size, low = sizes[1], high = sizes[#sizes], ticks = #sizes,
-        ats = ats, share = share }
+        ats = ats, took = took, share = share }
 end
 
 -- A cast's longest walk of TRAIN_TICKS or more that luck alone gives WALK_ALPHA often at most (walk.luck), else nil.
 -- Luck: any of the heals a period range after the cast may be the first tick, then each later tick is a heal of its
--- size inside its 2 x SLACK window, at the fight's rate of heals that size. `head`: WalkFrom's.
-local function Walk(sorted, at, duration, head)
+-- size inside its 2 x SLACK window, at the fight's rate of heals that size. `head`: WalkFrom's. A heal of `taken` (by
+-- heal; nil: none) is an earlier cast's learned train's tick (LearnTrains), never this walk's.
+local function Walk(sorted, at, duration, head, taken)
     local best, firsts = nil, 0
     for index = From(sorted, at), #sorted do
         local heal = sorted[index]
         local period = heal.at - at
         if period > PERIOD_HI then break end
-        if period >= PERIOD_LO then
+        if period >= PERIOD_LO and not (taken and taken[heal]) then
             firsts = firsts + 1
-            local walk = WalkFrom(sorted, at, heal, head)
+            local walk = WalkFrom(sorted, at, heal, head, taken)
             if walk and walk.ticks >= TRAIN_TICKS and (not best or walk.ticks > best.ticks) then best = walk end
         end
     end
@@ -824,7 +826,7 @@ end
 -- F4's 12 ticks drew '?'). Of twins of one row only the lower ID learns, so one train runs per cast (Healing Rain:
 -- 444995). Learned when its agreeing walks' lucks multiply to TRAIN_LUCK at most, they are TRAIN_SHARE of its
 -- counted casts and it has a heal row. A direct heal needs TAIL_WALKS agreeing walks or more (Tails): its HoT's,
--- ticks that vary in size (shamanheal's Riptide 61295 walked 2.60, 2.55 and 2.58 s, 7 to 10 ticks, by F5), or its
+-- ticks that vary in size (shamanheal's Riptide 61295 walked 2.60, 2.60 and 2.58 s, 6 to 8 ticks, by F5), or its
 -- tail's, one size at shares that agree; a walk of one kind is no agreeing walk of the other. Its tick count is the
 -- agreeing walks' median: a walk can run on into the next cast's ticks or a foreign heal (synthetic Renew 139 walked
 -- 8, 9, 13 and 16 ticks; the longest claimed a foreign heal two periods past its 8th tick). A walk the fight's end
@@ -989,6 +991,10 @@ end
 -- each read holds other castless damage rows, so only the hits under 73921 tell its row.
 -- A stamp whose casts are all direct heals walks with its largest heal no learned size names (`largest`) as the head
 -- of a tail (WalkFrom). A walk's ticks run on through its row's hits (RanOn); `ended`: the fight's end (RanOn).
+-- The ticks of a stamp's walk at the period of a train one of its casts learned before this read are that train's,
+-- up to its learned tick count: no later stamp walks them. shamanheal F4: Healing Rain (444995, learned at 1.71 s)
+-- ticked every 1.74 s through Riptide's cast 5 s later, whose longest walk took 11 of those ticks at 1.76 s over its
+-- own HoT's 6 at 2.60 s; its walks (2.60 s in F2) disagreed, and F5's 10 HoT ticks (62K) drew '?'.
 -- Returns the cast IDs counted.
 local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt, largest, rowAt, ended)
     local sorted, stamped, count = {}, {}, 0
@@ -1013,11 +1019,18 @@ local function LearnTrains(fightHeals, helps, own, duration, damage, hitAt, larg
         for _, spellID in ipairs(ids) do listed = listed or spellID == cast.spellID end
         if not listed then ids[#ids + 1] = cast.spellID end
     end
-    local counted = {}
+    local counted, taken = {}, {}
     for _, at in ipairs(order) do
-        local direct = true
+        local direct, learned = true, 0
         for _, castID in ipairs(stamps[at]) do direct = direct and Direct(castID) end
-        local walk = Walk(sorted, at, duration, direct and largest[at] or nil) or {}
+        local walk = Walk(sorted, at, duration, direct and largest[at] or nil, taken) or {}
+        for _, castID in ipairs(stamps[at]) do
+            local train = ready[castID]
+            if train and walk.period and math.abs(walk.period - train.period) <= PERIOD_TOL then
+                learned = math.max(learned, train.ticks)
+            end
+        end
+        for index = 1, math.min(learned, walk.took and #walk.took or 0) do taken[walk.took[index]] = true end
         local pulse = walk.ats and (HitRow(walk, duals, rowAt, stamped)
             or (dual and Pulses(walk, hitAt, rate) and dual)) or nil
         for _, castID in ipairs(stamps[at]) do

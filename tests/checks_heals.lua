@@ -579,6 +579,31 @@ return function(T)
             H.IsTrainLearned(RIPTIDE) and T.Store().heals[RIPTIDE].hits == 2
             and H.Claim({}, { { size = 11700 } }, nil, 101.5)[1] == RIPTIDE)
 
+        -- shamanheal F4: learned Healing Rain ticked every 1.74 s through Riptide's cast; Riptide's longest walk took
+        -- the rain's ticks over its own HoT's every 2.6 s. Here a learned 1.5 s train runs its 8 ticks from 11.5 s,
+        -- and a direct heal cast off its phase at 12.9 s ticks 6 times every 2.6 s: its first walk, 6 of the train's
+        -- ticks from 14.5 s (1.6 s after the cast, none of them a period before it).
+        ns = T.Boot()
+        H = ns.Heals
+        TrainRead(H, { TIDE })
+        local function Through()
+            local heals = { { size = 60000, amount = 60000, at = 12.9 } }
+            for tick = 1, 8 do
+                heals[#heals + 1] = { size = 12000 - 300 * tick, amount = 12000 - 300 * tick, at = 10 + 1.5 * tick }
+            end
+            for tick = 1, 6 do
+                heals[#heals + 1] = { size = 5000 + 100 * tick, amount = 5000 + 100 * tick, at = 12.9 + 2.6 * tick }
+            end
+            table.sort(heals, function(a, b) return a.at < b.at end)
+            H.Learn(heals, { { spellID = TIDE, at = 10 }, { spellID = RIPTIDE, at = 12.9 } },
+                { Row(TIDE), Row(RIPTIDE) }, 100)
+        end
+        Through()
+        Through()
+        H.Cast(RIPTIDE, 100)
+        Check("trains: a learned train's ticks are no later cast's walk; that cast walks its own HoT",
+            H.IsTrainLearned(RIPTIDE) and H.Claim({}, { { size = 5300 } }, nil, 102.6)[1] == RIPTIDE)
+
         -- shamanheal: each totem goes out on a Chain Heal's stamp; Chain Heal also goes out alone
         ns = T.Boot()
         H = ns.Heals
