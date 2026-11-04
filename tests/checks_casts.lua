@@ -990,8 +990,9 @@ do -- Phase 3: records and Claim
     -- in one frame inside its cast's window, apart from its own target hit and under PAD_LO; before the area pass marked
     -- it they went '?'. A '?' hit nothing named waits for its frame's end (Core.HoldSpread) and draws as the cast when
     -- its frame's held hits are one per plate on two plates or more, of one size within 5 %, with no hit of its school
-    -- on the cast's plate in that frame (run hunter F3: Beast Cleave's hits came in Kill Command 17253's own hit's frame)
-    -- and none like them on another plate in the QUIET before (Casts.Spreads).
+    -- but the cast's own of their size on the cast's plate in that frame (run hunter F3: Beast Cleave's hits came in
+    -- Kill Command 17253's own hit's frame, 75 % of it) and none like them on another plate in the QUIET before
+    -- (Casts.Spreads).
     Scenario("spread: a frame of like-sized hits on the plates around, in a cast's window, draws as the cast",
         function()
             -- hits { t, amount, unit } of Shadow after a Mind Blast cast at 30 at nameplate1 (learned at 18000-25000,
@@ -1026,6 +1027,40 @@ do -- Phase 3: records and Claim
             local twice = Run({ p2, { 30.2, 10000, "nameplate2" }, p3 })
             return spread == MB and fed == 2 and crit == MB and lone ~= MB and fedLone == 0 and unlike ~= MB
                 and beside ~= MB and late ~= MB and loud ~= MB and twice ~= MB
+        end)
+    -- Run paladin2 F2: Blessed Hammer 53600 put 2345-2802 on its target and 2344-2808 on 2-3 plates around in one
+    -- frame, Hammer of Wrath 24275 9604 and 9477-9660 on 2; the hit on the cast's plate kept them '?'. The cast's own
+    -- hit there of the splash's size (Casts.Spreads: OwnEven) is its area's; one of another size is not (run hunter F3:
+    -- Kill Command 17253's own 1594-1913 beside Beast Cleave's 1199-1439).
+    Scenario("spread: a frame of hits the size of the cast's own hit on its target, on the plates around, draws as it",
+        function()
+            -- hits { t, amount, unit } of Shadow after a Mind Blast cast at 30 at nameplate1 (learned at 18000-25000,
+            -- 0.17-0.23 s). Returns nameplate2's last icon.
+            local function Run(hits)
+                local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+                local S = T.State()
+                MindBlast(ns)
+                ns.Teacher.area = "clear"
+                local drawn = {}
+                ns.Display.Plate = function(plate, texture) drawn[plate] = texture end
+                S.now, S.target = 30, "nameplate1"
+                ns.Core.PLAYER_REGEN_DISABLED()
+                ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 8092)
+                for _, hit in ipairs(hits) do
+                    ns.Core.FlushMates(hit[1])
+                    S.now = hit[1]
+                    ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 32)
+                end
+                ns.Core.FlushMates()
+                return drawn[Plate("nameplate2")]
+            end
+            local MB = "tex:8092"
+            local p2, p3 = { 30.2, 20300, "nameplate2" }, { 30.2, 20100, "nameplate3" }
+            local first = Run({ { 30.2, 20000, "nameplate1" }, p2, p3 })
+            local last = Run({ p2, p3, { 30.2, 19800, "nameplate1" } })
+            local bigger = Run({ { 30.2, 24000, "nameplate1" }, p2, p3 })
+            local stray = Run({ { 30.2, 20000, "nameplate1" }, { 30.2, 20200, "nameplate1" }, p2, p3 })
+            return first == MB and last == MB and bigger ~= MB and stray ~= MB
         end)
     -- Run warrior F3: proc 435791's 697818 on a dummy no one fights came 0.03 s after 435222's mate on that dummy, alone
     -- in its frame, and hid. A held hit with no mate that a learned proc names draws as it on a plate one of your hits

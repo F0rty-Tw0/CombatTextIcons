@@ -852,12 +852,25 @@ end
 local MIN_SPREAD = 2     -- plates a cast's held splash frame covers at least (Casts.Spreads)
 local SPREAD_SIZE = 0.05 -- and its hits agree in size within this share (normal scale)
 
+-- Whether the hit `wound` on a cast's plate in its splash frame is the cast's own hit of the splash's size: its record
+-- claimed it (Casts.Accept) and it joins the splash's sizes `low`-`high` within SPREAD_SIZE (normal scale). An area
+-- spell hits its target and the plates around for one size in one frame; a proc of the cast's hit that splashes the
+-- plates around hits them for a share of it. Run paladin2 F2: Blessed Hammer 53600 put 2345-2802 on its target and
+-- 2344-2808 on 2-3 plates around in one frame, Hammer of Wrath 24275 9604 and 9477-9660 on 2. Run hunter F3: Beast
+-- Cleave's 1199-1439 on 4 dummies came in the frame of Kill Command 17253's own 1594-1913 (75 %).
+local function OwnEven(record, wound, low, high)
+    if wound.by ~= record.base or not IsNumber(wound.size) then return false end
+
+    return math.max(high, wound.size) <= (1 + SPREAD_SIZE) * math.min(low, wound.size)
+end
+
 -- Whether the hits `record`'s Casts.SpreadFirst held in the frame at `at` (`sizes[plate]` = each one's normal-scale
 -- size, `count` hits) are its splash: one hit on each of MIN_SPREAD plates or more, all of one size within SPREAD_SIZE,
--- while no hit of `school` landed on the record's own plate in that frame and no unclaimed hit like them landed on
--- another plate in the QUIET before (Casts.QuietNear): hits like them anyway are another spell's, or a stranger's.
--- A splash in the frame of a hit on the cast's plate may be a proc of that hit's: run hunter F3, Beast Cleave's 1199s
--- on 4 dummies came in each Kill Command 17253 own hit's frame (row 118459), 46457 drawn wrong as the command.
+-- while no hit of `school` but the cast's own of their size (OwnEven) landed on the record's own plate in that frame
+-- and no unclaimed hit like them landed on another plate in the QUIET before (Casts.QuietNear): hits like them anyway
+-- are another spell's, or a stranger's. A splash in the frame of another hit on the cast's plate may be a proc of that
+-- hit's: run hunter F3, Beast Cleave's 1199s on 4 dummies came in each Kill Command 17253 own hit's frame (row
+-- 118459), 46457 drawn wrong as the command.
 function Casts.Spreads(record, school, at, sizes, count)
     local plates, low, high = 0, math.huge, 0
     for _, size in pairs(sizes) do
@@ -865,7 +878,8 @@ function Casts.Spreads(record, school, at, sizes, count)
     end
     if plates < MIN_SPREAD or plates ~= count or high > (1 + SPREAD_SIZE) * low then return false end
     for _, wound in ipairs(wounds) do
-        if wound.at == at and wound.plate == record.plate and wound.school == school then
+        if wound.at == at and wound.plate == record.plate and wound.school == school
+            and not OwnEven(record, wound, low, high) then
             return false
         end
     end
