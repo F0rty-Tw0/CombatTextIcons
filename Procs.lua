@@ -938,10 +938,13 @@ local function Ticked(streams, school, lo, hi, period)
     return n
 end
 
--- The '?' hits' swing bands (above), each { school, lo, hi, sum, critCount, period }; none whose hits this fight's
--- tick streams hold SWING_TICKED of or more (Ticked): run lock4 F1, Haunt's 1262710 ticks (1801, p 1.00, 54 hits, 57
--- in streams) summed to their row and learned as a swing, which drew them on the target only; their '?' ticks on the
--- other plates then went to Darkglare 205231 (castless, F2) and drew wrong. Warrior F2's swings: 6 of 13 in streams.
+-- The '?' hits' swing bands (above), each { school, lo, hi, sum, critCount, period, ticked }. ticked: this fight's tick
+-- streams hold SWING_TICKED of its hits or more (Ticked), so it is a DoT's ticks and never a swing; it is kept only
+-- with SWING_MIN normals, for the ticked teach (SwingPass). Run lock4 F1, Shadow of Nathreza 1262710's ticks (1801,
+-- p 1.00, 54 hits, 57 in streams) summed to their row and learned as a swing, which drew them on the target only
+-- (Procs.NameSwing); their '?' ticks on the other plates then went to Darkglare 205231 (castless, F2) and drew wrong.
+-- Learned as a rhythm instead (SwingPass), F2's 1501 series bounds no open row and widens it (Ground's Widen).
+-- Warrior F2's swings: 6 of 13 in streams.
 local function SwingGroups(hits, streams)
     local bySchool, schools = {}, {}
     for _, hit in ipairs(hits) do
@@ -984,8 +987,10 @@ local function SwingGroups(hits, streams)
                 if ns.Debug and period then
                     ns.Debug("TEACH swing band school=%s band=%s-%s hits=%d p=%.2f ticked=%d", school, lo, hi, #band, period, ticked)
                 end
-                if period and ticked < SWING_TICKED * #band then
-                    groups[#groups + 1] = { school = school, lo = lo, hi = hi, sum = sum, critCount = critCount, period = period }
+                local isTicked = ticked >= SWING_TICKED * #band
+                if period and (not isTicked or #cluster >= SWING_MIN) then
+                    groups[#groups + 1] = { school = school, lo = lo, hi = hi, sum = sum, critCount = critCount, period = period,
+                        ticked = isTicked }
                 end
             end
         end
@@ -999,7 +1004,14 @@ end
 -- run warrior F1: 6603's p 2.09 band was another spell's; or the size pass's candidate of this read, run warrior F2:
 -- Devastator 236282's band paired its row as a size group too, a streak of 1 of 3 it would never finish in three
 -- fights) or a swing whose band drew none of its row (new gear moved the swings off it). Marks its rows taken.
-local function SwingPass(hits, open, results, rows, at, taken, streams)
+-- A ticked band (SwingGroups) that pairs such a row is a castless aura's ticks on one plate: learned at once as a rhythm
+-- (Procs.Teach), drawn by Procs.NameStream, when no cast of this fight owns the row. Run lock4 F1: Shadow of Nathreza
+-- 1262710's 54 ticks (1801, p 1.00, crits 3602-3603) on a lone dummy summed to its row 126074 exactly; the rhythm pass
+-- missed it (its streams held another spell's 1538 hits, 128361) and the castless pass needs MIN_PLATES, so the row
+-- waited for F2's read and F2's 655585 drew nothing.
+local function SwingPass(hits, open, results, rows, at, taken, streams, casts)
+    local owned = Cast(hits)
+    for _, cast in ipairs(casts or {}) do owned[cast.spellID], owned[cast.base] = true, true end
     local targets = {}
     for _, target in ipairs(Targets(open, results, rows, Cast(hits))) do
         local entry = procs[target.id]
@@ -1010,13 +1022,21 @@ local function SwingPass(hits, open, results, rows, at, taken, streams)
     end
     for index, group in pairs(Matches(SwingGroups(hits, streams), targets)) do
         local target = targets[index]
-        procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, swing = group.period, streak = 1,
-            learned = true, unpaired = 0, seen = at, critSeen = group.critCount > 0 }
-        results[target.index] = Agree(target, group.sum)
-        taken[target.id] = true
+        local teaches = not (group.ticked and owned[target.id])
+        if not group.ticked then
+            procs[target.id] = { school = group.school, lo = group.lo, hi = group.hi, swing = group.period, streak = 1,
+                learned = true, unpaired = 0, seen = at, critSeen = group.critCount > 0 }
+        elseif teaches then
+            Procs.Teach(target.id, group.school, group.lo, group.hi, group.period, at)
+        end
+        if teaches then
+            results[target.index] = Agree(target, group.sum)
+            taken[target.id] = true
+        end
         if ns.Debug then
-            ns.Debug("TEACH swing %s school=%s p=%.2f band=%s-%s crits=%d learned", target.id, group.school, group.period,
-                group.lo, group.hi, group.critCount)
+            ns.Debug("TEACH swing %s school=%s p=%.2f band=%s-%s crits=%d %s", target.id, group.school, group.period,
+                group.lo, group.hi, group.critCount, not group.ticked and "learned"
+                or teaches and "ticked -> rhythm learned" or "ticked cast")
         end
     end
 end
@@ -1077,7 +1097,7 @@ function Procs.Read(hits, open, results, rows, at, ticks, streams, casts)
             if isNew then Evict() end
         end
     end
-    SwingPass(hits, open, results, rows, at, taken, streams)
+    SwingPass(hits, open, results, rows, at, taken, streams, casts)
     if streams then RhythmPass(open, results, rows, at, streams, taken) end
 end
 
@@ -1090,6 +1110,16 @@ function Procs.Teach(id, school, lo, hi, period, at, fall)
     if not (plain and lo > 0 and lo <= hi and period > 0) then return end
     procs[id] = { school = school, lo = lo, hi = hi, period = period, streak = RHYTHM_STREAK, learned = true,
         unpaired = 0, seen = IsNumber(at) and at or 0, fall = ValidFall(fall) }
+end
+
+-- Procs.Widen(id, lo, hi, period): the castless pass (Ground's Widen) found a learned rhythm's ticks on other plates in
+-- the band [lo, hi] at `period`: the entry's band takes them in and its period becomes the series', the rest of it
+-- (its onset links, its fall) kept.
+function Procs.Widen(id, lo, hi, period)
+    local entry = Procs.Get(id)
+    local plain = IsNumber(lo) and IsNumber(hi) and IsNumber(period)
+    if not (entry and entry.period and plain and lo > 0 and lo <= hi and period > 0) then return end
+    entry.lo, entry.hi, entry.period = math.min(entry.lo, lo), math.max(entry.hi, hi), period
 end
 
 -- Name ---------------------------------------------------------------------------------------------------

@@ -1240,18 +1240,24 @@ return function(T)
         Check("procs swing pass: an open row's learned swing that drew none (an old band) is learned anew; a learned size "
             .. "proc's row is left alone",
             procs[6603].lo == 172430 and procs[6603].hi == 177772 and sized[6603].lo == 100000 and sized[6603].swing == nil)
-        -- tick streams of the school holding the band's hits at its period: run lock4 F1, Haunt 1262710's ticks
-        local function WithStreams(n, period)
+        -- tick streams of the school holding the band's hits at its period: run lock4 F1, Shadow of Nathreza 1262710's
+        -- ticks on a lone dummy
+        local function WithStreams(n, period, casts)
             local ns, store = Rig()
             local world = World(ROWS)
             local streams = { [{ period = period }] = { school = 1, lo = 172430, hi = 177772, n = n, sum = 0 } }
-            ns.Procs.Read(Fight(GAPS), world.open, world.results, world.rows, AT, nil, streams)
+            ns.Procs.Read(Fight(GAPS), world.open, world.results, world.rows, AT, nil, streams, casts)
 
             return store[6603]
         end
-        Check("procs swing pass: a band that tick streams hold 3/4 of (10 of 13) is a DoT's ticks; 6 of 13 (warrior F2), "
-            .. "or 10 at another period, is still a swing",
-            WithStreams(10, 2.06) == nil and WithStreams(6, 2.06) ~= nil and WithStreams(10, 1.0) ~= nil)
+        local ticked = WithStreams(10, 2.06)
+        Check("procs swing pass: a band that tick streams hold 3/4 of (10 of 13) is a DoT's ticks, learned at once as a "
+            .. "rhythm of its band and period; 6 of 13 (warrior F2), or 10 at another period, is still a swing",
+            ticked ~= nil and ticked.learned == true and ticked.swing == nil and math.abs(ticked.period - 2.06) < 1e-6
+            and ticked.lo == 172430 and ticked.hi == 177772
+            and WithStreams(6, 2.06).swing ~= nil and WithStreams(10, 1.0).swing ~= nil)
+        Check("procs swing pass: a ticked band whose row a cast of the fight owns teaches nothing",
+            WithStreams(10, 2.06, { { spellID = 6603, base = 6603 } }) == nil)
         -- run warrior F2: Ravager 156287's 4 normals (377449-390395) and a crit on one normal's stamp, ~2 s apart on the
         -- target, summed to its row 2289882 exactly
         local function Ravager(times, amounts)
