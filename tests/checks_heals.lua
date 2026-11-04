@@ -705,6 +705,20 @@ return function(T)
         Check("trains: a heal 0.2 s off its due tick within 10 % of the last tick's size is the tick; one further "
             .. "off that size is not, and the tick on time still is",
             drifted == TIDE and foreign == nil and H.Claim({}, { { size = 11100 } }, nil, 104.5)[1] == TIDE)
+
+        -- shamanheal F2: Healing Rain's first tick came 0.157 s past due; missed, the train took another HoT's tick
+        local function First(size)
+            local first = T.Boot().Heals
+            TrainRead(first, { TIDE })
+            TrainRead(first, { TIDE })
+            first.Cast(TIDE, 100)
+            return first, first.Claim({}, { { size = size } }, nil, 101.7)[1] -- due at 101.5
+        end
+        local held, tick = First(11000)
+        local _, stray = First(7000)
+        Check("trains: a first tick 0.2 s off due inside the learned band is the tick, and the next one follows it; "
+            .. "one in the padded band but 10 % off the learned band is not",
+            tick == TIDE and stray == nil and held.Claim({}, { { size = 10800 } }, nil, 103.4)[1] == TIDE)
     end
 
     do -- trains: walks of 8, 8 and 16 ticks (one ran on into heals past its train) learn 8 ticks

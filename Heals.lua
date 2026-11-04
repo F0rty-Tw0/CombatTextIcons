@@ -107,7 +107,10 @@ local MISSES = 2        -- missed ticks in a row end a train
 -- buff shortens the period mid-train, and a tick's stamp jitters (shamanheal F3's Healing Rain ticked 1.82, 1.68, 1.75
 -- s apart, then 0.16 s before its due tick, and the train died with 10 ticks left). A heal in that drift is the tick
 -- only when it is within DRIFT_SIZE of the last tick's size: a ground heal's ticks hold their size, where a heal a
--- frame off is another's (shamanheal F5: a 9514 heal 0.17 s before a 7534 rain tick, the last one 7266).
+-- frame off is another's (shamanheal F5: a 9514 heal 0.17 s before a 7534 rain tick, the last one 7266). Before its
+-- first tick a train holds its learned band's size instead: shamanheal F2's first rain tick, a 14450 crit, came 0.157
+-- s past due; the train missed it, then took another HoT's 8727 crit on its next due stamp and locked to that series'
+-- size, its 14 real ticks (6623-8890 a tick, each on the rain's damage frame) drawn '?'.
 local DRIFT, DRIFT_SIZE = 0.05, math.log(1.1)
 local TRAIN_TICKS = 5   -- a walk of fewer ticks is no train
 local WALK_ALPHA = 0.01 -- a walk luck alone gives this often or less is a train
@@ -289,6 +292,11 @@ local function Off(size, to)
     return math.abs(math.log(size / to))
 end
 
+-- `size` held to [low, high].
+local function Clamp(size, low, high)
+    return math.min(math.max(size, low), high)
+end
+
 -- Your helpful cast of `spellID` at `now`: its learned train starts; a recast restarts it.
 function Heals.Cast(spellID, now)
     if not (IsID(spellID) and IsNumber(now) and ready[spellID]) then return end
@@ -321,7 +329,7 @@ end
 -- Each running train whose tick is due at `at` (SLACK either side) takes the heal nothing took before inside its
 -- padded band and within STEP of its last tick, the nearest that tick's size (the first: the band's middle); a tick
 -- Struck counted at `at` takes it too. In the DRIFT past SLACK it takes only a heal within DRIFT_SIZE of its last
--- tick. A train past its due tick and its drift counts a miss; MISSES in a row, or its learned ticks counted, end it.
+-- tick, or before its first tick of its learned (unpadded) band. A train past its due tick and its drift counts a miss; MISSES in a row, or its learned ticks counted, end it.
 local function ClaimTicks(waiting, claims, at)
     local kept = {}
     for _, run in ipairs(live) do
@@ -344,7 +352,7 @@ local function ClaimTicks(waiting, claims, at)
                 local size = heal.size
                 if not claims[index] and size and size >= PAD_LO * train.low and size <= STEP * train.high
                     and (not run.size or Near(size, run.size))
-                    and (not drifted or (run.size and Off(size, run.size) <= DRIFT_SIZE))
+                    and (not drifted or Off(size, run.size or Clamp(size, train.low, train.high)) <= DRIFT_SIZE)
                     and (not best or Off(size, to) < Off(waiting[best].size, to)) then
                     best = index
                 end
