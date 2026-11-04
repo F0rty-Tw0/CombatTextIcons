@@ -383,16 +383,18 @@ end
 local function ParseTeach(lines, rowIDs)
     local fights, open, listed = {}, nil, {}
     local healing -- the last clean line's fight: its heal rows may follow a HEAL or CAST line of the next fight
+    local duration -- the session line's dur= before the clean line: the meter's length of the combat it read
     for index, text in ipairs(lines) do
         local seen, meter, area = text:match("^[%d%.]+ TEACH clean seen=(%d+) meter=(%d+) %-> (%a+)$")
+        local sessionDuration = text:match("^[%d%.]+ TEACH session %d+ dur=(%d+)")
         local id, rowMeter, rowID = text:match("^[%d%.]+ TEACH (%d+) tally=%d+ meter=(%d+) verdict=%a+ ?r?o?w?=?(%d*)$")
         local listedID, listedTotal = text:match("^[%d%.]+ TEACH row (%d+) total=(%d+) ")
         local healID, healMeter, healOver = text:match("^[%d%.]+ TEACH heal (%d+) meter=(%d+) over=(%d+)$")
         if seen then
             open = { endLine = index, seen = tonumber(seen), meter = tonumber(meter), area = area, rows = {},
-                listed = listed, healRows = {} }
+                listed = listed, healRows = {}, duration = duration }
             fights[#fights + 1] = open
-            healing, listed = open, {}
+            healing, listed, duration = open, {}, nil
         elseif healID and healing then
             if tonumber(healMeter) > 0 then
                 local rows = healing.healRows
@@ -404,8 +406,10 @@ local function ParseTeach(lines, rowIDs)
             if amount > 0 then
                 listed[#listed + 1] = { spellID = tonumber(listedID), totalAmount = amount, overkillAmount = 0 }
             end
+        elseif sessionDuration then
+            duration = tonumber(sessionDuration)
         elseif text:match("^[%d%.]+ TEACH %a") then
-            -- the passes' lines between the clean line and the rows, the session line before them: report only
+            -- the passes' lines between the clean line and the rows: report only
         elseif id and open then
             local amount = tonumber(rowMeter)
             local fixes = rowIDs and rowIDs[#fights] or {}
@@ -838,9 +842,43 @@ local function CombatAt(events, readAt)
     return nil
 end
 
+-- A combat the game ended without a logged read sits at the head of the next read's slice: its events end over
+-- UNREAD_SLACK before the meter's own combat opened (the slice's last wound minus the session's dur), with
+-- LEFTOVER_QUIET of no hit, heal or cast after them. Run priest3 F3: a dungeon pull ran 201491-201521 grouped after
+-- F2's read (session 5), its session 6 logged no read, the dummy fight read as session 7 (dur=49) opened at 201553;
+-- replayed as one fight, the pull's grouped wounds made the solo read "group" and it learned nothing (in game: clear).
+local UNREAD_SLACK = 5
+
+-- The index of the first event of the combat the slice's read scored, when an unread combat with wounds precedes
+-- it in events; else nil.
+local function UnreadHead(events, duration)
+    if not duration then return nil end
+    local lastWound
+    local timed = {}
+    for index, event in ipairs(events) do
+        if event.kind == "U" then lastWound = event.t end
+        if event.kind == "U" or event.kind == "H" or event.kind == "C" then timed[#timed + 1] = index end
+    end
+    if not lastWound then return nil end
+    local opensBy = lastWound - duration - UNREAD_SLACK
+    for k = #timed, 2, -1 do
+        local before, after = events[timed[k - 1]], events[timed[k]]
+        if before.t < opensBy and after.t - before.t >= LEFTOVER_QUIET then
+            for index = 1, timed[k] - 1 do
+                if events[index].kind == "U" then return timed[k] end
+            end
+
+            return nil
+        end
+    end
+
+    return nil
+end
+
 -- A TEACH-bearing log splits into fights: each is the slice of events after the previous TEACH clean line up to
--- its own; the tail after the last one is a slice with no rows (its read skips). opts.log (debug lines) and
--- opts.fixture stand in for a fixture file; opts.label names the log for StartArea (default name).
+-- its own; the tail after the last one is a slice with no rows (its read skips). An unread combat at a slice's head
+-- (UnreadHead) is a slice of its own with no rows. opts.log (debug lines) and opts.fixture stand in for a fixture
+-- file; opts.label names the log for StartArea (default name).
 -- slices[i] = { log, name, events, rows = the log's meter rows, healRows, seen, logThreat, replayThreat, startArea,
 -- combatAt (CombatAt) }.
 local function SplitFights(name, opts)
@@ -871,6 +909,18 @@ local function SplitFights(name, opts)
         -- the fights after it still are
         if damage > 0 then
             local readAt = prevEnd > 0 and tonumber(log[prevEnd]:match("^([%d%.]+) ")) or nil
+            local head = fight and UnreadHead(events, fight.duration)
+            -- leftovers of the read before, which CombatAt already opens the fight after, are no unread combat
+            -- (run druid2 F4: 4 hits 0.6-3.6 s after F3's read, sessions 5 and 6 back to back)
+            local opens = head and CombatAt(events, readAt)
+            if opens and opens >= events[head].t then head = nil end
+            if head then
+                local unread = table.move(events, 1, head - 1, 1, {})
+                slices[#slices + 1] = { log = opts.label or name, name = name, events = unread,
+                    logThreat = fixture.logThreat, replayThreat = fixture.replayThreat, startArea = fixture.startArea,
+                    combatAt = CombatAt(unread, readAt) }
+                events, readAt = table.move(events, head, #events, 1, {}), nil
+            end
             slices[#slices + 1] = { log = opts.label or name, name = name, events = events, rows = fight and fight.rows,
                 healRows = fight and fight.healRows, seen = not fixture.logThreat and fight and fight.seen or nil,
                 logThreat = fixture.logThreat, replayThreat = fixture.replayThreat, startArea = fixture.startArea,
@@ -1596,6 +1646,29 @@ local function ReplayFightsChecks()
     Check("SplitFights: hits within LEFTOVER_AFTER of the read before, then LEFTOVER_QUIET of nothing, land before combatAt",
         #leftSlices == 3 and leftSlices[1].combatAt == nil and leftSlices[2].combatAt == 20.0
         and leftSlices[3].combatAt == nil)
+    -- a combat with wounds 29 s after a read, 29 s of nothing, then the read's own combat (dur=11 ends at 70): two slices
+    local unreadSlices = SplitFights("x", { log = { "0.500 CAST player 1", "1.000 TEACH clean seen=5 meter=5 -> clear",
+        "1.000 TEACH 1 tally=0 meter=5 verdict=unpaired",
+        "30.000 HIT nameplate2 school=1 amount=40 flag= fps=60 target=true", "30.000   -> unknown-solo",
+        "31.000 HIT nameplate2 school=1 amount=41 flag= fps=60 target=true", "31.000   -> unknown-solo",
+        "60.000 CAST player 1", "60.000 HIT nameplate1 school=1 amount=7 flag= fps=60 target=true",
+        "60.000   -> unknown-solo", "70.000 HIT nameplate1 school=1 amount=8 flag= fps=60 target=true",
+        "70.000   -> unknown-solo", "70.500 TEACH session 2 dur=11", "70.500 TEACH clean seen=15 meter=15 -> clear",
+        "70.500 TEACH 1 tally=0 meter=15 verdict=unpaired" }, fixture = { startArea = "clear" } })
+    Check("SplitFights: an unread combat at a read's head is a slice of its own with no rows (run priest3 F3)",
+        #unreadSlices == 3 and unreadSlices[2].rows == nil and unreadSlices[2].events[1].t == 30.0
+        and unreadSlices[3].events[1].t == 60.0 and unreadSlices[3].rows[1].totalAmount == 15)
+    -- the same shape with the head's hits within LEFTOVER_AFTER of the read before: leftovers, which CombatAt opens after
+    local leftoverSlices = SplitFights("x", { log = { "0.500 CAST player 1",
+        "1.000 TEACH clean seen=5 meter=5 -> clear", "1.000 TEACH 1 tally=0 meter=5 verdict=unpaired",
+        "2.000 HIT nameplate1 school=4 amount=30 flag= fps=60 target=true", "2.000   -> unknown-solo",
+        "2.500 HIT nameplate1 school=4 amount=20 flag= fps=60 target=true", "2.500   -> unknown-solo",
+        "20.000 CAST player 1", "20.000 HIT nameplate1 school=1 amount=7 flag= fps=60 target=true",
+        "20.000   -> unknown-solo", "25.000 HIT nameplate1 school=1 amount=8 flag= fps=60 target=true",
+        "25.000   -> unknown-solo", "25.500 TEACH session 2 dur=6", "25.500 TEACH clean seen=15 meter=15 -> clear",
+        "25.500 TEACH 1 tally=0 meter=15 verdict=unpaired" }, fixture = { startArea = "clear" } })
+    Check("SplitFights: a read's leftovers that CombatAt opens after are no unread combat (run druid2 F4)",
+        #leftoverSlices == 2 and leftoverSlices[2].events[1].t == 2.0 and leftoverSlices[2].combatAt == 20.0)
     local openedAt = {}
     ReplaySlices({ leftSlices[2] }, { setup = function(ns, state)
         local open = ns.Core.PLAYER_REGEN_DISABLED
