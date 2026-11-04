@@ -1293,9 +1293,11 @@ end
 -- padded band holds its last hit, or whose steady fall the stream falls at (FallsAs), or nil for none or several.
 -- A positive answer is cached on stream.procID and served only while that entry is still a learned rhythm entry;
 -- once it is not, the stream is looked up afresh. stream.procFell: the fall named it, not the band; its first tick
--- sits under the band, where no onset link names a hit (Core passes no onset for it).
+-- sits under the band, where no onset link names a hit (Core passes no onset for it). A stream a learned stack
+-- spell drew a tick of (stream.stackID, set by Core) is that spell's, and no rhythm's: lock4 F17, Darkglare 205231's
+-- band took 1259790's ramp at its 4th tick (7813, 7813, 7981 drawn as the stack, then 8894, 9716).
 function Procs.NameStream(stream)
-    if not stream then return nil end
+    if not stream or stream.stackID then return nil end
     if stream.procID then
         local cached = Procs.Get(stream.procID)
         if cached and cached.period then return stream.procID end

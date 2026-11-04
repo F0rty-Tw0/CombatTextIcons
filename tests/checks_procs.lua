@@ -943,6 +943,10 @@ return function(T)
         Check("procs namestream: a school mismatch, a period 1.2 and amounts 1300 / 800 outside the padded band name nothing",
             ns.Procs.NameStream(Stream(4, 1.05, 1050)) == nil and ns.Procs.NameStream(Stream(32, 1.2, 1050)) == nil
             and ns.Procs.NameStream(Stream(32, 1.05, 1300)) == nil and ns.Procs.NameStream(Stream(32, 1.05, 800)) == nil)
+        local owned = Stream(32, 1.05, 1050)
+        owned.stackID = 5
+        Check("procs namestream: a stream a stack spell owns (stackID, lock4 F17) names no rhythm that fits it",
+            ns.Procs.NameStream(owned) == nil and owned.procID == nil)
         local ok, noAmount, noStream = pcall(function() return ns.Procs.NameStream(Stream(32, 1.05, nil)), ns.Procs.NameStream(nil) end)
         Check("procs namestream: a nil lastAmount or a nil stream gives nil and raises no error", ok and noAmount == nil and noStream == nil)
         procs[8] = Rhythm(32, 1000, 1100, 1.0, true)
