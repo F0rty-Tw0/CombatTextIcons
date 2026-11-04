@@ -540,12 +540,12 @@ end
 -- The series is the evidence: a seed frame of MIN_PLATES like-sized normal plates (InBand's pads keep the 1655 plate
 -- in a 1379 band), the period the most wide band frames repeat, and walks from each wide frame as the ground pass
 -- walks a cast; walks of RUN_MIN ticks or more must beat luck (a Poisson count of wide ticks from the fight's rate of
--- wide band frames, times TRIES). A school a learned DoT ticks in is no castless one: lock3 F1's
+-- wide band frames, times TRIES). A series at the period of a learned DoT of its school is no castless one: lock3 F1's
 -- Wither 445468 (school 36, learned by the DoT pass that read) ticked on 5 plates at ~1.4 s and its walks bounded
 -- 1262710 too. The meter judges as in Ground.Learn (Bounds), after the proc passes: one open row no proc tracks and no
--- cast of this fight owns, D <= row <= D + unseen. A walk that shares a hit with a walk bounding no row or another one
--- learns nothing. Learned, the row is a rhythm proc (Procs.Teach); with /cti debug each seed logs a TEACH castless
--- line.
+-- cast of this fight owns, D <= row <= D + unseen, a row another series fills left out. A walk that shares a hit with
+-- a walk bounding no row or another one learns nothing. Learned, the row is a rhythm proc (Procs.Teach); with /cti
+-- debug each seed logs a TEACH castless line ('dot': at a learned DoT's period).
 local RUN_MIN = 10 -- ticks a castless walk holds at least: past Felstorm's 8 (lock3 F1) and Earthquake's 6
 
 -- A seed frame's band: the sizes of its MIN_PLATES or more like-sized normal plates, or nil.
@@ -640,47 +640,101 @@ end
 -- A learned DoT's school holds its missed ticks, so its hits stay out; a ramping DoT's (Learn.Ramp) only up to a ramp
 -- step past its biggest tick, the most its tracker draws: run lock4, Agony 980 (a ramp, ticks to ~4.6K) kept Darkglare
 -- 205231's 9-13K beams out, and its row (0.44M of right in later fights) stayed '?'.
+-- The hits kept out get a second scan of their own, seeded only in them: a DoT ticks each plate once a period, so a
+-- series at another period than every learned DoT of its school (Learn.PeriodsAgree, half and twice it too) is none of
+-- their ticks. Run lock4 F2: Agony 980 (a ramp at 1.376 s, learned that read) kept Shadow of Nathreza 1262710's
+-- 1501-1801 ticks out, every ~1.0 s on 4 plates (row 655585), and the row drew nothing before F16.
 function Ground.Castless(run, hits, open, rows, results)
-    local dotSchools = {} -- [school] = the size a hit must pass to be no learned DoT's tick
+    local dotSchools, dotPeriods = {}, {} -- [school] = the size a hit must pass to be no learned DoT's tick; its periods
     for _, entry in ipairs(ns.Learn.List()) do
         local dot = ns.Learn.Ramp(entry.spellID) and ns.Learn.Get(entry.spellID)
         local top = dot and dot.size and Streams.RAMP_STEP * dot.size or math.huge
         dotSchools[entry.school] = math.max(dotSchools[entry.school] or 0, top)
+        dotPeriods[entry.school] = dotPeriods[entry.school] or {}
+        table.insert(dotPeriods[entry.school], entry.period)
     end
-    local kept, first, last = {}, nil, nil
+    local kept, sized, first, last = {}, {}, nil, nil
     for _, hit in ipairs(hits) do
         first, last = math.min(first or hit.at, hit.at), math.max(last or hit.at, hit.at)
         local top = dotSchools[hit.school]
-        if hit.size and hit.size > 0 and not (top and hit.size <= top) then kept[#kept + 1] = hit end
+        if hit.size and hit.size > 0 then
+            sized[#sized + 1] = hit
+            if not (top and hit.size <= top) then kept[#kept + 1] = hit end
+        end
     end
-    local frames = Frames(kept)
+    local span = first and last - first or 0
     local owned, total = {}, 0
     for _, cast in ipairs(run.casts or {}) do owned[cast.spellID], owned[cast.base] = true, true end
     for _, row in ipairs(rows) do total = total + row.total end
     local unseen = math.max(0, total - run.seen)
 
+    -- Whether `period` is a learned DoT's of `school`, or half or twice one.
+    local function DotPeriod(school, period)
+        for _, base in ipairs(dotPeriods[school] or {}) do
+            for _, scale in ipairs({ 0.5, 1, 2 }) do
+                if ns.Learn.PeriodsAgree(period, base * scale) then return true end
+            end
+        end
+
+        return false
+    end
     local found, tried, holders = {}, {}, {}
-    for _, frame in ipairs(frames) do
-        ns.Teacher.Yield()
-        local low, high = SeedBand(frame)
-        local key = low and frame.school .. ":" .. low .. ":" .. high
-        if key and not tried[key] then
-            tried[key] = true
-            local pattern = Series(frame.school, low, high, frames, first and last - first or 0)
-            if pattern and pattern.p <= ALPHA then
-                pattern.rows = Bounds(pattern.sum, open, {}, owned, unseen)
-                found[#found + 1] = pattern
-                for _, hit in ipairs(pattern.hits) do
-                    holders[hit] = holders[hit] or {}
-                    table.insert(holders[hit], pattern)
+    -- `kept` scans the hits no learned DoT may own; a second one scans every hit from seeds kept out (`cut`).
+    local function Scan(frames, cut)
+        for _, frame in ipairs(frames) do
+            ns.Teacher.Yield()
+            local low, high = SeedBand(frame)
+            local top = dotSchools[frame.school]
+            local key = low and (not cut or top and low <= top) and frame.school .. ":" .. low .. ":" .. high
+            if key and not tried[key] then
+                tried[key] = true
+                local pattern = Series(frame.school, low, high, frames, span)
+                local dot = pattern and cut and DotPeriod(frame.school, pattern.period)
+                if pattern and not dot and pattern.p <= ALPHA then
+                    pattern.rows = Bounds(pattern.sum, open, {}, owned, unseen)
+                    found[#found + 1] = pattern
+                    for _, hit in ipairs(pattern.hits) do
+                        holders[hit] = holders[hit] or {}
+                        table.insert(holders[hit], pattern)
+                    end
+                end
+                if pattern and ns.Debug then
+                    ns.Debug("TEACH castless school=%d size=%.0f-%.0f period=%.3f ticks=%d p=%.2g sum=%.0f -> %s",
+                        pattern.school, pattern.low, pattern.high, pattern.period, pattern.ticks, pattern.p, pattern.sum,
+                        dot and "dot" or pattern.p > ALPHA and "luck"
+                        or #pattern.rows == 1 and open[pattern.rows[1]].row.spellID or "rows=" .. #pattern.rows)
                 end
             end
-            if pattern and ns.Debug then
-                ns.Debug("TEACH castless school=%d size=%.0f-%.0f period=%.3f ticks=%d p=%.2g sum=%.0f -> %s",
-                    pattern.school, pattern.low, pattern.high, pattern.period, pattern.ticks, pattern.p, pattern.sum,
-                    pattern.p > ALPHA and "luck" or #pattern.rows == 1 and open[pattern.rows[1]].row.spellID
-                    or "rows=" .. #pattern.rows)
+        end
+    end
+    Scan(Frames(kept), false)
+    if #kept < #sized then Scan(Frames(sized), true) end
+    -- A row a pattern bounds alone is full for a pattern of several rows sharing none of its hits whose sum does not fit
+    -- beside it there: lock4 F2's 1262710 series (640500) bounded its row and Darkglare 205231's (931393), which the
+    -- beams' series (869887) bounds alone.
+    local alone = {}
+    for _, pattern in ipairs(found) do alone[pattern] = #pattern.rows == 1 and pattern.rows[1] end
+    local function Shares(pattern, other)
+        for _, hit in ipairs(pattern.hits) do
+            for _, holder in ipairs(holders[hit]) do
+                if holder == other then return true end
             end
+        end
+
+        return false
+    end
+    for _, pattern in ipairs(found) do
+        if #pattern.rows > 1 then
+            local free = {}
+            for _, position in ipairs(pattern.rows) do
+                local row, full = open[position].row, false
+                for _, other in ipairs(found) do
+                    full = full or alone[other] == position and other ~= pattern and not Shares(pattern, other)
+                        and pattern.sum + other.sum > row.total + row.overkill + math.max(1, row.total / 100)
+                end
+                if not full then free[#free + 1] = position end
+            end
+            pattern.rows = free
         end
     end
 

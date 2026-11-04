@@ -3564,9 +3564,10 @@ return function(T)
 
         -- Run lock4: Agony 980, a ramp learned with ticks to ~4.6K, kept Darkglare 205231's 9-13K beams out of the
         -- pass. A learned DoT of the school keeps its hits out; a ramp DoT only those up to a ramp step past its size.
-        local function Behind(ramp)
+        -- The hits kept out get a scan of their own, where a series at the DoT's period (or half or twice it) is its.
+        local function Behind(ramp, period)
             local held = Rig({})
-            held.ns.Learn.Teach(980, 32, 1.4, ramp)
+            held.ns.Learn.Teach(980, 32, period or 1.4, ramp)
             held.ns.Learn.Sized(980, 1000)
             AuraFight(held, 130000, 1000)
             return Outcome(), held.ns.Procs.Get(NATHREZA)
@@ -3574,17 +3575,60 @@ return function(T)
         local found, proc = Behind(true)
         Check("castless (c): a ramp DoT of the school sized 1000 leaves the 2000-2400 ticks to the pass -> learned ("
             .. tostring(found) .. ")", found == tostring(NATHREZA) and proc ~= nil)
-        found, proc = Behind(nil)
-        Check("castless (d): a plain learned DoT of the school keeps them out -> nothing learned (" .. tostring(found)
-            .. ")", found ~= tostring(NATHREZA) and proc == nil)
+        found, proc = Behind(nil, 1.0)
+        Check("castless (d): a plain learned DoT of the school at the ticks' 1.0 s keeps them -> nothing learned ("
+            .. tostring(found) .. ")", found == "dot" and proc == nil)
+        found, proc = Behind(nil, 1.4)
+        Check("castless (d2): a plain learned DoT at 1.4 s (run lock4 F2: Agony 980 at 1.376 s beside 1262710's ~1.0 s"
+            .. " ticks) owns no 1.0 s series -> learned (" .. tostring(found) .. ")",
+            found == tostring(NATHREZA) and proc ~= nil and proc.period < 1.05)
 
         rig = Rig({})
         AuraFight(rig, 130000, 1000, function()
-            T.Store().learned[445468] = { school = 32, period = 1.4, kind = "dot", misses = 0 }
+            T.Store().learned[445468] = { school = 32, period = 2.0, kind = "dot", misses = 0 }
             rig.ns.Learn.Init(T.Store())
         end)
-        Check("castless (c): a learned DoT ticks in the school -> the pass never walks it, nothing learned",
-            Outcome() == nil and rig.ns.Procs.Get(NATHREZA) == nil)
+        Check("castless (c): a learned DoT ticks in the school at twice the series' period -> nothing learned",
+            Outcome() == "dot" and rig.ns.Procs.Get(NATHREZA) == nil)
+
+        -- Run lock4 F2: the 1262710 series (640500) bounded its row and Darkglare 205231's (931393), which the beams'
+        -- series (869887) bounded alone. Here beams of 5000 on 3 plates every 1.6 s (12 ticks, 180000) and the 15
+        -- Nathreza ticks (126000) under rows 130000 and 200000, with 100000 unseen: 126000 fits both rows, but not
+        -- beside the beams in 200000.
+        local BEAMS = 205231
+        local function BeamFight(beamRow)
+            local beamed = Rig({})
+            local S, Core = beamed.S, beamed.ns.Core
+            SlashCmdList.COMBATTEXTICONS("debug")
+            S.now = 8
+            Core.PLAYER_REGEN_DISABLED()
+            local events = {}
+            for k = 0, 14 do
+                for _, unit in ipairs({ "nameplate1", "nameplate2", "nameplate3", "nameplate4" }) do
+                    events[#events + 1] = { 10 + k, unit, SIZES[unit] }
+                end
+            end
+            for k = 0, 11 do
+                for _, unit in ipairs({ "nameplate1", "nameplate2", "nameplate3" }) do
+                    events[#events + 1] = { 10.3 + 1.6 * k, unit, 5000 }
+                end
+            end
+            table.sort(events, function(a, b) return a[1] < b[1] end)
+            for _, event in ipairs(events) do beamed.Hit(event[1], event[2], event[3], 32) end
+            beamed.Hit(60, "nameplate1", 1000, 4)
+            S.now = 70
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(nextSession, { Row(NATHREZA, 130000), Row(BEAMS, beamRow), Row(FILLER, 101000) }) }
+            nextSession = nextSession + 1
+            pcall(beamed.Fire)
+            return beamed.ns.Procs.Get(NATHREZA), beamed.ns.Procs.Get(BEAMS)
+        end
+        local nathreza, beams = BeamFight(200000)
+        Check("castless (e): a series bounding its row and one another series bounds alone, the two sums past that row"
+            .. " -> its own row learned, the other's too", nathreza ~= nil and beams ~= nil)
+        nathreza, beams = BeamFight(320000)
+        Check("castless (e2): both sums fit the beams' row (320000) -> the Nathreza series keeps two rows, learns none",
+            nathreza == nil and beams ~= nil)
     end
 
     do -- chain pass (Chain.lua): a cast's hops from plate to plate, under its own row that no sum agrees with
