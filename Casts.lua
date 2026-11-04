@@ -393,9 +393,31 @@ local function Echoes(record, plate, now, size)
     return not echo.plates[plate] and now - echo.at <= CHAIN_GAP
 end
 
+-- Whether a frame after `own` (the record's own hit) and before `now` put unclaimed hits of `school` on two or more
+-- plates other than the cast's (wounds): another spell's area swept the plates around, and a splash after it is as
+-- likely that spell's. Run hunter F18: '?' 1236s on 2 plates 0.03 s after a Kill Command 34026's own hit
+-- (3964), then 3698s on 2 plates 0.37 s after it drew as its splash and ran its row over the meter (91393 of 80245).
+-- One plate a frame passes: run paladin2 F2, Judgment 20271's splash 0.035 s after its own hit came after '?' hits
+-- on one plate at 0.009 s and another at 0.018 s.
+local function Struck(record, school, own, now)
+    local frames = {} -- [stamp] = { n = plates, [plate] = true }
+    for _, wound in ipairs(wounds) do
+        if not wound.claimed and wound.plate ~= record.plate and wound.school == school and wound.at > own
+            and wound.at < now then
+            local frame = frames[wound.at] or { n = 0 }
+            if not frame[wound.plate] then frame[wound.plate], frame.n = true, frame.n + 1 end
+            frames[wound.at] = frame
+            if frame.n >= 2 then return true end
+        end
+    end
+
+    return false
+end
+
 -- Whether a hit of `school` on `plate`, another plate than the cast's, is the cast's splash: a plate it has not hit
 -- yet, NearSizes, in a later frame than the first hit the record saw on its own plate (Watch) and at most SPLASH after
--- it, while no unclaimed hit of its school NearSizes landed on another plate in the QUIET before that own hit (wounds).
+-- it, while no unclaimed hit of its school NearSizes landed on another plate in the QUIET before that own hit (wounds),
+-- and no frame since that own hit Struck other plates.
 -- Run shaman5 fight 5: Lava Burst 51505 learned at 0.20-0.28 s on its target hit 4 other dummies 0.13-0.45 s after its
 -- target hit, with 37-48K (learned 39.8-44.7K): 994K of its row's 2.14M that no claim took. Hits of its school and size
 -- that land on other plates anyway are no splash: lock3 fight 2 drew 8.5-10K Shadow hits on 4 plates 1.67 s after a
@@ -406,7 +428,7 @@ local function Splash(record, plate, school, now, size)
     local own = record.at + record.seen[1]
     if now <= own or now - own > SPLASH or not NearSizes(record, size) then return false end
 
-    return Casts.Quiet(record, school, own)
+    return Casts.Quiet(record, school, own) and not Struck(record, school, own, now)
 end
 
 -- Whether no unclaimed hit of `school` NearSizes `record` landed on another plate than its cast's in the QUIET before

@@ -775,7 +775,8 @@ do -- Phase 3: records and Claim
         end)
     -- shaman5 fight 5: Lava Burst 51505 learned on its target hit 4 other dummies 0.13-0.45 s after its target hit, at
     -- its learned sizes; hunter fight 18's pet left like-sized hits on other plates before a Kill Command's own hit too.
-    Scenario("splash: after its own hit a cast claims like-sized hits on other plates, unless they landed there before",
+    Scenario("splash: after its own hit a cast claims like-sized hits on other plates, unless they landed there before"
+        .. " or a frame of '?' hits struck two other plates since its own hit",
         function()
             local function Last(hits)
                 local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
@@ -803,6 +804,13 @@ do -- Phase 3: records and Claim
                 and Last({ own, { 30.4, 20000, "nameplate2" }, { 30.6, 20000, "nameplate3" } }) == MB
                 and Last({ own, { 30.6, 20000, "nameplate3" } }) ~= MB
                 and Last({ own, { 30.4, 20000, "nameplate2" }, { 30.75, 20000, "nameplate3" } }) ~= MB
+                -- hunter F18: '?' 1236s on 2 other plates in one frame 0.03 s after Kill Command 34026's own
+                -- hit, then 3698s on 2 plates 0.37 s after it drew as its splash (row over the meter); paladin2 F2's
+                -- Judgment 20271 drew its splash 0.035 s after its own hit, past '?' hits on one plate per frame
+                and Last({ own, { 30.23, 2000, "nameplate3" }, { 30.23, 2000, "nameplate4" },
+                    { 30.4, 20000, "nameplate2" } }) ~= MB
+                and Last({ own, { 30.23, 2000, "nameplate3" }, { 30.25, 2000, "nameplate4" },
+                    { 30.4, 20000, "nameplate2" } }) == MB
         end)
     -- ele log F3: Lightning Bolt 188196's proven way held a bolt and its overloads on each cast's plate (perCast);
     -- shaman6 F2: Lava Burst 51505's row held its hits on 4 other plates in its own hit's frame, which Splash never
