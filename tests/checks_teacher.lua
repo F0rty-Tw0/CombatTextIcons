@@ -1226,6 +1226,31 @@ return function(T)
             Check("net: an over read (200 vs 100 + TOL 1) drops it at once", not Kept(rig, TRIGGER))
         end
 
+        do -- rule 1b: an over that traded hits with another drawn row of its school is a strike (lock4 F12)
+            -- One read: TRIGGER draws 200 of row 150, VT 100 of row 150, each hit of `school` (TRIGGER's is 32).
+            local function Traded(rig, school)
+                nextSession = nextSession + 1
+                rig.S.sessions = { Session(nextSession, { Row(TRIGGER, 150), Row(VT, 150) }) }
+                rig.ns.Teacher.Start(10)
+                for _, hit in ipairs({ { TRIGGER, 200, 32 }, { VT, 100, school } }) do
+                    rig.ns.Teacher.Drawn(hit[1], hit[2], 11, hit[3])
+                    rig.ns.Teacher.Seen(hit[2])
+                end
+                rig.ns.Teacher.Finish(20)
+                assert(pcall(rig.Fire))
+                return rig.ns.Teacher.last
+            end
+            local rig = Rig({}); Seed(rig, TRIGGER)
+            local last = Traded(rig, 32)
+            Check("net: over 200 vs 150 while VT drew 100 of 150 of its school (300 of 300 together) keeps the spell",
+                Find(last, TRIGGER).verdict == "over" and Kept(rig, TRIGGER))
+            Traded(rig, 32)
+            Check("net: a second traded over in a row drops it, as a second unpaired read does", not Kept(rig, TRIGGER))
+            rig = Rig({}); Seed(rig, TRIGGER)
+            Traded(rig, 4)
+            Check("net: an over whose under row drew another school only is no trade: dropped at once", not Kept(rig, TRIGGER))
+        end
+
         do -- rule 3: first unpaired read keeps, second drops
             local rig = Rig({}); Seed(rig, TRIGGER)
             local last = Strike(rig, TRIGGER)

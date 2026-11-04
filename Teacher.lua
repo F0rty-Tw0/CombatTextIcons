@@ -1306,16 +1306,53 @@ local function CrowdCheck(run, rows)
     return fits and "clear" or "crowded", total
 end
 
+-- The schools each spell drew with this fight, from Teacher.Drawn's records: { [spellID] = { [school] = true } }.
+local function DrawnSchools(drawn)
+    local schools = {}
+    for _, hit in ipairs(drawn or {}) do
+        if hit.school then
+            schools[hit.spellID] = schools[hit.spellID] or {}
+            schools[hit.spellID][hit.school] = true
+        end
+    end
+
+    return schools
+end
+
+-- Whether the over `entry` traded hits with another of your drawn rows: a row drawn under its meter, with a school
+-- both drew, whose tally and the over one's together agree with the two rows' meter. Neither drew damage that is not
+-- yours; the meter only split it the other way. lock4 F12: Agony 980 drew 19385 of 14907, a crit of 1259790's in
+-- the tick it missed, and 1259790 drew 17636 of 22114: 37021 drawn against 37021.
+local function Traded(entry, results, schools)
+    local own = schools[entry.spellID]
+    if not own then return false end
+    for _, other in ipairs(results) do
+        local theirs = schools[other.spellID]
+        if other ~= entry and other.verdict == "under" and other.tally > 0 and theirs
+            and Judge(entry.tally + other.tally, entry.meter + other.meter, 0) == "agree" then
+            for school in pairs(own) do
+                if theirs[school] then return true end
+            end
+        end
+    end
+
+    return false
+end
+
 -- Safety net (spec 3.3): learned spells and procs face the meter on every clear read. A drawn
--- total (tally > 0) that overshoots drops the spell, two unpaired reads in a row drop it,
+-- total (tally > 0) that overshoots drops the spell, unless it traded hits with another of your rows (Traded): that
+-- is a strike, as an unpaired read is. Two strikes in a row drop it,
 -- a paired read (agree or under) resets the count. Undrawn spells change nothing here (a learned
 -- one cast this fight with no row is struck by Learn.RowsRead). An ID both stores know is judged by both. A frozen
--- read never runs it.
-local function SafetyNet(results)
+-- read never runs it. `drawn` is the fight's drawn hits (Teacher.Drawn).
+local function SafetyNet(results, drawn)
+    local schools = DrawnSchools(drawn)
     for _, entry in ipairs(results) do
         for _, store in ipairs({ ns.Learn, Procs }) do
             if entry.tally > 0 and store.Get(entry.spellID) then
-                if entry.verdict == "over" then
+                if entry.verdict == "over" and Traded(entry, results, schools) then
+                    store.Unpaired(entry.spellID)
+                elseif entry.verdict == "over" then
                     store.Drop(entry.spellID)
                 elseif entry.verdict == "unpaired" then
                     store.Unpaired(entry.spellID)
@@ -1484,7 +1521,7 @@ local function Judging(run, sessionID, rows, reason)
     for _, item in ipairs(run.casts or {}) do fight.cast[item.spellID], fight.cast[item.base] = true, true end
     for _, hit in ipairs(run.unknown) do fight.unknown[hit.school] = (fight.unknown[hit.school] or 0) + hit.amount end
     local results, open = Verdicts(run.tally, rows, frozen, fight)
-    if not frozen then SafetyNet(results) end
+    if not frozen then SafetyNet(results, run.drawn) end
     -- a fight that ends while this judging waits clears Teacher.last: this one keeps its own until Done
     local last = { session = sessionID, rows = results, learned = {} }
     Teacher.last = last
