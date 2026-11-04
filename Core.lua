@@ -781,9 +781,9 @@ local function Wound(plate, unit, flagText, amount, school, now)
     end
     -- A hit a learned proc names is no DoT tick: fed to the streams, its rhythm gave its votes to a cast
     -- in the proc's frame (Surging Totem's ~12K hits learned Lava Burst as a DoT, run 20261025T182530Z).
-    local stream
+    local stream, loose
     if not Procs.Name(school, amount, flagText, FrameTwin(plate, school, amount, flagText, now)) then
-        stream = Streams.Feed(plate, school, amount, flagText, now, solo)
+        stream, loose = Streams.Feed(plate, school, amount, flagText, now, solo)
         -- A learned DoT spread to a plate it was never cast on takes the stream there (Tracker.AdoptSpread).
         if stream and solo and not crowded then Tracker.AdoptSpread(plate, stream, now) end
     end
@@ -804,6 +804,8 @@ local function Wound(plate, unit, flagText, amount, school, now)
         and Casts.StackTick(plate, school, now, Streams.NormalAmount(amount, flagText), flagText)
     if stack then
         if ns.Debug then ns.Debug("  -> stack %s", ShowValue(stack.spellID)) end
+        -- a loose tick the stack drew: a stream born of three such is the stack's, and no rhythm names it (Streams.Feed)
+        if loose then loose.stackID = stack.base end
         Drawn(stack.base, amount)
         Ledger.Add("damage", stack.base, amount)
         return Display.Plate(plate, SpellTexture(stack.spellID), text, flagText, school)
