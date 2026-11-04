@@ -140,7 +140,7 @@ Casts.AREA_LO = AREA_LO -- the area pass (Area.lua) falls back to this floor for
 -- of shamanele's meter and 17.5 -> 17.9 % of druid2's.
 local SHRINK = 0.5
 local RECORD_MAX = 20   -- open records at most; the oldest is dropped
-local records = {}      -- oldest first: { spellID, base, at, plate, hops, own, plates, last, seen, settled }
+local records = {}      -- oldest first: { spellID, base, at, plate, hops, own, plates, hopAt, last, seen, settled }
 local SPLASH = 0.5      -- a cast's splash lands on other plates at most this long after its own hit (Splash)
 local QUIET = 1.5       -- and only when no unclaimed hit like it landed on another plate this long before that hit
 Casts.SPLASH = SPLASH   -- the area pass (Area.lua) reads other plates' hits this far past the window's top
@@ -328,7 +328,7 @@ function Casts.NoteCast(castID, now, castGUID, pet)
         end
     elseif (entry.plate or pattern == "ground") and pattern then
         records[#records + 1] = { spellID = castID, base = base, at = now, plate = entry.plate, hops = 0, own = 0,
-            plates = {}, last = now }
+            plates = {}, hopAt = {}, last = now }
         if #records > RECORD_MAX then table.remove(records, 1) end
     end
 
@@ -391,6 +391,17 @@ local function Echoes(record, plate, now, size)
     if now == echo.at then return plate == echo.plate or not echo.plates[plate] end
 
     return not echo.plates[plate] and now - echo.at <= CHAIN_GAP
+end
+
+-- Whether a hit on `plate` at `now` is the chain `record`'s overload in the frame of its hop there: one more hit on that
+-- plate in that frame (Accept counts it as the plate's second). Run shaman6 F3: cast 243932.587 hit 5 plates in one
+-- frame 0.19 s after it, 3 hits like its own on each (14K, crits 42K); the chain took one a plate and its row ran 939K
+-- under (drawn 593K of 1532K) while the meter showed ~306K a cast, two hits a plate; with this F3 drew 679K and F2
+-- 1969K of 2023K (was 1790K). One a plate only: taking every such hit ran F2 62K over its row. A third such hit is
+-- left to the echo (Echoes). Cost: shaman5 F5's row was already met (2.03M of 2.04M) and its twins in a frame of 2 a
+-- plate ran it 40K over (inside the score's 5 %).
+local function Twin(record, plate, now)
+    return record.hopAt[plate] == now and record.plates[plate] == 1
 end
 
 -- Whether a frame after `own` (the record's own hit) and before `now` put unclaimed hits of `school` on two or more
@@ -487,7 +498,7 @@ end
 -- Does `record` still wait for a hit of `school` on `plate` at `now`? "in": its first hit
 -- lands on the cast's plate inside its delay window (RecordWindow), or a chain's later hit lands on a
 -- new plate within CHAIN_GAP of the one before (CHAIN_MAX in all), in a later frame no smaller than its learned sizes
--- (HopSize), or a hit on a plate it hit is its echo's (Echoes).
+-- (HopSize), or a hit on a plate it hit is its overload in that hop's frame (Twin) or its echo's (Echoes).
 -- "late": a first hit past the
 -- window, up to LateTop (Mind Blast's travel varies with distance), while the record has
 -- seen no hit in its watch range: one it saw was its own, spoiled (Darkglare's beam took Shadow Bolt's
@@ -544,7 +555,7 @@ local function Fits(record, fp, plate, school, now, size, crit)
         return now - record.last <= CHAIN_GAP and record.hops < CHAIN_MAX and HopSize(record, size, now) and "in"
     end
 
-    return Echoes(record, plate, now, size) and "in"
+    return (Twin(record, plate, now) or Echoes(record, plate, now, size)) and "in"
 end
 
 -- A first hit of the record's school on its plate, in band, within WATCH of its window: one more seen.
@@ -874,6 +885,11 @@ function Casts.Accept(record, plate, now, size)
     end
     if size == 0 then return end
     local fp = Fingerprints.Get(record.base)
+    if fp and fp.pattern == "chain" and Twin(record, plate, now) then
+        -- the overload in the frame of its hop on the plate (Twin)
+        record.plates[plate] = 2
+        return
+    end
     if fp and fp.pattern == "chain" and record.hops >= 1 and record.plates[plate] then
         -- a plate the chain hit again: its echo's hit (Echoes)
         local echo = record.echo or { plates = {} }
@@ -881,6 +897,7 @@ function Casts.Accept(record, plate, now, size)
         return
     end
     record.plates[plate] = (record.plates[plate] or 0) + 1
+    record.hopAt[plate] = now
     if plate == record.plate then record.own = record.own + 1 end
     if plate ~= record.plate and record.hops == 0 then return end
     if record.hops == 0 then record.firstAt = now end

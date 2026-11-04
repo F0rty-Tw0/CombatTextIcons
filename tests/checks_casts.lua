@@ -1706,6 +1706,23 @@ do -- Phase 3: records and Claim
             and hop == "learned" and record.hops == 3 and ns.Casts.Claim(P(3), 8, 20.6) == "learned"
             and ns.Casts.Claim(P(3), 8, 20.7) == nil
     end)
+    -- Run shaman6 F3: cast 243932.587 hit 5 plates in one frame with 3 hits like its own on each; the meter showed two
+    -- a plate, and the chain took one.
+    Scenario("claim: a chain takes one more hit on a plate in the frame of its hop there, not two", function()
+        local ns, S = Rig(function(n) Learn3(n, CL, 8, 0.2, 3) end)
+        Cast(ns, S, CL, 20, "nameplate1")
+        local P = function(i) return Plate("nameplate" .. i) end
+        local _, record = ns.Casts.Claim(P(1), 8, 20.2)
+        ns.Casts.Accept(record, P(1), 20.2)
+        local twin = ns.Casts.Claim(P(1), 8, 20.2)
+        ns.Casts.Accept(record, P(1), 20.2)
+        local third = ns.Casts.Claim(P(1), 8, 20.2)
+        ns.Casts.Accept(record, P(2), 20.3)
+        local hopTwin = ns.Casts.Claim(P(2), 8, 20.3)
+        ns.Casts.Accept(record, P(2), 20.3)
+        return twin == "learned" and third == nil and hopTwin == "learned" and record.hops == 2 and record.echo == nil
+            and ns.Casts.Claim(P(2), 8, 20.3) == nil and ns.Casts.Claim(P(1), 8, 20.3) == nil
+    end)
     Scenario("accept: a single-pattern record takes no second hit", function()
         local ns, S = Rig(Wand)
         Cast(ns, S, WAND, 10, "nameplate1")
