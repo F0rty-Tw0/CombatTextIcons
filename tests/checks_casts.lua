@@ -1168,6 +1168,37 @@ do -- Phase 3: records and Claim
             return sum == 28000 and area and framed and not oneFrame and not fewFrames and fitSum == 28000 and fit
                 and not fitFramed
         end)
+    -- Run hunter F1: Black Arrow 466930's splash put one hit of one size on each other plate, 0.1 s apart per plate,
+    -- after each cast; under PAD_LO and mostly in no shared frame, its 90738 explained 19 % of a room of 481697 swollen
+    -- by its DoT's ticks. Mind Blast casts at 30 and 40 on p1 drew 21000 each; per cast `group` lists { size, plate,
+    -- delay } of '?' Shadow hits. Row 300000: room 261000, its 15 % is 39150.
+    Scenario("area pass: a travelling splash, one size per plate per cast over several frames, teaches areaLow",
+        function()
+            local function Try(group, castsWith)
+                local ns = Rig(MindBlast)
+                local unknown, casts = {}, {}
+                for index, castAt in ipairs({ 30, 40 }) do
+                    casts[#casts + 1] = { at = castAt, base = 8092, spellID = 8092, plate = "p1" }
+                    for _, hit in ipairs(index <= (castsWith or 2) and group or {}) do
+                        unknown[#unknown + 1] = { at = castAt + hit[3], plate = hit[2], school = 32, size = hit[1],
+                            amount = hit[1] }
+                    end
+                end
+                local run = { casts = casts, tally = { [8092] = 42000 }, unknown = unknown }
+                local ways = ns.Area.Learn(run, { { spellID = 8092, total = 300000, overkill = 0 } }, {})
+                local fp = ns.Fingerprints.Get(8092)
+                return #ways == 1 and ways[1].sum or 0, fp.area == true, fp.areaLow == true
+            end
+            local sum, area, areaLow = Try({ { 9000, "p2", 0.2 }, { 9100, "p3", 0.3 }, { 8900, "p4", 0.4 } })
+            -- one frame: Framed's to judge (priest4 F2's Devouring Plague), and too little of the room for it
+            local _, oneFrame = Try({ { 9000, "p2", 0.2 }, { 9100, "p3", 0.2 }, { 8900, "p4", 0.2 } })
+            -- one cast's group alone, though its 40000 explains 15 % (mage F2: Arcane Blast 30451's one pair)
+            local _, oneCast = Try({ { 10000, "p2", 0.2 }, { 10100, "p3", 0.3 }, { 9900, "p4", 0.4 },
+                { 10000, "p5", 0.5 } }, 1)
+            local _, unlike = Try({ { 9000, "p2", 0.2 }, { 10000, "p3", 0.3 }, { 8900, "p4", 0.4 } })
+            local _, twice = Try({ { 9000, "p2", 0.2 }, { 9100, "p3", 0.3 }, { 8900, "p2", 0.4 } })
+            return sum == 54000 and area and areaLow and not oneFrame and not oneCast and not unlike and not twice
+        end)
     -- Frame mates (Teacher.Mate: hits on dummies no one fights, in a solo hit's frame) are other plates' hits too. Run
     -- paladin2 F2: mates that push the '?' hits past the room are left out, and the '?' hits alone teach.
     Scenario("area pass: frame mates on other plates count with the '?' hits", function()

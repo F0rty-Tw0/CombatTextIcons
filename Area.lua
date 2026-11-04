@@ -30,6 +30,8 @@ ns.Area = Area
 local SHARE = 0.5       -- of the residual the other plates' hits must explain at least
 local MIN_HITS = 2      -- other-plate hits at least
 local AREA_SLACK = 0.05 -- a hit may land this far below the learned window (Casts' SLACK)
+local SIZED = 0.05      -- one cast's splash hits on the plates around agree in size within this share (Sized)
+local SIZED_SHARE = 0.15 -- of the residual a held way's sized hits must explain at least
 
 -- The newest of `casts` at or before `at` within `reach`, when it was cast at a plate other than `plate`, else nil.
 local function OtherPlateCast(casts, at, plate, reach)
@@ -51,9 +53,9 @@ local function InArea(castID, cast, hit, floor)
 end
 
 -- The fresh '?' hits, and with `mates` the frame mates (Teacher.Mate), of `fp`'s school on other plates than
--- `castID`'s casts that land InArea from `floor`: { castID, sum, hits }.
+-- `castID`'s casts that land InArea from `floor`: { castID, sum, hits, castOf = { [hit] = its cast } }.
 local function Gather(run, castID, fp, casts, spent, floor, mates)
-    local way = { castID = castID, sum = 0, hits = {} }
+    local way = { castID = castID, sum = 0, hits = {}, castOf = {} }
     for _, hits in ipairs({ run.unknown, mates and run.mates or {} }) do
         for _, hit in ipairs(hits) do
             local fresh = not spent[hit] and hit.school == fp.school
@@ -61,11 +63,59 @@ local function Gather(run, castID, fp, casts, spent, floor, mates)
             if cast and InArea(castID, cast, hit, floor) then
                 way.sum = way.sum + hit.amount
                 way.hits[#way.hits + 1] = hit
+                way.castOf[hit] = cast
             end
         end
     end
 
     return way
+end
+
+-- Whether `hits` (one cast's in a way) are a travelling splash: one hit on each of two or more plates, all of one
+-- size within SIZED (normal scale), over more than one frame (a same-frame group is Framed's).
+local function Travelled(hits)
+    local plates, first, last, low, high = {}, math.huge, -math.huge, math.huge, 0
+    for _, hit in ipairs(hits) do
+        if plates[hit.plate] then return false end
+        plates[hit.plate] = true
+        first, last = math.min(first, hit.at), math.max(last, hit.at)
+        local size = hit.size or hit.amount
+        low, high = math.min(low, size), math.max(high, size)
+    end
+
+    return #hits >= 2 and last > first and high <= (1 + SIZED) * low
+end
+
+-- `way` with only the hits of its casts whose hits are a travelling splash (Travelled), when MIN_HITS casts or more
+-- are, else an empty way: a projectile's splash strikes each plate around once for one size, a frame or more apart
+-- per plate. Run hunter F1: Black Arrow 466930 (learned at 11220-13464) put one 5815-5917 hit on each of 4 other
+-- plates over 0.24 s after a cast, 4820-4973 after the next; 11 of its 21 low-floor hits shared a frame (76623 in a
+-- room of 481697). Run priest4 F2: Devouring Plague 335467's like-sized Shadow hits on 4 plates came in one frame
+-- (likely Psychic Link's, see Framed) or several to a plate: no travel. Run mage F2: Arcane Blast 30451's one
+-- like-sized pair (4688) is one cast, too few; marked area it drew other Arcane hits wrong.
+local function Sized(way)
+    local byCast, order = {}, {}
+    for _, hit in ipairs(way.hits) do
+        local cast = way.castOf[hit]
+        if not byCast[cast] then
+            byCast[cast] = {}
+            order[#order + 1] = cast
+        end
+        table.insert(byCast[cast], hit)
+    end
+    local sized, casts = { castID = way.castID, sum = 0, hits = {} }, 0
+    for _, cast in ipairs(order) do
+        if Travelled(byCast[cast]) then
+            casts = casts + 1
+            for _, hit in ipairs(byCast[cast]) do
+                sized.sum = sized.sum + hit.amount
+                sized.hits[#sized.hits + 1] = hit
+            end
+        end
+    end
+    if casts < MIN_HITS then return { castID = way.castID, sum = 0, hits = {} } end
+
+    return sized
 end
 
 -- `way` with only its hits that share their frame with another of its hits on another plate: an AoE's splash lands on
@@ -175,6 +225,10 @@ end
 -- does not is tried on the hits in its own hits' frames alone (OwnFramed), and a base they mark is areaFrame: run
 -- druid2 F3, Swipe 106785's span held 108 hits (1136262) in a room of 641187, other bleeds' and strikes' among them,
 -- and its F5 splash (210K) went '?'.
+-- A held way refused so still marks area by its '?' hits of travelling-splash casts (Sized) when they fit the room
+-- and explain SIZED_SHARE of it, and are no other row's sum: one size per plate per cast is the cast's own share, so
+-- less of a row swollen by its DoT's ticks on the same plates is enough. Run hunter F1: Black Arrow 466930's 16 such
+-- hits (90738) in a room of 481697; F2-F18 then drew its splash, the row 8.0 -> 10.5 % of the log's meter.
 -- Returns the ways it marked area { castID, sum, hits }.
 function Area.Learn(run, rows, learned)
     local spent, learnedNow, steady = {}, {}, {}
@@ -208,10 +262,10 @@ function Area.Learn(run, rows, learned)
             local tol = math.max(1, row.total / 100)
             local room = row.total + row.overkill + tol - drawn
             local own = OwnStamps(run, castID, learned)
-            local function Explains(way, lone)
+            local function Explains(way, lone, share)
                 local closes = drawn + way.sum >= row.total - tol
                 return (#way.hits >= MIN_HITS or lone and closes and Beside(way, own)) and way.sum <= room
-                    and way.sum >= SHARE * room
+                    and way.sum >= (share or SHARE) * room
             end
             -- frame mates may be another spell's of the school: a way they push past the room tries without them
             local function Way(floor)
@@ -230,6 +284,12 @@ function Area.Learn(run, rows, learned)
             local held = low or steady[castID] ~= nil
             local fits = Explains(way, not low) and not (held
                 and (not Explains(Framed(way, own), not low) or OtherRowSum(way, row, rows, run.tally, named)))
+            if not fits and held then
+                local sized = Sized(Gather(run, castID, fp, castsOf[castID], spent, low and Casts.AREA_LO or nil, false))
+                if Explains(sized, false, SIZED_SHARE) and not OtherRowSum(sized, row, rows, run.tally, named) then
+                    way, fits = sized, true
+                end
+            end
             if fits then
                 Fingerprints.SetArea(castID, low, way.framed)
                 ways[#ways + 1] = way
