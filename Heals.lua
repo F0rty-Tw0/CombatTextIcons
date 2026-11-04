@@ -32,7 +32,11 @@
 -- named (only 11K paired with a hit drawn 335467). A read whose undrawn hits of that school back its k beyond luck
 -- teaches alone (a sure read, as a sure walk teaches a train): a DoT's cast draws one hit under its ID, its ticks draw
 -- nothing, so priest3 F4 pairs 3 drawn hits at k 0.3 and dozens of undrawn ticks, and F5-F6 left 44K '?' before a
--- second read. A hit drawn under another ID is that ID's, never a couple's. A
+-- second read. A hit drawn under another ID is that ID's, never a couple's. An ID none of whose hits drew pairs the
+-- undrawn hits a cast of it may have made instead (their cast candidates name it, a channel's first ticks): lock3's
+-- Drain Life ticks (1281 shadow, every 0.41 s) draw nothing, its damage unpaired every read, while each heals you
+-- 7 x the tick on its stamp; F5's read pairs 8 of them at k 7, its undrawn shadow hits back it, and F6's ticks
+-- (63K) drew '?'. Its school is the one of the pairs inside the k: a channel's window holds other spells' hits. A
 -- heal under another ID than its hit's is not learned: lock's Drain Life heals log under 1272114, a row the
 -- player's raw cannot sum (it heals the pet too), and each read lists the same three rows.
 -- Core's waiting heals ask Heals.Claim which of a frame's heals a learned size, coupled hit, helpful cast or running
@@ -86,9 +90,11 @@ local SIZE_READS = 2    -- reads whose row matched one size teach it
 -- read of it named dk's heals wrong (2.86 % of its raw) and keeps the two reads.
 local SURE_RUN = 2
 local SIZE_CAP = 32     -- sizes kept; the one seen least recently goes first
--- A coupled heal is k x its hit within COUPLE_TOL (the game rounds: 0.3 x 2391 heals 717). COUPLE_PAIRS heals of one k
--- in a read sample it: priest3's clear fights hold 1 to 9 heals next to a hit drawn 335467.
-local COUPLE_TOL, COUPLE_PAIRS = 1, 3
+-- A coupled heal is k x its hit within COUPLE_TOL (the game rounds: 0.3 x 2391 heals 717), of a hit within HIT_ROUND:
+-- the hit is rounded too, and a big k carries its rounding (lock3's Drain Life: 7 x 2562 heals 17934, 7 x 2564 heals
+-- 17950, 7 x 1283 heals 8983). COUPLE_PAIRS heals of one k in a read sample it: priest3's clear fights hold 1 to 9
+-- heals next to a hit drawn 335467.
+local COUPLE_TOL, HIT_ROUND, COUPLE_PAIRS = 1, 0.5, 3
 local COUPLE_READS = 2  -- reads of one k teach it
 -- A read teaches a couple alone when luck alone backs its k with that read's undrawn hits COUPLE_LUCK often at most
 -- (two reads at ALPHA). Luck: the mean backing of the k scaled by each of DECOYS, which no couple's hit makes.
@@ -230,10 +236,21 @@ local function SizeRow(size)
     return found
 end
 
+-- The span of k a heal of `heal` from a hit of `hit` (HIT_ROUND or more) allows, both amounts rounded.
+local function ShareSpan(heal, hit)
+    return (heal - COUPLE_TOL) / (hit + HIT_ROUND), (heal + COUPLE_TOL) / (hit - HIT_ROUND)
+end
+
+-- Whether a k in [lo, hi] makes a heal of `heal` from a hit of `hit` (ShareSpan).
+local function InShare(heal, hit, lo, hi)
+    local low, high = ShareSpan(heal, hit)
+    return low <= hi and high >= lo
+end
+
 -- Whether a learned couple's k makes a heal of `amount` (raw) from a hit of `hitAmount`.
 local function Couples(entry, amount, hitAmount)
-    return entry.reads >= COUPLE_READS and IsNumber(hitAmount) and hitAmount > 0
-        and amount >= entry.lo * hitAmount - COUPLE_TOL and amount <= entry.hi * hitAmount + COUPLE_TOL
+    return entry.reads >= COUPLE_READS and IsNumber(hitAmount) and hitAmount > HIT_ROUND
+        and InShare(amount, hitAmount, entry.lo, entry.hi)
 end
 
 -- The ID whose learned k makes a heal of `amount` (raw) from one of `hits` ({ amount, school, spellID = the icon it
@@ -549,13 +566,14 @@ local function LearnSizes(fightHeals, rows)
     end
 end
 
--- The k most of `list` ({ heal, hit } amounts) share: the span [lo, hi] inside the band of every one of them (heal
--- +- COUPLE_TOL over hit), and how many they are.
+-- The k most of `list` ({ heal, hit } amounts) share: the span [lo, hi] inside the band of every one of them
+-- (ShareSpan), and how many they are.
 local function SharedShare(list)
     local edges = {}
     for _, pair in ipairs(list) do
-        edges[#edges + 1] = { at = (pair.heal - COUPLE_TOL) / pair.hit, step = 1 }
-        edges[#edges + 1] = { at = (pair.heal + COUPLE_TOL) / pair.hit, step = -1 }
+        local low, high = ShareSpan(pair.heal, pair.hit)
+        edges[#edges + 1] = { at = low, step = 1 }
+        edges[#edges + 1] = { at = high, step = -1 }
     end
     table.sort(edges, function(a, b) return a.at < b.at or (a.at == b.at and a.step > b.step) end)
     local count, best, lo, hi = 0, 0, nil, nil
@@ -595,10 +613,10 @@ local function Backing(healsAt, undrawn, school, lo, hi)
     local taken, count = {}, 0
     for _, hit in ipairs(undrawn) do
         local amount = hit.amount
-        local amounts = hit.school == school and IsNumber(amount) and amount > 0 and healsAt[hit.at] or {}
+        local amounts = hit.school == school and IsNumber(amount) and amount > HIT_ROUND and healsAt[hit.at] or {}
         for index, heal in ipairs(amounts) do
             local key = hit.at .. ":" .. index
-            if not taken[key] and heal >= lo * amount - COUPLE_TOL and heal <= hi * amount + COUPLE_TOL then
+            if not taken[key] and InShare(heal, amount, lo, hi) then
                 taken[key], count = true, count + 1
             end
         end
@@ -616,10 +634,48 @@ local function BackingLuck(healsAt, undrawn, school, lo, hi)
     return ns.Learn.PoissonTail(decoys / #DECOYS, Backing(healsAt, undrawn, school, lo, hi))
 end
 
+-- By heal row ID (`own`): the { heal, hit, school } pairs of the undrawn hits (`undrawn`, each { amount, at, school,
+-- candidates = { { castID = its base, castSpell }, ... } }) a cast of that ID may have made, with the heals on you
+-- on their stamps (`healsAt`); a hit counts once per ID.
+local function CastPairs(healsAt, undrawn, own)
+    local byID = {}
+    for _, hit in ipairs(undrawn) do
+        local amount, paired = hit.amount, {}
+        local amounts = IsNumber(amount) and amount > HIT_ROUND and healsAt[hit.at] or {}
+        for _, cast in ipairs(#amounts > 0 and hit.candidates or {}) do
+            for _, spellID in ipairs({ cast.castSpell, cast.castID }) do
+                if own[spellID] and not paired[spellID] then
+                    paired[spellID] = true
+                    byID[spellID] = byID[spellID] or {}
+                    for _, heal in ipairs(amounts) do
+                        table.insert(byID[spellID], { heal = heal, hit = amount, school = hit.school })
+                    end
+                end
+            end
+        end
+    end
+
+    return byID
+end
+
+-- The one school of the pairs of `list` whose share sits in [lo, hi] (InShare), nil when they mix or one has none.
+local function InsideSchool(list, lo, hi)
+    local school
+    for _, pair in ipairs(list) do
+        if InShare(pair.heal, pair.hit, lo, hi) then
+            if pair.school == nil or (school ~= nil and school ~= pair.school) then return nil end
+            school = pair.school
+        end
+    end
+
+    return school
+end
+
 -- Each ID of a clear read's drawn hits (`drawn`, each { spellID, amount, at, school }) that is also one of its heal
 -- rows (`own`): when COUPLE_PAIRS of the heals on you on its hits' stamps share one k, that k is a sample, of the
 -- school those hits all had (nil when they mixed or one had none), with the luck of its backing by the read's undrawn
--- hits (`undrawn`, BackingLuck).
+-- hits (`undrawn`, BackingLuck). A heal row no drawn hit paired samples from the undrawn hits its casts may have made
+-- (CastPairs), of the school of its pairs inside the k (InsideSchool).
 local function LearnCouples(fightHeals, drawn, own, undrawn)
     local healsAt = {} -- by stamp: the raw amounts of the heals on you
     for _, heal in ipairs(fightHeals) do
@@ -631,7 +687,7 @@ local function LearnCouples(fightHeals, drawn, own, undrawn)
     local byID, schools = {}, {} -- by hit ID: its { heal, hit } pairs; their hits' one school, false when not one
     for _, hit in ipairs(drawn) do
         local spellID, amount = hit.spellID, hit.amount
-        if own[spellID] and IsNumber(amount) and amount > 0 then
+        if own[spellID] and IsNumber(amount) and amount > HIT_ROUND then
             for _, heal in ipairs(healsAt[hit.at] or {}) do
                 byID[spellID] = byID[spellID] or {}
                 table.insert(byID[spellID], { heal = heal, hit = amount })
@@ -645,6 +701,13 @@ local function LearnCouples(fightHeals, drawn, own, undrawn)
         local count, lo, hi = SharedShare(list)
         local school = schools[spellID] or nil
         if count >= COUPLE_PAIRS then
+            SampleCouple(spellID, lo, hi, count, school, BackingLuck(healsAt, undrawn, school, lo, hi))
+        end
+    end
+    for spellID, list in pairs(CastPairs(healsAt, undrawn, own)) do
+        local count, lo, hi = SharedShare(list)
+        if not byID[spellID] and count >= COUPLE_PAIRS then
+            local school = InsideSchool(list, lo, hi)
             SampleCouple(spellID, lo, hi, count, school, BackingLuck(healsAt, undrawn, school, lo, hi))
         end
     end

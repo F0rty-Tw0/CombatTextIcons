@@ -323,7 +323,7 @@ return function(T)
         H.Learn(heals, {}, Rows(DRAIN, OTHER), 100, drawn)
         local entry = CoupleOf(DRAIN)
         Check("couples: a second read of the same k learns it, its span inside both reads' shares",
-            entry.reads == 2 and H.AnyLearned() and entry.lo <= 7 and entry.hi >= 7 and entry.hi - entry.lo < 0.001)
+            entry.reads == 2 and H.AnyLearned() and entry.lo <= 7 and entry.hi >= 7 and entry.hi - entry.lo < 0.004)
         local hits = { { spellID = DRAIN, amount = 1413 } }
         local claims = H.Claim({}, { { size = 9891, amount = 9891 }, { size = 9900, amount = 9900 },
             { size = 5000, amount = 5000 } }, hits)
@@ -417,6 +417,32 @@ return function(T)
         BackedRead(0.25, 32)
         Check("couples: undrawn hits whose heals are off the k back nothing",
             CoupleOf(PLAGUE).reads == 1 and not H.AnyLearned())
+
+        -- lock3 F5: Drain Life's ticks draw nothing, so no drawn hit pairs; the undrawn ticks its cast may have made
+        -- (their cast candidates name it) pair instead, the k's school the shadow its pairs inside it share beside a
+        -- fire hit on a tick's stamp. The ticks' rounding rides on k 7: F6's 2562 crit tick healed 17934.
+        local function ChannelRead(castSpell)
+            heals = {}
+            local ticks, candidates = {}, { { castID = castSpell, castAt = 10, castSpell = castSpell } }
+            local lock3 = { { 1281, 8967 }, { 1283, 8983 }, { 2564, 17950 }, { 1281, 8967 }, { 1283, 8983 } }
+            for k, pair in ipairs(lock3) do
+                local at = 10 + 0.41 * k
+                ticks[#ticks + 1] = { amount = pair[1], at = at, school = 32, candidates = candidates }
+                heals[#heals + 1] = { size = pair[2], amount = pair[2], at = at }
+            end
+            ticks[#ticks + 1] = { amount = 5489, at = ticks[1].at, school = 4, candidates = candidates }
+            H.Learn(heals, {}, Rows(DRAIN), 100, {}, { hits = ticks })
+        end
+        H.Forget()
+        ChannelRead(DRAIN)
+        Check("couples: one read of a channel's undrawn ticks its cast candidates name teaches its k, of their school",
+            CoupleOf(DRAIN).reads == 2 and CoupleOf(DRAIN).school == 32)
+        Check("couples: a heal of k x an undrawn tick within its rounding is the couple's (7 x 2562 heals 17934)",
+            H.Claim({}, { { size = 8967, amount = 17934 } }, { { amount = 2562, school = 32 } })[1] == DRAIN)
+        H.Forget()
+        ChannelRead(5740)
+        Check("couples: undrawn ticks whose cast candidates name no heal row sample nothing",
+            CoupleOf(DRAIN).reads == nil and not H.AnyLearned())
 
         -- the saved couples are checked, never trusted
         ns = T.Boot(function()
