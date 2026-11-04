@@ -1897,6 +1897,26 @@ end
         local fall = Opened({ 3254, 3254, 2823 })
         Check("stack: an opened series keeps its steady ticks and takes no normal tick 13 % under the last (Agony's, "
             .. "lock4 F15)", fall[1] and fall[2] and not fall[3])
+        -- lock4 F18: opened at 3775 on one stack, 6796 on two (3398 a stack), then 3 stacks of a risen 4675 (x1.38)
+        local function Climbs(third)
+            local rig = StackRig(function(r)
+                for castAt = 4, 6 do
+                    r.ns.Fingerprints.Add(UA, { school = 32, delay = 1.3, castAt = castAt, hops = 1, tick = 0,
+                        period = 1.33, life = 8, unit = 3906 })
+                end
+            end)
+            rig.Cast(100, UA, "nameplate1")
+            local open = rig.Hit(101.33, "nameplate1", "WOUND", 3775, 32)
+            rig.Cast(102, UA, "nameplate1")
+            local step = rig.Hit(102.66, "nameplate1", "WOUND", 6796, 32)
+            rig.Cast(103.5, UA, "nameplate1")
+            return Drew(open, UA), Drew(step, UA), Drew(rig.Hit(103.99, "nameplate1", "WOUND", third, 32), UA)
+        end
+        local open, step, climb = Climbs(14024)
+        Check("stack: an opened series rises past SIZE_GUARD a stack after its stack count stepped (lock4 F18)",
+            open and step and climb)
+        Check("stack: a stepped opened series takes no rise past RAMP_STEP a stack",
+            select(3, Climbs(3 * 3398 * 1.7)) == false)
         -- lock2 fight 5: Haunt cast, Unstable Affliction cast 0.25 s later, then 1278047's 43366 in Haunt's window
         local spoil = StackRig(function(r)
             for castAt = 1, 3 do

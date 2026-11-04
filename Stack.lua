@@ -16,8 +16,9 @@
 -- 199127.838 and the window-only walk took 10 extensions (luck 1 past the tries); the steps take 19, it learns there
 -- and fight 2 draws 16 ticks. The draw route (Casts.StackTick) continues a series the same way but starts one on a
 -- step, or in a cast's window only at a size near the learned stacks' (one hit at a time has no luck test to guard its
--- start), and lets such a series rise at one stack count (Casts.lua's Opens). A walk that took most of its ticks two
--- periods apart walks again at twice the period, else learns nothing (half a period draws hits between the ticks).
+-- start), and lets such a series rise, at one stack count and past a step (Casts.lua's Opens). A walk that took most
+-- of its ticks two periods apart walks again at twice the period, else learns nothing (half a period draws hits between
+-- the ticks).
 -- MIN_STEPS ticks or more must change the stack count (a steady DoT is no stack), and the ticks must beat luck: each
 -- tick's next slots find a hit by luck with the plate's rate of the school's hits * the slots' width * the share of
 -- them that agree with the predicted size, Poisson tail times the patterns tried. The meter bounds from below only, as

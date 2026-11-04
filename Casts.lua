@@ -875,10 +875,14 @@ end
 -- pass starts one, when its size over the live stacks lies within Streams.RAMP_STEP of the learned stacks' sizes: a
 -- lone cast steps nothing (run lock4 F3: one cast a mob, its ticks rose 3905, 4193, 4883 while one stack lived, and its
 -- row went '?' in F3-F18). An opened series takes, at the same stack count, a tick that rises by up to RAMP_STEP or
--- falls by up to OPEN_FALL (SIZE_GUARD with a crit on either side). Unsized, the window start took any size: lock3
--- fight 3's crowd started a series on a 1007 (one stack is ~3258) and drew 9 hits of ~900 a stack, lock2 fight 4's took
--- Shadow of Nathreza's 1655; and lock3 fight 4's first tick came 2.95 s after the cast, outside the window. A learned
--- entry saved before stack sizes were kept opens none.
+-- falls by up to OPEN_FALL (SIZE_GUARD with a crit on either side). Past a stack step it still ramps (`ramps`): a tick
+-- within SIZE_GUARD a stack, or one that rises by up to RAMP_STEP a stack. Run lock4 F18: opened at 3775 on one stack,
+-- 6796 on two, then 28049 (a crit) on three, x1.38 a stack, which SIZE_GUARD alone left '?' as the mob died; lock4
+-- F19's series broke the same way on rises after recasts (131K of 719K drawn, 323K with the ramp). A series a step
+-- started (1 %, no window) keeps SIZE_GUARD. Unsized, the window start took any size: lock3 fight 3's crowd started a
+-- series on a 1007 (one stack is ~3258) and drew 9 hits of ~900 a stack, lock2 fight 4's took Shadow of Nathreza's
+-- 1655; and lock3 fight 4's first tick came 2.95 s after the cast, outside the window. A learned entry saved before
+-- stack sizes were kept opens none.
 
 -- Whether a hit of one-stack `unit` on `plate` at `now` opens the series of `fp`'s spell (`base`): the stacks' kept
 -- sizes, padded by Streams.RAMP_STEP, hold `unit`, and a live cast on the plate is as old as a learned tick 0's delay
@@ -904,13 +908,18 @@ local function Opens(fp, base, plate, now, unit)
 end
 
 -- Whether a hit of normal-scale `size` (`crit`) over `n` live stacks continues `running`: within SIZE_GUARD of its
--- last tick's size a stack (Stack.Agree); an opened series at the same stack count by its rise and fall bounds.
+-- last tick's size a stack (Stack.Agree); an opened series at the same stack count by its rise and fall bounds, and
+-- one that opened and since stepped also by a rise of up to RAMP_STEP.
 local function Continues(running, size, n, crit)
     local unit = size / n
-    if not (running.opened and n == running.n) then return ns.Stack.Agree(unit, running.unit) end
-    local fall = (crit or running.crit) and Streams.SIZE_GUARD or OPEN_FALL
+    if running.opened and n == running.n then
+        local fall = (crit or running.crit) and Streams.SIZE_GUARD or OPEN_FALL
 
-    return unit >= (1 - fall) * running.unit and unit <= Streams.RAMP_STEP * running.unit
+        return unit >= (1 - fall) * running.unit and unit <= Streams.RAMP_STEP * running.unit
+    end
+
+    return ns.Stack.Agree(unit, running.unit) or running.ramps and unit > running.unit
+        and unit <= Streams.RAMP_STEP * running.unit
 end
 
 -- The cast whose series a hit of `school` and normal-scale `size` (`flagText` tells a crit) on `plate` at `now` ticks
@@ -942,6 +951,7 @@ function Casts.StackTick(plate, school, now, size, flagText)
                 if multiple and Continues(running, size, n, crit) then
                     tick = Stack.Tick(running, now, size, n, multiple)
                     tick.opened, tick.crit = running.opened and n == running.n or nil, crit
+                    tick.ramps = running.ramps
                 end
             else
                 local list = seeds[key] or {}
@@ -950,7 +960,7 @@ function Casts.StackTick(plate, school, now, size, flagText)
                 if not tick then list[#list + 1] = { at = now, unit = size / n, n = n, crit = crit } end
                 if not tick and Opens(fp, cast.base, plate, now, size / n) then
                     tick = Stack.Tick(nil, now, size, n, nil, fp.period)
-                    tick.opened, tick.crit = true, crit
+                    tick.opened, tick.ramps, tick.crit = true, true, crit
                 end
             end
             if tick and found then return nil end
