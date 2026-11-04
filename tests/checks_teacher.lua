@@ -3562,6 +3562,33 @@ return function(T)
         Check("castless (b): the ticks (126000) are over the row (122000) -> no row bounds them, nothing learned",
             Outcome() == "rows=0" and rig.ns.Procs.Get(NATHREZA) == nil)
 
+        -- Run lock4: 1262710 learned on F1's lone dummy (1801) drew its target ticks in F2; the 1501 ticks on the other
+        -- plates were '?'. Here the row learned at 2400 (nameplate4's size) draws nameplate4; the 2000 series on the
+        -- other 3 plates bounds no open row, but the room its row left, on the stamps it drew, widens it.
+        local function Widened(shift)
+            local wide = Rig({})
+            wide.ns.Procs.Teach(NATHREZA, 32, 2400, 2400, 1.0, 0)
+            local S, Core = wide.S, wide.ns.Core
+            SlashCmdList.COMBATTEXTICONS("debug")
+            S.now = 8
+            Core.PLAYER_REGEN_DISABLED()
+            for k = 0, 14 do
+                for _, unit in ipairs({ "nameplate1", "nameplate2", "nameplate3" }) do wide.Hit(10 + k, unit, 2000, 32) end
+                wide.Hit(10 + k + shift, "nameplate4", 2400, 32)
+            end
+            wide.Hit(60, "nameplate1", 1000, 4)
+            S.now = 70
+            Core.PLAYER_REGEN_ENABLED()
+            S.sessions = { Session(nextSession, { Row(NATHREZA, 130000), Row(FILLER, 1000) }) }
+            nextSession = nextSession + 1
+            pcall(wide.Fire)
+            return wide.ns.Procs.Get(NATHREZA)
+        end
+        local widened, apart = Widened(0), Widened(0.5)
+        Check("castless (f): a learned rhythm's row left room the 2000 series on its drawn stamps bounds -> widened to "
+            .. "2000-2400; drawn half a period off its frames -> left at 2400",
+            widened ~= nil and widened.lo == 2000 and widened.hi == 2400 and apart ~= nil and apart.lo == 2400)
+
         -- Run lock4: Agony 980, a ramp learned with ticks to ~4.6K, kept Darkglare 205231's 9-13K beams out of the
         -- pass. A learned DoT of the school keeps its hits out; a ramp DoT only those up to a ramp step past its size.
         -- The hits kept out get a scan of their own, where a series at the DoT's period (or half or twice it) is its.

@@ -545,7 +545,8 @@ end
 -- 1262710 too. The meter judges as in Ground.Learn (Bounds), after the proc passes: one open row no proc tracks and no
 -- cast of this fight owns, D <= row <= D + unseen, a row another series fills left out. A walk that shares a hit with
 -- a walk bounding no row or another one learns nothing. Learned, the row is a rhythm proc (Procs.Teach); with /cti
--- debug each seed logs a TEACH castless line ('dot': at a learned DoT's period).
+-- debug each seed logs a TEACH castless line ('dot': at a learned DoT's period). A series no open row bounds may
+-- widen a learned rhythm whose ticks share its frames (Widen).
 local RUN_MIN = 10 -- ticks a castless walk holds at least: past Felstorm's 8 (lock3 F1) and Earthquake's 6
 
 -- A seed frame's band: the sizes of its MIN_PLATES or more like-sized normal plates, or nil.
@@ -634,6 +635,86 @@ local function Series(school, low, high, frames, span)
     return pattern
 end
 
+-- Whether WIDEN_SHARE of the pattern's frames (its hits' stamps) carry a hit drawn under a row (`stamps`: at -> true).
+local WIDEN_SHARE = 0.6
+local function Carried(pattern, stamps)
+    local seen, count, carried = {}, 0, 0
+    for _, hit in ipairs(pattern.hits) do
+        if not seen[hit.at] then
+            seen[hit.at], count = true, count + 1
+            if stamps and stamps[hit.at] then carried = carried + 1 end
+        end
+    end
+
+    return count > 0 and carried >= WIDEN_SHARE * count
+end
+
+-- Whether a hit of `pattern` is also one of `other`'s (`holders`: hit -> the patterns holding it).
+local function Holds(holders, pattern, other)
+    for _, hit in ipairs(pattern.hits) do
+        for _, holder in ipairs(holders[hit]) do
+            if holder == other then return true end
+        end
+    end
+
+    return false
+end
+
+-- A series no open row bounds (and whose hits no series bounding a row holds) is a learned rhythm's ticks on the
+-- other plates when the rhythm's row came out under, the room it left (total - tally) bounds the series as an open row
+-- would (Bounds), and WIDEN_SHARE of the series' frames carry a tick the rhythm drew: an aura hits every plate at once,
+-- and its band is the plate's it was learned on. The one such row of each series widens its rhythm to the series' band
+-- and period (Procs.Widen); a row two series sharing no hit would widen is left. Run lock4: Shadow of Nathreza
+-- 1262710, learned on F1's lone dummy (1801, p 1.00), drew its 1801 target ticks in F2, and its 1501 ticks on the 3
+-- other plates (469656, row room 477536) were '?'; widened to 1500-2418 at the series' 0.96 s, F18 drew 11292 of its
+-- 20059 (at 1.00 s: 3602).
+local function Widen(run, found, holders, rows, results, unseen, named)
+    local stamps = {}
+    for _, hit in ipairs(run.drawn or {}) do
+        stamps[hit.spellID] = stamps[hit.spellID] or {}
+        stamps[hit.spellID][hit.at] = true
+    end
+    local picks, claims = {}, {}
+    for _, pattern in ipairs(found) do
+        local alone = #pattern.rows == 0
+        for _, hit in ipairs(pattern.hits) do
+            for _, other in ipairs(holders[hit]) do alone = alone and #other.rows == 0 end
+        end
+        local pick
+        for index, row in ipairs(alone and rows or {}) do
+            local result, entry = results[index], Procs.Get(row.spellID)
+            local rhythm = entry and entry.period and entry.school == pattern.school
+                and Procs.PeriodNear(entry.period, pattern.period)
+            local under = result and result.spellID == row.spellID and result.verdict == "under"
+            local room, tol = under and row.total - result.tally, math.max(1, row.total / 100)
+            local bounds = rhythm and room and pattern.sum <= room + row.overkill + tol
+                and room <= pattern.sum + unseen + tol
+            if bounds and Carried(pattern, stamps[row.spellID]) then pick = pick == nil and index or false end
+        end
+        if pick then
+            local first = claims[pick]
+            if first == nil then
+                claims[pick] = pattern
+                picks[#picks + 1] = { pattern = pattern, index = pick }
+            elseif first and not Holds(holders, pattern, first) then
+                claims[pick] = false
+            end
+        end
+    end
+    for _, item in ipairs(picks) do
+        local pattern, row, result = item.pattern, rows[item.index], results[item.index]
+        if claims[item.index] then
+            Procs.Widen(row.spellID, pattern.low, pattern.high, pattern.period)
+            result.tally = result.tally + pattern.sum
+            for _, hit in ipairs(pattern.hits) do named[#named + 1] = { spellID = row.spellID, at = hit.at } end
+        end
+        if ns.Debug then
+            ns.Debug("TEACH castless widen %d school=%d size=%.0f-%.0f sum=%.0f -> %s", row.spellID, pattern.school,
+                pattern.low, pattern.high, pattern.sum, claims[item.index] and "learned" or "rows")
+        end
+    end
+end
+
 -- The castless pass of one clear read, after the proc passes. `run` is the fight, `hits` its '?' hits no learned way
 -- took, `open` the rows still open and `rows` the session's rows; a learned row's verdict goes to `results`. Returns
 -- the learned rows' hits ({ spellID = the row, at }), for Heals.Learn to tell which row a heal train ticks with.
@@ -714,22 +795,13 @@ function Ground.Castless(run, hits, open, rows, results)
     -- beams' series (869887) bounds alone.
     local alone = {}
     for _, pattern in ipairs(found) do alone[pattern] = #pattern.rows == 1 and pattern.rows[1] end
-    local function Shares(pattern, other)
-        for _, hit in ipairs(pattern.hits) do
-            for _, holder in ipairs(holders[hit]) do
-                if holder == other then return true end
-            end
-        end
-
-        return false
-    end
     for _, pattern in ipairs(found) do
         if #pattern.rows > 1 then
             local free = {}
             for _, position in ipairs(pattern.rows) do
                 local row, full = open[position].row, false
                 for _, other in ipairs(found) do
-                    full = full or alone[other] == position and other ~= pattern and not Shares(pattern, other)
+                    full = full or alone[other] == position and other ~= pattern and not Holds(holders, pattern, other)
                         and pattern.sum + other.sum > row.total + row.overkill + math.max(1, row.total / 100)
                 end
                 if not full then free[#free + 1] = position end
@@ -755,6 +827,7 @@ function Ground.Castless(run, hits, open, rows, results)
             for _, hit in ipairs(pattern.hits) do named[#named + 1] = { spellID = item.row.spellID, at = hit.at } end
         end
     end
+    Widen(run, found, holders, rows, results, unseen, named)
 
     return named
 end
