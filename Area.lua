@@ -53,12 +53,15 @@ local function InArea(castID, cast, hit, floor)
 end
 
 -- The fresh '?' hits, and with `mates` the frame mates (Teacher.Mate), of `fp`'s school on other plates than
--- `castID`'s casts that land InArea from `floor`: { castID, sum, hits, castOf = { [hit] = its cast } }.
+-- `castID`'s casts that land InArea from `floor`, with the cast's splash hits drawn before its area was marked
+-- (Teacher.Spread: they would have been '?'): { castID, sum, hits, castOf = { [hit] = its cast } }.
 local function Gather(run, castID, fp, casts, spent, floor, mates)
     local way = { castID = castID, sum = 0, hits = {}, castOf = {} }
-    for _, hits in ipairs({ run.unknown, mates and run.mates or {} }) do
+    local spreads = run.spreads or {}
+    for _, hits in ipairs({ run.unknown, mates and run.mates or {}, spreads }) do
         for _, hit in ipairs(hits) do
-            local fresh = not spent[hit] and hit.school == fp.school
+            local own = hits ~= spreads or hit.castID == castID
+            local fresh = own and not spent[hit] and hit.school == fp.school
             local cast = fresh and OtherPlateCast(casts, hit.at, hit.plate, fp.delayHi + Casts.SPLASH)
             if cast and InArea(castID, cast, hit, floor) then
                 way.sum = way.sum + hit.amount
@@ -145,11 +148,21 @@ local function Framed(way, own)
     return framed
 end
 
--- The stamps of `castID`'s own hits this fight: drawn under it (run.drawn), or counted by the steady pass (`ways`).
+-- The stamps of `castID`'s own hits this fight: drawn under it (run.drawn) but not as its splash (run.spreads), or
+-- counted by the steady pass (`ways`).
 local function OwnStamps(run, castID, ways)
-    local stamps = {}
+    local stamps, spread = {}, {} -- spread[stamp .. ":" .. amount] = splash hits drawn so, not yet matched
+    for _, hit in ipairs(run.spreads or {}) do
+        local key = hit.at .. ":" .. hit.amount
+        if hit.castID == castID then spread[key] = (spread[key] or 0) + 1 end
+    end
     for _, hit in ipairs(run.drawn or {}) do
-        if hit.spellID == castID then stamps[hit.at] = true end
+        local key = hit.at .. ":" .. hit.amount
+        if hit.spellID == castID and (spread[key] or 0) > 0 then
+            spread[key] = spread[key] - 1
+        elseif hit.spellID == castID then
+            stamps[hit.at] = true
+        end
     end
     for _, way in ipairs(ways) do
         if way.castID == castID then
@@ -229,6 +242,9 @@ end
 -- and explain SIZED_SHARE of it, and are no other row's sum: one size per plate per cast is the cast's own share, so
 -- less of a row swollen by its DoT's ticks on the same plates is enough. Run hunter F1: Black Arrow 466930's 16 such
 -- hits (90738) in a room of 481697; F2-F18 then drew its splash, the row 8.0 -> 10.5 % of the log's meter.
+-- A cast's splash Core drew as it before its area was marked (run.spreads, Casts.Spreads) counts as its '?' hits, not
+-- as drawn: run paladin2 F2, Hammer of Light 427453's 12 splash hits (370897) drawn so still marked it areaLow, and
+-- F3's lone splash on one plate drew.
 -- Returns the ways it marked area { castID, sum, hits }.
 function Area.Learn(run, rows, learned)
     local spent, learnedNow, steady = {}, {}, {}
@@ -240,7 +256,8 @@ function Area.Learn(run, rows, learned)
         end
         for _, hit in ipairs(way.hits) do spent[hit] = true end
     end
-    local castsOf, order, named = {}, {}, {}
+    local castsOf, order, named, spread = {}, {}, {}, {}
+    for _, hit in ipairs(run.spreads or {}) do spread[hit.castID] = (spread[hit.castID] or 0) + hit.amount end
     for _, item in ipairs(run.casts or {}) do
         named[item.spellID], named[item.base], named[Casts.Overridden(item.spellID)] = true, true, true
     end
@@ -255,7 +272,8 @@ function Area.Learn(run, rows, learned)
 
     local ways = {}
     for _, castID in ipairs(order) do
-        local fp, drawn = Fingerprints.Get(castID), (run.tally[castID] or 0) + (steady[castID] or 0)
+        local fp = Fingerprints.Get(castID)
+        local drawn = (run.tally[castID] or 0) + (steady[castID] or 0) - (spread[castID] or 0)
         local row = ns.Steady.RowOf(castID, rows)
         if fp and fp.learned and fp.pattern == "single" and fp.delayHi and not fp.area and not learnedNow[castID]
             and drawn > 0 and row then

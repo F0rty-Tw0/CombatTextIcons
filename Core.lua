@@ -437,7 +437,8 @@ local QueueFlush -- the next frame flushes what waits for its frame's end (below
 -- on a plate yours drew on just before (DrawMate).
 -- ownFrame = { at = a frame's stamp, schools = { [school] = true } }; held = { at = the frame's stamp, hits = { {
 -- plate, school, amount, flagText, kind, record }, ... } } (kind, record: its Casts.Claim answer; a held share has
--- `share` instead, HoldShare, and a held ground crit `ground`, its record, HoldGround).
+-- `share` instead, HoldShare, a held ground crit `ground`, its record, HoldGround, and a held splash `spread`, its
+-- record, HoldSpread).
 local ownFrame, held = { schools = {} }, { hits = {} }
 
 -- A solo hit of `school` landed on a mob fighting you at `now`: its frame's held hits of that school are mates.
@@ -571,6 +572,21 @@ local function DrawGround(hit, plates)
     DrawHeld(hit, hit.ground, "ground")
 end
 
+-- A held hit that may be a cast's even splash (HoldSpread) at its frame's end: drawn as that cast when its frame's
+-- held hits of the record are its splash (Casts.Spreads, `spreads[record]` = their sizes on each plate and count),
+-- else the question mark route it was held from (Question).
+local function DrawSpread(hit, spreads)
+    local group = spreads[hit.spread]
+    if group.splash == nil then
+        group.splash = Casts.Spreads(hit.spread, hit.school, hit.at, group.sizes, group.count)
+    end
+    if not group.splash then
+        return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates)
+    end
+    DrawHeld(hit, hit.spread, "spread")
+    Teacher.Spread(hit.plate, hit.school, hit.amount, hit.at, hit.flagText, hit.spread.base)
+end
+
 -- A ground cast's hit held to its frame's end (HoldTick): drawn as the cast when its frame is a tick (`ticked`), else
 -- the frame was none (Casts.Overrun) and the hit is the question mark solo, hidden in a group.
 local function DrawTick(hit, ticked)
@@ -605,7 +621,7 @@ end
 
 -- Ends the held hits' frame once `now` is past its stamp, or with nil (the fight ended; the replays end each frame
 -- with it too): each is a mate or a stranger's (DrawMate), a split proc's share (DrawShare), a crit that may start
--- a ground cast's first tick (DrawGround), or a ground cast's hit (DrawTick).
+-- a ground cast's first tick (DrawGround), a cast's splash (DrawSpread), or a ground cast's hit (DrawTick).
 function Core.FlushMates(now)
     local hits = held.hits
     if #hits == 0 or (now and now <= held.at) then return end
@@ -613,6 +629,7 @@ function Core.FlushMates(now)
     local ticked = Ticks(hits, held.at)
     held = { hits = {} }
     local plates, seen = {}, {} -- plates[record] = plates its held crits hit; seen[record][plate] = true
+    local spreads = {}          -- spreads[record] = { sizes = { [plate] = normal-scale size }, count } (HoldSpread)
     for _, hit in ipairs(hits) do
         local record = hit.ground
         if record then
@@ -621,10 +638,17 @@ function Core.FlushMates(now)
                 seen[record][hit.plate], plates[record] = true, (plates[record] or 0) + 1
             end
         end
+        if hit.spread then
+            local group = spreads[hit.spread] or { sizes = {}, count = 0 }
+            group.sizes[hit.plate], group.count = Streams.NormalAmount(hit.amount, hit.flagText), group.count + 1
+            spreads[hit.spread] = group
+        end
     end
     for _, hit in ipairs(hits) do
         if hit.share then
             DrawShare(hit)
+        elseif hit.spread then
+            DrawSpread(hit, spreads)
         elseif hit.ground then
             DrawGround(hit, plates[hit.ground])
         elseif hit.tick then
@@ -669,6 +693,17 @@ local function HoldGround(plate, school, amount, flagText, now, record, cast, ca
     QueueFlush()
 end
 
+-- Holds a solo '?' hit that may be the learned cast `record`'s even splash (Casts.SpreadFirst) until its frame ends:
+-- the frame's other held hits of the record tell a splash on the plates around from a stray hit. DrawSpread decides.
+local function HoldSpread(plate, school, amount, flagText, now, record, cast, candidates)
+    Core.FlushMates(now)
+    if held.at ~= now then held = { at = now, hits = {} } end
+    held.hits[#held.hits + 1] = { plate = plate, school = school, amount = amount, flagText = flagText, at = now,
+        spread = record, cast = cast, candidates = candidates }
+    if ns.Debug then ns.Debug("  .. spread") end
+    QueueFlush()
+end
+
 -- Holds a hit a learned ground cast claimed (`record`, which took it: Casts.Accept) until its frame ends: the frame's
 -- hits on each plate tell a tick from another spell's burst on its lattice (Casts.Overrun). DrawTick decides. `solo`,
 -- `cast`, `candidates`: the question mark route's, should the frame be no tick.
@@ -699,7 +734,8 @@ end
 -- above the rhythm ones. Solo, a hit on a creature with no threat list that does
 -- not fight you, which the tracker does not name, waits for its frame's end instead of hiding (Hold, Core.FlushMates),
 -- and so does a solo '?' hit a learned proc's twin split band holds (HoldShare), or a solo '?' crit that may start a
--- learned ground cast's first tick (HoldGround). The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
+-- learned ground cast's first tick (HoldGround), or a solo '?' hit that may be a learned cast's even splash on the
+-- plates around (HoldSpread). The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
 -- (run 153349Z: strangers on 8 nearby dummies made both reads crowded). Frame mates reach the area pass only
 -- (Teacher.Mate), never the crowd check.
@@ -851,6 +887,11 @@ local function Wound(plate, unit, flagText, amount, school, now)
         local ground = kind == nil and Casts.GroundFirst(plate, school, now, Streams.NormalAmount(amount, flagText),
             flagText)
         if ground then return HoldGround(plate, school, amount, flagText, now, ground, cast, candidates) end
+        -- a hit no claim named that may be a learned cast's even splash on the plates around waits for its frame
+        -- (HoldSpread)
+        local spread = kind == nil and Teacher.NotCrowded()
+            and Casts.SpreadFirst(plate, school, now, Streams.NormalAmount(amount, flagText))
+        if spread then return HoldSpread(plate, school, amount, flagText, now, spread, cast, candidates) end
 
         return Question(plate, school, amount, flagText, now, cast, candidates)
     end

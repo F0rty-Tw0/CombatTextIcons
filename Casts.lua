@@ -823,6 +823,56 @@ function Casts.GroundStarts(record, at, plates)
     return true
 end
 
+-- The record a solo hit nothing named may be the even splash of before the area pass marked its spell area, or nil:
+-- a learned single-target cast's whose window (RecordWindow, SLACK about it) holds the hit on another plate it has not
+-- hit, of its school, in its band from AREA_LO of its smallest; records of two spells hold it: nil. Core holds such a
+-- hit to its frame's end, and its frame decides (Casts.Spreads). Run paladin2 F2: Hammer of Light 427453 (learned at
+-- 45377-46266 on its target, 0.562-0.565 s after the cast) put 25-29K (crits twice that) on the 4 dummies around in
+-- one frame 0.593-0.597 s after each cast, before or after its own target hit (0.53-1.01 s); the area pass marked it
+-- only at the fight's end, and 12 of them (370897 of its row 727101) went '?'.
+function Casts.SpreadFirst(plate, school, now, size)
+    if not (Plain(plate) and Plain(school) and Plain(now) and IsNumber(size)) then return nil end
+    local found
+    for _, record in ipairs(records) do
+        local fp = Live(record, now)
+        local low, high = RecordWindow(record)
+        local age = now - record.at
+        local open = fp and not fp.area and fp.pattern == "single" and fp.school == school and low ~= nil
+            and record.plate ~= nil and plate ~= record.plate and not record.plates[plate]
+        if open and age >= low - SLACK and age <= high + SLACK
+            and Casts.InBand(record.base, record.spellID, size, AREA_LO) then
+            if found and found.spellID ~= record.spellID then return nil end
+            found = found or record
+        end
+    end
+
+    return found
+end
+
+local MIN_SPREAD = 2     -- plates a cast's held splash frame covers at least (Casts.Spreads)
+local SPREAD_SIZE = 0.05 -- and its hits agree in size within this share (normal scale)
+
+-- Whether the hits `record`'s Casts.SpreadFirst held in the frame at `at` (`sizes[plate]` = each one's normal-scale
+-- size, `count` hits) are its splash: one hit on each of MIN_SPREAD plates or more, all of one size within SPREAD_SIZE,
+-- while no hit of `school` landed on the record's own plate in that frame and no unclaimed hit like them landed on
+-- another plate in the QUIET before (Casts.QuietNear): hits like them anyway are another spell's, or a stranger's.
+-- A splash in the frame of a hit on the cast's plate may be a proc of that hit's: run hunter F3, Beast Cleave's 1199s
+-- on 4 dummies came in each Kill Command 17253 own hit's frame (row 118459), 46457 drawn wrong as the command.
+function Casts.Spreads(record, school, at, sizes, count)
+    local plates, low, high = 0, math.huge, 0
+    for _, size in pairs(sizes) do
+        plates, low, high = plates + 1, math.min(low, size), math.max(high, size)
+    end
+    if plates < MIN_SPREAD or plates ~= count or high > (1 + SPREAD_SIZE) * low then return false end
+    for _, wound in ipairs(wounds) do
+        if wound.at == at and wound.plate == record.plate and wound.school == school then
+            return false
+        end
+    end
+
+    return Casts.QuietNear(record.plate, school, low, at)
+end
+
 -- Whether `record` is a learned ground cast's: its hits draw at their frame's end (Core), once the frame shows a tick.
 function Casts.IsGround(record)
     local fp = Fingerprints.Get(record.base)
