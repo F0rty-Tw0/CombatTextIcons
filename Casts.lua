@@ -153,6 +153,13 @@ local seeds = {}        -- [base .. "@" .. plate] = hits that may start its seri
 -- run lock4 F12, Unstable Affliction 1259790 ticked 3513 then 3424 (-2.5 %); in F15 its 3254s were due with a 2823 of
 -- Agony 980 (-13 %), and taking it cost Agony its only ramp read (lock4 980 right 4.3 -> 1.2 %).
 local OPEN_FALL = 0.05
+-- A learned cast's echo (Casts.Echo, taught by the echo pass, Area.Echoes): hits on its plate after the cast's own hit,
+-- each at one fixed share of that hit. Run hunter F18: Black Arrow 466930 hit its target for 13379, then 4013, 4013,
+-- 4012 and an 8026 crit (0.300 of it) 0.20-0.76 s later, all '?'; after its 26759 crit, 4012-4013 and an 8026 again.
+local ECHO_SPAN = 1.0   -- an echo lands at most this long after its cast's own hit
+local ECHO_GUARD = 0.003 -- within this share of its learned share of that hit (normal scale)
+Casts.ECHO_SPAN, Casts.ECHO_GUARD = ECHO_SPAN, ECHO_GUARD
+local sources = {}      -- own hits of learned echo casts, oldest first: { base, spellID, plate, school, at, size, left }
 
 -- Travel time follows distance, and distance changes per fight: Shadow Bolt 686 learned at 1.10-1.16 s
 -- landed at 0.92-1.09 s the next fight, 1.12-1.26 s the one after (run 20261025T180045Z). So each cast
@@ -275,7 +282,7 @@ end
 function Casts.Flush(now)
     for _, record in ipairs(records) do Settle(record, math.huge) end
     SweepRecords(now)
-    centres, wounds, series, seeds = {}, {}, {}, {}
+    centres, wounds, series, seeds, sources = {}, {}, {}, {}, {}
 end
 
 -- The cast in progress (UNIT_SPELLCAST_START): a spell with a cast time keeps the target it started
@@ -938,6 +945,8 @@ end
 -- around are no own hits. Run paladin2 F7: Judgment 20271 (2 a cast) took its own 5577 and 2 hits around in one frame
 -- at 0.161 s, and its own second hit 5656 at 0.421 s, inside its window, found the record full and went '?'.
 -- `plates` counts the hits a plate took (AreaHit).
+-- Returns true for the record's first own hit (sized) on its cast's plate, which a learned echo's hits follow
+-- (Casts.Echo) and the echo pass pairs '?' hits with (Teacher.Own).
 function Casts.Accept(record, plate, now, size)
     for index = #wounds, 1, -1 do
         local wound = wounds[index]
@@ -963,9 +972,40 @@ function Casts.Accept(record, plate, now, size)
     record.plates[plate] = (record.plates[plate] or 0) + 1
     record.hopAt[plate] = now
     if plate == record.plate then record.own = record.own + 1 end
-    if plate ~= record.plate and record.hops == 0 then return end
+    local first = plate == record.plate and record.own == 1 and IsNumber(size)
+    if first and fp and fp.echo then
+        sources[#sources + 1] = { base = record.base, spellID = record.spellID, plate = plate, school = fp.school,
+            at = now, size = size, left = fp.echoes or 1 }
+    end
+    if plate ~= record.plate and record.hops == 0 then return first end
     if record.hops == 0 then record.firstAt = now end
     record.hops, record.last = record.hops + 1, now
+
+    return first
+end
+
+-- The source (a learned echo cast's own hit, Accept: { base, spellID, ... }) whose echo a hit of `school` and
+-- normal-scale `size` on `plate` at `now` is, or nil: a source on the plate at most ECHO_SPAN before it, with echoes
+-- left, whose learned share of its own hit (Fingerprints' echo) the size meets within ECHO_GUARD; sources of two
+-- spells that both fit name none. The source that answers spends one echo.
+function Casts.Echo(plate, school, now, size)
+    if not (Plain(plate) and Plain(school) and Plain(now) and IsNumber(size) and size > 0) then return nil end
+    local found
+    for index = #sources, 1, -1 do
+        local source = sources[index]
+        local fp = Fingerprints.Get(source.base)
+        local share = fp and fp.learned and fp.echo
+        if now - source.at > ECHO_SPAN or not share then
+            table.remove(sources, index)
+        elseif source.plate == plate and source.school == school and now > source.at and source.left > 0
+            and math.abs(size - share * source.size) <= ECHO_GUARD * share * source.size then
+            if found and found.base ~= source.base then return nil end
+            found = found or source
+        end
+    end
+    if found then found.left = found.left - 1 end
+
+    return found
 end
 
 -- A learned stack spell (Stack.lua): each cast adds a stack on its plate for the learned life, and one series per spell

@@ -20,6 +20,8 @@
 -- casts also hit the plates around their target, SetArea, Area.lua), with `areaLow` when only the hits from
 -- Casts.AREA_LO of its smallest showed it, and `areaFrame` when only the hits in its own hits' frames did; Casts.lua
 -- reads them. An exact way that left out bigger hits in its casts' windows teaches `cap` (SetCap): the band stops below.
+-- The echo pass teaches `echo` (a share of each own hit its later hits on that plate come at) and `echoes` (how many
+-- follow one own hit at most, SetEcho), after `echoSeen` (a share one fight's run showed, NoteEcho) came back.
 -- Saved data is checked on load and never trusted.
 
 local _, ns = ...
@@ -36,6 +38,7 @@ local LEARN_CASTS = 3 -- samples from this many different casts, one school, tea
 local EXACT_CASTS = 1
 local STRIKES = 2     -- teacher overshoots in a row that delete an entry
 local PER_CAST_MAX = 4 -- own-plate hits one cast's record takes at most (SetPerCast)
+local ECHOES_MAX = 8  -- echo hits one own hit takes at most (SetEcho)
 local PATTERNS = { single = true, chain = true, ground = true, stack = true } -- the patterns a saved entry may hold
 
 Fingerprints.LEARN_CASTS = LEARN_CASTS -- the panel shows "casts n of LEARN_CASTS"
@@ -344,6 +347,31 @@ function Fingerprints.SetArea(spellID, low, framed)
     Refresh(entry)
 end
 
+-- The echo pass (Area.Echoes) found the cast's own hits followed on their plate by '?' hits at `share` of each, up to
+-- `count` after one hit, and the meter's room held them: its records' own hits take such hits (Casts.Echo).
+function Fingerprints.SetEcho(spellID, share, count)
+    local entry = Fingerprints.Get(spellID)
+    local valid = entry and IsNumber(share) and share > 0 and share < 1 and IsNumber(count) and count >= 1
+    if not valid then return false end
+    entry.echo, entry.echoSeen = share, nil
+    entry.echoes = math.min(ECHOES_MAX, math.max(entry.echoes or 1, math.floor(count)))
+
+    return true
+end
+
+-- One run of the echo pass showed the cast's own hit followed at `share`: noted until a later run agrees (Area.Echoes).
+function Fingerprints.NoteEcho(spellID, share)
+    local entry = Fingerprints.Get(spellID)
+    if entry and IsNumber(share) and share > 0 and share < 1 then entry.echoSeen = share end
+end
+
+-- The echo share NoteEcho noted for the cast, or nil.
+function Fingerprints.EchoSeen(spellID)
+    local entry = Fingerprints.Get(spellID)
+
+    return entry and entry.echoSeen or nil
+end
+
 -- `filled`: the alias rests on a filled sum (Steady's CastSum), so Filled answers for its cast; an alias set again
 -- without it drops the mark.
 function Fingerprints.SetAlias(meterID, castID, filled)
@@ -440,6 +468,12 @@ local function Repair(entry)
     entry.areaLow = entry.area and entry.areaLow == true or nil
     entry.areaFrame = entry.area and entry.areaFrame == true or nil
     entry.cap = HitSize(entry.cap)
+    local echo, echoes = entry.echo, entry.echoes
+    local valid = type(echo) == "number" and echo > 0 and echo < 1 and type(echoes) == "number" and echoes >= 1
+        and echoes <= ECHOES_MAX and echoes % 1 == 0
+    entry.echo, entry.echoes = valid and echo or nil, valid and echoes or nil
+    local seen = entry.echoSeen
+    entry.echoSeen = type(seen) == "number" and seen > 0 and seen < 1 and seen or nil
     Refresh(entry)
 end
 

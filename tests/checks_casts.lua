@@ -171,6 +171,77 @@ return function(T)
             Learned({ 10, 30 }) == nil)
     end
 
+    do -- run hunter F18: Black Arrow 466930's own 13379 was followed by 4013, 4013, 4012 and an 8026 crit, all '?'
+        local ARROW = 466930
+        local function Echoes(share, hits)
+            local rig = Rig()
+            local ns = rig.ns
+            for castAt = 1, 3 do
+                ns.Fingerprints.Add(ARROW, { school = 32, delay = 0.37, castAt = castAt, hops = 1, size = 13379 })
+            end
+            if share then ns.Fingerprints.SetEcho(ARROW, share, 4) end
+            rig.Cast(10, ARROW, "nameplate1")
+            local own = rig.Hit(10.37, "nameplate1", "WOUND", 13379, 32)
+            local drawn = { own and own.texture }
+            for _, hit in ipairs(hits) do
+                local draw = rig.Hit(hit[1], "nameplate1", "WOUND", hit[2], 32, hit[3])
+                drawn[#drawn + 1] = draw and draw.texture
+            end
+
+            return drawn
+        end
+        local series = { { 10.57, 4013 }, { 10.71, 4013 }, { 10.90, 4012 }, { 11.13, 8026, "CRITICAL" } }
+        local drawn = Echoes(0.2999, series)
+        Check("echo: a learned share's hits after its cast's own hit draw as the cast, a crit on its normal scale",
+            drawn[1] == "tex:" .. ARROW and drawn[2] == "tex:" .. ARROW and drawn[3] == "tex:" .. ARROW
+            and drawn[4] == "tex:" .. ARROW and drawn[5] == "tex:" .. ARROW)
+        local bare = Echoes(nil, series)
+        Check("echo: with no learned share they stay '?'", bare[1] == "tex:" .. ARROW and bare[2] ~= "tex:" .. ARROW)
+        local off = Echoes(0.2999, { { 10.57, 4100 }, { 11.5, 4013 } })
+        Check("echo: a hit off the share (4100: 0.306) or past the span (1.13 s after the own hit) is not the cast's",
+            off[2] ~= "tex:" .. ARROW and off[3] ~= "tex:" .. ARROW)
+        local spent = Echoes(0.2999, { { 10.5, 4013 }, { 10.6, 4013 }, { 10.7, 4013 }, { 10.8, 4013 }, { 10.9, 4013 } })
+        Check("echo: an own hit takes its learned echoes per hit (4), no more",
+            spent[5] == "tex:" .. ARROW and spent[6] ~= "tex:" .. ARROW)
+    end
+
+    do -- the echo pass: a run of hits at one share of a cast's own hit is noted, and taught when another run agrees
+        local ARROW = 466930
+        local function Read(ns, runs, share, total)
+            local run = { tally = { [ARROW] = 13590 * #runs }, unknown = {}, owns = {} }
+            for index, at in ipairs(runs) do
+                run.owns[index] = { base = ARROW, spellID = ARROW, school = 32, amount = 13590, size = 13590, at = at,
+                    plate = "P" }
+                for step = 1, 4 do
+                    local size = math.floor(share * 13590 + 0.5)
+                    run.unknown[#run.unknown + 1] = { school = 32, amount = size, size = size, at = at + 0.2 * step,
+                        plate = "P" }
+                end
+            end
+            ns.Area.Echoes(run, { { spellID = ARROW, total = total or 200000, overkill = 0 } }, {})
+
+            return ns.Fingerprints.Get(ARROW).echo
+        end
+        local function Boot()
+            local ns = T.Boot()
+            for castAt = 1, 3 do
+                ns.Fingerprints.Add(ARROW, { school = 32, delay = 0.3, castAt = castAt, hops = 1, size = 13590 })
+            end
+            return ns
+        end
+        local ns = Boot()
+        local first = Read(ns, { 10 }, 0.3)
+        local second = Read(ns, { 50 }, 0.3)
+        Check("echo pass: one run notes its share, a later fight's run at that share teaches it",
+            first == nil and second ~= nil and math.abs(second - 0.3) < 0.001
+            and ns.Fingerprints.Get(ARROW).echoes == 4)
+        local other = Boot()
+        Read(other, { 10 }, 0.3)
+        Check("echo pass: a later run at another share (0.35) teaches nothing", Read(other, { 50 }, 0.35) == nil)
+        Check("echo pass: two runs in one fight teach at once", Read(Boot(), { 10, 30 }, 0.3) ~= nil)
+        Check("echo pass: runs past the row's room teach nothing", Read(Boot(), { 10, 30 }, 0.3, 30000) == nil)
+    end
+
     do -- run hunter F9: Black Arrow 466930's first tick window took a 5909 hit 0.90 s after its cast's own hit
         local ARROW = 466930
         local function FirstTick(size)

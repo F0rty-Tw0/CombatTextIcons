@@ -1209,6 +1209,7 @@ local function Learn(run, results, open, rows)
     for _, way in ipairs(ns.Volley.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Area.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Area.Twins(run, rows, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Area.Echoes(run, rows, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(ns.Link.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
     for _, way in ipairs(learned) do
         local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)
@@ -1376,6 +1377,8 @@ local function Carry(run, into)
     for index, hit in ipairs(run.spreads or {}) do table.insert(into.spreads, index, hit) end
     into.strangers = into.strangers or {}
     for index, hit in ipairs(run.strangers or {}) do table.insert(into.strangers, index, hit) end
+    into.owns = into.owns or {}
+    for index, hit in ipairs(run.owns or {}) do table.insert(into.owns, index, hit) end
     for index, tick in ipairs(run.ticks or {}) do table.insert(into.ticks, index, tick) end
     for index, cast in ipairs(run.casts or {}) do table.insert(into.casts, index, cast) end
     for index, heal in ipairs(run.heals or {}) do table.insert(into.heals, index, heal) end
@@ -1574,7 +1577,7 @@ function Teacher.Start(now, group)
     local streams = Streams.NewFight()
     Teacher.fight = { at = now, tally = {}, unknown = {}, mates = {}, strangers = {}, ticks = {}, casts = {}, seen = 0,
         plates = {}, live = 0, schools = {}, group = group, streams = streams, heals = {}, helps = {}, drawn = {},
-        spreads = {} }
+        spreads = {}, owns = {} }
 end
 
 -- A wound landed while the player was grouped: the fight's read will not learn.
@@ -1709,6 +1712,18 @@ function Teacher.Spread(plate, school, amount, now, flagText, castID)
     end
     fight.spreads[#fight.spreads + 1] = { school = school, amount = amount, at = now, plate = plate,
         crit = Procs.Crit(flagText), size = Streams.NormalAmount(amount, flagText), castID = castID }
+end
+
+-- A learned cast's first own hit on its plate (Casts.Accept), drawn as `spellID` under its base `base`: the echo pass
+-- (Area.Echoes) pairs the '?' hits after it on that plate with its normal-scale size.
+function Teacher.Own(base, spellID, plate, school, amount, now, flagText)
+    local fight = Teacher.fight
+    if not (fight and plate ~= nil and IsNumber(base) and IsNumber(school) and IsNumber(amount) and IsNumber(now))
+        or amount <= 0 then
+        return
+    end
+    fight.owns[#fight.owns + 1] = { base = base, spellID = spellID, school = school, amount = amount, at = now,
+        plate = plate, size = Streams.NormalAmount(amount, flagText) }
 end
 
 -- A held hit with no solo hit of its school in its frame (Core.FlushMates): a stranger's, or an AoE's splash a frame

@@ -20,6 +20,7 @@
 -- 29658, and Beast Cleave's 84 hits on 4 plates (151786) are far past its residual: no area.
 -- Learned hits leave the '?' that Procs.Read then sees. With /cti debug each tried base logs one TEACH area line.
 -- The twin pass (Area.Twins) does the same for a learned DoT or channel's ticks: their fixed share on other plates.
+-- The echo pass (Area.Echoes) does it for a learned cast's later hits on its own plate at a fixed share of its own hit.
 
 local _, ns = ...
 local Fingerprints, Casts = ns.Fingerprints, ns.Casts
@@ -414,6 +415,95 @@ function Area.Twins(run, rows, learned)
             if ns.Debug and #way.hits > 0 then
                 ns.Debug("TEACH twin %d hits=%d sum=%d room=%d share=%.2f -> %s", spellID, #way.hits,
                     math.floor(way.sum), math.floor(room), best, fits and "learned" or "refused")
+            end
+        end
+    end
+
+    return ways
+end
+
+-- The echo pass of one read: a learned single cast's own hit (run.owns, Teacher.Own) may be followed on its plate by
+-- hits at a fixed share of it. Each fresh '?' hit of its school on that plate, at most Casts.ECHO_SPAN after the
+-- newest own hit of the cast there and outside the cast's padded band (the band's hits are its records'), pairs with
+-- that hit; their sizes' ratio (normal scale) is the share it would show. The share most pairs agree with (within
+-- Casts.ECHO_GUARD) among those whose hits fit the row's room (total, overkill and Judge's tolerance, less the drawn)
+-- shows when ECHO_SERIES of them or more follow one own hit (a run: an echo repeats like-sized). Two runs in the fight
+-- teach it (Fingerprints.SetEcho); one run notes it (NoteEcho), and teaches it when the share a run of an earlier
+-- fight noted agrees: a share that like-sized hits met by chance does not come back. Run hunter F10: Black Arrow
+-- 466930's 27180 crit was followed by 8153 (a crit), 4075, 4075, 4075 (0.300 of its 13590 normal) 0.12-0.74 s later,
+-- 20378 in a room of 32896, noted; F12's two runs taught it, and F14 and F18 drew theirs. A share of 1 or more is no
+-- echo: run hunter F18, Kill Command 34026's own hits were followed by 1264485's 11355s (2.0 of them). Kill Command
+-- 17253's own hits were followed by Physical hits at 0.22 of them one or two at a time, no run. Run druid F8: Swipe
+-- 106785's 8793 was followed by 4011, 4046 and 4002 (0.455-0.460 of it), like-sized only within 1.1 %: within 1 % of
+-- one share they taught it, and it drew 4 such hits over its row in F9-F12; inside ECHO_GUARD they make no run.
+-- Returns the ways it taught { castID, sum, hits }.
+local ECHO_SERIES = 3
+function Area.Echoes(run, rows, learned)
+    local spent = {}
+    for _, way in ipairs(learned) do
+        for _, hit in ipairs(way.hits) do spent[hit] = true end
+    end
+    local ownsOf, order = {}, {}
+    for _, own in ipairs(run.owns or {}) do
+        if not ownsOf[own.base] then
+            ownsOf[own.base] = {}
+            order[#order + 1] = own.base
+        end
+        table.insert(ownsOf[own.base], own)
+    end
+    table.sort(order)
+
+    local ways = {}
+    for _, castID in ipairs(order) do
+        local fp, row = Fingerprints.Get(castID), ns.Steady.RowOf(castID, rows)
+        if fp and fp.learned and fp.pattern == "single" and row then
+            local matched = {}
+            for _, hit in ipairs(run.unknown) do
+                local newest
+                if not spent[hit] and hit.school == fp.school and hit.size and hit.size > 0 then
+                    for _, own in ipairs(ownsOf[castID]) do
+                        local gap = hit.at - own.at
+                        if own.plate == hit.plate and gap > 0 and gap <= Casts.ECHO_SPAN then newest = own end
+                    end
+                end
+                if newest and hit.size < newest.size and not Casts.InBand(castID, newest.spellID, hit.size) then
+                    matched[#matched + 1] = { hit = hit, own = newest, ratio = hit.size / newest.size }
+                end
+            end
+            local room = row.total + row.overkill + math.max(1, row.total / 100) - (run.tally[castID] or 0)
+            local function Way(share)
+                local way, per = { castID = castID, sum = 0, hits = {}, series = 0, runs = 0 }, {}
+                for _, pair in ipairs(matched) do
+                    if math.abs(pair.ratio - share) <= Casts.ECHO_GUARD * share then
+                        way.sum = way.sum + pair.hit.amount
+                        way.hits[#way.hits + 1] = pair.hit
+                        per[pair.own] = (per[pair.own] or 0) + 1
+                        way.series = math.max(way.series, per[pair.own])
+                        if per[pair.own] == ECHO_SERIES then way.runs = way.runs + 1 end
+                    end
+                end
+                return way
+            end
+            -- the share most pairs agree with among those whose sum fits the room; else the most agreed one (refused)
+            local way, best
+            for _, pair in ipairs(matched) do
+                local candidate = Way(pair.ratio)
+                local fitsRoom = candidate.sum <= room
+                local better = not way or (fitsRoom and way.sum > room)
+                    or (fitsRoom == (way.sum <= room) and #candidate.hits > #way.hits)
+                if better then way, best = candidate, pair.ratio end
+            end
+            -- a series that fits the room is noted; two this fight, or one at the share an earlier fight noted, teach
+            local shown = way ~= nil and way.runs >= 1 and way.sum <= room
+            local seen = shown and Fingerprints.EchoSeen(castID)
+            local again = seen and math.abs(seen - best) <= Casts.ECHO_GUARD * best
+            local fits = shown and (way.runs >= 2 or again) and Fingerprints.SetEcho(castID, best, way.series)
+            if shown and not fits then Fingerprints.NoteEcho(castID, best) end
+            if fits then ways[#ways + 1] = way end
+            if ns.Debug and way then
+                ns.Debug("TEACH echo %d hits=%d series=%d runs=%d sum=%d room=%d share=%.4f -> %s", castID, #way.hits,
+                    way.series, way.runs, math.floor(way.sum), math.floor(room), best,
+                    fits and "learned" or shown and "noted" or "refused")
             end
         end
     end

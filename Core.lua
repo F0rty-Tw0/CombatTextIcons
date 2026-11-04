@@ -792,7 +792,9 @@ local function Wound(plate, unit, flagText, amount, school, now)
     end
     if kind == "learned" and fightsYou then
         if ns.Debug then ns.Debug("  -> cast %s", ShowValue(record.spellID)) end
-        Casts.Accept(record, plate, now, Streams.NormalAmount(amount, flagText))
+        if Casts.Accept(record, plate, now, Streams.NormalAmount(amount, flagText)) and solo then
+            Teacher.Own(record.base, record.spellID, plate, school, amount, now, flagText)
+        end
         Tracker.OnDirectHit(plate, record.spellID, now) -- a learned DoT of the cast may tick from this hit on
         Streams.Landed(plate, record.spellID, now) -- and an unlearned one's ticks name the cast from it (Owners)
         Drawn(record.base, amount) -- an override is tallied under the base spell's meter row
@@ -868,7 +870,8 @@ local function Wound(plate, unit, flagText, amount, school, now)
         Ledger.Add("damage", linkID, amount)
         return Display.Plate(plate, SpellTexture(linkID), text, flagText, school)
     end
-    -- A learned DoT's twin (Tracker.Twin) is the last solo route before the question mark: the meter taught its share.
+    -- A learned DoT's twin (Tracker.Twin), then a cast's echo, are the last solo routes before the question mark: the
+    -- meter taught their shares.
     local twinID = solo and Tracker.Twin(plate, school, amount, flagText, now)
     if twinID then
         if ns.Debug then ns.Debug("  -> twin %s", ShowValue(twinID)) end
@@ -876,6 +879,16 @@ local function Wound(plate, unit, flagText, amount, school, now)
         Drawn(twinID, amount)
         Ledger.Add("damage", twinID, amount)
         return Display.Plate(plate, SpellTexture(twinID), text, flagText, school)
+    end
+    -- A learned cast's echo (Casts.Echo): a hit on its plate soon after its own hit, at its learned share of that hit.
+    local echo = solo and Teacher.NotCrowded()
+        and Casts.Echo(plate, school, now, Streams.NormalAmount(amount, flagText))
+    if echo then
+        if ns.Debug then ns.Debug("  -> echo %s", ShowValue(echo.spellID)) end
+        ns.Volley.Spent(amount, flagText, now)
+        Drawn(echo.base, amount)
+        Ledger.Add("damage", echo.base, amount)
+        return Display.Plate(plate, SpellTexture(echo.spellID), text, flagText, school)
     end
     if solo then
         local cast = Casts.SoleCast(plate, now, school)
