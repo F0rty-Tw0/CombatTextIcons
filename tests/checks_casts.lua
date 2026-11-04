@@ -1922,6 +1922,44 @@ do -- Phase 3: records and Claim
         return twin == "learned" and third == nil and hopTwin == "learned" and record.hops == 2 and record.echo == nil
             and ns.Casts.Claim(P(2), 8, 20.3) == nil and ns.Casts.Claim(P(1), 8, 20.3) == nil
     end)
+    -- Run shaman6 F3: cast 243932.587 hit 5 plates in one frame, and nameplate6's 3 hits came the lines before its
+    -- target's first, all '?'. A '?' hit nothing named waits for its frame's end (Core.HoldHop) and draws as the chain
+    -- when the record's own first hit landed in that frame (Casts.HopsAhead): its hop and the overload beside it, not a
+    -- third; never with no own hit in the frame, nor with two plates logged ahead of it (shaman6 F2, shaman5 F5: their
+    -- rows ran over).
+    Scenario("hop: a chain's hits on another plate logged ahead of its own first hit in that frame draw as it", function()
+        -- hits { amount, unit } of Nature at 20.2 after a chain cast at 20 at nameplate1 (learned at 11685-22465, 0.2 s).
+        -- Returns nameplate2's icons in draw order.
+        local function Run(hits)
+            local ns = T.Boot(function() CombatTextIconsDB = { enabled = true } end)
+            local S = T.State()
+            for index = 1, 3 do
+                ns.Fingerprints.Add(CL, { school = 8, delay = 0.2, castAt = index, hops = 1, size = 11685 })
+                ns.Fingerprints.Add(CL, { school = 8, delay = 0.2, castAt = index, hops = 5, size = 22465 })
+            end
+            ns.Teacher.area = "clear"
+            local drawn = {}
+            ns.Display.Plate = function(plate, texture)
+                if plate == Plate("nameplate2") then drawn[#drawn + 1] = texture end
+            end
+            S.now, S.target = 20, "nameplate1"
+            ns.Core.PLAYER_REGEN_DISABLED()
+            ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c20", CL)
+            S.now = 20.2
+            for _, hit in ipairs(hits) do ns.Core.UNIT_COMBAT(hit[2], "WOUND", "", hit[1], 8) end
+            ns.Core.FlushMates()
+            return drawn
+        end
+        local ICON = "tex:" .. CL
+        local own = { 14000, "nameplate1" }
+        local p2 = { 14200, "nameplate2" }
+        local ahead = Run({ p2, p2, p2, own })
+        local alone = Run({ p2 })
+        local two = Run({ p2, { 14300, "nameplate3" }, own })
+        local small = Run({ { 9000, "nameplate2" }, own })
+        return #ahead == 3 and ahead[1] == ICON and ahead[2] == ICON and ahead[3] ~= ICON and #alone == 1
+            and alone[1] ~= ICON and #two == 1 and two[1] ~= ICON and #small == 1 and small[1] ~= ICON
+    end)
     Scenario("accept: a single-pattern record takes no second hit", function()
         local ns, S = Rig(Wand)
         Cast(ns, S, WAND, 10, "nameplate1")

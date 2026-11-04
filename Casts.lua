@@ -856,6 +856,37 @@ function Casts.SpreadFirst(plate, school, now, size)
     return found
 end
 
+-- The learned chain record a solo hit nothing named may be a hop of, logged in its frame ahead of the cast's own first
+-- hit, or nil: one that took no hit yet, of the hit's school, the hit on another plate than its cast's, inside its
+-- window (RecordWindow, SLACK about it) and its learned sizes, unpadded. A frame logs its hits plate by plate, in no
+-- spell's order. Core holds such a hit to its frame's end, and the record's own hit decides (Casts.HopsAhead). Run
+-- shaman6 F3: cast 243932.587 hit 5 plates in one frame 0.19 s after it, and nameplate6's 3 hits (42866 crit, 14247,
+-- 14237) came the lines before its target's first, all '?'.
+function Casts.HopFirst(plate, school, now, size)
+    if not (Plain(plate) and Plain(school) and Plain(now) and IsNumber(size)) then return nil end
+    for _, record in ipairs(records) do
+        local fp = Live(record, now)
+        local low, high = RecordWindow(record)
+        local age = now - record.at
+        local open = fp and fp.pattern == "chain" and fp.school == school and record.hops == 0 and low ~= nil
+            and record.plate ~= nil and plate ~= record.plate
+        if open and age >= low - SLACK and age <= high + SLACK and InLearnedSizes(record, size) then return record end
+    end
+end
+
+-- Whether a hit Casts.HopFirst held on `plate` in the frame at `at` is the chain `record`'s hop: the record's own first
+-- hit landed in that frame, the held hits of the record lie on one plate (`plates`), and that plate is a new one the
+-- chain may still reach (CHAIN_MAX), or its overload in the frame of its hop there (Twin). Two plates or more logged
+-- ahead of the cast's own hit make the frame as much a castless chain's of the same size: taken, shaman6 F2's two such
+-- frames (176K) ran its row 123K over the meter and shaman5 F5's (58K) ran it 58K further over; shaman6 F3's one plate
+-- ahead drew 109K more right.
+function Casts.HopsAhead(record, plate, at, plates)
+    if record.firstAt ~= at or plates > 1 then return false end
+    if not record.plates[plate] then return record.hops < CHAIN_MAX end
+
+    return Twin(record, plate, at)
+end
+
 local MIN_SPREAD = 2     -- plates a cast's held splash frame covers at least (Casts.Spreads)
 local SPREAD_SIZE = 0.05 -- and its hits agree in size within this share (normal scale)
 
