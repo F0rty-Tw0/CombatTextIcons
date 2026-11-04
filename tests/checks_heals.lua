@@ -690,6 +690,23 @@ return function(T)
             next(H.Claim({}, { { size = 11400 } })) == nil and H.Claim({}, { { size = 11400 } }, nil, 205)[1] == TIDE)
     end
 
+    do -- trains: a tick that drifted past SLACK (shamanheal F3's Healing Rain ticked 0.16 s before its due tick)
+        local function Third(size)
+            local H = T.Boot().Heals
+            TrainRead(H, { TIDE })
+            TrainRead(H, { TIDE })
+            H.Cast(TIDE, 100)
+            H.Claim({}, { { size = 11700 } }, nil, 101.5)
+            H.Claim({}, { { size = 11400 } }, nil, 103)
+            return H, H.Claim({}, { { size = size } }, nil, 104.3)[1] -- due at 104.5
+        end
+        local _, drifted = Third(11100)
+        local H, foreign = Third(9000)
+        Check("trains: a heal 0.2 s off its due tick within 10 % of the last tick's size is the tick; one further "
+            .. "off that size is not, and the tick on time still is",
+            drifted == TIDE and foreign == nil and H.Claim({}, { { size = 11100 } }, nil, 104.5)[1] == TIDE)
+    end
+
     do -- trains: walks of 8, 8 and 16 ticks (one ran on into heals past its train) learn 8 ticks
         local ns = T.Boot()
         local H = ns.Heals

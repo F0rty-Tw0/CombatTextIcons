@@ -103,6 +103,12 @@ local COUPLE_CAP = 32   -- couples kept; the one seen least recently goes first
 local SLACK, STEP = 0.15, 1.35
 local PERIOD_LO, PERIOD_HI = 0.8, 3.5
 local MISSES = 2        -- missed ticks in a row end a train
+-- A running train's tick may drift past SLACK, DRIFT of a period more for each period since its last tick: a haste
+-- buff shortens the period mid-train, and a tick's stamp jitters (shamanheal F3's Healing Rain ticked 1.82, 1.68, 1.75
+-- s apart, then 0.16 s before its due tick, and the train died with 10 ticks left). A heal in that drift is the tick
+-- only when it is within DRIFT_SIZE of the last tick's size: a ground heal's ticks hold their size, where a heal a
+-- frame off is another's (shamanheal F5: a 9514 heal 0.17 s before a 7534 rain tick, the last one 7266).
+local DRIFT, DRIFT_SIZE = 0.05, math.log(1.1)
 local TRAIN_TICKS = 5   -- a walk of fewer ticks is no train
 local WALK_ALPHA = 0.01 -- a walk luck alone gives this often or less is a train
 -- Walks agree on one train within PERIOD_TOL s and their middle sizes within AGREE x; agreeing walks whose lucks
@@ -314,28 +320,32 @@ end
 
 -- Each running train whose tick is due at `at` (SLACK either side) takes the heal nothing took before inside its
 -- padded band and within STEP of its last tick, the nearest that tick's size (the first: the band's middle); a tick
--- Struck counted at `at` takes it too. A train past its due tick counts a miss; MISSES in a row, or its learned ticks
--- counted, end it.
+-- Struck counted at `at` takes it too. In the DRIFT past SLACK it takes only a heal within DRIFT_SIZE of its last
+-- tick. A train past its due tick and its drift counts a miss; MISSES in a row, or its learned ticks counted, end it.
 local function ClaimTicks(waiting, claims, at)
     local kept = {}
     for _, run in ipairs(live) do
         local train = ready[run.castID]
         local bare = run.bare == at
         run.bare = nil
-        local running, due = train ~= nil, bare and at or nil
+        local running, due, slack = train ~= nil, bare and at or nil, SLACK
         while running and not bare do
             local period = run.k > 0 and (run.last - run.at) / run.k or train.period
             due = run.last + period * (1 + run.misses)
-            if at <= due + SLACK then break end
+            slack = SLACK + DRIFT * period * (1 + run.misses)
+            if at <= due + slack then break end
             run.misses = run.misses + 1
             running = run.misses < MISSES and run.k + run.misses < train.ticks
         end
-        if running and at >= due - SLACK then
+        if running and at >= due - slack then
             local to, best = run.size or train.size, nil
+            local drifted = math.abs(at - due) > SLACK
             for index, heal in ipairs(waiting) do
                 local size = heal.size
                 if not claims[index] and size and size >= PAD_LO * train.low and size <= STEP * train.high
-                    and (not run.size or Near(size, run.size)) and (not best or Off(size, to) < Off(waiting[best].size, to)) then
+                    and (not run.size or Near(size, run.size))
+                    and (not drifted or (run.size and Off(size, run.size) <= DRIFT_SIZE))
+                    and (not best or Off(size, to) < Off(waiting[best].size, to)) then
                     best = index
                 end
             end
