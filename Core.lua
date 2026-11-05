@@ -186,6 +186,24 @@ local function ShowValue(value)
     return Plain(value) and tostring(value) or "?"
 end
 
+-- grug: Forever probe (2026-11-05), the two below: remove once the Forever fix is chosen.
+-- What an unreadable value really is: "secret", or its type ("nil" when the event gave none).
+local function ShowRaw(value)
+    return issecretvalue(value) and "secret" or type(value)
+end
+
+-- Which other sources of combat numbers this client has, as name=true / false pairs.
+local function ShowApis()
+    local answers = {}
+    for _, name in ipairs({ "issecretvalue", "CombatLogGetCurrentEventInfo", "C_CombatLog", "C_DamageMeter" }) do
+        answers[#answers + 1] = name .. "=" .. tostring(_G[name] ~= nil)
+    end
+    local ok, valid = pcall(function() return C_EventUtils.IsEventValid("COMBAT_LOG_EVENT_UNFILTERED") end)
+    answers[#answers + 1] = "cleu=" .. (ok and tostring(valid) or "err")
+
+    return table.concat(answers, " ")
+end
+
 -- IsTarget's raw answer for the log: true / false, "secret" or "err".
 local function ShowIsTarget(unit)
     local ok, isTarget = pcall(UnitIsUnit, unit, "target")
@@ -779,6 +797,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit, ShowValue(school),
             ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowThreat(unit), ShowGroup(), ShowNPC(unit),
             ShowIsTarget(unit))
+        if not Plain(amount) then ns.Debug("PROBE amount=%s meter=%s", ShowRaw(amount), Teacher.ProbeMeter()) end
     end
     -- A crowded fight draws only like-sized ticks (Tracker.Identify) and CrowdFits casts (Casts.Claim).
     local crowded = Teacher.fight and Teacher.fight.crowded
@@ -1368,6 +1387,7 @@ SlashCmdList.COMBATTEXTICONS = function(message)
         else
             db.debugLog = {}
             ns.Debug = Debug
+            Debug("PROBE api %s", ShowApis())
             print(PREFIX .. "debug log on (cleared)")
         end
         return

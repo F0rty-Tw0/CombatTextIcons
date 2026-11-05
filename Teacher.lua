@@ -236,6 +236,30 @@ local function ReadRows(sessionID, meterType)
     return rows
 end
 
+-- grug: Forever probe (2026-11-05): the newest session's rows as they read right now, each value "secret" when it is, or
+-- "err" and why. One line per hit whose amount is unreadable shows which of a row's fields read plainly in combat and
+-- how soon a row appears. It never turns the meter off, as ReadRows does on an error. Remove once the Forever fix is
+-- chosen.
+function Teacher.ProbeMeter()
+    local function Show(value) return issecretvalue(value) and "secret" or tostring(value) end
+    local ok, text = pcall(function()
+        local newest
+        for _, session in ipairs(C_DamageMeter.GetAvailableCombatSessions()) do
+            if not newest or session.sessionID > newest then newest = session.sessionID end
+        end
+        if not newest then return "no-sessions" end
+        local source = C_DamageMeter.GetCombatSessionSourceFromID(newest, Meter.DAMAGE_DONE, UnitGUID("player"))
+        local parts = { "session:" .. newest }
+        for _, row in ipairs(source.combatSpells) do
+            parts[#parts + 1] = Show(row.spellID) .. ":" .. Show(row.totalAmount)
+        end
+
+        return table.concat(parts, ",")
+    end)
+
+    return ok and text or "err " .. tostring(text)
+end
+
 -- A re-pull within a few seconds continues the meter session read last (probe6: fights 3 and 4
 -- share session 4). The rows' growth since that read is this fight's: rows that grew, by how much.
 local function Growth(rows)

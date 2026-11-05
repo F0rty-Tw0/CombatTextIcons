@@ -224,6 +224,56 @@ return function(T)
             heal == "HEAL player school=2 amount=500 flag=" and log[#log] == ROUTE_UNKNOWN)
     end
 
+    -- The Forever probe: what an unreadable amount is, and the meter's rows at that moment ---------
+    do
+        local rig = Rig(nil, true)
+        local function Probes()
+            local lines = {}
+            for _, line in ipairs(rig.log) do
+                if line:find("^PROBE") then lines[#lines + 1] = line end
+            end
+            return lines
+        end
+        local sessions, source = C_DamageMeter.GetAvailableCombatSessions, C_DamageMeter.GetCombatSessionSourceFromID
+        local total = 88
+        C_DamageMeter.GetAvailableCombatSessions = function() return { { sessionID = 4 }, { sessionID = 7 } } end
+        C_DamageMeter.GetCombatSessionSourceFromID = function(id)
+            return { combatSpells = { { spellID = 75, totalAmount = total }, { spellID = 589, totalAmount = id } } }
+        end
+        local available = rig.ns.Meter.Disable
+        local disabled = false
+        rig.ns.Meter.Disable = function() disabled = true end
+        rig.Hit(1, "nameplate1", 31)
+        local plain = #Probes()
+        rig.Hit(2, "nameplate1", Secret(31))
+        rig.ns.Core.UNIT_COMBAT("nameplate1", "WOUND", "", nil, 32)
+        total = Secret(88)
+        rig.Hit(3, "nameplate1", Secret(31))
+        C_DamageMeter.GetAvailableCombatSessions = function() error("sessions broke") end
+        rig.Hit(4, "nameplate1", Secret(31))
+        local lines = Probes()
+        C_DamageMeter.GetAvailableCombatSessions = function() return {} end
+        local empty = rig.ns.Teacher.ProbeMeter()
+        C_DamageMeter.GetAvailableCombatSessions, C_DamageMeter.GetCombatSessionSourceFromID = sessions, source
+        rig.ns.Meter.Disable = available
+        Check("probe: a plain amount logs no probe line", plain == 0)
+        Check("probe: a secret amount logs secret and the newest session's rows",
+            lines[1] == "PROBE amount=secret meter=session:7,75:88,589:7")
+        Check("probe: a missing amount logs nil", lines[2] == "PROBE amount=nil meter=session:7,75:88,589:7")
+        Check("probe: a secret total shows as secret, its spell ID stays plain",
+            lines[3] == "PROBE amount=secret meter=session:7,75:secret,589:7")
+        Check("probe: a failed read logs err, and never turns the meter off",
+            lines[4] ~= nil and lines[4]:find("meter=err .*sessions broke") ~= nil and not disabled)
+        Check("probe: a meter with no sessions says so", empty == "no-sessions")
+
+        local slash = Rig()
+        SlashCmdList.COMBATTEXTICONS("debug")
+        local first = CombatTextIconsDB.debugLog[1]
+        Check("probe: /cti debug starts the log with the client's combat APIs", first ~= nil
+            and first:find("PROBE api issecretvalue=true CombatLogGetCurrentEventInfo=%a+ C_CombatLog=%a+ C_DamageMeter=true cleu=%a+$") ~= nil)
+        slash.ns.Debug = nil
+    end
+
     -- 5. "?" on unidentified hits when solo ---------------------------------------------------
     do
         local function Unclaimed(group)
