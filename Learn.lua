@@ -507,6 +507,21 @@ end
 -- and its row stayed under the meter, so no read struck it. So a physical sig also needs the cast's physical tally
 -- (all its physical births, kept across sigs) to beat luck. A frozen fight (Frozen) votes only for a birth inside
 -- your own channel (Streams' ChannelOwners: its sole owner is that channel).
+-- The owners of `stream` cast on one stamp with another owner, on Forever: its ticks can't tell them apart, and with its
+-- amounts secret no meter read ever strikes the wrong one. Bone-Apetit opens with Smite 591 and SW:P 589 on one stamp, so
+-- Smite, a direct Holy hit, was learned as a 2.94 s Shadow DoT and drew SW:P's ticks. A cast alone on its stamp still votes.
+local function SharedStamp(stream)
+    local shared, first = {}, {}
+    if not ns.IsForever then return shared end
+    for _, spellID in ipairs(stream.owners) do
+        local at = stream.ownerAt and stream.ownerAt[spellID]
+        if at and first[at] then shared[spellID], shared[first[at]] = true, true end
+        if at then first[at] = first[at] or spellID end
+    end
+
+    return shared
+end
+
 function Learn.OnBirth(key, stream, now)
     if stream.wide then return end
     local owners = stream.owners
@@ -542,11 +557,11 @@ function Learn.OnBirth(key, stream, now)
         sigs[spellID], entries[spellID] = sig, entry
     end
 
-    local voted = {}
+    local voted, shared = {}, SharedStamp(stream)
     -- The owners vote, and so do the casts whose direct hit landed in the birth window (Streams' Owners: `landed`).
     for _, voters in ipairs({ stream.owners, stream.landed or {} }) do
         for _, spellID in ipairs(voters) do
-            local sig = sigs[spellID]
+            local sig = not shared[spellID] and sigs[spellID]
             -- One cast votes once per sig: dense noise puts it in several births' owner windows.
             local castAt = stream.ownerAt and stream.ownerAt[spellID]
             if sig and not voted[spellID] and (castAt == nil or sig.lastCast ~= castAt) then

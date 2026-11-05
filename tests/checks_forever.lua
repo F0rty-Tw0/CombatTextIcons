@@ -296,6 +296,32 @@ return function(T)
             and heal.texture == rig.ns.Meter.UNKNOWN_ICON)
     end
 
+    -- Forever's rhythm votes: casts on one stamp can't be told apart, and no read corrects a wrong one -----
+    do
+        local SMITE, PAIN = 591, 589
+        local function Birth(forever, painAt)
+            local voter = Rig()
+            local Learn, Streams = voter.ns.Learn, voter.ns.Streams
+            voter.ns.IsForever = forever
+            Streams.LogCast("k", SMITE, "dot", 10)
+            Streams.LogCast("k", PAIN, "dot", painAt)
+            Learn.OnBirth("k", { owners = { SMITE, PAIN }, ownerAt = { [SMITE] = 10, [PAIN] = painAt },
+                ownerKind = { [SMITE] = "dot", [PAIN] = "dot" }, landed = {}, school = 32, period = 3, birth = 16,
+                hits = { 10, 13, 16 } }, 16)
+            local function Votes(spellID)
+                local entry = Learn.Votes(spellID)
+                return entry and entry.sigs[1] and entry.sigs[1].votes
+            end
+            return Votes(SMITE), Votes(PAIN)
+        end
+        local smite, pain = Birth(true, 10)
+        Check("forever votes: two casts on one stamp give a birth no vote", smite == 0 and pain == 0)
+        smite, pain = Birth(true, 11)
+        Check("forever votes: casts on their own stamps both vote", smite == 1 and pain == 1)
+        smite, pain = Birth(false, 10)
+        Check("forever votes: off Forever two casts on one stamp still vote", smite == 1 and pain == 1)
+    end
+
     -- 5. "?" on unidentified hits when solo ---------------------------------------------------
     do
         local function Unclaimed(group)
