@@ -4176,4 +4176,28 @@ return function(T)
             ran and paused and drained and outcomes == 0 and rig.ns.Teacher.last == nil and storeB.areas == nil
             and storeB.pace == nil and next(storeB.ownRows) == nil and storeA.ownRows[SMITE] == true)
     end
+
+    -- Area counts one stamp and plate once (run hunter F16: 987 + 1089 beside Kill Command's own hit, a room of 3949):
+    -- a learned single cast, one cast this fight (tally 1101, row 5000: tol 50, room 3949; the sum 2076 fits and
+    -- explains half, but 1101 + 2076 leaves the row open, so no lone way). Two '?' hits in one frame on one plate are
+    -- one spot, under MIN_HITS; on two plates they are two.
+    do
+        local function Try(plates)
+            local rig = Rig({ [MIND_BLAST] = 32 })
+            local casts = { { at = 30, base = MIND_BLAST, spellID = MIND_BLAST, plate = "p1" } }
+            local unknown = {
+                { at = 30.25, plate = plates[1], school = 32, amount = 987 },
+                { at = 30.25, plate = plates[2], school = 32, amount = 1089 },
+            }
+            local run = { casts = casts, tally = { [MIND_BLAST] = 1101 }, drawn = {}, spreads = {}, mates = {},
+                unknown = unknown }
+            local ways = rig.ns.Area.Learn(run, { { spellID = MIND_BLAST, total = 5000, overkill = 0 } }, {})
+
+            return ways, rig.ns.Fingerprints.Get(MIND_BLAST)
+        end
+        local oneWays, oneFp = Try({ "p2", "p2" })
+        Check("area: two hits on one plate in one frame do not meet MIN_HITS", #oneWays == 0 and not oneFp.area)
+        local twoWays, twoFp = Try({ "p2", "p3" })
+        Check("area: two hits on two plates in one frame still do", #twoWays == 1 and twoFp.area == true)
+    end
 end

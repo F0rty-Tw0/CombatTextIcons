@@ -5,9 +5,10 @@
 -- stand for the drawn: Area.Learn), the '?' hits and frame mates (Teacher.Mate: hits on dummies no one fights, in a
 -- solo hit's frame) of its school inside its padded size band on
 -- another plate than its cast's, AREA_SLACK below its learned window to Casts.SPLASH past its top after its newest
--- cast, are summed. When the sum fits the residual and explains at least SHARE of it, with MIN_HITS hits or more,
--- the base is marked area (Fingerprints.SetArea): its records then take such hits on other plates (Casts.lua). One
--- padded-band hit is enough when it lands in an own hit's frame and closes the row (Area.Learn).
+-- cast, are summed. When the sum fits the residual and explains at least SHARE of it, with MIN_HITS spots or more
+-- (hits on distinct plates or in distinct frames: Spots), the base is marked area (Fingerprints.SetArea): its records
+-- then take such hits on other plates (Casts.lua). One padded-band hit is enough when it lands in an own hit's frame
+-- and closes the row (Area.Learn).
 -- When it does not, the hits from Casts.AREA_LO of its smallest size are summed instead: run paladin2's Hammer of
 -- Light 427453 splashed 25-29K beside its 45-46K target hit, none in the padded band. Only then, as the lower floor
 -- also takes other spells' hits: druid2 F1's Swipe 106785 summed 21 hits (209345) in a room of 212108, the lower floor
@@ -223,6 +224,22 @@ local function OtherRowSum(way, own, rows, tally, named)
     return false
 end
 
+-- The count of distinct (stamp, plate) pairs among `hits`: a plate struck twice in one frame is one spot, one hit's
+-- worth of evidence that the cast splashes. Run hunter F16: Kill Command 17253's 987 + 1089 on one plate in one frame
+-- (2076, room 3949) met MIN_HITS when counted as 2 hits; marked area, F18 drew 92584 of its 33680 row.
+local function Spots(hits)
+    local seen, count = {}, 0
+    for _, hit in ipairs(hits) do
+        seen[hit.at] = seen[hit.at] or {}
+        if not seen[hit.at][hit.plate] then
+            seen[hit.at][hit.plate] = true
+            count = count + 1
+        end
+    end
+
+    return count
+end
+
 -- The area pass of one read. `learned` holds the ways this read learned (their hits are spent, their bases skipped),
 -- but a base only the steady pass learned (way.steady) is tried too, its way's sum counted as drawn under its row: run
 -- paladin F3, Steady learned Hammer of Light 427453's target hits at the read, and its splash (26119 + 27007, one
@@ -283,8 +300,10 @@ function Area.Learn(run, rows, learned)
             local own = OwnStamps(run, castID, learned)
             local function Explains(way, lone, share)
                 local closes = drawn + way.sum >= row.total - tol
-                return (#way.hits >= MIN_HITS or lone and closes and Beside(way, own)) and way.sum <= room
-                    and way.sum >= (share or SHARE) * room
+                local enough = Spots(way.hits) >= MIN_HITS or lone and closes and Beside(way, own)
+                local least = (share or SHARE) * room
+
+                return enough and way.sum <= room and way.sum >= least
             end
             -- frame mates may be another spell's of the school: a way they push past the room tries without them
             local function Way(floor)
