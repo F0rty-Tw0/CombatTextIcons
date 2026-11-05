@@ -8,7 +8,8 @@
 -- are haste-free bases. Learned spells are served to the Tracker like table
 -- rows, with their biggest tick seen (Learn.Sized). Two consecutive casts without a tick drop a spell again, as do the
 -- teacher's clear meter reads (two unpaired reads in a row, or at once when over). A group or crowded fight
--- (Frozen) drops nothing and votes only inside your own channel. Saved data is
+-- (Frozen) drops nothing and votes only inside your own channel, except that a crowded fight can drop a DoT through
+-- the DoT-drop loop when a crowded read learns (CrowdRead, Teacher.lua). Saved data is
 -- checked on load and never trusted: an old save's HoT is dropped (a HoT's ticks are a Heals.lua train's; the saves
 -- tests/score/shaman4.start and lock2.start learned Ghost Wolf 2645 and Burning Rush 111400 as HoTs).
 

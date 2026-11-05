@@ -17,12 +17,13 @@
 -- secret value or an error is skipped whole. The verdicts also unlearn DoTs, channels and
 -- procs whose drawn total overshoots the meter or never pairs with a row, and go to the
 -- Ledger, which attaches them and the read's outcome to the saved fight. A solo fight is also a crowd check: when
--- the wounds seen that may be yours (Teacher.Seen) fit the meter's rows the area is "clear" and
--- learning runs (the leftover '?' hits and still-open rows then go to Procs.Read, then to
--- Ground.Castless), else it
--- is "crowded"; seen below half the rows' total is "short"; a fight in a group is "group". Those three reads are
--- frozen: they judge for the Ledger and change no learned state (no agree, strike, drop, alias or vote), so what
--- was learned keeps drawing and learning goes on at the next clear read. Each map keeps the verdict last decided on it, which comes back on entering the
+-- the wounds seen that may be yours (Teacher.Seen) fit the meter's rows the area is "clear" and learning runs (the
+-- leftover '?' hits and still-open rows then go to Procs.Read, then to Ground.Castless), else it is "crowded"; seen
+-- below half the rows' total is "short"; a fight in a group is "group". A crowded read learns only by two paths
+-- (CrowdRead): narrow Learn on your target's hits when the target's wounds fit the meter, else the strict passes of
+-- CrowdLearn (StrictWay). Otherwise, and for a short or group read, it is frozen: it judges for the Ledger and
+-- changes no learned state (no agree, strike, drop, alias or vote), so what was learned keeps drawing and learning
+-- goes on at the next clear read. Each map keeps the verdict last decided on it, which comes back on entering the
 -- world there (EnterWorld); a map with none starts "unknown" (learned procs draw, '?' stays hidden: AreaClear and
 -- NotCrowded) until its first solo read decides. Mid-fight, one plate's seen wounds far past the best pace
 -- a clear read measured make that fight crowded at once (Teacher.Seen), before its read. With /cti debug each
@@ -628,7 +629,8 @@ end
 -- `all` leaves out each hit `Lone(hit, castID)` names the whole of another row.
 local function CandidateGroups(unknown, spent, Lone, mates, strangers)
     local byKey, list = {}, {}
-    for _, hit in ipairs(unknown) do
+    for index, hit in ipairs(unknown) do
+        if index % 1024 == 0 then Teacher.Yield() end
         local newest = {}
         for _, candidate in ipairs(not spent[hit] and hit.candidates or {}) do
             local castID = candidate.castID
@@ -660,13 +662,16 @@ local function CandidateGroups(unknown, spent, Lone, mates, strangers)
             end
         end
     end
+    Teacher.Yield()
     local frames = {} -- "at:school" -> the '?' hits of that school in that frame
     for _, hit in ipairs(unknown) do
         local key = hit.at .. ":" .. hit.school
         frames[key] = frames[key] or {}
         table.insert(frames[key], hit)
     end
+    Teacher.Yield()
     for _, group in ipairs(list) do
+        Teacher.Yield()
         local cand = { castID = group.castID, sum = 0, hits = {}, castOf = group.castOf, mates = {}, area = true,
             covered = 0, casts = 0 }
         group.cand = cand
@@ -699,8 +704,10 @@ local function CandidateGroups(unknown, spent, Lone, mates, strangers)
             castsOf[candidate.castID][candidate.castAt] = true
         end
     end
+    Teacher.Yield()
     local pool = PoolOf({ unknown, mates or {}, strangers or {} })
     for _, group in ipairs(list) do
+        Teacher.Yield()
         group.stamps = castsOf[group.castID] or {}
         for _ in pairs(group.stamps) do group.cand.casts = group.cand.casts + 1 end
         group.fan = Fan(group, frames, mates, spent)
@@ -916,15 +923,21 @@ local function Twins(groups, WayOf, owners)
     return twin
 end
 
+local function Agrees(group, way, row, owners, gate)
+    return Pairs(group, way, row, owners) and (not gate or gate(group, way, row))
+end
+
 -- One pairing pass over the rows and groups `seen` does not hold yet: `WayOf(group, row)` is the
 -- group's sum to try against that row. A row and a group that agree only with each other are learned; every row
--- and group that agreed with anything goes into `seen`, so a later pass never revisits them.
-local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritten)
+-- and group that agreed with anything goes into `seen`, so a later pass never revisits them. A `gate(group, way, row)`
+-- refuses a pairing before it counts (StrictWay): a refused way leaves its row and group unseen for the next pass.
+local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritten, gate)
     local groupsOf, rowsOf, twin = {}, {}, Twins(groups, WayOf, owners)
     for position, item in ipairs(open) do
         for groupIndex, group in ipairs(groups) do
-            if not seen.rows[position] and not seen.groups[groupIndex] and not twin[groupIndex]
-                and Pairs(group, WayOf(group, item.row), item.row, owners) then
+            local isFree = not seen.rows[position] and not seen.groups[groupIndex] and not twin[groupIndex]
+            local way = isFree and WayOf(group, item.row)
+            if way and Agrees(group, way, item.row, owners, gate) then
                 groupsOf[position] = (groupsOf[position] or 0) + 1
                 rowsOf[groupIndex] = (rowsOf[groupIndex] or 0) + 1
             end
@@ -935,7 +948,7 @@ local function Pass(groups, open, owners, WayOf, seen, results, learned, rewritt
         for groupIndex, group in ipairs(groups) do
             local row = item.row
             local way = WayOf(group, row)
-            if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Pairs(group, way, row, owners) then
+            if groupsOf[position] == 1 and rowsOf[groupIndex] == 1 and Agrees(group, way, row, owners, gate) then
                 -- A sum that met the cast's own row is exact and teaches from one cast (Fingerprints EXACT_CASTS);
                 -- an alias row's keeps LEARN_CASTS, and so does an `all` sum, which mixes sizes: in run shamanele
                 -- its one-cast pairs cost Lightning Bolt 188196 1.9 pt, in run druid2 it drew Ravage past its row.
@@ -1154,6 +1167,53 @@ local function DotPass(run, rows, open, rewritten, results, learned)
     end
 end
 
+-- A clear read runs all these passes; a crowded read's target view none.
+local function WidePasses(run, rows, open, rewritten, results, learned)
+    for _, way in ipairs(Ground.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    Teacher.Yield()
+    for _, way in ipairs(Chain.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    Teacher.Yield()
+    DotPass(run, rows, open, rewritten, results, learned)
+    Teacher.Yield()
+    for _, way in ipairs(Stack.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Ramp.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Flat.Learn(run, rows, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Train.Learn(run, rows, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Volley.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Area.Learn(run, rows, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Area.Twins(run, rows, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Area.Echoes(run, rows, learned)) do learned[#learned + 1] = way end
+    for _, way in ipairs(ns.Link.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+end
+
+-- The pairing both Learn and CrowdLearn run: the group and top passes, then one cand pass per `candWays` accessor, each
+-- way held to `gate` when given. Returns the learned ways and the set of `open` positions rewritten.
+local function Pairing(run, results, open, rows, candWays, gate)
+    local groups = Groups(run.unknown, BurstRow(open, run.unknown))
+    Teacher.Yield()
+    local owners = Owners(groups, rows)
+    local seen, learned, rewritten = { rows = {}, groups = {} }, {}, {}
+    Pass(groups, open, owners, function(group) return group end, seen, results, learned, rewritten, gate)
+    Pass(groups, open, owners, function(group) return group.top end, seen, results, learned, rewritten, gate)
+    Teacher.Yield()
+    local spent = {}
+    for _, way in ipairs(learned) do
+        for _, hit in ipairs(way.hits) do spent[hit] = true end
+    end
+    local candGroups = CandidateGroups(run.unknown, spent, LoneRow(open), run.mates, run.strangers)
+    Teacher.Yield()
+    local candSeen = { rows = seen.rows, groups = {} }
+    -- A cast a '?' hit names as a candidate is cast this fight too, so its row is its own (Owners): run shaman6 F1,
+    -- Meteor 117588's cand (its 112583 crit on the target and 4 mates of 56-58K) met its row 341245 exactly, and so
+    -- did Ascendance 114050's cand of the same hits as an alias, so neither paired (shaman5 F3 alike).
+    for _, group in ipairs(candGroups) do owners.casts[group.castID] = true end
+    for _, WayOf in ipairs(candWays) do
+        Pass(candGroups, open, owners, WayOf, candSeen, results, learned, rewritten, gate)
+    end
+
+    return learned, rewritten
+end
+
 -- Learning from '?' hits (spec 6.5): rewrites the learned rows of `results` against the
 -- session's meter `rows`. Whole sums pair first; a row and a group that no whole sum agreed
 -- with then try `top`; then each cast's largest hit by candidates (CandidateGroups) tries the cast's
@@ -1172,51 +1232,98 @@ end
 -- A fingerprint learned under a learned DoT of another school drops the DoT: the cast's own hits own its row, so
 -- the DoT's draws were other spells' (a stale save's Nature DoT under Lava Burst 51505 drew Surging Totem's ticks).
 -- Returns the learned ways ({ castID, sum, hits }) and the set of `open` positions rewritten.
-local function Learn(run, results, open, rows)
-    local groups = Groups(run.unknown, BurstRow(open, run.unknown))
-    local owners = Owners(groups, rows)
-    local seen, learned, rewritten = { rows = {}, groups = {} }, {}, {}
-    Pass(groups, open, owners, function(group) return group end, seen, results, learned, rewritten)
-    Pass(groups, open, owners, function(group) return group.top end, seen, results, learned, rewritten)
-    Teacher.Yield()
-    local spent = {}
-    for _, way in ipairs(learned) do
-        for _, hit in ipairs(way.hits) do spent[hit] = true end
-    end
-    local candGroups = CandidateGroups(run.unknown, spent, LoneRow(open), run.mates, run.strangers)
-    local candSeen = { rows = seen.rows, groups = {} }
-    -- A cast a '?' hit names as a candidate is cast this fight too, so its row is its own (Owners): run shaman6 F1,
-    -- Meteor 117588's cand (its 112583 crit on the target and 4 mates of 56-58K) met its row 341245 exactly, and so
-    -- did Ascendance 114050's cand of the same hits as an alias, so neither paired (shaman5 F3 alike).
-    for _, group in ipairs(candGroups) do owners.casts[group.castID] = true end
-    Pass(candGroups, open, owners, ExactWay, candSeen, results, learned, rewritten)
-    Pass(candGroups, open, owners, function(group) return group.all end, candSeen, results, learned, rewritten)
-    Pass(candGroups, open, owners, function(group) return group.fan end, candSeen, results, learned, rewritten)
-    Pass(candGroups, open, owners, function(group) return group.across end, candSeen, results, learned, rewritten)
+-- `narrow` (a crowded read's target view, CrowdRead) runs only the Pass calls, the steady pass and the DoT drop: the
+-- passes after the steady pass (WidePasses) trust a read whose wounds are all yours, and a crowd's are not (run
+-- druid: the ramp pass taught 441591 from a crowd at 5-20K, and it drew 279857 against a row of 180908 in F12).
+local function Learn(run, results, open, rows, narrow)
+    local learned, rewritten = Pairing(run, results, open, rows, {
+        ExactWay,
+        function(group) return group.all end,
+        function(group) return group.fan end,
+        function(group) return group.across end,
+    })
     Teacher.Yield()
     for _, way in ipairs(Steady.Learn(run, rows, learned)) do learned[#learned + 1] = way end
     Teacher.Yield()
-    for _, way in ipairs(Ground.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
-    Teacher.Yield()
-    for _, way in ipairs(Chain.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
-    Teacher.Yield()
-    DotPass(run, rows, open, rewritten, results, learned)
-    Teacher.Yield()
-    for _, way in ipairs(Stack.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
-    for _, way in ipairs(ns.Ramp.Learn(run, open, rewritten, results, learned)) do learned[#learned + 1] = way end
-    for _, way in ipairs(ns.Flat.Learn(run, rows, learned)) do learned[#learned + 1] = way end
-    for _, way in ipairs(ns.Train.Learn(run, rows, learned)) do learned[#learned + 1] = way end
-    for _, way in ipairs(ns.Volley.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
-    for _, way in ipairs(ns.Area.Learn(run, rows, learned)) do learned[#learned + 1] = way end
-    for _, way in ipairs(ns.Area.Twins(run, rows, learned)) do learned[#learned + 1] = way end
-    for _, way in ipairs(ns.Area.Echoes(run, rows, learned)) do learned[#learned + 1] = way end
-    for _, way in ipairs(ns.Link.Learn(run, rows, open, rewritten, results, learned)) do learned[#learned + 1] = way end
+    if not narrow then WidePasses(run, rows, open, rewritten, results, learned) end
     for _, way in ipairs(learned) do
         local dot, fp = ns.Learn.Get(way.castID), Fingerprints.Get(way.castID)
         if dot and fp and fp.learned and fp.school ~= dot.school then ns.Learn.Drop(way.castID) end
     end
 
     return learned, rewritten
+end
+
+-- Whether `way` is proof enough in a crowd: the cast's own row, met exactly (not inside Judge's tolerance) by hits of
+-- COVER_CASTS distinct casts at least, none of them with a frame mate. A crowd's strangers add hits to a sum, so
+-- only an exact sum says the hits are the cast's.
+-- In the replays this path learned Mind Blast 8092 on shadow-dots (3.5 -> 11.3 % right).
+local function StrictWay(group, way, row)
+    local isOwnRow = row.spellID == group.castID
+    local meets = Meets(way.sum, row)
+    local hasMates = next(way.mates or {}) ~= nil
+    if not isOwnRow or not meets or hasMates then return false end
+    local casts = {}
+    for _, hit in ipairs(way.hits) do
+        local cast = way.castOf and way.castOf[hit] or hit
+        casts[cast.castAt] = true
+    end
+    local count = 0
+    for _ in pairs(casts) do count = count + 1 end
+
+    return count >= COVER_CASTS
+end
+
+-- What a crowded read learns when your target's wounds do not fit the meter (CrowdRead): the group, top and cand
+-- passes of Learn on the whole run, each way held to StrictWay, and no steady pass. Returns the learned ways.
+local function CrowdLearn(run, results, open, rows)
+    local learned = Pairing(run, results, open, rows, { function(group) return group.cand end }, StrictWay)
+
+    return learned
+end
+
+-- The entries of `hits` that landed on your target: their (stamp, plate) pair is in run.targetHits (Teacher.Seen).
+local function OnTarget(run, hits)
+    local kept = {}
+    for _, hit in ipairs(hits) do
+        local plates = run.targetHits[hit.at]
+        if plates and plates[hit.plate] then kept[#kept + 1] = hit end
+    end
+
+    return kept
+end
+
+-- A crowded read as if only your target's wounds were in it: the run's own fields, but its '?' hits, frame mates,
+-- strangers, splash and learned casts' own hits are those on the target, and `seen` is the target's wounds.
+local function TargetView(run)
+    local view = { unknown = OnTarget(run, run.unknown), mates = OnTarget(run, run.mates),
+        strangers = OnTarget(run, run.strangers), spreads = OnTarget(run, run.spreads),
+        owns = OnTarget(run, run.owns), seen = run.targetSeen }
+
+    return setmetatable(view, { __index = run })
+end
+
+-- The meter's rows' total, and the most wounds they account for: that total, their overkill and the judge's tolerance.
+local function MeterRoom(rows)
+    local total, overkill = 0, 0
+    for _, row in ipairs(rows) do
+        total, overkill = total + row.total, overkill + row.overkill
+    end
+
+    return total, total + overkill + math.max(1, total / 100)
+end
+
+-- What a crowded read learns: when the wounds on your target fit the meter (MeterRoom, as CrowdCheck weighs a clear
+-- read), the narrow passes on the target view. Else the strict path (CrowdLearn) on the whole run, each way held to
+-- StrictWay. Returns the learned ways.
+local function CrowdRead(run, results, open, rows)
+    local _, room = MeterRoom(rows)
+    local fits = run.targetSeen > 0 and run.targetSeen <= room
+    if not fits then return CrowdLearn(run, results, open, rows) end
+
+    local learned = Learn(TargetView(run), results, open, rows, true)
+
+    return learned
 end
 
 -- The '?' hits no learned way took (a `top` leaves its group's other hits). Groups are keyed
@@ -1292,17 +1399,12 @@ end
 -- seen fit the meter's rows (their total plus overkill, within the judge's tolerance), else
 -- "crowded". Also returns the rows' total.
 local function CrowdCheck(run, rows)
-    local total, overkill = 0, 0
-    for _, row in ipairs(rows) do
-        total, overkill = total + row.total, overkill + row.overkill
-    end
-
+    local total, room = MeterRoom(rows)
     if run.group then return "group", total end
     -- an empty read tells nothing about the area (shamanally2: a 3 s blip after a crowded read saved "clear")
     if total <= 0 or run.seen < total / 2 then return "short", total end
 
-    local tolerance = math.max(1, total / 100)
-    local fits = run.seen <= total + overkill + tolerance
+    local fits = run.seen <= room
 
     return fits and "clear" or "crowded", total
 end
@@ -1367,8 +1469,8 @@ end
 
 -- A quick re-pull: the read met the next fight (in combat the meter answers secret), and the
 -- game extends one meter session over both (run 102226Z: the next read held this fight's rows).
--- This fight's tally, seen, '?' hits, ticks and stream records join the open one, oldest first, and are
--- judged at its read; this fight gets no outcome of its own.
+-- This fight's tally, seen, target wounds (total and stamp/plate pairs), '?' hits, ticks and stream records join the
+-- open one, oldest first, and are judged at its read; this fight gets no outcome of its own.
 local function Carry(run, into)
     for spellID, amount in pairs(run.tally) do into.tally[spellID] = (into.tally[spellID] or 0) + amount end
     for index, hit in ipairs(run.unknown) do table.insert(into.unknown, index, hit) end
@@ -1385,6 +1487,11 @@ local function Carry(run, into)
     for index, help in ipairs(run.helps or {}) do table.insert(into.helps, index, help) end
     for index, hit in ipairs(run.drawn or {}) do table.insert(into.drawn, index, hit) end
     into.seen = into.seen + run.seen
+    into.targetSeen = into.targetSeen + run.targetSeen
+    for stamp, plates in pairs(run.targetHits) do
+        into.targetHits[stamp] = into.targetHits[stamp] or {}
+        for plate in pairs(plates) do into.targetHits[stamp][plate] = true end
+    end
     for school, sum in pairs(run.schools or {}) do into.schools[school] = (into.schools[school] or 0) + sum end
     into.carried = (into.carried or 0) + (run.duration or 0)
     into.streams = Streams.JoinFight(into.streams or {}, run.streams or {})
@@ -1503,7 +1610,8 @@ local function Judging(run, sessionID, rows, reason)
     ns.Casts.NoteRows(full) -- the next fight's casts key by the meter's own rows
     ns.Casts.Rekey(run.unknown, full) -- and so do this fight's unexplained hits
     local area, total = CrowdCheck(run, rows)
-    -- a group, crowded or short read is frozen: it judges for the Ledger and changes no learned state
+    -- a group, crowded or short read is frozen: it judges for the Ledger and changes no learned state, except that a
+    -- crowded read may learn by the target path or the strict path (CrowdRead, CrowdLearn)
     local frozen = area ~= "clear"
     -- this fight's casts with no row: no dot votes (the rows are yours alone, so a frozen read bans too); learned and
     -- read clear, a strike
@@ -1554,6 +1662,9 @@ local function Judging(run, sessionID, rows, reason)
             Heals.Learn(run.heals, run.helps, healRows, run.duration, run.drawn,
                 { rows = rows, cast = fight.cast, hits = run.unknown, named = named }, run.ended)
         end
+    elseif area == "crowded" then
+        -- still frozen: no strike, safety net or Verdicts alias; what it learns comes from CrowdRead.
+        for _, way in ipairs(CrowdRead(run, results, open, rows)) do last.learned[way.castID] = #way.hits end
     end
     Ledger.SetVerdicts(last.rows, run.at)
     Done(last)
@@ -1577,7 +1688,7 @@ function Teacher.Start(now, group)
     local streams = Streams.NewFight()
     Teacher.fight = { at = now, tally = {}, unknown = {}, mates = {}, strangers = {}, ticks = {}, casts = {}, seen = 0,
         plates = {}, live = 0, schools = {}, group = group, streams = streams, heals = {}, helps = {}, drawn = {},
-        spreads = {}, owns = {} }
+        spreads = {}, owns = {}, targetSeen = 0, targetHits = {} }
 end
 
 -- A wound landed while the player was grouped: the fight's read will not learn.
@@ -1587,10 +1698,18 @@ end
 
 -- A wound of this size and `school` that may be yours was seen on `plate` at `now`, drawn or not (Core's Wound decides
 -- which count; a wound without a plate counts on one shared key). Past the live crowd check's bound (CROWD_PACE) on
--- one plate the fight is crowded until it ends.
-function Teacher.Seen(amount, now, school, plate)
+-- one plate the fight is crowded until it ends. A wound on your target (`isTarget`) also counts in targetSeen, and its
+-- (stamp, plate) pair joins targetHits when it has both: a crowded read can later learn from what hit your target.
+function Teacher.Seen(amount, now, school, plate, isTarget)
     local fight = Teacher.fight
     if not (fight and IsNumber(amount)) then return end
+    if isTarget then
+        fight.targetSeen = fight.targetSeen + amount
+        if IsNumber(now) and plate ~= nil then
+            fight.targetHits[now] = fight.targetHits[now] or {}
+            fight.targetHits[now][plate] = true
+        end
+    end
     local key = plate or fight.plates
     local onPlate = (fight.plates[key] or 0) + amount
     fight.seen, fight.plates[key], fight.live = fight.seen + amount, onPlate, math.max(fight.live, onPlate)

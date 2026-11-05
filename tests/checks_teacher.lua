@@ -843,7 +843,7 @@ return function(T)
 
         do
             local rig, ok, last, learned = Crowd("clear", 300)
-            Check("crowd: a crowded read from clear turns crowded, skips learning, still applies verdicts",
+            Check("crowd: a crowded read from clear turns crowded, its one cast is too few to learn, verdicts still apply",
                 ok and rig.ns.Teacher.area == "crowded" and last.area == "crowded" and not learned
                 and Find(last, SMITE).verdict == "agree")
             rig, ok, last, learned = Crowd("crowded", 173)
@@ -1425,7 +1425,8 @@ return function(T)
                 rig.ns.Fingerprints.Alias(TICKS) == nil)
         end
 
-        do -- a group, crowded or short read is frozen: it judges for the Ledger, changes no learned state
+        do -- a group, crowded or short read is frozen: it judges for the Ledger, with no strike or Verdicts alias. These
+            -- reads hold no '?' hits, so a crowded one has nothing to learn from either.
             local BIG, VOTER = 777, 48181 -- a row the fight barely saw (a short read); an unlearned cast collecting votes
             -- One fight read as `area`: `drawn` = { [id] = amount }, each drawn and seen, against `rows`; a group or
             -- crowded fight also sees far more than the meter holds (strangers), a short one sees under half of it.
@@ -4199,5 +4200,327 @@ return function(T)
         Check("area: two hits on one plate in one frame do not meet MIN_HITS", #oneWays == 0 and not oneFp.area)
         local twoWays, twoFp = Try({ "p2", "p3" })
         Check("area: two hits on two plates in one frame still do", #twoWays == 1 and twoFp.area == true)
+    end
+
+    -- A fight keeps the wounds on your target apart from the rest: their total and the (stamp, plate) pairs.
+    do
+        local rig = Rig({})
+        local Teacher = rig.ns.Teacher
+        Teacher.Start(10)
+        local fight, Seen = Teacher.fight, Teacher.Seen
+        Seen(100, 11, 8, "plateA", true)
+        Seen(50, 11, 8, "plateB")
+        Seen(40, 12, 8, nil, true)
+        Seen(Secret(30), 13, 8, "plateA", true)
+        Seen(20, nil, 8, "plateA", true)
+        Check("seen: target wounds count, others do not", fight.targetSeen == 160 and fight.seen == 210)
+        Check("seen: a target wound's pair is kept", fight.targetHits[11].plateA == true)
+        Check("seen: another plate at that stamp is no pair", fight.targetHits[11].plateB == nil)
+        Check("seen: a wound with no plate or stamp leaves no pair", fight.targetHits[12] == nil)
+        Check("seen: a secret amount records nothing", fight.targetHits[13] == nil)
+    end
+
+    -- Core passes only wounds on the unit that is your target.
+    do
+        local rig = Rig({})
+        rig.ns.Teacher.Start(10)
+        rig.S.target = "nameplate1"
+        rig.Hit(11, "nameplate1", 500, 8)
+        rig.S.target = "nameplate2"
+        rig.Hit(12, "nameplate1", 500, 8)
+        local fight, plate = rig.ns.Teacher.fight, rig.Plate("nameplate1")
+        Check("seen: Core counts only the target's wound", fight.targetSeen == 500)
+        Check("seen: Core keeps the target wound's pair at its stamp", fight.targetHits[11][plate] == true)
+        Check("seen: Core keeps no pair for the later non-target wound", fight.targetHits[12] == nil)
+    end
+
+    -- A carried fight hands its target wounds to the next one, stamp by stamp.
+    do
+        local rig = Rig({})
+        local Teacher = rig.ns.Teacher
+        Teacher.Start(10)
+        Teacher.Seen(100, 11, 8, "plateA", true)
+        Teacher.Finish(20)
+        Teacher.Start(21)
+        Teacher.Seen(70, 11, 8, "plateB", true)
+        Teacher.Seen(60, 22, 8, "plateA", true)
+        rig.S.sessionsFail = "secret"
+        pcall(rig.Fire)
+        local fight = Teacher.fight
+        Check("seen: a carried fight's target total joins the next", fight.targetSeen == 230)
+        Check("seen: a carried fight's pairs merge at a shared stamp",
+            fight.targetHits[11].plateA == true and fight.targetHits[11].plateB == true)
+        Check("seen: a carried fight's own stamps stay", fight.targetHits[22].plateA == true)
+    end
+
+    -- A crowded solo read whose target wounds fit the meter learns from the hits on the target alone, and only by the
+    -- narrow passes (Pass, Steady, the DoT drop): a stranger's wounds made it crowded, so a wide pass could pair a
+    -- stranger's hits (spec 2026-11-05-crowd-learning 3; run druid: Ramp taught 441591 from a crowd).
+    do
+        local CAST, RAMPED, OTHER, LEARNED = MIND_BLAST, 980, 5740, SMITE
+        local CROWD = 30000
+        -- One event of a fight: { at, unit, cast = spellID } (a cast aimed at `unit`) or { at, unit, amount } (a
+        -- school-32 wound on `unit` while `target`, default nameplate1, is targeted, or nothing is if `untargeted`).
+        local function Play(rig, event)
+            if event.cast then
+                rig.Cast(event.at, event.unit, event.cast)
+            else
+                local aimed = not event.untargeted and (event.target or "nameplate1") or nil
+                rig.S.target = aimed
+                rig.Hit(event.at, event.unit, event.amount, 32)
+            end
+        end
+        -- A solo fight on the rig: `events` (Play) in time order. `crowd` adds a stranger's wound of that size and
+        -- `group` flags the fight grouped. Returns Teacher.last.
+        local function Fight(rig, events, rows, crowd, group)
+            local S, Teacher = rig.S, rig.ns.Teacher
+            S.now = events[1].at - 1
+            rig.ns.Core.PLAYER_REGEN_DISABLED()
+            for _, event in ipairs(events) do Play(rig, event) end
+            if crowd then Teacher.Seen(crowd, events[#events].at, 32, "stranger") end
+            if group then Teacher.Grouped() end
+            S.now = events[#events].at + 5
+            rig.ns.Core.PLAYER_REGEN_ENABLED()
+            nextSession = nextSession + 1
+            S.sessions = { Session(nextSession, rows) }
+            assert(pcall(rig.Fire))
+
+            return Teacher.last
+        end
+        -- Four Mind Blast casts 5 s apart on `unit`, each hit 0.3 s later on `hitUnit` (default the same): 82500.
+        local function Steady(unit, hitUnit, target)
+            local events = {}
+            for index, size in ipairs({ 19000, 20500, 21000, 22000 }) do
+                local at = 5 * index + 5
+                events[#events + 1] = { at = at, unit = unit, cast = CAST }
+                events[#events + 1] = { at = at + 0.3, unit = hitUnit or unit, amount = size, target = target }
+            end
+
+            return events
+        end
+        local function Learned(rig, last)
+            return rig.ns.Fingerprints.IsLearned(CAST) and last.learned[CAST] ~= nil
+        end
+
+        local rig = Rig({}, true)
+        local last = Fight(rig, Steady("nameplate1"), { Row(CAST, 82500) })
+        Check("crowd target: the same steady cast on a clear read is learned",
+            last.area == "clear" and Learned(rig, last))
+
+        rig = Rig({}, true)
+        last = Fight(rig, Steady("nameplate1"), { Row(CAST, 82500) }, CROWD)
+        Check("crowd target: the target path runs: the group pass learns the target's hits, the area stays crowded",
+            rig.ns.Fingerprints.IsLearned(CAST) and last.area == "crowded" and rig.ns.Teacher.area == "crowded")
+        Check("crowd target: last.learned lists the way", last.learned[CAST] == 4)
+
+        -- 8 steady casts whose hits sum far under the row, so no Pass pairs them: only the steady pass can learn them
+        local steadyEvents = {}
+        for index = 1, 8 do
+            local at = 5 * index + 5
+            steadyEvents[#steadyEvents + 1] = { at = at, unit = "nameplate1", cast = CAST }
+            steadyEvents[#steadyEvents + 1] = { at = at + 0.3, unit = "nameplate1", amount = 20000 + index }
+        end
+        rig = Rig({}, true)
+        last = Fight(rig, steadyEvents, { Row(CAST, 400000, 0) }, 500000)
+        Check("crowd target: the steady pass runs on the view: hits under their row learn, the area stays crowded",
+            last.area == "crowded" and rig.ns.Fingerprints.IsLearned(CAST) and last.learned[CAST] == 8)
+
+        -- The target-fit bound: one cast, its hit of 1000 on the target, a stranger off it, and a wound of `extra` on
+        -- the target at 25 s that no cast explains. Only the target path can learn from one cast (StrictWay wants two).
+        local function Bound(extra, overkill)
+            local bound = Rig({}, true)
+            local events = {
+                { at = 10, unit = "nameplate1", cast = CAST },
+                { at = 10.3, unit = "nameplate1", amount = 1000 },
+                { at = 25, unit = "nameplate1", amount = extra },
+            }
+            local read = Fight(bound, events, { Row(CAST, 1000, overkill) }, 50000)
+
+            return read.area == "crowded" and bound.ns.Fingerprints.IsLearned(CAST)
+        end
+        Check("crowd target: target wounds past the total and tolerance take the strict path", not Bound(5000, 0))
+        Check("crowd target: the row's overkill counts in the target's fit", Bound(4000, 5000))
+        Check("crowd target: the judge's tolerance counts in the target's fit", Bound(10, 0))
+
+        -- the cast and its hits on nameplate2, a lone wound on the target: the target's pairs hold none of the hits
+        local function Aside(crowd)
+            local events = Steady("nameplate2", nil, "nameplate1")
+            table.insert(events, 1, { at = 9, unit = "nameplate1", amount = 1000 })
+            local aside = Rig({}, true)
+
+            return aside, Fight(aside, events, { Row(CAST, 82500), Row(OTHER, 1000) }, crowd)
+        end
+        rig, last = Aside()
+        Check("crowd target: the hits on another plate learn on a clear read",
+            last.area == "clear" and Learned(rig, last))
+        rig, last = Aside(CROWD)
+        Check("crowd target: the same hits on another plate teach nothing", last.area == "crowded"
+            and not rig.ns.Fingerprints.IsLearned(CAST) and next(last.learned) == nil)
+
+        rig = Rig({}, true)
+        last = Fight(rig, Steady("nameplate1"), { Row(CAST, 82500) }, nil, true)
+        Check("crowd target: a group read holding target wounds learns nothing", last.area == "group"
+            and not rig.ns.Fingerprints.IsLearned(CAST))
+        rig = Rig({}, true)
+        last = Fight(rig, Steady("nameplate1"), { Row(CAST, 3 * 82500) })
+        Check("crowd target: a short read holding target wounds learns nothing", last.area == "short"
+            and not rig.ns.Fingerprints.IsLearned(CAST))
+
+        -- Agony 980: one cast, ten ticks 1000 + 500 k every 1.4 s from 11.4, a steady 1500 hit 0.7 s after each
+        local function Ramped(crowd)
+            local ramp = Rig({})
+            local events, sum, noise = { { at = 10, unit = "nameplate1", cast = RAMPED } }, 0, 0
+            for k = 0, 9 do
+                local at = 11.4 + 1.4 * k
+                events[#events + 1] = { at = at, unit = "nameplate1", amount = 1000 + 500 * k }
+                events[#events + 1] = { at = at + 0.7, unit = "nameplate1", amount = 1500 }
+                sum, noise = sum + 1000 + 500 * k, noise + 1500
+            end
+            local read = Fight(ramp, events, { Row(RAMPED, sum + 3000), Row(OTHER, noise) }, crowd)
+
+            return ramp, read
+        end
+        rig, last = Ramped()
+        Check("crowd target: a clear read of the ramp's hits learns the Ramp", last.area == "clear"
+            and rig.ns.Learn.Ramp(RAMPED))
+        rig, last = Ramped(20000)
+        Check("crowd target: a pattern only Ramp learns teaches nothing", last.area == "crowded"
+            and not rig.ns.Learn.Ramp(RAMPED))
+
+        -- a learned Smite drew 60000 against its row of 40000, all on the target; a stranger's 20000 makes it crowded
+        local function Over(crowd)
+            local over = Rig({ [LEARNED] = 2 })
+            nextSession = nextSession + 1
+            over.S.sessions = { Session(nextSession, { Row(LEARNED, 40000), Row(OTHER, 30000) }) }
+            over.ns.Teacher.Start(10)
+            for index = 1, 3 do
+                over.ns.Teacher.Drawn(LEARNED, 20000)
+                over.ns.Teacher.Seen(20000, 10 + index, 2, "nameplate1", true)
+            end
+            if crowd then over.ns.Teacher.Seen(crowd, 14, 2, "stranger") end
+            over.ns.Teacher.Finish(20)
+            assert(pcall(over.Fire))
+
+            return over, over.ns.Teacher.last
+        end
+        rig, last = Over()
+        Check("crowd: the same learned spell over its row on a clear read takes a strike", last.area == "clear"
+            and rig.ns.Fingerprints.Get(LEARNED).strikes == 1)
+        rig, last = Over(20000)
+        Check("crowd: a learned spell over its row takes no strike", last.area == "crowded"
+            and rig.ns.Fingerprints.IsLearned(LEARNED) and rig.ns.Fingerprints.Get(LEARNED).strikes == 0)
+
+        -- two casts in the first fight, two in the next; the first read meets the second fight and joins it
+        rig = Rig({}, true)
+        local S, Core, Teacher = rig.S, rig.ns.Core, rig.ns.Teacher
+        local events = Steady("nameplate1")
+        S.now = events[1].at - 1
+        Core.PLAYER_REGEN_DISABLED()
+        for index, event in ipairs(events) do
+            if index == 5 then
+                S.now = 17
+                Core.PLAYER_REGEN_ENABLED()
+                S.now = 18
+                Core.PLAYER_REGEN_DISABLED()
+            end
+            Play(rig, event)
+        end
+        Teacher.Seen(CROWD, 26, 32, "stranger")
+        S.sessionsFail = "secret"
+        pcall(rig.Fire)
+        S.sessionsFail = nil
+        S.now = 31
+        Core.PLAYER_REGEN_ENABLED()
+        nextSession = nextSession + 1
+        S.sessions = { Session(nextSession, { Row(CAST, 82500) }) }
+        assert(pcall(rig.Fire))
+        last = Teacher.last
+        Check("crowd: a carried read's first-fight hits reach the view", last.area == "crowded" and Learned(rig, last))
+
+        -- the strict path: no target, so the target's wounds do not fit and CrowdLearn runs on the whole run. Casts of
+        -- CAST 5 s apart on nameplate1, each hit 0.3 s later by `sizes[k]` (a list: several hits in one frame), the
+        -- extra `mateSize` on nameplate2 in the same frame. `prep(rig)` runs on the new rig before the fight. Returns
+        -- the rig and Teacher.last.
+        local function Strict(casts, sizes, rows, mateSize, prep)
+            local strict, events = Rig({}, true), {}
+            if prep then prep(strict) end
+            for index = 1, casts do
+                local at = 5 * index + 5
+                events[#events + 1] = { at = at, unit = "nameplate1", cast = CAST }
+                for _, size in ipairs(sizes) do
+                    events[#events + 1] = { at = at + 0.3, unit = "nameplate1", amount = size, untargeted = true }
+                end
+                if mateSize then
+                    events[#events + 1] = { at = at + 0.3, unit = "nameplate2", amount = mateSize, untargeted = true }
+                end
+            end
+
+            return strict, Fight(strict, events, rows, CROWD)
+        end
+        rig, last = Strict(2, { 500 }, { Row(CAST, 1000, 0) })
+        Check("crowd strict: two casts meeting the own row are learned", rig.ns.Fingerprints.IsLearned(CAST))
+        Check("crowd strict: last.area stays crowded and lists the way", last.area == "crowded"
+            and last.learned[CAST] == 2)
+        rig, last = Strict(1, { 500, 500 }, { Row(CAST, 1000, 0) })
+        Check("crowd strict: one cast meeting its row teaches nothing",
+            not rig.ns.Fingerprints.IsLearned(CAST) and next(last.learned) == nil)
+        rig = Strict(2, { 497.5 }, { Row(CAST, 1000, 0) })
+        Check("crowd strict: two casts inside Judge's tolerance, under the row, teach nothing",
+            not rig.ns.Fingerprints.IsLearned(CAST))
+        rig = Strict(2, { 500 }, { Row(OTHER, 1000, 0) })
+        Check("crowd strict: another spell's row teaches nothing",
+            not rig.ns.Fingerprints.IsLearned(CAST) and rig.ns.Fingerprints.Alias(OTHER) == nil)
+        rig = Strict(2, { 250 }, { Row(CAST, 1000, 0) }, 250)
+        Check("crowd strict: two casts with a frame mate teach nothing", not rig.ns.Fingerprints.IsLearned(CAST))
+
+        -- Each hit's window holds a cast of CAST and one of another spell, so Casts.SoleCast names none: the hits carry
+        -- no castID (no group or top way), and only their candidates can pair CAST with its row.
+        local function Shared()
+            local shared, events = Rig({}, true), {}
+            for index = 1, 2 do
+                local at = 5 * index + 5
+                events[#events + 1] = { at = at, unit = "nameplate1", cast = CAST }
+                events[#events + 1] = { at = at + 0.1, unit = "nameplate1", cast = OTHER }
+                events[#events + 1] = { at = at + 0.3, unit = "nameplate1", amount = 500, untargeted = true }
+            end
+
+            return shared, Fight(shared, events, { Row(CAST, 1000, 0) }, CROWD)
+        end
+        rig, last = Shared()
+        Check("crowd strict: hits only candidates name, meeting the own row over two casts, are learned",
+            last.area == "crowded" and rig.ns.Fingerprints.IsLearned(CAST) and last.learned[CAST] == 2)
+
+        -- A crowded read judged under a clock past the slice at every look yields at each Teacher.Yield and still ends
+        -- the same: the judging pauses at its first one, and each queued slice goes on from there.
+        local looks = 0
+        local function PastSlice()
+            debugprofilestop = function()
+                looks = looks + 1
+                return looks * 100
+            end
+        end
+        rig, last = Strict(2, { 500 }, { Row(CAST, 1000, 0) }, nil, PastSlice)
+        local paused = #rig.S.timers == 1 and next(last.learned) == nil
+        local drained = pcall(function() while #rig.S.timers > 0 do rig.Fire() end end)
+        debugprofilestop = nil
+        last = rig.ns.Teacher.last
+        Check("crowd strict: a read paused at every yield ends learning what an unforced read does", paused and drained
+            and last.area == "crowded" and rig.ns.Fingerprints.IsLearned(CAST) and last.learned[CAST] == 2)
+
+        -- Judging must not hold the frame: a strict read of 1024 '?' hits and one candidate group gives way 9 times. In
+        -- CandidateGroups at the 1024th hit, after the first loop, after the `frames` loop, at its group in both group
+        -- loops and before PoolOf; around them after Groups, between the passes and after CandidateGroups.
+        local yields = 0
+        local function CountYields(strict)
+            local Teacher, Yield = strict.ns.Teacher, strict.ns.Teacher.Yield
+            Teacher.Yield = function()
+                yields = yields + 1
+                Yield()
+            end
+        end
+        local manySizes = {}
+        for index = 1, 512 do manySizes[index] = 1 end
+        Strict(2, manySizes, { Row(CAST, 1000, 0) }, nil, CountYields)
+        Check("crowd strict: judging a read gives way through CandidateGroups", yields >= 9)
     end
 end

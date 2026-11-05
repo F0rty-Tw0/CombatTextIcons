@@ -783,11 +783,13 @@ local function Wound(plate, unit, flagText, amount, school, now)
     -- A crowded fight draws only like-sized ticks (Tracker.Identify) and CrowdFits casts (Casts.Claim).
     local crowded = Teacher.fight and Teacher.fight.crowded
     local spellID = Tracker.Identify(plate, school, amount, flagText, now, crowded)
-    if fightsYou or (spellID and spellID ~= Tracker.UNKNOWN) then Teacher.Seen(amount, now, school, plate) end
+    local named = spellID and spellID ~= Tracker.UNKNOWN
+    if fightsYou or named then
+        Teacher.Seen(amount, now, school, plate, IsTarget(unit))
+    end
     -- A learned proc (exact meter sums) outranks a learned DoT's answer (votes) or an ambiguous one.
     local voted = spellID == Tracker.UNKNOWN or (spellID and Learn.Get(spellID))
     if voted and solo and ProcWound(plate, school, amount, flagText, now) then return end
-    local named = spellID and spellID ~= Tracker.UNKNOWN
     local kind, record, late, claimed
     crowded = Teacher.fight and Teacher.fight.crowded -- Teacher.Seen may have turned it crowded
     if named and Learn.Get(spellID) then
