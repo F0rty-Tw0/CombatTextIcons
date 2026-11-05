@@ -274,6 +274,28 @@ return function(T)
         slash.ns.Debug = nil
     end
 
+    -- Forever's amounts are secret: no read decides the area, yet your hits and heals still draw --------
+    do
+        local function Unknown(forever, area, amount)
+            local rig = Rig()
+            rig.ns.IsForever, rig.ns.Teacher.area = forever, area
+            return rig.Hit(1, "nameplate1", amount) == rig.ns.Meter.UNKNOWN_ICON
+        end
+        Check("secret: a secret hit in an undecided area draws ? on Forever", Unknown(true, "unknown", Secret(31)))
+        Check("secret: a plain hit in an undecided area stays hidden", not Unknown(true, "unknown", 31))
+        Check("secret: a secret hit in a crowded area stays hidden", not Unknown(true, "crowded", Secret(31)))
+        Check("secret: off Forever a secret hit in an undecided area stays hidden", not Unknown(false, "unknown", Secret(31)))
+
+        local rig = Rig()
+        rig.ns.Teacher.area = "unknown"
+        rig.S.now = 1
+        rig.ns.Core.UNIT_COMBAT("player", "HEAL", "", Secret(9), 1)
+        rig.ns.Core.FlushHeals(nil)
+        local heal = rig.draws[#rig.draws]
+        Check("secret: a secret heal on you in an undecided area draws ?", heal ~= nil and heal.kind == "heal"
+            and heal.texture == rig.ns.Meter.UNKNOWN_ICON)
+    end
+
     -- 5. "?" on unidentified hits when solo ---------------------------------------------------
     do
         local function Unclaimed(group)

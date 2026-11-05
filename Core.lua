@@ -550,11 +550,18 @@ local function DrawMate(hit, mated, ticked)
     DrawHeld(hit, hit.record, "mate")
 end
 
+-- Whether a solo hit or heal of `amount` may draw the question mark: while the area is clear, or on Forever when the
+-- amount is secret and the area is not crowded. Forever's amounts are all secret (Bone-Apetit's capture, 2026-11-05: 70
+-- of 70), so every read is "short", no read decides the area, and with Blizzard's numbers off your hits showed nothing.
+local function MayQuestion(amount)
+    return Teacher.AreaClear() or ns.IsForever and issecretvalue(amount) and Teacher.NotCrowded()
+end
+
 -- A solo hit on a mob fighting you that nothing named: the teacher learns from it (Teacher.Unknown), and it draws the
--- question mark while the area is clear and the school is one a clear read saw. `cast` is Casts.SoleCast at the hit.
+-- question mark while MayQuestion holds and the school is one a clear read saw. `cast` is Casts.SoleCast at the hit.
 local function Question(plate, school, amount, flagText, now, cast, candidates)
     Teacher.Unknown(plate, school, amount, now, cast, flagText, candidates)
-    if not Teacher.AreaClear() then
+    if not MayQuestion(amount) then
         if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
         return
     end
@@ -1011,7 +1018,7 @@ local function DrawOwnHeal(heal, castID)
         route = "heal " .. castID
         Ledger.Add("heal", castID, heal.amount)
         Display.Player("heal", SpellTexture(castID), heal.amount, heal.flagText)
-    elseif not InGroup() and Teacher.AreaClear() then
+    elseif not InGroup() and MayQuestion(heal.amount) then
         route = "unknown-solo"
         Ledger.Add("heal", UnknownKey(heal.school), heal.amount)
         Display.Player("heal", UnknownTexture(), heal.amount, heal.flagText)
