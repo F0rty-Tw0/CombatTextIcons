@@ -1255,8 +1255,9 @@ local function Learn(run, results, open, rows, narrow)
 end
 
 -- Whether `way` is proof enough in a crowd: the cast's own row, met exactly (not inside Judge's tolerance) by hits of
--- COVER_CASTS distinct casts at least, none of them with a frame mate. A crowd's strangers add hits to a sum, so
--- only an exact sum says the hits are the cast's.
+-- COVER_CASTS distinct casts at least, with no frame mate in the sum. A crowd's strangers add hits to a sum, so only
+-- an exact sum says the hits are the cast's. Only a cand way takes mates: a like-sized hit on another plate is no part
+-- of a group or top sum, so it refuses neither.
 -- In the replays this path learned Mind Blast 8092 on shadow-dots (3.5 -> 11.3 % right).
 local function StrictWay(group, way, row)
     local isOwnRow = row.spellID == group.castID

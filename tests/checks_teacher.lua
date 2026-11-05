@@ -4183,12 +4183,12 @@ return function(T)
     -- explains half, but 1101 + 2076 leaves the row open, so no lone way). Two '?' hits in one frame on one plate are
     -- one spot, under MIN_HITS; on two plates they are two.
     do
-        local function Try(plates)
+        local function Try(plates, secondAt)
             local rig = Rig({ [MIND_BLAST] = 32 })
             local casts = { { at = 30, base = MIND_BLAST, spellID = MIND_BLAST, plate = "p1" } }
             local unknown = {
                 { at = 30.25, plate = plates[1], school = 32, amount = 987 },
-                { at = 30.25, plate = plates[2], school = 32, amount = 1089 },
+                { at = secondAt or 30.25, plate = plates[2], school = 32, amount = 1089 },
             }
             local run = { casts = casts, tally = { [MIND_BLAST] = 1101 }, drawn = {}, spreads = {}, mates = {},
                 unknown = unknown }
@@ -4200,6 +4200,8 @@ return function(T)
         Check("area: two hits on one plate in one frame do not meet MIN_HITS", #oneWays == 0 and not oneFp.area)
         local twoWays, twoFp = Try({ "p2", "p3" })
         Check("area: two hits on two plates in one frame still do", #twoWays == 1 and twoFp.area == true)
+        local framesWays, framesFp = Try({ "p2", "p2" }, 30.30)
+        Check("area: two hits on one plate in two frames are two spots", #framesWays == 1 and framesFp.area == true)
     end
 
     -- A fight keeps the wounds on your target apart from the rest: their total and the (stamp, plate) pairs.
@@ -4259,15 +4261,16 @@ return function(T)
     do
         local CAST, RAMPED, OTHER, LEARNED = MIND_BLAST, 980, 5740, SMITE
         local CROWD = 30000
-        -- One event of a fight: { at, unit, cast = spellID } (a cast aimed at `unit`) or { at, unit, amount } (a
-        -- school-32 wound on `unit` while `target`, default nameplate1, is targeted, or nothing is if `untargeted`).
+        -- One event of a fight: { at, unit, cast = spellID } (a cast aimed at `unit`) or { at, unit, amount } (a wound
+        -- of `school`, default 32, on `unit` while `target`, default nameplate1, is targeted, or nothing is if
+        -- `untargeted`).
         local function Play(rig, event)
             if event.cast then
                 rig.Cast(event.at, event.unit, event.cast)
             else
                 local aimed = not event.untargeted and (event.target or "nameplate1") or nil
                 rig.S.target = aimed
-                rig.Hit(event.at, event.unit, event.amount, 32)
+                rig.Hit(event.at, event.unit, event.amount, event.school or 32)
             end
         end
         -- A solo fight on the rig: `events` (Play) in time order. `crowd` adds a stranger's wound of that size and
@@ -4341,6 +4344,52 @@ return function(T)
         Check("crowd target: target wounds past the total and tolerance take the strict path", not Bound(5000, 0))
         Check("crowd target: the row's overkill counts in the target's fit", Bound(4000, 5000))
         Check("crowd target: the judge's tolerance counts in the target's fit", Bound(10, 0))
+
+        -- What a narrow pass reads is the target's alone: off-target entries leave every list, and `seen` is the target's
+        -- wounds. Only Steady.Learn sees the view from outside, so the check reads it there. No narrow pass reads spreads,
+        -- owns or seen today; this holds the view to its contract for one that does.
+        do
+            local view
+            local viewRig = Rig({}, true)
+            local Teacher, Learn = viewRig.ns.Teacher, viewRig.ns.Steady.Learn
+            viewRig.ns.Steady.Learn = function(run, ...)
+                view = run
+
+                return Learn(run, ...)
+            end
+            nextSession = nextSession + 1
+            viewRig.S.sessions = { Session(nextSession, { Row(CAST, 1000) }) }
+            Teacher.Start(10)
+            Teacher.Seen(1000, 11, 32, "nameplate1", true)
+            Teacher.Seen(50000, 12, 32, "stranger")
+            local lists = { "mates", "strangers", "spreads", "owns" }
+            for _, name in ipairs(lists) do
+                Teacher.fight[name][1] = { at = 11, plate = "nameplate1", school = 32, amount = 1, size = 1 }
+                Teacher.fight[name][2] = { at = 12, plate = "stranger", school = 32, amount = 1, size = 1 }
+            end
+            Teacher.Finish(20)
+            assert(pcall(viewRig.Fire))
+            for _, name in ipairs(lists) do
+                Check("crowd target: the view's " .. name .. " hold only the target's entries", view ~= nil
+                    and #view[name] == 1 and view[name][1].plate == "nameplate1")
+            end
+            Check("crowd target: the view's seen is the target's wounds", view ~= nil and view.seen == 1000)
+        end
+
+        -- A saved DoT of another school under a cast the target path learns goes. One cast, so the DoT's own miss count
+        -- (Learn.Missed, two tickless casts) cannot be what drops it.
+        do
+            local dotRig = Rig({}, true)
+            T.Store().learned[CAST] = { school = 8, period = 1.65, kind = "dot", misses = 0 }
+            dotRig.ns.Learn.Init(T.Store())
+            local events = {
+                { at = 10, unit = "nameplate1", cast = CAST },
+                { at = 10.3, unit = "nameplate1", amount = 1000 },
+            }
+            local read = Fight(dotRig, events, { Row(CAST, 1000, 0) }, 50000)
+            Check("crowd target: a cast learned under a DoT of another school drops the DoT", read.area == "crowded"
+                and dotRig.ns.Fingerprints.IsLearned(CAST) and dotRig.ns.Learn.Get(CAST) == nil)
+        end
 
         -- the cast and its hits on nameplate2, a lone wound on the target: the target's pairs hold none of the hits
         local function Aside(crowd)
@@ -4471,7 +4520,38 @@ return function(T)
         Check("crowd strict: another spell's row teaches nothing",
             not rig.ns.Fingerprints.IsLearned(CAST) and rig.ns.Fingerprints.Alias(OTHER) == nil)
         rig = Strict(2, { 250 }, { Row(CAST, 1000, 0) }, 250)
-        Check("crowd strict: two casts with a frame mate teach nothing", not rig.ns.Fingerprints.IsLearned(CAST))
+        Check("crowd strict: two casts whose sum needs a frame mate teach nothing",
+            not rig.ns.Fingerprints.IsLearned(CAST))
+        -- Which pass pairs: the whole sum (group) or each cast's largest hit (top).
+        rig, last = Strict(2, { 300, 200 }, { Row(CAST, 1000, 0) })
+        Check("crowd strict: every hit of two casts meeting the own row pairs by the group pass",
+            rig.ns.Fingerprints.IsLearned(CAST) and last.learned[CAST] == 4)
+        -- A like-sized hit on another plate is no part of an own-plate sum, so it refuses neither. With the mate the cand
+        -- way overshoots the row, so only the top pass can pair the second case.
+        rig, last = Strict(2, { 500 }, { Row(CAST, 1000, 0) }, 500)
+        Check("crowd strict: an exact own-plate sum pairs by the group pass beside a frame mate",
+            rig.ns.Fingerprints.IsLearned(CAST) and last.learned[CAST] == 2)
+        rig, last = Strict(2, { 500, 100 }, { Row(CAST, 1000, 0) }, 500)
+        Check("crowd strict: each cast's largest hit meeting the own row pairs by the top pass beside a frame mate",
+            rig.ns.Fingerprints.IsLearned(CAST) and last.learned[CAST] == 2)
+
+        -- A way StrictWay refuses leaves its row for the next: the school-16 group meets the row from one cast, and if
+        -- it counted as a second suitor for the row, the school-32 group's two exact casts would pair with nothing.
+        do
+            local suitors = Rig({}, true)
+            local events = {
+                { at = 10, unit = "nameplate1", cast = CAST },
+                { at = 10.3, unit = "nameplate1", amount = 500, untargeted = true },
+                { at = 15, unit = "nameplate1", cast = CAST },
+                { at = 15.3, unit = "nameplate1", amount = 500, untargeted = true },
+                { at = 20, unit = "nameplate1", cast = CAST },
+                { at = 20.3, unit = "nameplate1", amount = 1000, school = 16, untargeted = true },
+            }
+            local read = Fight(suitors, events, { Row(CAST, 1000, 0) }, CROWD)
+            local fp = suitors.ns.Fingerprints.Get(CAST)
+            Check("crowd strict: a refused way is no second suitor for its row", read.area == "crowded"
+                and suitors.ns.Fingerprints.IsLearned(CAST) and fp.school == 32 and read.learned[CAST] == 2)
+        end
 
         -- Each hit's window holds a cast of CAST and one of another spell, so Casts.SoleCast names none: the hits carry
         -- no castID (no group or top way), and only their candidates can pair CAST with its row.
