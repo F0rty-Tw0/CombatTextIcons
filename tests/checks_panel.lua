@@ -756,7 +756,7 @@ return function(T)
             Panel.Summary(fight) == "Area: crowded, '?' hidden  ·  Named 75 % of drawn damage, 50 % of the meter's"
             .. "  ·  Group fight: nothing learned")
         fight.outcome, fight.meterTotal = "crowded", nil
-        Check("summary: a crowded read", Panel.Summary(fight):find("Crowded: nothing learned", 1, true) ~= nil
+        Check("summary: a crowded read", Panel.Summary(fight):find("Crowded: limited learning", 1, true) ~= nil
             and Panel.Summary(fight):find("meter's", 1, true) == nil)
         fight.outcome = "skipped"
         Check("summary: a skipped read", Panel.Summary(fight):find("Not read: nothing learned", 1, true) ~= nil)
