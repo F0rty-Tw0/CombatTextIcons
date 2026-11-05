@@ -4553,6 +4553,25 @@ return function(T)
                 and suitors.ns.Fingerprints.IsLearned(CAST) and fp.school == 32 and read.learned[CAST] == 2)
         end
 
+        -- Each row counts one suitor and each group one row, yet a pair neither counted can still agree: WAND's row is
+        -- saved as a filled alias of CAST, so Pairs takes CAST's sum on it as CAST's own. StrictWay refuses that pair at
+        -- the learning loop too: else CAST takes WAND's row in the results. Its samples can't show that: the second
+        -- teaching's are not exact, and the exact learn from CAST's own row drops them (Fingerprints MarkLearned).
+        do
+            local aliased = Rig({}, true)
+            aliased.ns.Fingerprints.SetAlias(WAND, CAST, true)
+            local events = {}
+            for index, spellID in ipairs({ WAND, WAND, CAST, CAST }) do
+                local at = 5 * index + 5
+                events[#events + 1] = { at = at, unit = "nameplate1", cast = spellID }
+                events[#events + 1] = { at = at + 0.3, unit = "nameplate1", amount = 500, untargeted = true }
+            end
+            local read = Fight(aliased, events, { Row(WAND, 1000, 0), Row(CAST, 1000, 0) }, CROWD)
+            local wandRow = Find(read, WAND)
+            Check("crowd strict: a filled alias's row is no second row for the alias's cast", read.area == "crowded"
+                and read.learned[WAND] == 2 and read.learned[CAST] == 2 and wandRow ~= nil and wandRow.meterID == WAND)
+        end
+
         -- Each hit's window holds a cast of CAST and one of another spell, so Casts.SoleCast names none: the hits carry
         -- no castID (no group or top way), and only their candidates can pair CAST with its row.
         local function Shared()
