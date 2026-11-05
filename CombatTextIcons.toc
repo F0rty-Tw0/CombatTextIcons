@@ -25,6 +25,7 @@ Train.lua
 Area.lua
 Volley.lua
 Link.lua
+Locked.lua
 Teacher.lua
 Display.lua
 Progress.lua

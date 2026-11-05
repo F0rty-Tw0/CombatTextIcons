@@ -1630,6 +1630,7 @@ local function Judging(run, sessionID, rows, reason)
         Done({ skip = "duplicate session" })
         return
     end
+    ns.Locked.Report(rows)
     lastSession, lastRows = sessionID, {}
     for _, row in ipairs(full) do lastRows[row.spellID] = { total = row.total, overkill = row.overkill } end
     ns.Casts.NoteRows(full) -- the next fight's casts key by the meter's own rows
@@ -1703,6 +1704,8 @@ local function Read(run)
     if sessionID then rows, reason = ReadRows(sessionID) end
     if not rows and reason == "secret" and Teacher.fight then
         Carry(run, Teacher.fight)
+        ns.Locked.Carry() -- and the locked pass's draw counts, so the merged read reports both fights
+
         return
     end
     Judge(function() Judging(run, sessionID, rows, reason) end)

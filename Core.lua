@@ -559,7 +559,8 @@ end
 
 -- A solo hit on a mob fighting you that nothing named: the teacher learns from it (Teacher.Unknown), and it draws the
 -- question mark while MayQuestion holds and the school is one a clear read saw. `cast` is Casts.SoleCast at the hit.
-local function Question(plate, school, amount, flagText, now, cast, candidates)
+-- `sole` (Locked.Observe, only from Wound) is the one spell that fits the hit: it draws that spell's icon instead.
+local function Question(plate, school, amount, flagText, now, cast, candidates, sole)
     Teacher.Unknown(plate, school, amount, now, cast, flagText, candidates)
     if not MayQuestion(amount) then
         if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
@@ -569,6 +570,14 @@ local function Question(plate, school, amount, flagText, now, cast, candidates)
     if not Teacher.OwnSchool(school) then
         if ns.Debug then ns.Debug("  -> HIDDEN (school)") end
         return
+    end
+    if sole then
+        if ns.Debug then ns.Debug("  -> locked %s", ShowValue(sole)) end
+        Drawn(sole, amount)
+        ns.Locked.Drew(sole)
+        Ledger.Add("damage", sole, amount)
+
+        return Display.Plate(plate, SpellTexture(sole), HitText(flagText, amount), flagText, school)
     end
     if ns.Debug then ns.Debug("  -> unknown-solo") end
     Ledger.Add("damage", UnknownKey(school), amount)
@@ -799,6 +808,11 @@ local function Wound(plate, unit, flagText, amount, school, now)
     local holds = not fightsYou and not grouped and type(school) == "number" and type(amount) == "number"
         and Plain(school) and Plain(amount) and NoThreatList(unit)
     if solo and Plain(school) then OwnHit(school, now) end
+    local sole, fits = nil, 0
+    local asksLocked = ns.IsForever and solo and Plain(school) and not Plain(amount)
+    if asksLocked then
+        sole, fits = ns.Locked.Observe(plate, school, now)
+    end
     local text = HitText(flagText, amount)
     if ns.Debug then
         ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit, ShowValue(school),
@@ -826,8 +840,14 @@ local function Wound(plate, unit, flagText, amount, school, now)
         claimed = true
         if kind == "learned" and not late and fightsYou and record.spellID ~= spellID then named = false end
     end
+    -- A tick that a lock gives to another spell, or that several spells fit, is no sure DoT tick (Locked.Observe): it
+    -- runs the later routes, and when none of them names it, Question draws the question mark or keeps it hidden (a
+    -- crowded area, a school no clear read saw).
+    local doubted = fits >= 2 or (fits == 1 and sole ~= spellID)
+    if named and doubted then named, sole = false, nil end
     if named then
         if ns.Debug then ns.Debug("  -> tracker %s", ShowValue(spellID)) end
+        if sole == spellID then ns.Locked.Drew(spellID) end
         Drawn(spellID, amount)
         if Learn.Get(spellID) then Teacher.Ticked(school, amount, flagText, spellID, now, plate) end
         Ledger.Add("damage", spellID, amount)
@@ -964,7 +984,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
             and Casts.HopFirst(plate, school, now, Streams.NormalAmount(amount, flagText))
         if hop then return HoldHop(plate, school, amount, flagText, now, hop, cast, candidates) end
 
-        return Question(plate, school, amount, flagText, now, cast, candidates)
+        return Question(plate, school, amount, flagText, now, cast, candidates, sole)
     end
     if holds then return Hold(plate, flagText, amount, school, now, kind, record, stream) end
     if ns.Debug then ns.Debug("  -> HIDDEN") end
@@ -1138,6 +1158,7 @@ local function UseSpec()
     Heals.Init(store)
     Casts.InitOwnRows(store)
     Procs.Init(store)
+    ns.Locked.Init(store)
     ns.Volley.Init(store)
     ns.Link.Init(store)
     Ledger.Init(store)
@@ -1185,6 +1206,7 @@ function Core.PLAYER_REGEN_ENABLED()
     Casts.Flush(GetTime())
     Ledger.Finish(GetTime())
     Teacher.Finish(GetTime())
+    ns.Locked.EndFight()
 end
 
 -- The combat-start hook: the ledger opens a fight and the teacher starts tallying what
@@ -1231,6 +1253,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
             local plate = Casts.NoteCast(spellID, now, castGUID, unit == "pet")
             Teacher.Cast(spellID, Casts.Base(spellID), now, plate, unit == "pet")
             ns.Link.NoteCast(spellID, now, plate)
+            if unit == "player" then ns.Locked.NoteCast(spellID, now) end
         elseif Plain(harmful) and unit == "player" then
             if frameCasts.at ~= now then frameCasts = { at = now, ids = {}, seen = {} } end
             if not frameCasts.seen[spellID] then
@@ -1273,6 +1296,7 @@ function Core.NAME_PLATE_UNIT_REMOVED(unit)
         Tracker.OnPlateRemoved(plate, PlainGUID(unit), GetTime())
         Display.ReleasePlate(plate)
         mine[plate] = nil
+        ns.Locked.PlateGone(plate)
     end
 end
 
@@ -1347,6 +1371,7 @@ SlashCmdList.COMBATTEXTICONS = function(message)
         Casts.Forget()
         Heals.Forget()
         Procs.Forget()
+        ns.Locked.Forget()
         ns.Volley.Forget()
         ns.Link.Forget()
         Ledger.Forget()

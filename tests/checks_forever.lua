@@ -537,4 +537,6 @@ return function(T)
                 rig.ns.Teacher.area == area and rig.ns.Teacher.fight == nil)
         end
     end
+
+    T.RunFile("checks_locked.lua")
 end
