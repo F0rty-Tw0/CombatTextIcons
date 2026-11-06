@@ -12,6 +12,8 @@
 -- that stamp is of a spell known to hit another school: the school of its last hit that a cast lock fit (Locked.lua
 -- Rule 2 calls Ticks.NoteHitSchool). S5 run 2 (2026-11-06): Shoot, every 1.8 s and arcane, put SW:P's shadow ticks on
 -- or just after its casts, so a tick the learner needed was dropped on 5 of 9 casts and SW:P never learned.
+-- Such an event fits no tick either: it counts as a fit for the cast's misses, but Fits leaves it out and its slot
+-- stays free. S6 run 3 (2026-11-06): a Mind Blast hit on its cast's stamp fit an ended SW:P's tick k=10 and drew SW:P.
 -- A damage event that fits another spell's cast lock (Fits' `hitOf`) is that spell's own hit: it neither fixes a
 -- cast's school (the first event it learns from does) nor joins its delays, so a wand's arcane hits one swing apart
 -- teach SW:P no period. Before the wand's lock forms (its first two hits) they still can.
@@ -263,7 +265,10 @@ function Ticks.Fits(key, kind, school, now, hitOf)
     local casts = newest[key]
     if not casts then return fits end
 
-    if CastFree(kind, school, now) then Learn(casts, kind, school, now, hitOf or {}) end
+    local free = CastFree(kind, school, now)
+    if free then Learn(casts, kind, school, now, hitOf or {}) end
+    -- a damage event that may be a fresh cast's own hit names no tick: it keeps the cast alive, but the slot stays free
+    local named = free or kind == "heal"
 
     for id, cast in pairs(casts) do
         local entry = saved[id]
@@ -272,8 +277,10 @@ function Ticks.Fits(key, kind, school, now, hitOf)
             local slot, k = FitSlot(id, entry, cast, school, now)
             if slot then
                 cast.fits = cast.fits + 1
-                fits[#fits + 1] = { spellID = id, slot = slot }
-                if k >= 2 and cast.learnedAt ~= now then estimates[slot] = (now - cast.at) / k end
+                if named then
+                    fits[#fits + 1] = { spellID = id, slot = slot }
+                    if k >= 2 and cast.learnedAt ~= now then estimates[slot] = (now - cast.at) / k end
+                end
             end
         end
     end

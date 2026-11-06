@@ -329,6 +329,28 @@ return function(T)
             Only(list, 594) and Only(again, 594) and #taken == 0 and Only(later, 594))
     end
 
+    do -- S6 run 3 (2026-11-06, s6-run3.sv.lua line 208): a Mind Blast hit on its cast's stamp, 30.138 s after an
+        -- ended SW:P cast, fit SW:P's tick k=10 and drew SW:P's icon
+        local X = Fresh(16001, { [594] = Saved(3.009, "damage", 32) })
+        X.NoteCast(594, 176039.999, "p", "damage")
+        X.NoteCast(8102, 176070.137, "p", "damage")
+        local onStamp = Tick(X, 176070.137)
+        Check("ticks: an event on the stamp of a cast that may hit its school fits nothing", #onStamp == 0)
+
+        X = Fresh(16001, { [594] = Saved(3.0, "damage", 32) })
+        X.NoteCast(594, 30, "p", "damage")
+        X.NoteCast(8092, 32.8, "p", "damage")
+        local after, past = Tick(X, 33), Tick(X, 36)
+        Check("ticks: an event 0.2 s after such a cast fits nothing; its slot stays free, the next tick fits",
+            #after == 0 and Only(past, 594))
+
+        X = Fresh(16001, { [594] = Saved(3.0, "damage", 32) })
+        X.NoteHitSchool(5019, 64)
+        X.NoteCast(594, 30, "p", "damage")
+        X.NoteCast(5019, 33, "p", "damage")
+        Check("ticks: an event on the stamp of a cast known to hit another school still fits", Only(Tick(X, 33), 594))
+    end
+
     do
         local X = Fresh()
         local ok, list = pcall(X.Fits, "p", "damage", 32, 5)
