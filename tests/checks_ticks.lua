@@ -68,6 +68,40 @@ return function(T)
         Check("ticks: delay order: the first d1 that qualifies wins", e ~= nil and Near(e.period, 3.0))
     end
 
+    -- Taken ticks refine the period (S5, 2026-11-06: Renew learned at 3.034 while it ticks every 3.00, so its 4th and
+    -- 5th ticks fell outside TOL and one was drawn as the proc).
+    do
+        local X = Fresh(nil, { [139] = Saved(3.034, "heal") })
+        X.NoteCast(139, 10, "player", "heal")
+        local fitted = 0
+        for k = 1, 6 do
+            local list = Heal(X, 10 + 3 * k)
+            if Only(list, 139) then
+                X.Take(139, list[1].slot)
+                fitted = fitted + 1
+            end
+        end
+        Check("ticks: taken ticks every 3.00 s refine a period learned at 3.034, so ticks 4 to 6 still fit", fitted == 6)
+    end
+
+    do
+        local X, store = Fresh(nil, { [139] = Saved(3.034, "heal") })
+        X.NoteCast(139, 10, "player", "heal")
+        Heal(X, 16)
+        Check("ticks: a fit nobody takes leaves the period", Near(store.lockedTicks[139].period, 3.034))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 13.0)
+        Tick(X, 16.0625)
+        local third = Tick(X, 19.0)
+        X.Take(594, third[1].slot)
+        Check("ticks: the tick that learned the period, taken, does not refine it (its delay is in the mean already)",
+            Near(store.lockedTicks[594].period, (3.0 + 3.03125 + 3.0) / 3))
+    end
+
     do
         local X, store = Fresh()
         X.NoteCast(594, 10, "p", "damage")

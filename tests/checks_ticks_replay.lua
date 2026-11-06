@@ -79,11 +79,13 @@ return function(T)
         for _, id in ipairs(fresh) do list[#list + 1] = id end
     end
 
-    -- Feeds the four logs, in order, to one set of modules; returns the gate's counters.
-    local function Replay()
+    -- Feeds `logs`, in order, to one set of modules; returns the gate's counters (and the S5 ones). `procStamps`
+    -- ([stamp] = true, optional): the heals on you there are the proc; healsWrong counts 1260198 off them and 139 on them.
+    local function Replay(logs, procStamps)
         local ns, store = Fresh()
         local R = { hits594 = 0, heals139 = 0, heals1260198 = 0, noHitStamp1260198 = 0, healHarmful = 0, hitWrong = 0,
-            two = 0, learned = {}, procEver = {} }
+            two = 0, learned = {}, procEver = {}, periods = {}, shadow594 = 0, shadowNone = 0, shadowOther = 0, healNone = 0,
+            healOther = 0, healsWrong = 0 }
         local learnedIDs, procIDs = {}, {}
         local helps, cast = {}, {}
         local helpAt, hitAt = {}, {}
@@ -95,9 +97,13 @@ return function(T)
             for index = 1, #heals do
                 local id = claims[index]
                 if id == 139 then R.heals139 = R.heals139 + 1 end
+                if not id then R.healNone = R.healNone + 1 elseif id ~= 139 then R.healOther = R.healOther + 1 end
                 if id == 1260198 then R.heals1260198 = R.heals1260198 + 1 end
                 if id == 1260198 and not hitAt[healAt] then R.noHitStamp1260198 = R.noHitStamp1260198 + 1 end
                 if id and HARMFUL[id] then R.healHarmful = R.healHarmful + 1 end
+                local onProc = procStamps and procStamps[healAt]
+                local wrong = procStamps and (id == 1260198 and not onProc or id == 139 and onProc)
+                if wrong then R.healsWrong = R.healsWrong + 1 end
             end
             heals = {}
         end
@@ -126,6 +132,11 @@ return function(T)
             hitAt[at] = true
             local sole, fits = ns.Locked.Observe(rest:match("^HIT (%S+)"), school, at)
             if sole == 594 then R.hits594 = R.hits594 + 1 end
+            if school == 32 then
+                if sole == 594 then R.shadow594 = R.shadow594 + 1
+                elseif sole then R.shadowOther = R.shadowOther + 1
+                else R.shadowNone = R.shadowNone + 1 end
+            end
             if sole == 139 or sole == 1260198 then R.hitWrong = R.hitWrong + 1 end
             if fits >= 2 then R.two = R.two + 1 end
         end
@@ -138,7 +149,7 @@ return function(T)
             helps, cast, helpAt, hitAt = {}, {}, {}, {}
         end
 
-        for _, name in ipairs(LOGS) do
+        for _, name in ipairs(logs) do
             local lines = ReadLines(name)
             for i, line in ipairs(lines) do
                 local stamp, rest = line:match("^(%d+%.%d+) (.*)$")
@@ -151,6 +162,7 @@ return function(T)
                 end
                 Remember(store.lockedTicks, R.learned, learnedIDs)
                 Remember(store.lockedHeals, R.procEver, procIDs)
+                for id, row in pairs(store.lockedTicks) do R.periods[id] = R.periods[id] or row.period end
             end
             Flush()
         end
@@ -160,11 +172,23 @@ return function(T)
         return R
     end
 
-    local R = Replay()
+    local R = Replay(LOGS)
 
     T.Note(string.format("TICKS REPLAY learned=%s hits594=%d heals139=%d heals1260198=%d noHitStamp1260198=%d procEver=%s "
         .. "healHarmful=%d hitWrong=%d two=%d", R.learnedList, R.hits594, R.heals139, R.heals1260198,
         R.noHitStamp1260198, R.procList, R.healHarmful, R.hitWrong, R.two))
+
+    -- S5 (Forever, 2026-11-06, Bone-Apetit solo), alone on a fresh store, as a new login. Its proc heals, found by
+    -- timing (diagnosis 2026-11-06-s5): each lands on or 0.10 s after a shadow hit, and the meter counts one per fight.
+    local S5_PROCS = { [147812.341] = true, [147847.263] = true, [147873.232] = true, [147908.581] = true,
+        [147944.803] = true, [147961.193] = true, [147997.270] = true, [148016.939] = true, [148033.211] = true }
+    local S5 = Replay({ "forever-s5-run1-2026-11-06.log" }, S5_PROCS)
+    local periods = {}
+    for id, period in pairs(S5.periods) do periods[#periods + 1] = string.format("%d=%.3f", id, period) end
+    table.sort(periods)
+    T.Note(string.format("TICKS S5 periods=%s shadow594=%d shadowNone=%d shadowOther=%d heals139=%d healsNone=%d "
+        .. "healsOther=%d heals1260198=%d healsWrong=%d", table.concat(periods, ","), S5.shadow594, S5.shadowNone,
+        S5.shadowOther, S5.heals139, S5.healNone, S5.healOther, S5.heals1260198, S5.healsWrong))
 
     Check("ticks replay: periods learned for 594 and 139 and no other spell (run 3: no 8092 from SW:P ticks on its plate)",
         R.learned[594] and R.learned[139] and R.learnedCount == 2)
@@ -175,4 +199,10 @@ return function(T)
     Check("ticks replay: 139 and 17 are never saved as proc rows", not R.procEver[139] and not R.procEver[17])
     Check("ticks replay: no heal is drawn as a harmful spell", R.healHarmful == 0)
     Check("ticks replay: no hit is drawn as 139 or 1260198", R.hitWrong == 0)
+    Check("ticks S5: no heal on you is drawn as the wrong spell (a Renew tick as the proc, or the proc as Renew)",
+        S5.healsWrong == 0)
+    -- Floors (2026-11-06, refined periods): measured 40 and 11, less 2 SW:P ticks and 1 Renew tick, so a later rule may
+    -- trade a tick; the counts before the period refinement (36 and 9) stay below them.
+    Check("ticks S5: at least 38 shadow hits drawn as 594", S5.shadow594 >= 38)
+    Check("ticks S5: at least 10 heals drawn as 139", S5.heals139 >= 10)
 end

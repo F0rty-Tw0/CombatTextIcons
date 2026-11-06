@@ -4,6 +4,10 @@
 -- specialization in store.lockedTicks). An event then fits a saved spell when it lands near a whole number of periods
 -- after that spell's newest cast on the key; such an event is that spell's tick and joins no other cast's delays.
 -- Fits answers which spells fit; the caller takes the slot of a sole fit.
+-- A taken tick refines the saved period: at k >= 2 periods after its cast, its own estimate age / k moves the period
+-- by REFINE of the gap. The learned period carries the first delays' jitter (S5, 2026-11-06: learned 3.034 on a 3.00
+-- tick), and k * that error pushes later ticks past TOL; age / k divides a tick's jitter by k instead. The event that
+-- learned is not counted twice, and a fit nobody takes (another spell's tick, or no sole fit) moves nothing.
 -- A cast is its timestamp: casts and events share one clock (GetTime).
 
 local _, ns = ...
@@ -19,16 +23,19 @@ local NEED = 3          -- delays (d1, 2 * d1, 3 * d1) that learn a period
 local KMAX = 12         -- most periods after the cast that an event may fit
 local MISS_CASTS = 3    -- checked casts in a row with no fit that retire a saved spell
 local MAX_DELAYS = 16   -- delays a cast keeps, oldest dropped
+local REFINE = 0.25     -- share of the gap to a taken tick's estimate that the saved period moves
 
 local issecretvalue = issecretvalue or function() return false end
 local function IsNumber(value) return not issecretvalue(value) and type(value) == "number" end
 
 -- [spellID] = { period, kind, school, misses }: the store's entries
 local saved = {}
--- [key][spellID] = { at, kind, alone, school, delays, fits, checked }: the spell's newest cast on that key
+-- [key][spellID] = { at, kind, alone, school, delays, fits, checked, learnedAt }: the spell's newest cast on that key
 local newest = {}
 -- [slot] = true: that tick has named a hit or heal; slot is spellID .. "@" .. at .. "@" .. k
 local used = {}
+-- [slot] = age / k for each fit at k >= 2 of the last Fits call: Take refines the saved period from it
+local estimates = {}
 -- The casts seen on the newest cast stamp, for the alone test
 local stamp = { at = nil, ids = {}, n = 0, casts = {} }
 -- [spellID] = true for every ID NoteCast has seen since load
@@ -44,6 +51,7 @@ end
 local function ClearLive()
     Clear(newest)
     Clear(used)
+    Clear(estimates)
     stamp = { at = nil, ids = {}, n = 0, casts = {} }
     lastCastAt = -math.huge
     healLearnAt = nil
@@ -167,8 +175,8 @@ local function CastFree(kind, now)
     return now - lastCastAt > CAST_GAP
 end
 
--- The tick slot an event at `now` takes of a saved spell's newest cast, or nil: the event is of the spell's school
--- (damage), lands within TOL of the k-th period for k in 1..KMAX, and no event has taken that slot yet.
+-- The tick slot an event at `now` takes of a saved spell's newest cast and its k, or nil: the event is of the spell's
+-- school (damage), lands within TOL of the k-th period for k in 1..KMAX, and no event has taken that slot yet.
 local function FitSlot(id, entry, cast, school, now)
     local age = now - cast.at
     local k = math.floor(age / entry.period + 0.5)
@@ -176,7 +184,7 @@ local function FitSlot(id, entry, cast, school, now)
     local schoolFits = entry.kind ~= "damage" or entry.school == school
     local onTick = k >= 1 and k <= KMAX and math.abs(age - k * entry.period) <= TOL
 
-    if schoolFits and onTick and not used[slot] then return slot end
+    if schoolFits and onTick and not used[slot] then return slot, k end
 end
 
 -- Whether the event fits a saved spell of its kind on the key, as Fits would answer.
@@ -210,6 +218,7 @@ local function Learn(casts, kind, school, now)
                 local period = PeriodOf(delays)
                 if period then
                     saved[id] = { period = period, kind = kind, school = cast.school, misses = 0 }
+                    cast.learnedAt = now
                     if ns.Debug then ns.Debug("TICKS learned %d period=%.3f kind=%s", id, period, kind) end
                 end
             end
@@ -221,6 +230,7 @@ end
 -- event fits, as { spellID, slot } (never nil).
 function Ticks.Fits(key, kind, school, now)
     local fits = {}
+    estimates = {}
     if not ns.IsForever or not IsNumber(now) then return fits end
     if kind == "damage" and not IsNumber(school) then return fits end
 
@@ -233,10 +243,11 @@ function Ticks.Fits(key, kind, school, now)
         local entry = saved[id]
         if entry and entry.kind == kind then
             if now - cast.at >= entry.period - TOL then cast.checked = true end
-            local slot = FitSlot(id, entry, cast, school, now)
+            local slot, k = FitSlot(id, entry, cast, school, now)
             if slot then
                 cast.fits = cast.fits + 1
                 fits[#fits + 1] = { spellID = id, slot = slot }
+                if k >= 2 and cast.learnedAt ~= now then estimates[slot] = (now - cast.at) / k end
             end
         end
     end
@@ -244,11 +255,14 @@ function Ticks.Fits(key, kind, school, now)
     return fits
 end
 
--- Ticks.Take(spellID, slot): the caller's sole fit takes its tick, drawn or not.
+-- Ticks.Take(spellID, slot): the caller's sole fit takes its tick, drawn or not, and refines the period when the last
+-- Fits call gave that slot an estimate.
 function Ticks.Take(spellID, slot)
     if not ns.IsForever then return end
 
     used[slot] = true
+    local entry, estimate = saved[spellID], estimates[slot]
+    if entry and estimate then entry.period = entry.period + REFINE * (estimate - entry.period) end
 end
 
 -- Ticks.PlateGone(plate): that plate's casts end.
