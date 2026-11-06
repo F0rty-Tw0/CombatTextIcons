@@ -255,11 +255,15 @@ local function ShowNPC(unit)
     return guid:match("^Creature%-%d+%-%d+%-%d+%-%d+%-(%d+)%-") or guid:match("^(%a+)") or "?"
 end
 
--- A cast's tick key for the log, no spaces: "player", the plate's unit token (namePlateUnitToken), "plate" when that
--- token is not a plain string, or "nil".
+-- [plate] = the unit token NAME_PLATE_UNIT_ADDED gave it, until NAME_PLATE_UNIT_REMOVED: for the debug log only
+-- (Forever's plate frames have no namePlateUnitToken; S5 run 2 printed key=plate on every cast).
+local plateUnits = {}
+
+-- A cast's tick key for the log, no spaces: "player", the plate's unit token (the one it was added for, else
+-- namePlateUnitToken), "plate" when neither is a plain string, or "nil".
 local function ShowKey(key)
     if type(key) ~= "table" then return tostring(key) end
-    local token = key.namePlateUnitToken
+    local token = plateUnits[key] or key.namePlateUnitToken
 
     return Plain(token) and type(token) == "string" and token or "plate"
 end
@@ -1330,12 +1334,14 @@ function Core.NAME_PLATE_UNIT_REMOVED(unit)
         mine[plate] = nil
         ns.Locked.PlateGone(plate)
         ns.Ticks.PlateGone(plate)
+        plateUnits[plate] = nil
     end
 end
 
 function Core.NAME_PLATE_UNIT_ADDED(unit)
     local plate = C_NamePlate.GetNamePlateForUnit(unit, false)
     local guid = PlainGUID(unit)
+    if Plain(plate) then plateUnits[plate] = unit end
     if Plain(plate) and guid then Tracker.OnPlateAdded(plate, guid, GetTime()) end
 end
 

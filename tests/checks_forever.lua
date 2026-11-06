@@ -220,6 +220,12 @@ return function(T)
         local keyless = Last("^CAST ")
         Check("debug: the CAST line ends with the cast's tick key: key=<plate unit> solo on a plate, key=nil with none",
             cast ~= nil and cast:find(" key=nameplate1$") ~= nil and keyless ~= nil and keyless:find(" key=nil$") ~= nil)
+        C_NamePlate.GetNamePlateForUnit("nameplate2", false).namePlateUnitToken = nil
+        rig.Add(9.6, "nameplate2")
+        rig.Cast(9.7, "nameplate2")
+        local tokenless = Last("^CAST ")
+        Check("debug: a plate frame with no namePlateUnitToken (Forever, S5 run 2 printed key=plate) logs the unit it was "
+            .. "added for", tokenless ~= nil and tokenless:find(" key=nameplate2$") ~= nil)
 
         rig.S.now = 10
         rig.ns.Core.UNIT_COMBAT("player", "HEAL", "", 500, 2)
