@@ -1653,11 +1653,14 @@ local function Judging(run, sessionID, rows, reason)
                 not get and "none" or not ok and "err" or issecretvalue(override) and "secret" or tostring(override))
         end
     end
-    -- the healing-done rows, only a list of your heals' IDs (Heals.lua): for a clear read's Heals.Learn and the probe
+    -- the healing-done rows, only a list of your heals' IDs (Heals.lua): for a clear read's Heals.Learn, every Forever
+    -- read's LockedHeals.Learn and the probe
     local healRows, healReason
-    if area == "clear" or ns.Debug then healRows, healReason = ReadRows(sessionID, Meter.HEALING_DONE) end
+    local readsHeals = area == "clear" or ns.IsForever or ns.Debug
+    if readsHeals then healRows, healReason = ReadRows(sessionID, Meter.HEALING_DONE) end
     local fight = { cast = {}, unknown = {}, unseen = math.max(0, total - run.seen) }
     for _, item in ipairs(run.casts or {}) do fight.cast[item.spellID], fight.cast[item.base] = true, true end
+    if ns.IsForever then ns.LockedHeals.Learn(healRows, run.helps, fight.cast) end
     for _, hit in ipairs(run.unknown) do fight.unknown[hit.school] = (fight.unknown[hit.school] or 0) + hit.amount end
     local results, open = Verdicts(run.tally, rows, frozen, fight)
     if not frozen then SafetyNet(results, run.drawn) end

@@ -1021,8 +1021,9 @@ end
 
 -- Heals and damage taken (drawn over the player) -------------------------------------
 
--- Once a heal is learned or one sample from it (Heals.AnyLearned), a heal on you that no channel named waits for the
--- end of its frame (Core.FlushHeals): it lands before its own cast's UNIT_SPELLCAST_SUCCEEDED in that frame
+-- Once a heal is learned or one sample from it (Heals.AnyLearned), and on Forever always (LockedHeals.Claim), a heal
+-- on you that no channel named waits for the end of its frame (Core.FlushHeals): it lands before its own cast's
+-- UNIT_SPELLCAST_SUCCEEDED in that frame
 -- (shamanheal: the heal of each of 17 Chain Heal 1064 casts is logged on the cast's stamp, the line before the CAST
 -- line), so only then does the frame know its casts; its hits (frameHits) come with them.
 -- waiting = { at = the frame's stamp, heals = { { flagText, amount, school, size }, ... } }; frameCasts = { at, ids =
@@ -1030,7 +1031,8 @@ end
 local waiting, frameCasts = { heals = {} }, { ids = {} }
 local flushQueued = false -- a flush waits on C_Timer.After(0)
 
--- A heal on you no channel named is drawn: with the icon of the spell that claimed it (Heals.Claim: its frame's
+-- A heal on you no channel named is drawn: with the icon of the spell that claimed it (on Forever
+-- LockedHeals.Claim: a direct, HoT or proc fit; else Heals.Claim: its frame's
 -- helpful cast, a learned size or share, or the tick of a running train), else as any unexplained heal on you: the question mark solo while the area is clear, else hidden.
 local function DrawOwnHeal(heal, castID)
     local route = "HIDDEN"
@@ -1056,7 +1058,12 @@ function Core.FlushHeals(now)
     local casts = frameCasts.at == waiting.at and frameCasts.ids or {}
     local hits, at = frameHits.at == waiting.at and frameHits.list or {}, waiting.at
     waiting = { heals = {} }
-    local claims = Heals.Claim(casts, heals, hits, at, not InGroup() and Teacher.AreaClear())
+    local claims
+    if ns.IsForever then
+        claims = ns.LockedHeals.Claim(casts, heals, at, ownFrame.at == at, not InGroup())
+    else
+        claims = Heals.Claim(casts, heals, hits, at, not InGroup() and Teacher.AreaClear())
+    end
     for index, heal in ipairs(heals) do DrawOwnHeal(heal, claims[index]) end
 end
 
@@ -1073,11 +1080,12 @@ end
 
 -- A heal on you or a party member. On you: the heal of a channel (Drain Life) whose damage tick landed in this same
 -- frame; else once any heal is learned it waits for its frame's casts, hits and running trains, which may name it
--- (waiting); a heal on you nothing names draws the question mark when solo and the area is clear. A heal on a party
--- member stays hidden. A HoT's ticks are a learned train's (Heals.lua): the tick tracker's own HoT instances took
--- like-timed heals of any size and outlived the HoT (synthetic: foreign heals and a 720 rune drawn under Renew 139,
--- 4.6 % of the case's heals; the real heal logs: no heal named that way). Heals do not count toward the crowd check
--- (overheal).
+-- (waiting). On Forever every heal on you waits, and its frame's casts, your own hit on its stamp and learned HoT
+-- ticks may name it (LockedHeals.Claim). A heal on you nothing names draws the question mark when solo and the area
+-- is clear. A heal on a party member stays hidden. A HoT's ticks are a learned train's (Heals.lua): the tick
+-- tracker's own HoT instances took like-timed heals of any size and outlived the HoT (synthetic: foreign heals and a
+-- 720 rune drawn under Renew 139, 4.6 % of the case's heals; the real heal logs: no heal named that way). Heals do not
+-- count toward the crowd check (overheal).
 function Core.Heal(unit, flagText, amount, school, now)
     Core.FlushHeals(now)
     if ns.Debug then
@@ -1093,7 +1101,8 @@ function Core.Heal(unit, flagText, amount, school, now)
     elseif unit == "player" then
         local heal = { flagText = flagText, amount = amount, school = school,
             size = Streams.NormalAmount(amount, flagText) }
-        if not Heals.AnyLearned() then return DrawOwnHeal(heal) end
+        local waits = ns.IsForever or Heals.AnyLearned()
+        if not waits then return DrawOwnHeal(heal) end
         waiting.at = now
         waiting.heals[#waiting.heals + 1] = heal
         QueueFlush()
@@ -1159,6 +1168,8 @@ local function UseSpec()
     Casts.InitOwnRows(store)
     Procs.Init(store)
     ns.Locked.Init(store)
+    ns.Ticks.Init(store)
+    ns.LockedHeals.Init(store)
     ns.Volley.Init(store)
     ns.Link.Init(store)
     Ledger.Init(store)
@@ -1207,6 +1218,7 @@ function Core.PLAYER_REGEN_ENABLED()
     Ledger.Finish(GetTime())
     Teacher.Finish(GetTime())
     ns.Locked.EndFight()
+    ns.Ticks.EndFight()
 end
 
 -- The combat-start hook: the ledger opens a fight and the teacher starts tallying what
@@ -1253,7 +1265,11 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
             local plate = Casts.NoteCast(spellID, now, castGUID, unit == "pet")
             Teacher.Cast(spellID, Casts.Base(spellID), now, plate, unit == "pet")
             ns.Link.NoteCast(spellID, now, plate)
-            if unit == "player" then ns.Locked.NoteCast(spellID, now) end
+            if unit == "player" then
+                ns.Locked.NoteCast(spellID, now)
+                local tickKey = Plain(plate) and not InGroup() and plate or nil
+                ns.Ticks.NoteCast(spellID, now, tickKey, "damage")
+            end
         elseif Plain(harmful) and unit == "player" then
             if frameCasts.at ~= now then frameCasts = { at = now, ids = {}, seen = {} } end
             if not frameCasts.seen[spellID] then
@@ -1262,6 +1278,8 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
             end
             Teacher.Helped(spellID, now)
             Heals.Cast(spellID, now)
+            local tickKey = not InGroup() and "player" or nil
+            ns.Ticks.NoteCast(spellID, now, tickKey, "heal")
         end
     end
     Tracker.OnCast(unit, spellID, now)
@@ -1297,6 +1315,7 @@ function Core.NAME_PLATE_UNIT_REMOVED(unit)
         Display.ReleasePlate(plate)
         mine[plate] = nil
         ns.Locked.PlateGone(plate)
+        ns.Ticks.PlateGone(plate)
     end
 end
 
@@ -1372,6 +1391,8 @@ SlashCmdList.COMBATTEXTICONS = function(message)
         Heals.Forget()
         Procs.Forget()
         ns.Locked.Forget()
+        ns.LockedHeals.Forget()
+        ns.Ticks.Forget()
         ns.Volley.Forget()
         ns.Link.Forget()
         Ledger.Forget()

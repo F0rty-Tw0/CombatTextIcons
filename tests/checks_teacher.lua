@@ -2801,6 +2801,48 @@ return function(T)
             and Find(rig.ns.Teacher.last, SMITE).verdict == "agree")
     end
 
+    do -- LockedHeals wiring in Judging: Forever reads heal rows on a short read, retail does not
+        local HEAL_ID, HELP_ID, SMITE_BASE = 19236, 2061, 585
+        -- A short read whose fight holds one Smite cast (base SMITE_BASE) and one helpful cast HELP_ID.
+        local function ShortRead(forever, debug)
+            local rig = Rig({})
+            rig.ns.IsForever = forever
+            local calls = {}
+            rig.ns.LockedHeals.Learn = function(healRows, helps, cast) calls[#calls + 1] = { healRows, helps, cast } end
+            local start = rig.ns.Teacher.Start
+            rig.ns.Teacher.Start = function(...)
+                start(...)
+                rig.ns.Teacher.Cast(SMITE, SMITE_BASE, 11)
+                rig.ns.Teacher.Helped(HELP_ID, 12)
+            end
+            if debug then rig.ns.Debug = function() end end
+            nextSession = nextSession + 1
+            local session = Session(nextSession, { Row(SMITE, 1000) })
+            session.healRows = { Row(HEAL_ID, 900, 120) }
+            rig.Read({ [SMITE] = { 53 } }, { session })
+
+            return rig, calls
+        end
+        local rig, calls = ShortRead(true, false)
+        Check("lockedheals teacher: Forever, short read, debug off: the heal rows are read and Learn gets rows, helps and the harmful set",
+            rig.ns.Teacher.last.area == "short" and #rig.S.sourceCalls == 2 and #calls == 1
+            and calls[1][1][1].spellID == HEAL_ID and calls[1][2][1] ~= nil and calls[1][2][1].spellID == HELP_ID
+            and calls[1][3][SMITE] == true and calls[1][3][SMITE_BASE] == true)
+        rig, calls = ShortRead(false, false)
+        Check("lockedheals teacher: retail, short read, debug off: no heal read, Learn not called",
+            rig.ns.Teacher.last.area == "short" and #rig.S.sourceCalls == 1 and #calls == 0)
+        rig, calls = ShortRead(true, true)
+        Check("lockedheals teacher: Forever with debug on still calls Learn once", #calls == 1)
+        rig = Rig({})
+        rig.ns.IsForever = true
+        local learned = 0
+        rig.ns.LockedHeals.Learn = function() learned = learned + 1 end
+        nextSession = nextSession + 1
+        rig.S.sourceFail = "heal error" -- ReadRows returns nil for the heal read only
+        rig.Read({ [SMITE] = { 53 } }, { Session(nextSession, { Row(SMITE, 1000) }) })
+        Check("lockedheals teacher: a Forever read whose heal read fails (healRows nil) still calls Learn once", learned == 1)
+    end
+
     do -- steady pass (plan 2026-10-25-steady-learning): long fights learn from a steady delay and size
         local SWD, VOID_BLAST, SWP_ROW = 32379, 450983, 589
         -- One solo fight on nameplate1 with /cti debug on: `events` (time order) are { t, spellID } casts and

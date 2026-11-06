@@ -219,6 +219,7 @@ return function(T)
 
         rig.S.now = 10
         rig.ns.Core.UNIT_COMBAT("player", "HEAL", "", 500, 2)
+        rig.ns.Core.FlushHeals(nil)
         local heal = Last("^HEAL ")
         Check("debug: a heal logs HEAL <unit> school= amount= flag= and its route",
             heal == "HEAL player school=2 amount=500 flag=" and log[#log] == ROUTE_UNKNOWN)
@@ -447,6 +448,7 @@ return function(T)
                 rig.S.now = 1
                 local before = #rig.draws
                 rig.ns.Core.UNIT_COMBAT(unit, event, "", amount, event == "HEAL" and 2 or 4)
+                rig.ns.Core.FlushHeals(nil)
                 return #rig.draws > before and rig.draws[#rig.draws].texture or nil
             end
             return rig
@@ -474,7 +476,7 @@ return function(T)
 
         rig = Crowd("clear")
         texture = rig.Strike("HEAL", "player", 500)
-        Check("crowd: clear -> an unexplained heal on you draws ? at once",
+        Check("crowd: clear -> an unexplained heal on you draws ? at its frame's end",
             texture == rig.ns.Meter.UNKNOWN_ICON and rig.Route() == ROUTE_UNKNOWN and rig.rows == 1)
 
         rig = Crowd("crowded")
@@ -539,4 +541,6 @@ return function(T)
     end
 
     T.RunFile("checks_locked.lua")
+    T.RunFile("checks_ticks.lua")
+    T.RunFile("checks_lockedheals.lua")
 end

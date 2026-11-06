@@ -12,10 +12,14 @@
 -- cast cannot lock) forms the lock at the mean of the two, pairing with the nearest. A hit fits a lock within
 -- DELAY_TOL of it when its cast has not named a hit yet, and moves it. Each cast of the spell closes the period of the
 -- one before it: a period without a fit is a miss, BREAK_CASTS misses clear the lock and its delays.
+-- Rule 3, the tick join (Ticks.lua): a spell whose tick the hit is (Ticks.Fits: near a whole number of its learned
+-- periods after its newest cast on the plate) fits too; a spell that also fits Rule 1 or Rule 2 counts once. When the
+-- sole fit has such a tick, Observe takes its slot (Ticks.Take).
 -- A cast is its timestamp: a second NoteCast of one spell on one stamp is the same cast.
 
 local _, ns = ...
 local Meter = ns.Meter
+local Ticks = ns.Ticks
 
 local Locked = {}
 ns.Locked = Locked
@@ -300,7 +304,8 @@ local function CountKeys(set)
     return count
 end
 
--- A solo secret hit of `school` on `plate` at `now`: `sole, fits`. Moves locks and marks casts as it goes.
+-- A solo secret hit of `school` on `plate` at `now`: `sole, fits`. Moves locks and marks casts as it goes, and takes
+-- the tick slot of a sole fit that Ticks.Fits named.
 function Locked.Observe(plate, school, now)
     if not firstHitRead then
         firstHitRead = true
@@ -324,11 +329,18 @@ function Locked.Observe(plate, school, now)
         end
     end
 
+    local slots = {}
+    for _, fit in ipairs(Ticks.Fits(plate, "damage", school, now)) do
+        slots[fit.spellID] = fit.slot
+        fitting[fit.spellID] = fitting[fit.spellID] or true -- a tick-only spell has no cast time and no Mark
+    end
+
     local fits = CountKeys(fitting)
     if fits ~= 1 then return nil, fits end
 
     local sole = next(fitting)
     if lockFitting[sole] then Mark(sole, fitting[sole]) end
+    if slots[sole] then Ticks.Take(sole, slots[sole]) end
 
     return sole, fits
 end

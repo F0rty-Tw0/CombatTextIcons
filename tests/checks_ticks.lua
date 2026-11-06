@@ -1,0 +1,732 @@
+-- Unit checks for Ticks.lua, the period rule (spec 2026-11-05-forever-tick-heal-icons, "Ticks.lua: the period rule").
+-- Called by tests/checks_forever.lua with the same T table.
+
+return function(T)
+    local Check = T.Check
+    -- Forever by default. `saved` becomes store.lockedTicks (nil: Init creates {}).
+    local function Fresh(interface, saved)
+        local ns = T.Boot(function(S) S.interface = interface or 16001 CombatTextIconsCharDB = {} end)
+        local store = { lockedTicks = saved }
+        ns.Ticks.Init(store)
+
+        return ns.Ticks, store, ns
+    end
+    local function Saved(period, kind, school, misses)
+        return { period = period, kind = kind or "damage", school = school, misses = misses or 0 }
+    end
+    -- Whether `list` is exactly one fit, of spell `id`.
+    local function Only(list, id) return #list == 1 and list[1].spellID == id end
+    -- Cast 594 at 10 on "p"; ticks at 13, 16, 19 (school 32). Returns the three Fits lists.
+    local function ThreeTicks(X)
+        X.NoteCast(594, 10, "p", "damage")
+
+        return X.Fits("p", "damage", 32, 13), X.Fits("p", "damage", 32, 16), X.Fits("p", "damage", 32, 19)
+    end
+    local function Tick(X, now, school) return X.Fits("p", "damage", school or 32, now) end
+    local function Heal(X, now) return X.Fits("player", "heal", nil, now) end
+    local function Near(a, b) return type(a) == "number" and math.abs(a - b) < 1e-9 end
+    local function Empty(store) return next(store.lockedTicks) == nil end
+    local function Count(set)
+        local n = 0
+        for _ in pairs(set) do n = n + 1 end
+
+        return n
+    end
+
+    do
+        local X, store = Fresh()
+        local a, b, c = ThreeTicks(X)
+        local e = store.lockedTicks[594]
+        Check("ticks: three ticks learn the period; the third already fits",
+            #a == 0 and #b == 0 and Only(c, 594) and e ~= nil and Near(e.period, 3.0) and e.kind == "damage"
+                and e.school == 32 and e.misses == 0)
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 13)
+        Tick(X, 16)
+        Check("ticks: two ticks save nothing", Empty(store))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 13.0)
+        Tick(X, 16.0625)
+        Tick(X, 19.0)
+        local e = store.lockedTicks[594]
+        Check("ticks: the period is the mean of the matched delays", e ~= nil and Near(e.period, (3.0 + 3.03125 + 3.0) / 3))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        for _, at in ipairs({ 11.0, 13.0, 16.0, 19.0, 22.0 }) do Tick(X, at) end
+        local e = store.lockedTicks[594]
+        Check("ticks: delay order: the first d1 that qualifies wins", e ~= nil and Near(e.period, 3.0))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        X.NoteCast(589, 10, "p", "damage")
+        Tick(X, 13)
+        Tick(X, 16)
+        Tick(X, 19)
+        Check("ticks: two casts on one stamp learn nothing", Empty(store))
+
+        X.NoteCast(594, 20, "p", "damage")
+        Tick(X, 23)
+        Tick(X, 26)
+        Tick(X, 29)
+        Check("ticks: alone again on a later stamp learns", store.lockedTicks[594] ~= nil and store.lockedTicks[589] == nil)
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        X.NoteCast(5019, 12.7, nil, "damage")
+        Tick(X, 13)
+        Tick(X, 16)
+        Tick(X, 19)
+        Check("ticks: a tick 0.3 s after a cast joins no delay", Empty(store))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        X.NoteCast(5019, 12.5, nil, "damage")
+        Tick(X, 13)
+        Tick(X, 16)
+        Tick(X, 19)
+        Check("ticks: a tick 0.5 s after a cast joins", store.lockedTicks[594] ~= nil)
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        X.NoteCast(5019, 12.8, nil, "damage")
+        local ok, list = pcall(X.Fits, "p", "damage", 32, 13)
+        Check("ticks: a harmful cast with no plate stays quiet", ok and #list == 0 and Empty(store))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(139, 10, "player", "heal")
+        X.NoteCast(5019, 16, nil, "damage")
+        Heal(X, 13)
+        Heal(X, 16)
+        Heal(X, 19)
+        Check("ticks: a heal on a cast's stamp joins nothing", Empty(store))
+    end
+
+    do -- an event that fits a saved spell on the key joins no new cast's delays
+        local X, store = Fresh(16001, { [139] = Saved(3.0, "heal") })
+        X.NoteCast(139, 10, "player", "heal")
+        Heal(X, 13)
+        X.NoteCast(2061, 13.05, "player", "heal")
+        local renew = true
+        for _, at in ipairs({ 16, 19, 22, 25, 28 }) do renew = Only(Heal(X, at), 139) and renew end
+        Check("ticks: Renew's ticks join no lone Flash Heal's delays: Flash Heal learns nothing, each tick fits 139 only",
+            store.lockedTicks[2061] == nil and renew)
+
+        X, store = Fresh(16001, { [589] = Saved(3.0, "damage", 32) })
+        X.NoteCast(589, 10, "p", "damage")
+        Tick(X, 13)
+        X.NoteCast(8092, 13.05, "p", "damage")
+        local swp = true
+        for _, at in ipairs({ 16, 19, 22, 25, 28 }) do swp = Only(Tick(X, at), 589) and swp end
+        Check("ticks: SW:P's ticks join no lone Mind Blast's delays: Mind Blast learns nothing, each tick fits 589 only",
+            store.lockedTicks[8092] == nil and swp)
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(139, 10, "player", "heal")
+        Heal(X, 13)
+        Heal(X, 16)
+        local c = Heal(X, 19)
+        local e = store.lockedTicks[139]
+        Check("ticks: heals learn a heal entry with no school",
+            e ~= nil and e.kind == "heal" and e.school == nil and Near(e.period, 3.0) and Only(c, 139))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(139, 10, "player", "heal")
+        Heal(X, 13)
+        Heal(X, 16)
+        X.NoteCast(5019, 19, nil, "damage")
+        Heal(X, 19)
+        Check("ticks: a cast of the heal's own frame counts, logged first or after (F8)", Empty(store))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(139, 10, "player", "heal")
+        Heal(X, 13)
+        Heal(X, 13)
+        Heal(X, 16)
+        Heal(X, 16)
+        Heal(X, 19)
+        local again = Heal(X, 19)
+        local e = store.lockedTicks[139]
+        Check("ticks: heals on one stamp join once",
+            e ~= nil and Near(e.period, 3.0) and e.misses == 0 and Only(again, 139) and Count(store.lockedTicks) == 1)
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 10.5)
+        Tick(X, 11.0)
+        Tick(X, 11.5)
+        Check("ticks: a period below MIN_PERIOD learns nothing", Empty(store))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(139, 10, "player", "heal")
+        Heal(X, 13)
+        Heal(X, 16)
+        X.NoteCast(5019, 18.875, nil, "damage")
+        Heal(X, 19)
+        Check("ticks: a heal is cast-free by its stamp, not by the gap", store.lockedTicks[139] ~= nil)
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(139, 10, "player", "heal")
+        Heal(X, 13)
+        for _ = 1, 17 do Heal(X, 16) end
+        Heal(X, 19)
+        Check("ticks: one stamp joins once against the 16-delay cap", store.lockedTicks[139] ~= nil)
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        local a, b, c = X.Fits("p", "heal", nil, 13), X.Fits("p", "heal", nil, 16), X.Fits("p", "heal", nil, 19)
+        Check("ticks: a damage cast takes no heal events", #a == 0 and #b == 0 and #c == 0 and Empty(store))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 13, 32)
+        Tick(X, 16, 2)
+        Tick(X, 19, 32)
+        Tick(X, 22, 32)
+        Check("ticks: the first event's school fixes the delays (later school ignored)", Empty(store))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 13, 2)
+        Tick(X, 16, 32)
+        Tick(X, 19, 32)
+        Tick(X, 22, 32)
+        Check("ticks: the first event's school fixes the delays (first school stays)", Empty(store))
+    end
+
+    do
+        local X = Fresh(16001, { [594] = Saved(3.0, "damage", 32) })
+        X.NoteCast(594, 30, "p", "damage")
+        local inside, outside = Tick(X, 33.125), Tick(X, 33.1875)
+        Check("ticks: fit window edge is TOL", Only(inside, 594) and #outside == 0)
+
+        local zero, kmax, past = Tick(X, 30.5), Tick(X, 66.0), Tick(X, 69.0)
+        Check("ticks: k runs 1..KMAX", #zero == 0 and Only(kmax, 594) and #past == 0)
+
+        Check("ticks: a fit needs its key and school",
+            #X.Fits("q", "damage", 32, 33) == 0 and #X.Fits("p", "damage", 2, 33) == 0)
+    end
+
+    do
+        local X = Fresh(16001, { [594] = Saved(3.0, "damage", 32) })
+        X.NoteCast(594, 30, "p", "damage")
+        local list = Tick(X, 33)
+        local again = Tick(X, 33)
+        X.Take(594, list[1].slot)
+        local taken = Tick(X, 33)
+        local later = Tick(X, 36)
+        Check("ticks: a taken slot fits no more, the next k does",
+            Only(list, 594) and Only(again, 594) and #taken == 0 and Only(later, 594))
+    end
+
+    do
+        local X = Fresh()
+        local ok, list = pcall(X.Fits, "p", "damage", 32, 5)
+        Check("ticks: Fits before any cast is empty", ok and #list == 0)
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, nil, "damage")
+        local a, b, c = Tick(X, 13), Tick(X, 16), Tick(X, 19)
+        Check("ticks: a cast with no key learns nothing", #a == 0 and #b == 0 and #c == 0 and Empty(store))
+    end
+
+    do
+        local X = Fresh(16001, { [9] = Saved(3, "heal"), [8] = Saved(3, "damage", 32) })
+        X.NoteCast(7, 10, nil, "damage")
+        Check("ticks: IsOwnCast is a noted ID or a saved heal",
+            X.IsOwnCast(7) and X.IsOwnCast(9) and not X.IsOwnCast(8) and not X.IsOwnCast(4))
+    end
+
+    do
+        local _, store = Fresh(16001, {
+            [594] = Saved(3, "damage", 32),
+            x = Saved(3, "damage", 32),
+            [5] = { period = "3", kind = "damage", school = 32, misses = 0 },
+            [6] = { period = 3, kind = "bogus", school = 32, misses = 0 },
+            [7] = { period = 3, kind = "damage", misses = 0 },
+            [10] = Saved(0, "damage", 32),
+            [11] = { period = 3, kind = "damage", school = 32 },
+        })
+        Check("ticks: Init drops invalid entries", Count(store.lockedTicks) == 1 and store.lockedTicks[594] ~= nil)
+    end
+
+    do
+        local _, nilStore = Fresh()
+        local _, badStore = Fresh(16001, "bad")
+        Check("ticks: Init makes the table",
+            type(nilStore.lockedTicks) == "table" and type(badStore.lockedTicks) == "table")
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 13)
+        Tick(X, 16)
+        X.Init(store)
+        local list = Tick(X, 19)
+        Check("ticks: Init clears the live state", #list == 0 and Empty(store))
+    end
+
+    do
+        local X, store = Fresh()
+        ThreeTicks(X)
+        X.Forget()
+        Check("ticks: Forget clears saved and live state",
+            next(store.lockedTicks) == nil and #Tick(X, 22) == 0 and not X.IsOwnCast(594))
+    end
+
+    do
+        local X, _, ns = Fresh()
+        local lines = {}
+        ns.Debug = function(format, ...) lines[#lines + 1] = string.format(format, ...) end
+        ThreeTicks(X)
+        Check("ticks: the learned line", #lines == 1 and lines[1] == "TICKS learned 594 period=3.000 kind=damage")
+    end
+
+    do
+        local ns = T.Boot(function(S) S.interface = 16001 CombatTextIconsCharDB = {} end)
+        ns.Ticks.NoteCast(594, 10, "p", "damage")
+        local ok, list = pcall(ns.Ticks.Fits, "p", "damage", 32, 13)
+        Check("ticks: calls before Init find nothing and do not error", ok and #list == 0)
+    end
+
+    do
+        local X, store = Fresh(120105)
+        local a, b, c = ThreeTicks(X)
+        Check("ticks: retail does nothing",
+            #a == 0 and #b == 0 and #c == 0 and Empty(store) and not X.IsOwnCast(594)
+                and type(store.lockedTicks) == "table")
+    end
+
+    do
+        -- Spec: every entry point except Init and Forget returns at once off Forever, so a retail NoteCast notes nothing.
+        -- Turning Forever on afterwards exposes a cast that was noted anyway: it would learn and read as your own cast.
+        local X, store, ns = Fresh(120105)
+        X.NoteCast(594, 10, "p", "damage")
+        ns.IsForever = true
+        local a, b, c = Tick(X, 13), Tick(X, 16), Tick(X, 19)
+        Check("ticks: retail NoteCast notes no cast",
+            #a == 0 and #b == 0 and #c == 0 and Empty(store) and not X.IsOwnCast(594))
+    end
+
+    -- Lifecycle: miss, retire, EndFight, PlateGone, groups. Seeded with 594 (period 3, damage, school 32, misses M).
+    local function Seeded(M, interface)
+        return Fresh(interface, { [594] = Saved(3.0, "damage", 32, M) })
+    end
+    -- Cast 594 on "p" at `at`, then a Fits at `at + 3.5`: due, between the k = 1 and k = 2 windows, no fit, checked.
+    local function CastDue(X, at)
+        X.NoteCast(594, at, "p", "damage")
+        X.Fits("p", "damage", 32, at + 3.5)
+    end
+
+    do
+        local X, store = Seeded(0)
+        CastDue(X, 10)
+        X.NoteCast(594, 20, "p", "damage")
+        Check("miss: a checked cast with no fit adds one miss", store.lockedTicks[594].misses == 1)
+    end
+
+    do
+        local X, store = Seeded(0)
+        local seen = {}
+        for _, at in ipairs({ 10, 20, 30, 40 }) do
+            CastDue(X, at)
+            seen[#seen + 1] = store.lockedTicks[594] and store.lockedTicks[594].misses
+        end
+        Check("miss: one miss after the cast at 20, two after 30", seen[2] == 1 and seen[3] == 2)
+        Check("miss: three checked casts without a fit retire the entry", store.lockedTicks[594] == nil)
+    end
+
+    do
+        local X, store = Seeded(2)
+        X.NoteCast(594, 10, "p", "damage")
+        Check("miss: the event at 13.0 is a fit", Only(Tick(X, 13.0), 594))
+        X.NoteCast(594, 20, "p", "damage")
+        Check("miss: a fit resets the misses", store.lockedTicks[594].misses == 0)
+    end
+
+    do
+        local X, store = Seeded(2)
+        X.NoteCast(594, 10, "p", "damage")
+        X.NoteCast(594, 20, "p", "damage")
+        X.NoteCast(594, 30, "p", "damage")
+        X.NoteCast(594, 40, "p", "damage")
+        Check("miss: unchecked casts change nothing", store.lockedTicks[594] and store.lockedTicks[594].misses == 2)
+    end
+
+    do
+        local X, store = Seeded(2)
+        X.NoteCast(594, 10, "p", "damage")
+        Check("miss: 0.1875 before the window is no fit", #Tick(X, 12.8125) == 0)
+        X.NoteCast(594, 20, "p", "damage")
+        Check("miss: an event before the window leaves the cast unchecked", store.lockedTicks[594].misses == 2)
+    end
+
+    do
+        local X, store = Seeded(2)
+        X.NoteCast(594, 10, "p", "damage")
+        Check("miss: the window start is a fit", Only(Tick(X, 12.875), 594))
+        X.NoteCast(594, 20, "p", "damage")
+        Check("miss: the window start counts as checked, its fit resets", store.lockedTicks[594].misses == 0)
+    end
+
+    do
+        local X, store = Seeded(2)
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 13.5)
+        X.NoteCast(594, 20, "q", "damage")
+        Check("miss: a recast on another key does not end the cast", store.lockedTicks[594].misses == 2)
+    end
+
+    do
+        local X, store = Fresh(16001, { [594] = Saved(3.0, "damage", 32, 2), [139] = Saved(3.0, "heal", nil, 2) })
+        X.NoteCast(594, 10, "p", "damage")
+        X.NoteCast(139, 10, "player", "heal")
+        Tick(X, 13.5)
+        Heal(X, 13.5)
+        X.EndFight()
+        Check("EndFight: a checked damage cast with no fit counts, and the third miss retires it",
+            store.lockedTicks[594] == nil)
+        Check("EndFight: the player key is not ended", store.lockedTicks[139] and store.lockedTicks[139].misses == 2)
+        Check("EndFight: the player key still ticks", Only(Heal(X, 16), 139))
+        Check("EndFight: the damage key is gone", #Tick(X, 13) == 0)
+    end
+
+    do
+        local X, store = Seeded(0)
+        CastDue(X, 10)
+        X.EndFight()
+        X.NoteCast(594, 30, "p", "damage")
+        Check("EndFight: the cast ends once; a later recast does not count it again",
+            store.lockedTicks[594].misses == 1)
+    end
+
+    do
+        local X, store = Seeded(2)
+        X.NoteCast(594, 10, "p", "damage")
+        X.EndFight()
+        Check("EndFight: an unchecked cast changes nothing", store.lockedTicks[594].misses == 2)
+    end
+
+    do
+        local X, store = Fresh(16001, { [594] = Saved(3.0, "damage", 32, 2), [589] = Saved(3.0, "damage", 32, 0) })
+        X.NoteCast(594, 10, "p", "damage")
+        X.NoteCast(589, 10, "q", "damage")
+        Tick(X, 13.5)
+        X.PlateGone("p")
+        Check("PlateGone: that plate's checked cast ends and retires the entry", store.lockedTicks[594] == nil)
+        Check("PlateGone: another plate keeps its cast", Only(X.Fits("q", "damage", 32, 13), 589))
+    end
+
+    do
+        local X = Seeded(0)
+        X.NoteCast(594, 10, "p", "damage")
+        X.PlateGone("p")
+        Check("PlateGone: the key is forgotten", #Tick(X, 13) == 0)
+    end
+
+    do
+        local X, store = Seeded(2)
+        X.NoteCast(594, 10, "p", "damage")
+        local list = Tick(X, 13)
+        X.Take(594, list[1].slot)
+        Check("slots: a taken slot is no fit", #Tick(X, 13) == 0)
+        X.NoteCast(594, 10, "p", "damage")
+        Check("slots: the ending cast's slots are removed (recast)", Only(Tick(X, 13), 594))
+        X.Take(594, Tick(X, 13)[1].slot)
+        X.PlateGone("p")
+        X.NoteCast(594, 10, "p", "damage")
+        Check("slots: the ending cast's slots are removed (PlateGone)",
+            Only(Tick(X, 13), 594) and store.lockedTicks[594] ~= nil)
+    end
+
+    do
+        local X, store = Seeded(2)
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 13.5)
+        X.NoteCast(594, 20, nil, "damage")
+        X.NoteCast(139, 21, nil, "heal")
+        Check("group: a nil-key cast ends nothing and records no cast",
+            store.lockedTicks[594] and store.lockedTicks[594].misses == 2)
+        Check("group: the nil-key call still noted the ID", X.IsOwnCast(139))
+    end
+
+    do
+        local X, store = Fresh(16001, { [139] = Saved(3.0, "heal", nil, 0) })
+        X.NoteCast(139, 10, "player", "heal")
+        Heal(X, 13.5)
+        X.NoteCast(139, 20, "player", "heal")
+        Check("heal recast: a checked heal cast with no fit counts", store.lockedTicks[139].misses == 1)
+    end
+
+    do
+        local X, _, ns = Seeded(0)
+        local lines = {}
+        ns.Debug = function(format, ...) lines[#lines + 1] = string.format(format, ...) end
+        for _, at in ipairs({ 10, 20, 30, 40 }) do CastDue(X, at) end
+        Check("miss: one retired line", #lines == 1 and lines[1] == "TICKS retired 594")
+    end
+
+    do
+        local X, store = Seeded(0, 120105)
+        for _, at in ipairs({ 10, 20, 30, 40 }) do CastDue(X, at) end
+        X.EndFight()
+        X.PlateGone("p")
+        Check("retail: the lifecycle does nothing", store.lockedTicks[594] and store.lockedTicks[594].misses == 0)
+    end
+
+    -- Task 1.3: Locked.Observe joins the tick fits. Modules direct, as checks_locked.lua.
+    local function Join(saved, schools)
+        local ns = T.Boot(function(S) S.interface = 16001 CombatTextIconsCharDB = {} end)
+        local store = { lockedTicks = saved, lockedSchools = schools }
+        ns.Locked.Init(store)
+        ns.Ticks.Init(store)
+        local takes, fitsCalls = {}, 0
+        local take, fits = ns.Ticks.Take, ns.Ticks.Fits
+        ns.Ticks.Take = function(id, slot) takes[#takes + 1] = id take(id, slot) end
+        ns.Ticks.Fits = function(...) fitsCalls = fitsCalls + 1 return fits(...) end
+
+        return ns, takes, function() return fitsCalls end
+    end
+    local function Is(spell, fits, sole, count) return sole == spell and count == fits end
+    local function Taken(takes, id) return #takes == 1 and takes[1] == id end
+
+    do
+        local ns, takes, calls = Join({ [594] = Saved(3.0, "damage", 32) })
+        ns.Ticks.NoteCast(594, 10, "p", "damage")
+        Check("join: a tick-only sole fit names the spell and takes the slot",
+            Is(594, 1, ns.Locked.Observe("p", 32, 13)) and Taken(takes, 594))
+        Check("join: Observe calls Ticks.Fits once", calls() == 1)
+        Check("join: one name per tick (the slot is taken)", Is(nil, 0, ns.Locked.Observe("p", 32, 13)))
+    end
+
+    do
+        local ns, takes = Join({ [594] = Saved(3.0, "damage", 32), [589] = Saved(2.0, "damage", 32) })
+        ns.Ticks.NoteCast(594, 10, "p", "damage")
+        ns.Ticks.NoteCast(589, 11, "p", "damage")
+        Check("join: two tick fits name nothing and take nothing",
+            Is(nil, 2, ns.Locked.Observe("p", 32, 13)) and #takes == 0)
+    end
+
+    do
+        local ns, takes = Join({ [594] = Saved(1.0, "damage", 32) }, { [594] = { school = 32, strays = 0 } })
+        ns.Locked.NoteCast(594, 10)
+        ns.Ticks.NoteCast(594, 10, "p", "damage")
+        Check("join: a tick and Rule 1 on one spell count once",
+            Is(594, 1, ns.Locked.Observe("p", 32, 11)) and Taken(takes, 594))
+    end
+
+    do
+        local ns, takes = Join({ [589] = Saved(1.0, "damage", 32) }, { [594] = { school = 32, strays = 0 } })
+        ns.Locked.NoteCast(594, 10)
+        ns.Ticks.NoteCast(589, 10, "p", "damage")
+        Check("join: a tick plus another spell's Rule 1 is two fits",
+            Is(nil, 2, ns.Locked.Observe("p", 32, 11)) and #takes == 0)
+    end
+
+    do
+        local ns, takes = Join({ [594] = Saved(0.9, "damage", 32) })
+        local L = ns.Locked
+        L.NoteCast(594, 10)
+        L.Observe("p", 32, 10.9)
+        L.NoteCast(594, 11.4)
+        L.Observe("p", 32, 12.3)
+        L.NoteCast(594, 15)
+        ns.Ticks.NoteCast(594, 15, "p", "damage")
+        Check("join: Rule 2 and a tick on one spell name it once and take the slot",
+            Is(594, 1, L.Observe("p", 32, 15.9)) and Taken(takes, 594))
+        Check("join: that slot is taken", #ns.Ticks.Fits("p", "damage", 32, 15.9) == 0)
+    end
+
+    do
+        local ns, takes = Join({})
+        local L = ns.Locked
+        L.NoteCast(5019, 10)
+        L.Observe("p", 32, 10.9)
+        L.NoteCast(5019, 11.4)
+        L.Observe("p", 32, 12.3)
+        L.NoteCast(5019, 15.5)
+        Check("join: Rule 2 alone takes nothing", Is(5019, 1, L.Observe("p", 32, 16.4)) and #takes == 0)
+    end
+
+    -- Core wiring: the hooks reach Ticks.
+    do
+        local PLATE_UNIT = "nameplate1"
+        local function TWired(interface, setup)
+            local ns = T.Boot(function(S)
+                S.interface = interface or 16001
+                if setup then setup(S) end
+            end)
+            local calls, args = {}, {}
+            for _, name in ipairs({ "NoteCast", "Forget", "EndFight", "PlateGone" }) do
+                local real = ns.Ticks[name]
+                calls[name] = 0
+                ns.Ticks[name] = function(...)
+                    calls[name] = calls[name] + 1
+                    args[name] = { ... }
+                    return real(...)
+                end
+            end
+            ns.Display.Plate = function() end
+            ns.Display.Player = function() end
+
+            return ns, T.State(), calls, args
+        end
+        local function SeedTicks() CombatTextIconsCharDB = { lockedTicks = { [594] = Saved(3.0, "damage", 32, 2) } } end
+        local function Cast(ns, S, now, id, unit)
+            S.now = now
+            ns.Core.UNIT_SPELLCAST_SUCCEEDED(unit or "player", "c", id)
+        end
+
+        local ns, S, calls, args = TWired()
+        C_NamePlate.GetNamePlateForUnit(PLATE_UNIT, false)
+        S.target = PLATE_UNIT
+        Cast(ns, S, 20, 5019)
+        local plate = C_NamePlate.GetNamePlateForUnit(PLATE_UNIT, false)
+        Check("ticks wiring: a harmful cast with a plate passes the plate and damage",
+            calls.NoteCast == 1 and args.NoteCast[1] == 5019 and args.NoteCast[2] == 20 and args.NoteCast[3] == plate
+            and args.NoteCast[4] == "damage")
+
+        ns, S, calls, args = TWired()
+        Cast(ns, S, 20, 5019)
+        Check("ticks wiring: a harmful cast with no plate still calls with a nil key",
+            calls.NoteCast == 1 and args.NoteCast[3] == nil and args.NoteCast[4] == "damage")
+
+        ns, S, calls = TWired()
+        Cast(ns, S, 20, 5019, "pet")
+        Check("ticks wiring: a pet cast does not call NoteCast", calls.NoteCast == 0)
+
+        ns, S, calls, args = TWired()
+        S.harmful[139] = false
+        Cast(ns, S, 20, 139)
+        Check("ticks wiring: a helpful cast passes the player key and heal",
+            calls.NoteCast == 1 and args.NoteCast[1] == 139 and args.NoteCast[2] == 20 and args.NoteCast[3] == "player"
+            and args.NoteCast[4] == "heal")
+
+        ns, S, calls, args = TWired()
+        S.group = true
+        S.target = PLATE_UNIT
+        S.harmful[139] = false
+        local ok = pcall(Cast, ns, S, 20, 5019)
+        local harmfulArgs = args.NoteCast
+        ok = pcall(Cast, ns, S, 21, 139) and ok
+        Check("ticks wiring: in a group both kinds call with a nil key and do not error",
+            ok and calls.NoteCast == 2 and harmfulArgs[3] == nil and harmfulArgs[4] == "damage"
+            and args.NoteCast[3] == nil and args.NoteCast[4] == "heal")
+
+        ns, S = TWired(16001, SeedTicks)
+        C_NamePlate.GetNamePlateForUnit(PLATE_UNIT, false)
+        S.target = PLATE_UNIT
+        Cast(ns, S, 10, 594)
+        S.now = 13.5
+        ns.Core.UNIT_COMBAT(PLATE_UNIT, "WOUND", "", T.Secret(31), 32)
+        S.group = true
+        Cast(ns, S, 20, 594)
+        Check("ticks wiring: a cast in a group mid-fight keeps the saved entry",
+            T.Store().lockedTicks[594] ~= nil and T.Store().lockedTicks[594].misses == 2)
+
+        ns, S = TWired(16001, SeedTicks)
+        ns.Ticks.NoteCast(594, 10, "p", "damage")
+        Check("ticks wiring: Boot hands Ticks the saved entries", Is(594, 1, ns.Locked.Observe("p", 32, 13)))
+
+        ns, S = TWired()
+        Check("ticks wiring: Init ran on Boot", type(T.Store().lockedTicks) == "table")
+
+        ns, S, calls = TWired(16001, SeedTicks)
+        SlashCmdList.COMBATTEXTICONS("forget")
+        Check("ticks wiring: /cti forget calls Ticks.Forget and empties the table",
+            calls.Forget == 1 and next(T.Store().lockedTicks) == nil)
+
+        ns, S, calls, args = TWired()
+        S.now = 25
+        ns.Core.PLAYER_REGEN_ENABLED()
+        Check("ticks wiring: the fight's end calls EndFight once, with no args", calls.EndFight == 1 and #args.EndFight == 0)
+
+        ns, S, calls, args = TWired()
+        S.now = 25
+        ns.Core.NAME_PLATE_UNIT_REMOVED(PLATE_UNIT)
+        Check("ticks wiring: a removed plate calls PlateGone with the plate only",
+            calls.PlateGone == 1 and args.PlateGone[1] == C_NamePlate.GetNamePlateForUnit(PLATE_UNIT, false)
+            and #args.PlateGone == 1)
+
+        do
+            local index = {}
+            for position, file in ipairs(T.TocFiles()) do index[file] = position end
+            Check("ticks wiring: the toc loads Ticks.lua right before Locked.lua",
+                index["Ticks.lua"] ~= nil and index["Ticks.lua"] == index["Locked.lua"] - 1)
+        end
+
+        -- End to end: three ticks teach the period, the fourth is named.
+        local function Chain(interface)
+            local cns, cS = TWired(interface)
+            C_NamePlate.GetNamePlateForUnit(PLATE_UNIT, false)
+            cS.target = PLATE_UNIT
+            local returns = {}
+            local observe = cns.Locked.Observe
+            cns.Locked.Observe = function(...)
+                local sole, fits = observe(...)
+                returns[#returns + 1] = { sole, fits }
+
+                return sole, fits
+            end
+            Cast(cns, cS, 10, 594)
+            for _, at in ipairs({ 13, 16, 19, 22.0 }) do
+                cS.now = at
+                cns.Core.UNIT_COMBAT(PLATE_UNIT, "WOUND", "", T.Secret(31), 32)
+            end
+
+            return cns, returns
+        end
+
+        local cns, returns = Chain()
+        local entry = T.Store().lockedTicks[594]
+        local last = returns[#returns]
+        Check("ticks wiring: end to end the third tick learns 3.0 and the fourth is named",
+            entry ~= nil and math.abs(entry.period - 3.0) < 0.01 and last ~= nil and last[1] == 594 and last[2] == 1)
+
+        cns, returns = Chain(120105)
+        Check("ticks wiring: retail learns and names nothing",
+            next(T.Store().lockedTicks or {}) == nil and #returns == 0
+            and #cns.Ticks.Fits(C_NamePlate.GetNamePlateForUnit(PLATE_UNIT, false), "damage", 32, 22.0) == 0)
+    end
+end
