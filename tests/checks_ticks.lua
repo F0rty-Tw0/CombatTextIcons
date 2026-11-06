@@ -633,6 +633,44 @@ return function(T)
             fit ~= nil and fit.spellID == 594)
     end
 
+    -- Events in time order on "p": { "shoot", at } casts Shoot and observes its arcane hit 0.6 s later, { "swp", at }
+    -- casts SW:P, { "tick", at } observes a shadow hit.
+    local function Play(ns, events)
+        for _, event in ipairs(events) do
+            local what, at = event[1], event[2]
+            if what == "tick" then ns.Locked.Observe("p", 32, at) else
+                local id = what == "shoot" and 5019 or 594
+                ns.Locked.NoteCast(id, at)
+                ns.Ticks.NoteCast(id, at, "p", "damage")
+                if id == 5019 then ns.Locked.Observe("p", 64, at + 0.6) end
+            end
+        end
+    end
+    local function Shoots(ats)
+        local events = {}
+        for i, at in ipairs(ats) do events[i] = { "shoot", at } end
+
+        return events
+    end
+
+    do -- a locked wand's arcane hits 1.8, 3.6 and 5.4 s after SW:P are Shoot's own hits, not SW:P ticks
+        local ns = Join()
+        Play(ns, Shoots({ 4, 6, 8 }))
+        Play(ns, { { "swp", 10 }, { "shoot", 11.2 }, { "tick", 13 }, { "shoot", 13.0 }, { "shoot", 14.8 }, { "tick", 16 },
+            { "tick", 19 } })
+        local fit = ns.Ticks.Fits("p", "damage", 32, 22)[1]
+        Check("join: a Shoot hit its cast lock fits joins no SW:P delay, so SW:P learns its own 3.0 s shadow period",
+            fit ~= nil and fit.spellID == 594)
+    end
+
+    do -- first fight: SW:P and the wand start together, so Shoot's lock forms only at its second hit
+        local ns = Join()
+        Play(ns, { { "swp", 10 } })
+        Play(ns, Shoots({ 11.2, 13.0, 14.8, 16.6 }))
+        local fit = ns.Ticks.Fits("p", "damage", 64, 19.0)[1]
+        Check("join: a wand whose lock forms at its second hit teaches SW:P no arcane period", fit == nil)
+    end
+
     do
         local ns, takes = Join({ [594] = Saved(3.0, "damage", 32), [589] = Saved(2.0, "damage", 32) })
         ns.Ticks.NoteCast(594, 10, "p", "damage")

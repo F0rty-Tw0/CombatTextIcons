@@ -12,6 +12,9 @@
 -- that stamp is of a spell known to hit another school: the school of its last hit that a cast lock fit (Locked.lua
 -- Rule 2 calls Ticks.NoteHitSchool). S5 run 2 (2026-11-06): Shoot, every 1.8 s and arcane, put SW:P's shadow ticks on
 -- or just after its casts, so a tick the learner needed was dropped on 5 of 9 casts and SW:P never learned.
+-- A damage event that fits another spell's cast lock (Fits' `hitOf`) is that spell's own hit: it neither fixes a
+-- cast's school (the first event it learns from does) nor joins its delays, so a wand's arcane hits one swing apart
+-- teach SW:P no period. Before the wand's lock forms (its first two hits) they still can.
 -- A cast is its timestamp: casts and events share one clock (GetTime).
 
 local _, ns = ...
@@ -210,9 +213,18 @@ local function AnyFit(casts, kind, school, now)
     return false
 end
 
+-- Whether `hitOf` (a set of spellIDs) holds a spell other than `id`.
+local function HitOfOther(hitOf, id)
+    for spellID in pairs(hitOf) do
+        if spellID ~= id then return true end
+    end
+
+    return false
+end
+
 -- A cast-free event at `now` that fits no saved spell on the key (a saved spell's tick is that spell's): each unsaved
--- alone cast of the kind on the key adds its delay, then may learn.
-local function Learn(casts, kind, school, now)
+-- alone cast of the kind on the key adds its delay, then may learn, unless the event is another spell's own hit.
+local function Learn(casts, kind, school, now, hitOf)
     if kind == "heal" then
         if healLearnAt == now then return end
         healLearnAt = now
@@ -220,7 +232,7 @@ local function Learn(casts, kind, school, now)
     if AnyFit(casts, kind, school, now) then return end
 
     for id, cast in pairs(casts) do
-        if cast.kind == kind and cast.alone and not saved[id] then
+        if cast.kind == kind and cast.alone and not saved[id] and not HitOfOther(hitOf, id) then
             if kind == "damage" and cast.school == nil then cast.school = school end
 
             if cast.school == school then
@@ -239,9 +251,10 @@ local function Learn(casts, kind, school, now)
     end
 end
 
--- Ticks.Fits(key, kind, school, now): learns first when the event is cast-free, then returns the saved spells the
--- event fits, as { spellID, slot } (never nil).
-function Ticks.Fits(key, kind, school, now)
+-- Ticks.Fits(key, kind, school, now, hitOf): learns first when the event is cast-free, then returns the saved spells
+-- the event fits, as { spellID, slot } (never nil). `hitOf` (optional, [spellID] = any): the spells whose cast lock the
+-- event fits (Locked.lua Rule 2), so it is their own hit and joins no other spell's delays.
+function Ticks.Fits(key, kind, school, now, hitOf)
     local fits = {}
     estimates = {}
     if not ns.IsForever or not IsNumber(now) then return fits end
@@ -250,7 +263,7 @@ function Ticks.Fits(key, kind, school, now)
     local casts = newest[key]
     if not casts then return fits end
 
-    if CastFree(kind, school, now) then Learn(casts, kind, school, now) end
+    if CastFree(kind, school, now) then Learn(casts, kind, school, now, hitOf or {}) end
 
     for id, cast in pairs(casts) do
         local entry = saved[id]
