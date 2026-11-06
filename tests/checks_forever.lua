@@ -543,4 +543,5 @@ return function(T)
     T.RunFile("checks_locked.lua")
     T.RunFile("checks_ticks.lua")
     T.RunFile("checks_lockedheals.lua")
+    T.RunFile("checks_ticks_replay.lua")
 end
