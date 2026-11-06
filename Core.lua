@@ -255,6 +255,15 @@ local function ShowNPC(unit)
     return guid:match("^Creature%-%d+%-%d+%-%d+%-%d+%-(%d+)%-") or guid:match("^(%a+)") or "?"
 end
 
+-- A cast's tick key for the log, no spaces: "player", the plate's unit token (namePlateUnitToken), "plate" when that
+-- token is not a plain string, or "nil".
+local function ShowKey(key)
+    if type(key) ~= "table" then return tostring(key) end
+    local token = key.namePlateUnitToken
+
+    return Plain(token) and type(token) == "string" and token or "plate"
+end
+
 local function SpellTexture(spellID)
     return (C_Spell.GetSpellTexture(spellID))
 end
@@ -1253,10 +1262,8 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     if not db.enabled then return end
     Core.FlushHeals(GetTime())
     Core.FlushMates(GetTime())
-    if ns.Debug then
-        ns.Debug("CAST %s %s base=%s", unit, ShowValue(spellID), Plain(spellID) and ShowBase(spellID) or "?")
-    end
     local now = GetTime()
+    local tickKey
     if (unit == "player" or unit == "pet") and Plain(spellID) then
         Procs.NoteCast(spellID, now) -- a rhythm's onset may follow any cast (a totem's is not harmful)
         ns.Volley.NoteCast(spellID, now)
@@ -1267,7 +1274,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
             ns.Link.NoteCast(spellID, now, plate)
             if unit == "player" then
                 ns.Locked.NoteCast(spellID, now)
-                local tickKey = Plain(plate) and not InGroup() and plate or nil
+                tickKey = Plain(plate) and not InGroup() and plate or nil
                 ns.Ticks.NoteCast(spellID, now, tickKey, "damage")
             end
         elseif Plain(harmful) and unit == "player" then
@@ -1278,9 +1285,16 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
             end
             Teacher.Helped(spellID, now)
             Heals.Cast(spellID, now)
-            local tickKey = not InGroup() and "player" or nil
+            tickKey = not InGroup() and "player" or nil
             ns.Ticks.NoteCast(spellID, now, tickKey, "heal")
         end
+    end
+    -- Logged after the cast's modules so it carries the tick key Ticks got (a recast's "TICKS retired" now comes before
+    -- it): the cast debug for S5's game-only `?` ticks, whose cast reached Ticks with no key or another (diagnosis
+    -- 2026-11-06-s5, cause G).
+    if ns.Debug then
+        ns.Debug("CAST %s %s base=%s key=%s", unit, ShowValue(spellID), Plain(spellID) and ShowBase(spellID) or "?",
+            ShowKey(tickKey))
     end
     Tracker.OnCast(unit, spellID, now)
 end

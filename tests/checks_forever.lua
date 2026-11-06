@@ -215,7 +215,11 @@ return function(T)
         rig.Cast(9, "nameplate1")
         local cast = Last("^CAST ")
         Check("debug: a cast logs CAST <unit> <id> base=<FindBaseSpellByID>,<GetBaseSpell> (override probe)",
-            cast ~= nil and cast:find("^CAST player 594 base=594,%S+$") ~= nil)
+            cast ~= nil and cast:find("^CAST player 594 base=594,%S+ ") ~= nil)
+        rig.Cast(9.5, nil)
+        local keyless = Last("^CAST ")
+        Check("debug: the CAST line ends with the cast's tick key: key=<plate unit> solo on a plate, key=nil with none",
+            cast ~= nil and cast:find(" key=nameplate1$") ~= nil and keyless ~= nil and keyless:find(" key=nil$") ~= nil)
 
         rig.S.now = 10
         rig.ns.Core.UNIT_COMBAT("player", "HEAL", "", 500, 2)

@@ -49,7 +49,7 @@ local function Generic()
 end
 
 local function Plate(unit)
-    return { unit = unit, IsForbidden = function() return false end }
+    return { unit = unit, namePlateUnitToken = unit, IsForbidden = function() return false end }
 end
 
 local function InstallStubs()
@@ -307,6 +307,7 @@ local function ParseLog(name, log)
         local route = rest:match("^  %-> (.+)$")
         local unit, id = rest:match("^CAST (%S+) (%d+)$")
         if not unit then unit, id = rest:match("^CAST (%S+) (%d+) base=%S+$") end -- override probe logs
+        if not unit then unit, id = rest:match("^CAST (%S+) (%d+) base=%S+ key=%S+$") end -- tick key logs (2026-11-06)
         local readOrigin, dmg = rest:match("^READ (%a+) dmg=(%d+) heal=%d+ taken=%d+$")
         local hitUnit, school, amount, flag = rest:match("^HIT (%S+) school=(%d+) amount=(%d+) flag=(%S*) fps=")
         local hitTarget = rest:match("^HIT .*target=(%a+)$")
@@ -1583,6 +1584,9 @@ local function ReplayFightsChecks()
     Check("parse: a HEAL line is an H event with its unit, amount, school, flag and logged route",
         healEvent.kind == "H" and healEvent.unit == "player" and healEvent.amount == 50 and healEvent.school == 1
         and healEvent.flag == "CRITICAL" and healEvent.route == "HIDDEN (crowded)")
+    local keyed = ParseLog("t", { "1.000 CAST player 594 base=594,594 key=nameplate1" })[1]
+    Check("parse: a CAST line with the tick key (key=, 2026-11-06) is a C event of its unit and ID",
+        keyed ~= nil and keyed.kind == "C" and keyed.unit == "player" and keyed.id == 594)
     local healRead = ParseTeach(healLog)[1]
     Check("ParseTeach: the TEACH heal rows with meter > 0 are the read's healRows; the damage rows stay",
         #healRead.healRows == 1 and healRead.healRows[1].spellID == 77472 and healRead.healRows[1].totalAmount == 40
