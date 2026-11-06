@@ -138,6 +138,44 @@ return function(T)
         Check("ticks: a tick 0.5 s after a cast joins", store.lockedTicks[594] ~= nil)
     end
 
+    do -- S5 run 2 (2026-11-06): Shoot every 1.8 s put SW:P's ticks on or just after its casts, so SW:P never learned
+        local X, store = Fresh()
+        X.NoteHitSchool(5019, 64)
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 13)
+        X.NoteCast(5019, 15.8, "p", "damage")
+        Tick(X, 16)
+        X.NoteCast(5019, 19, "p", "damage")
+        Tick(X, 19)
+        local e = store.lockedTicks[594]
+        Check("ticks: a Shoot known to hit arcane keeps no shadow tick out of the delays, 0.2 s after it or on its stamp",
+            e ~= nil and Near(e.period, 3.0) and e.school == 32)
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteHitSchool(8092, 32)
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 13)
+        X.NoteCast(8092, 15.8, "p", "damage")
+        Tick(X, 16)
+        Tick(X, 19)
+        Check("ticks: a tick 0.2 s after a cast known to hit its own school joins no delay", Empty(store))
+    end
+
+    do -- a wand rhythm after SW:P's first tick: Shoot every 1.8 s from 13.0, each hit 0.6 s after its cast, so the
+        -- arcane hits land 3.6, 5.4, 7.2, 9.0, 10.8 s after SW:P's cast: 3.6, 2 * 3.6 and 3 * 3.6 among them
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 13)
+        for _, at in ipairs({ 13.0, 14.8, 16.6, 18.4, 20.2 }) do
+            X.NoteCast(5019, at, "p", "damage")
+            Tick(X, at + 0.6, 64)
+        end
+        local e = store.lockedTicks[594]
+        Check("ticks: a steady Shoot rhythm teaches SW:P no arcane period", e == nil or e.school ~= 64)
+    end
+
     do
         local X, store = Fresh()
         X.NoteCast(594, 10, "p", "damage")
@@ -572,6 +610,27 @@ return function(T)
             Is(594, 1, ns.Locked.Observe("p", 32, 13)) and Taken(takes, 594))
         Check("join: Observe calls Ticks.Fits once", calls() == 1)
         Check("join: one name per tick (the slot is taken)", Is(nil, 0, ns.Locked.Observe("p", 32, 13)))
+    end
+
+    do -- a cast lock's fit tells Ticks the spell's hit school: two Shoots lock at 0.6 s, the third hit fits
+        local ns = Join()
+        local L, X = ns.Locked, ns.Ticks
+        for _, at in ipairs({ 4, 6, 8 }) do
+            L.NoteCast(5019, at)
+            X.NoteCast(5019, at, "p", "damage")
+            L.Observe("p", 64, at + 0.6)
+        end
+        X.NoteCast(594, 10, "p", "damage")
+        L.Observe("p", 32, 13)
+        L.NoteCast(5019, 15.8)
+        X.NoteCast(5019, 15.8, "p", "damage")
+        L.Observe("p", 32, 16)
+        L.NoteCast(5019, 19)
+        X.NoteCast(5019, 19, "p", "damage")
+        L.Observe("p", 32, 19)
+        local fit = X.Fits("p", "damage", 32, 22)[1]
+        Check("join: a Shoot's lock fit lets SW:P's shadow ticks 0.2 s after a Shoot, or on its stamp, teach 594",
+            fit ~= nil and fit.spellID == 594)
     end
 
     do

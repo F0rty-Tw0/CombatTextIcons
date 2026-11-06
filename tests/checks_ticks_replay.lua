@@ -7,10 +7,11 @@ return function(T)
     local LOGS = { "forever-secret-2026-11-05.log", "forever-s4-run1-2026-11-05.log", "forever-s4-run2-2026-11-05.log",
         "forever-s4-run3-2026-11-05.log" }
 
-    -- Forever (interface 16001) with Locked, Ticks and LockedHeals on one store, as Core's Init wires them.
-    local function Fresh()
+    -- Forever (interface 16001) with Locked, Ticks and LockedHeals on one store, as Core's Init wires them. `ticks`
+    -- (optional): the store's lockedTicks at login.
+    local function Fresh(ticks)
         local ns = T.Boot(function(S) S.interface = 16001 CombatTextIconsCharDB = {} end)
-        local store = {}
+        local store = { lockedTicks = ticks }
         ns.Locked.Init(store)
         ns.Ticks.Init(store)
         ns.LockedHeals.Init(store)
@@ -81,8 +82,9 @@ return function(T)
 
     -- Feeds `logs`, in order, to one set of modules; returns the gate's counters (and the S5 ones). `procStamps`
     -- ([stamp] = true, optional): the heals on you there are the proc; healsWrong counts 1260198 off them and 139 on them.
-    local function Replay(logs, procStamps)
-        local ns, store = Fresh()
+    -- `ticks` (optional): the store's lockedTicks at login.
+    local function Replay(logs, procStamps, ticks)
+        local ns, store = Fresh(ticks)
         local R = { hits594 = 0, heals139 = 0, heals1260198 = 0, noHitStamp1260198 = 0, healHarmful = 0, hitWrong = 0,
             two = 0, learned = {}, procEver = {}, periods = {}, shadow594 = 0, shadowNone = 0, shadowOther = 0, healNone = 0,
             healOther = 0, healsWrong = 0 }
@@ -182,13 +184,31 @@ return function(T)
     -- timing (diagnosis 2026-11-06-s5): each lands on or 0.10 s after a shadow hit, and the meter counts one per fight.
     local S5_PROCS = { [147812.341] = true, [147847.263] = true, [147873.232] = true, [147908.581] = true,
         [147944.803] = true, [147961.193] = true, [147997.270] = true, [148016.939] = true, [148033.211] = true }
+    -- One note line of a single-run replay: the first period each spell learned, then its shadow hit and heal counts.
+    local function NoteRun(label, run)
+        local periods = {}
+        for id, period in pairs(run.periods) do periods[#periods + 1] = string.format("%d=%.3f", id, period) end
+        table.sort(periods)
+        T.Note(string.format("%s periods=%s shadow594=%d shadowNone=%d shadowOther=%d heals139=%d healsNone=%d "
+            .. "healsOther=%d heals1260198=%d healsWrong=%d", label, table.concat(periods, ","), run.shadow594,
+            run.shadowNone, run.shadowOther, run.heals139, run.healNone, run.healOther, run.heals1260198, run.healsWrong))
+    end
+
     local S5 = Replay({ "forever-s5-run1-2026-11-06.log" }, S5_PROCS)
-    local periods = {}
-    for id, period in pairs(S5.periods) do periods[#periods + 1] = string.format("%d=%.3f", id, period) end
-    table.sort(periods)
-    T.Note(string.format("TICKS S5 periods=%s shadow594=%d shadowNone=%d shadowOther=%d heals139=%d healsNone=%d "
-        .. "healsOther=%d heals1260198=%d healsWrong=%d", table.concat(periods, ","), S5.shadow594, S5.shadowNone,
-        S5.shadowOther, S5.heals139, S5.healNone, S5.healOther, S5.heals1260198, S5.healsWrong))
+    NoteRun("TICKS S5", S5)
+
+    -- S5 run 2 (Forever, 2026-11-06 16:20, Bone-Apetit solo, wand-heavy; the save's ring buffer kept sessions 18-24
+    -- only). Fresh: as a new login, which is the game's case (its log shows `TICKS learned 139 period=3.019` at
+    -- 153491.200, in this window). Seeded: Renew 139 already saved at 3.019 at login.
+    -- Its proc heals, by timing: each lands on or up to 0.78 s after a shadow hit, off the Renew 3.0 s grids, and the
+    -- meter's 1260198 rows count one per fight (two in session 21; session 23 reads no heal row).
+    local S5R2_PROCS = { [153454.604] = true, [153503.605] = true, [153523.022] = true, [153540.477] = true,
+        [153560.036] = true, [153607.892] = true }
+    local S5R2_LOG = { "forever-s5-run2-2026-11-06.log" }
+    local S5R2 = Replay(S5R2_LOG, S5R2_PROCS)
+    local S5R2Seeded = Replay(S5R2_LOG, S5R2_PROCS, { [139] = { period = 3.019, kind = "heal", misses = 0 } })
+    NoteRun("TICKS S5R2 fresh", S5R2)
+    NoteRun("TICKS S5R2 seeded", S5R2Seeded)
 
     Check("ticks replay: periods learned for 594 and 139 and no other spell (run 3: no 8092 from SW:P ticks on its plate)",
         R.learned[594] and R.learned[139] and R.learnedCount == 2)
@@ -205,4 +225,9 @@ return function(T)
     -- trade a tick; the counts before the period refinement (36 and 9) stay below them.
     Check("ticks S5: at least 38 shadow hits drawn as 594", S5.shadow594 >= 38)
     Check("ticks S5: at least 10 heals drawn as 139", S5.heals139 >= 10)
+    -- S5 run 2 floors (2026-11-06, a Shoot's lock-known arcane school no longer drops shadow ticks near its casts):
+    -- SW:P learned on 0 of 9 casts before; now it learns in session 21 and names 11 hits, floor 11 less 2.
+    Check("ticks S5R2: SW:P 594 learns its period, fresh and with 139 saved", S5R2.learned[594] and S5R2Seeded.learned[594])
+    Check("ticks S5R2: at least 9 shadow hits drawn as 594", S5R2.shadow594 >= 9 and S5R2Seeded.shadow594 >= 9)
+    Check("ticks S5R2: no heal on you is drawn as the wrong spell", S5R2.healsWrong == 0 and S5R2Seeded.healsWrong == 0)
 end

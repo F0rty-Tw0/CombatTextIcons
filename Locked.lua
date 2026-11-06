@@ -11,7 +11,8 @@
 -- of its last KEPT_HITS hits, and a hit within DELAY_TOL of a kept one from a different cast (the repeat test: one
 -- cast cannot lock) forms the lock at the mean of the two, pairing with the nearest. A hit fits a lock within
 -- DELAY_TOL of it when its cast has not named a hit yet, and moves it. Each cast of the spell closes the period of the
--- one before it: a period without a fit is a miss, BREAK_CASTS misses clear the lock and its delays.
+-- one before it: a period without a fit is a miss, BREAK_CASTS misses clear the lock and its delays. A fit also tells
+-- Ticks the school the spell's own hits have (Ticks.NoteHitSchool), for its cast-free test.
 -- Rule 3, the tick join (Ticks.lua): a spell whose tick the hit is (Ticks.Fits: near a whole number of its learned
 -- periods after its newest cast on the plate) fits too; a spell that also fits Rule 1 or Rule 2 counts once. When the
 -- sole fit has such a tick, Observe takes its slot (Ticks.Take).
@@ -323,6 +324,7 @@ function Locked.Observe(plate, school, now)
             if not entry.lock then
                 Form(entry, delay, castTime)
             elseif Fit(entry, spellID, delay, castTime) then
+                Ticks.NoteHitSchool(spellID, school)
                 fitting[spellID] = castTime
                 lockFitting[spellID] = true
             end

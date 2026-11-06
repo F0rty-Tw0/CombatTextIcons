@@ -8,6 +8,10 @@
 -- by REFINE of the gap. The learned period carries the first delays' jitter (S5, 2026-11-06: learned 3.034 on a 3.00
 -- tick), and k * that error pushes later ticks past TOL; age / k divides a tick's jitter by k instead. The event that
 -- learned is not counted twice, and a fit nobody takes (another spell's tick, or no sole fit) moves nothing.
+-- A damage event within CAST_GAP after a cast is not cast-free (it may be that cast's own hit) unless every cast on
+-- that stamp is of a spell known to hit another school: the school of its last hit that a cast lock fit (Locked.lua
+-- Rule 2 calls Ticks.NoteHitSchool). S5 run 2 (2026-11-06): Shoot, every 1.8 s and arcane, put SW:P's shadow ticks on
+-- or just after its casts, so a tick the learner needed was dropped on 5 of 9 casts and SW:P never learned.
 -- A cast is its timestamp: casts and events share one clock (GetTime).
 
 local _, ns = ...
@@ -16,7 +20,7 @@ local Ticks = {}
 ns.Ticks = Ticks
 
 local TOL = 0.15        -- how far an event may be from a whole number of periods
-local CAST_GAP = 0.35   -- a damage event this close after any cast of yours is not cast-free
+local CAST_GAP = 0.35   -- a damage event this close after a cast of yours that may hit its school is not cast-free
 local MIN_PERIOD = 1.0  -- shortest period learned
 local MAX_PERIOD = 10   -- longest period learned
 local NEED = 3          -- delays (d1, 2 * d1, 3 * d1) that learn a period
@@ -40,6 +44,8 @@ local estimates = {}
 local stamp = { at = nil, ids = {}, n = 0, casts = {} }
 -- [spellID] = true for every ID NoteCast has seen since load
 local castIDs = {}
+-- [spellID] = the school of the spell's last hit that a cast lock fit (Ticks.NoteHitSchool), since load
+local hitSchools = {}
 local lastCastAt = -math.huge
 -- The stamp of the last heal event that learned: heals on one stamp join delays once
 local healLearnAt
@@ -80,6 +86,7 @@ end
 function Ticks.Forget()
     ClearLive()
     Clear(castIDs)
+    Clear(hitSchools)
     Clear(saved)
 end
 
@@ -169,10 +176,16 @@ function Ticks.NoteCast(spellID, now, key, kind)
     end
 end
 
-local function CastFree(kind, now)
+local function CastFree(kind, school, now)
     if kind == "heal" then return lastCastAt ~= now end
+    if now - lastCastAt > CAST_GAP then return true end
 
-    return now - lastCastAt > CAST_GAP
+    for spellID in pairs(stamp.ids) do
+        local known = hitSchools[spellID]
+        if known == nil or known == school then return false end
+    end
+
+    return true
 end
 
 -- The tick slot an event at `now` takes of a saved spell's newest cast and its k, or nil: the event is of the spell's
@@ -237,7 +250,7 @@ function Ticks.Fits(key, kind, school, now)
     local casts = newest[key]
     if not casts then return fits end
 
-    if CastFree(kind, now) then Learn(casts, kind, school, now) end
+    if CastFree(kind, school, now) then Learn(casts, kind, school, now) end
 
     for id, cast in pairs(casts) do
         local entry = saved[id]
@@ -253,6 +266,11 @@ function Ticks.Fits(key, kind, school, now)
     end
 
     return fits
+end
+
+-- Ticks.NoteHitSchool(spellID, school): a cast lock fit a hit of that spell (its own hit), so its casts hit that school.
+function Ticks.NoteHitSchool(spellID, school)
+    if ns.IsForever and IsNumber(spellID) and IsNumber(school) then hitSchools[spellID] = school end
 end
 
 -- Ticks.Take(spellID, slot): the caller's sole fit takes its tick, drawn or not, and refines the period when the last
