@@ -1257,13 +1257,35 @@ local function PlateOf(lines, from)
     end
 end
 
+-- A replay log's PROBE meter text, "session:68,591:29" or "session:68,secret:secret,...", served by the meter stub:
+-- that session and its rows, each part secret or a number. With no session (old "meter=10" lines)
+-- GetAvailableCombatSessions errors. Call after Boot: Boot rebuilds C_DamageMeter, so no restore is needed.
+local function ReadMeter(text)
+    local function Part(word) return word == "secret" and Secret(1) or tonumber(word) end
+    local rows = {}
+    for spell, total in text:gmatch(",(%w+):(%w+)") do rows[#rows + 1] = { Part(spell), Part(total) } end
+    local session = tonumber(text:match("session:(%d+)"))
+    C_DamageMeter.GetAvailableCombatSessions = function()
+        if session == nil then error("no sessions") end
+        return { { sessionID = session } }
+    end
+    C_DamageMeter.GetCombatSessionSourceFromID = function()
+        local out = {}
+        for i, row in ipairs(rows) do out[i] = { spellID = row[1], totalAmount = row[2] } end
+        return { combatSpells = out }
+    end
+end
+
+-- SW:P, every rank in the Forever captures (read-only)
+local SWP_RANKS = { [589] = true, [594] = true, [970] = true }
+
 -- The checks live in tests/checks.lua (which runs the other check files through T.RunFile);
 -- they get the stubs through this table.
 local function RunChecks()
     local T
     T = {
         Boot = Boot, BootSpells = function(setup) return Boot(setup, true) end, Check = Check, Secret = Secret, Generic = Generic, Plate = Plate, TocFiles = TocFiles,
-        PlateOf = PlateOf,
+        PlateOf = PlateOf, ReadMeter = ReadMeter, SWP_RANKS = SWP_RANKS,
         Note = function(text) notes[#notes + 1] = text end,
         State = function() return S end, Store = Store, Root = ROOT,
         RunFile = function(file) RunCheckFile(file, T) end,

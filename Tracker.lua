@@ -130,6 +130,7 @@ end
 -- State helpers --------------------------------------------------------------------
 
 local directs = {} -- [plate] = { at, school, icon }: a learned DoT cast this frame
+local ticklessAt -- Forever: the stamp of your last Mind Blast or Smite cast (Ticks.TICKLESS), a hit that owns its frame
 
 local function TargetPlate()
     local plate = C_NamePlate.GetNamePlateForUnit("target", false)
@@ -637,6 +638,7 @@ function Tracker.OnCast(unit, castID, now)
         if Plain(harmful) and harmful then missCasts[#missCasts + 1] = { castID = castID, at = now } end
         local helpful = C_Spell.IsSpellHelpful and C_Spell.IsSpellHelpful(castID)
         LogCast(castID, now, harmful, helpful)
+        if ns.IsForever and ns.Ticks.TICKLESS[castID] then ticklessAt = now end
     end
     -- The entry came from Learn.Get.
     local learned = Spells[castID] == nil
@@ -648,7 +650,12 @@ function Tracker.OnCast(unit, castID, now)
         -- A learned DoT's own hit lands in its cast frame (Flame Shock's initial damage): Identify gives it that hit.
         -- A flat DoT's own hit is its cast fingerprint's (Flat.lua learns only those): run hunter2 F13, Barbed Shot
         -- 217200's frame gave a 3719 crit of another spell to it, while its own 2627 came 0.12 s later.
-        if learned and not Learn.Flat(castID) and not (directs[key] and directs[key].at == now) then
+        -- On Forever a Mind Blast or Smite cast on the stamp (ticklessAt) owns that frame's hit: S10 run 1, SW:P 970
+        -- queued behind Mind Blast 8102 fired on its stamp, where Mind Blast hits and SW:P deals nothing, and drew 12
+        -- Mind Blast hits as SW:P.
+        local tickless = ticklessAt == now
+        local frameTaken = directs[key] and directs[key].at == now
+        if learned and not tickless and not Learn.Flat(castID) and not frameTaken then
             directs[key] = { at = now, school = spell.school, icon = spell.icon }
         end
         local instance = FindInstance(key, castID)

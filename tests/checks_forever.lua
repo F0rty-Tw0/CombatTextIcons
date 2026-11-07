@@ -27,7 +27,11 @@ return function(T)
         local missed = ns.Learn.Missed
         ns.Learn.Missed = function(id) rig.misses = rig.misses + 1 missed(id) end
         if debug then ns.Debug = function(format, ...) rig.log[#rig.log + 1] = string.format(format, ...) end end
-        function rig.Cast(t, unit) S.now, S.target = t, unit ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c", SWP) end
+        -- Casts `spellID` (SW:P by default) at `t` aimed at `unit`.
+        function rig.Cast(t, unit, spellID)
+            S.now, S.target = t, unit
+            ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c", spellID or SWP)
+        end
         -- The texture drawn for this hit, or nil when it stayed hidden (the draw happens in the call).
         function rig.Hit(t, unit, amount, school, flag)
             S.now = t
@@ -151,6 +155,40 @@ return function(T)
         rig = Rig(function(S) S.guids.nameplate1, S.guids.nameplate2 = "Creature-A", "Creature-A" end)
         rig.Cast(100, "nameplate1"); rig.Remove(101, "nameplate1"); rig.Add(131.5, "nameplate2")
         Check("plates: nothing parked comes back after 30 s", #rig.ns.Streams.CastLog(rig.S.plates.nameplate2) == 0)
+    end
+
+    -- Cast-frame hits: a learned DoT cast on a Mind Blast or Smite stamp (Ticks.TICKLESS) claims no hit there --------
+    do
+        -- S10 run 1: SW:P 970 queued behind Mind Blast 8102 fired on its stamp; in game 12 Mind Blast hits there drew SW:P.
+        local HOLY_FIRE = 14914
+        local rig = Rig(function()
+            CombatTextIconsCharDB.learned[HOLY_FIRE] = { school = 2, kind = "dot", period = 2, misses = 0 }
+        end)
+        rig.Cast(100, "nameplate1", 8102)
+        rig.Cast(100, "nameplate1")
+        local blast = rig.Hit(100, "nameplate1")
+        Check("cast frame: Mind Blast's hit on the stamp SW:P was cast on is not SW:P's", blast ~= "tex:" .. SWP)
+        rig.Cast(200, "nameplate1", 585)
+        rig.Cast(200, "nameplate1", HOLY_FIRE)
+        local smite = rig.Hit(200, "nameplate1", 31, 2)
+        Check("cast frame: Smite's hit on the stamp a holy DoT was cast on is not the DoT's", smite ~= "tex:" .. HOLY_FIRE)
+        rig.Cast(300, "nameplate1")
+        Check("cast frame: a hit on a learned DoT's own lone cast stamp is still the DoT's",
+            rig.Hit(300, "nameplate1") == "tex:" .. SWP)
+
+        -- retail: Mind Blast 8092 lands 0.17 s after its cast frame, so that frame's hit stays the DoT's own
+        local ns = T.Boot(function()
+            CombatTextIconsCharDB = { learned = { [SWP] = { school = 32, kind = "dot", period = P, misses = 0 } } }
+        end)
+        local S = T.State()
+        ns.Teacher.area = "clear"
+        local drawn
+        ns.Display.Plate = function(_, texture) drawn = texture end
+        S.now, S.target = 100, "nameplate1"
+        ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c", 8092)
+        ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c", SWP)
+        ns.Core.UNIT_COMBAT("nameplate1", "WOUND", "", 31, 32)
+        Check("cast frame: on retail a learned DoT still claims its cast frame's hit next to Mind Blast", drawn == "tex:" .. SWP)
     end
 
     -- 4. Debug lines ------------------------------------------------------------------------
@@ -653,4 +691,5 @@ return function(T)
     T.RunFile("checks_ticks.lua")
     T.RunFile("checks_lockedheals.lua")
     T.RunFile("checks_ticks_replay.lua")
+    T.RunFile("checks_core_replay.lua")
 end

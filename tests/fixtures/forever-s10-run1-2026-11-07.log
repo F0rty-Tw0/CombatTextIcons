@@ -1,0 +1,1991 @@
+235684.749 PROBE api issecretvalue=true CombatLogGetCurrentEventInfo=false C_CombatLog=true C_DamageMeter=true cleu=true
+235686.019 CAST player 5019 base=5019,5019 key=nameplate2
+235686.942 HIT nameplate2 school=64 amount=? flag= fps=81 threat=3 group=false,false,false npc=1955 target=true
+235686.942 PROBE amount=secret meter=session:343,secret:secret
+235686.942   -> unknown-solo
+235687.248 CAST player 970 base=970,970 key=nameplate2
+235687.345 HIT nameplate2 school=32 amount=? flag= fps=79 threat=3 group=false,false,false npc=1955 target=true
+235687.345 PROBE amount=secret meter=session:343,secret:secret,secret:secret
+235687.345   -> unknown-solo
+235687.345 HEAL player school=1 amount=? flag=
+235687.358 LOCKEDHEAL 1260198 proc
+235687.358   -> heal 1260198
+235689.523 CAST player 5019 base=5019,5019 key=nameplate2
+235689.686 HIT nameplate2 school=64 amount=? flag= fps=79 threat=3 group=false,false,false npc=1955 target=true
+235689.686 PROBE amount=secret meter=session:343,secret:secret,secret:secret
+235689.686   -> unknown-solo
+235690.273 HIT nameplate2 school=32 amount=? flag= fps=79 threat=3 group=false,false,false npc=1955 target=true
+235690.273 PROBE amount=secret meter=session:343,secret:secret,secret:secret
+235690.273   -> tracker 970
+235691.364 CAST player 5019 base=5019,5019 key=nameplate2
+235691.528 HIT nameplate2 school=64 amount=? flag= fps=77 threat=3 group=false,false,false npc=1955 target=true
+235691.528 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235691.528   -> unknown-solo
+235692.684 HIT nameplate1 school=2 amount=? flag= fps=77 threat=nil group=false,false,false npc=1955 target=false
+235692.684 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235692.684   -> HIDDEN
+235692.909 HIT nameplate1 school=2 amount=? flag= fps=77 threat=nil group=false,false,false npc=1955 target=false
+235692.909 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235692.909   -> HIDDEN
+235693.127 CAST player 5019 base=5019,5019 key=nameplate2
+235693.233 HIT nameplate2 school=32 amount=? flag= fps=77 threat=3 group=false,false,false npc=1955 target=true
+235693.233 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235693.233   -> tracker 970
+235693.327 HIT nameplate1 school=2 amount=? flag=CRITICAL fps=76 threat=nil group=false,false,false npc=1955 target=false
+235693.327 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235693.327   -> HIDDEN
+235693.379 HIT nameplate2 school=64 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235693.379 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235693.379   -> locked 5019
+235693.724 HIT nameplate1 school=1 amount=? flag= fps=76 threat=nil group=false,false,false npc=1955 target=false
+235693.724 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235693.724   -> HIDDEN
+235694.680 HIT nameplate1 school=2 amount=? flag= fps=79 threat=nil group=false,false,false npc=1955 target=false
+235694.680 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235694.680   -> HIDDEN
+235694.936 CAST player 5019 base=5019,5019 key=nameplate2
+235695.390 HIT nameplate2 school=64 amount=? flag= fps=79 threat=3 group=false,false,false npc=1955 target=true
+235695.390 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235695.390   -> unknown-solo
+235696.234 HIT nameplate2 school=32 amount=? flag= fps=79 threat=3 group=false,false,false npc=1955 target=true
+235696.234 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235696.234   -> tracker 970
+235696.602 HIT nameplate1 school=2 amount=? flag= fps=80 threat=nil group=false,false,false npc=1955 target=false
+235696.602 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235696.602   -> HIDDEN
+235696.710 HIT nameplate1 school=2 amount=? flag= fps=80 threat=nil group=false,false,false npc=1955 target=false
+235696.710 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235696.710   -> HIDDEN
+235696.710 CAST player 5019 base=5019,5019 key=nameplate2
+235696.950 HIT nameplate2 school=64 amount=? flag= fps=80 threat=3 group=false,false,false npc=1955 target=true
+235696.950 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235696.950   -> locked 5019
+235696.999 HIT nameplate1 school=1 amount=? flag= fps=80 threat=nil group=false,false,false npc=1955 target=false
+235696.999 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235696.999   -> HIDDEN
+235698.579 CAST player 5019 base=5019,5019 key=nameplate2
+235698.679 HIT nameplate1 school=2 amount=? flag= fps=81 threat=nil group=false,false,false npc=1955 target=false
+235698.679 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235698.679   -> HIDDEN
+235698.741 HIT nameplate2 school=64 amount=? flag= fps=81 threat=3 group=false,false,false npc=1955 target=true
+235698.741 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235698.741   -> locked 5019
+235699.257 HIT nameplate2 school=32 amount=? flag= fps=81 threat=3 group=false,false,false npc=1955 target=true
+235699.257 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235699.257   -> tracker 970
+235699.833 HIT nameplate1 school=2 amount=? flag= fps=80 threat=nil group=false,false,false npc=1955 target=false
+235699.833 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235699.833   -> HIDDEN
+235700.397 HIT nameplate1 school=1 amount=? flag= fps=79 threat=nil group=false,false,false npc=1955 target=false
+235700.397 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235700.397   -> HIDDEN
+235700.672 CAST player 5019 base=5019,5019 key=nameplate2
+235700.672 HIT nameplate1 school=2 amount=? flag= fps=78 threat=nil group=false,false,false npc=1955 target=false
+235700.672 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235700.672   -> HIDDEN
+235700.834 HIT nameplate2 school=64 amount=? flag= fps=78 threat=3 group=false,false,false npc=1955 target=true
+235700.834 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235700.834   -> locked 5019
+235702.234 HIT nameplate1 school=2 amount=? flag= fps=76 threat=nil group=false,false,false npc=1955 target=false
+235702.234 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235702.234   -> HIDDEN
+235702.234 HIT nameplate2 school=32 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235702.234 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235702.234   -> tracker 970
+235702.476 CAST player 5019 base=5019,5019 key=nameplate2
+235702.642 HIT nameplate2 school=64 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235702.642 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235702.642   -> locked 5019
+235702.697 HIT nameplate1 school=2 amount=? flag= fps=76 threat=nil group=false,false,false npc=1955 target=false
+235702.697 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235702.697   -> HIDDEN
+235703.190 HIT nameplate1 school=2 amount=? flag= fps=76 threat=nil group=false,false,false npc=1955 target=false
+235703.190 PROBE amount=secret meter=session:343,secret:secret,secret:secret,secret:secret
+235703.190   -> HIDDEN
+235703.748 HIT nameplate1 school=1 amount=? flag= fps=76 threat=nil group=false,false,false npc=1955 target=false
+235703.748 PROBE amount=secret meter=session:343,75:339,970:119,1260198:35
+235703.748   -> HIDDEN
+235703.852 HIT nameplate1 school=2 amount=? flag= fps=77 threat=nil group=false,false,false npc=1955 target=false
+235703.852 PROBE amount=secret meter=session:343,75:339,970:119,1260198:35
+235703.852   -> HIDDEN
+235704.194 LOCKED 970 hits=4 total=119 per=30
+235704.194 LOCKED 5019 hits=5 total=? per=?
+235704.194 TEACH session 343 dur=18
+235704.194 TEACH row 75 total=339 overkill=0 override=75
+235704.194 TEACH row 970 total=119 overkill=0 override=970
+235704.194 TEACH row 1260198 total=35 overkill=0 override=1260198
+235704.194 TEACH clean seen=0 meter=493 -> short
+235704.194 TEACH 75 tally=0 meter=339 verdict=unpaired
+235704.194 TEACH 970 tally=0 meter=119 verdict=unpaired
+235704.194 TEACH 1260198 tally=0 meter=35 verdict=unpaired
+235704.702 HIT nameplate1 school=2 amount=? flag= fps=78 threat=nil group=false,false,false npc=1955 target=false
+235704.702 PROBE amount=secret meter=session:343,75:339,970:119,1260198:35
+235704.702   -> HIDDEN
+235706.749 HIT nameplate1 school=2 amount=? flag= fps=80 threat=nil group=false,false,false npc=1955 target=false
+235706.749 PROBE amount=secret meter=session:343,75:339,970:119,1260198:35
+235706.749   -> HIDDEN
+235708.831 HIT nameplate1 school=2 amount=? flag= fps=74 threat=nil group=false,false,false npc=1955 target=false
+235708.831 PROBE amount=secret meter=session:343,75:339,970:119,1260198:35
+235708.831   -> HIDDEN
+235710.347 START player 8102
+235711.786 CAST player 8102 base=8102,8102 key=nameplate3
+235711.786 CAST player 970 base=970,970 key=nameplate3
+235711.891 HIT nameplate3 school=32 amount=? flag= fps=88 threat=3 group=false,false,false npc=1955 target=true
+235711.891 PROBE amount=secret meter=session:344,secret:secret
+235711.891   -> unknown-solo
+235711.891 HIT nameplate3 school=32 amount=? flag= fps=88 threat=3 group=false,false,false npc=1955 target=true
+235711.891 PROBE amount=secret meter=session:344,secret:secret,secret:secret
+235711.891   -> unknown-solo
+235711.891 HEAL player school=1 amount=? flag=
+235711.921 LOCKEDHEAL 1260198 proc
+235711.921   -> heal 1260198
+235713.956 CAST player 5019 base=5019,5019 key=nameplate3
+235714.503 HIT nameplate3 school=64 amount=? flag= fps=90 threat=3 group=false,false,false npc=1955 target=true
+235714.503 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret
+235714.503   -> unknown-solo
+235714.826 HIT nameplate3 school=32 amount=? flag= fps=91 threat=3 group=false,false,false npc=1955 target=true
+235714.826 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret
+235714.826   -> tracker 970
+235715.806 CAST player 5019 base=5019,5019 key=nameplate3
+235715.961 HIT nameplate3 school=64 amount=? flag= fps=90 threat=3 group=false,false,false npc=1955 target=true
+235715.961 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235715.961   -> locked 5019
+235717.589 CAST player 5019 base=5019,5019 key=nameplate3
+235717.809 HIT nameplate3 school=64 amount=? flag= fps=90 threat=3 group=false,false,false npc=1955 target=true
+235717.809 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235717.809   -> locked 5019
+235717.809 HIT nameplate3 school=32 amount=? flag= fps=90 threat=3 group=false,false,false npc=1955 target=true
+235717.809 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235717.809   -> tracker 970
+235719.384 CAST player 5019 base=5019,5019 key=nameplate3
+235719.633 HIT nameplate3 school=64 amount=? flag= fps=89 threat=3 group=false,false,false npc=1955 target=true
+235719.633 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235719.633   -> locked 5019
+235720.857 HIT nameplate3 school=32 amount=? flag= fps=90 threat=3 group=false,false,false npc=1955 target=true
+235720.857 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235720.857   -> tracker 970
+235721.187 CAST player 5019 base=5019,5019 key=nameplate3
+235721.418 HIT nameplate3 school=64 amount=? flag= fps=93 threat=3 group=false,false,false npc=1955 target=true
+235721.418 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235721.418   -> locked 5019
+235723.059 CAST player 5019 base=5019,5019 key=nameplate3
+235723.219 HIT nameplate3 school=64 amount=? flag= fps=102 threat=3 group=false,false,false npc=1955 target=true
+235723.219 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235723.219   -> locked 5019
+235723.863 HIT nameplate3 school=32 amount=? flag= fps=102 threat=3 group=false,false,false npc=1955 target=true
+235723.863 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235723.863   -> tracker 970
+235724.838 CAST player 5019 base=5019,5019 key=nameplate3
+235725.076 HIT nameplate3 school=64 amount=? flag= fps=108 threat=3 group=false,false,false npc=1955 target=true
+235725.076 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235725.076   -> locked 5019
+235726.684 CAST player 5019 base=5019,5019 key=nameplate3
+235727.028 HIT nameplate3 school=64 amount=? flag= fps=102 threat=3 group=false,false,false npc=1955 target=true
+235727.028 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235727.028   -> locked 5019
+235729.403 CAST player 6074 base=6074,6074 key=player
+235730.894 CAST player 970 base=970,970 key=nameplate1
+235731.222 HIT nameplate2 school=1 amount=? flag= fps=93 threat=nil group=false,false,false npc=1955 target=false
+235731.222 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235731.222   -> HIDDEN
+235732.396 HEAL player school=1 amount=? flag=
+235732.409 LOCKEDHEAL 6074 hot
+235732.409   -> heal 6074
+235732.745 CAST player 5019 base=5019,5019 key=nameplate1
+235732.946 HIT nameplate1 school=64 amount=? flag=CRITICAL fps=79 threat=3 group=false,false,false npc=1955 target=true
+235732.946 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235732.946   -> locked 5019
+235734.521 HIT nameplate2 school=1 amount=? flag= fps=76 threat=nil group=false,false,false npc=1955 target=false
+235734.521 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235734.521   -> HIDDEN
+235734.564 CAST player 5019 base=5019,5019 key=nameplate1
+235734.781 HIT nameplate1 school=64 amount=? flag=CRITICAL fps=76 threat=3 group=false,false,false npc=1955 target=true
+235734.781 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235734.781   -> locked 5019
+235735.333 HEAL player school=1 amount=? flag=
+235735.350 LOCKEDHEAL 6074 hot
+235735.350   -> heal 6074
+235736.389 CAST player 5019 base=5019,5019 key=nameplate1
+235736.618 HIT nameplate1 school=64 amount=? flag= fps=75 threat=3 group=false,false,false npc=1955 target=true
+235736.618 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235736.618   -> locked 5019
+235737.585 HIT nameplate2 school=8 amount=? flag= fps=75 threat=nil group=false,false,false npc=1955 target=false
+235737.585 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235737.585   -> HIDDEN
+235738.237 CAST player 5019 base=5019,5019 key=nameplate1
+235738.355 HEAL player school=1 amount=? flag=
+235738.369 LOCKEDHEAL 6074 hot
+235738.369   -> heal 6074
+235738.395 HIT nameplate1 school=64 amount=? flag= fps=75 threat=3 group=false,false,false npc=1955 target=true
+235738.395 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235738.395   -> locked 5019
+235739.001 HIT nameplate2 school=1 amount=? flag= fps=76 threat=nil group=false,false,false npc=1955 target=false
+235739.001 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235739.001   -> HIDDEN
+235740.017 CAST player 5019 base=5019,5019 key=nameplate1
+235740.247 HIT nameplate1 school=64 amount=? flag= fps=77 threat=3 group=false,false,false npc=1955 target=true
+235740.247 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235740.247   -> locked 5019
+235741.321 HIT nameplate2 school=1 amount=? flag= fps=77 threat=nil group=false,false,false npc=1955 target=false
+235741.321 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235741.321   -> HIDDEN
+235741.412 HEAL player school=1 amount=? flag=
+235741.425 LOCKEDHEAL 6074 hot
+235741.425   -> heal 6074
+235741.857 CAST player 5019 base=5019,5019 key=nameplate1
+235742.011 HIT nameplate1 school=64 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235742.011 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235742.011   -> locked 5019
+235743.153 CAST player 600 base=600,600 key=player
+235744.411 HEAL player school=1 amount=? flag=
+235744.426 LOCKEDHEAL 6074 hot
+235744.426   -> heal 6074
+235745.312 HIT nameplate2 school=8 amount=? flag= fps=75 threat=nil group=false,false,false npc=1955 target=false
+235745.312 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235745.312   -> HIDDEN
+235747.111 CAST player 6074 base=6074,6074 key=player
+235748.636 START player 2053
+235750.190 HEAL player school=1 amount=? flag=
+235750.203 LOCKEDHEAL 6074 hot
+235750.203   -> heal 6074
+235751.154 HEAL player school=1 amount=? flag=
+235751.154 CAST player 2053 base=2053,2053 key=player
+235751.154 CAST player 970 base=970,970 key=nameplate1
+235751.183 LOCKEDHEAL 2053 direct
+235751.183   -> heal 2053
+235753.384 HEAL player school=1 amount=? flag=
+235753.384 CAST player 5019 base=5019,5019 key=nameplate1
+235753.402   -> unknown-solo
+235753.611 HIT nameplate1 school=64 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235753.611 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235753.611   -> locked 5019
+235754.201 HIT nameplate1 school=32 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235754.201 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235754.201   -> tracker 970
+235755.180 CAST player 5019 base=5019,5019 key=nameplate1
+235755.407 HIT nameplate1 school=64 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235755.407 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235755.407   -> locked 5019
+235755.407 HIT nameplate1 school=32 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235755.407 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235755.407   -> unknown-solo
+235755.407 HEAL player school=1 amount=? flag=
+235755.425 LOCKEDHEAL 1260198 proc
+235755.425   -> heal 1260198
+235756.164 HEAL player school=1 amount=? flag=CRITICAL
+235756.180 LOCKEDHEAL 6074 hot
+235756.180   -> heal 6074
+235756.960 CAST player 5019 base=5019,5019 key=nameplate1
+235757.177 HIT nameplate1 school=32 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235757.177 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235757.177   -> tracker 970
+235757.214 HIT nameplate1 school=64 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235757.214 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235757.214   -> locked 5019
+235758.828 CAST player 5019 base=5019,5019 key=nameplate1
+235759.005 HIT nameplate1 school=64 amount=? flag= fps=78 threat=3 group=false,false,false npc=1955 target=false
+235759.005 PROBE amount=secret meter=session:344,secret:secret,secret:secret,secret:secret,secret:secret
+235759.005   -> locked 5019
+235759.200 HEAL player school=1 amount=? flag=CRITICAL
+235759.200 LOCKEDHEAL 6074 hot
+235759.200   -> heal 6074
+235760.201 LOCKED 970 hits=6 total=142 per=24
+235760.201 LOCKED 5019 hits=17 total=? per=?
+235760.201 TEACH session 344 dur=48
+235760.201 TEACH row 75 total=772 overkill=0 override=75
+235760.201 TEACH row 970 total=142 overkill=0 override=970
+235760.201 TEACH row 8102 total=83 overkill=0 override=8102
+235760.201 TEACH row 1260198 total=68 overkill=0 override=1260198
+235760.201 TEACH clean seen=0 meter=1065 -> short
+235760.201 TEACH 75 tally=0 meter=772 verdict=unpaired
+235760.201 TEACH 970 tally=0 meter=142 verdict=unpaired
+235760.201 TEACH 8102 tally=0 meter=83 verdict=unpaired
+235760.201 TEACH 1260198 tally=0 meter=68 verdict=unpaired
+235760.201 TEACH heal 6074 meter=202 over=0
+235760.201 TEACH heal 2053 meter=190 over=0
+235760.201 TEACH heal 600 meter=140 over=0
+235760.201 TEACH heal 1260198 meter=68 over=0
+235762.118 HEAL player school=1 amount=? flag=
+235762.141 LOCKEDHEAL 6074 hot
+235762.141   -> heal 6074
+235773.246 HIT nameplate1 school=8 amount=? flag= fps=78 threat=nil group=false,false,false npc=1955 target=false
+235773.246 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235773.246   -> HIDDEN
+235773.773 HIT nameplate2 school=4 amount=? flag= fps=80 threat=nil group=false,false,false npc=1955 target=false
+235773.773 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235773.773   -> HIDDEN
+235773.893 HIT nameplate2 school=32 amount=? flag= fps=80 threat=nil group=false,false,false npc=1955 target=false
+235773.893 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235773.893   -> HIDDEN
+235773.926 HIT nameplate1 school=1 amount=? flag= fps=81 threat=nil group=false,false,false npc=1955 target=false
+235773.926 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235773.926   -> HIDDEN
+235774.205 HIT nameplate2 school=1 amount=? flag=BLOCK_REDUCED fps=82 threat=nil group=false,false,false npc=1955 target=false
+235774.205 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235774.205   -> HIDDEN
+235774.458 HIT nameplate2 school=32 amount=? flag= fps=84 threat=nil group=false,false,false npc=1955 target=false
+235774.458 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235774.458   -> HIDDEN
+235774.458 HIT nameplate2 school=64 amount=? flag= fps=84 threat=nil group=false,false,false npc=1955 target=false
+235774.458 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235774.458   -> HIDDEN
+235775.877 HIT nameplate2 school=64 amount=? flag= fps=91 threat=nil group=false,false,false npc=1955 target=false
+235775.877 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235775.877   -> HIDDEN
+235775.877 HIT nameplate2 school=32 amount=? flag= fps=91 threat=nil group=false,false,false npc=1955 target=false
+235775.877 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235775.877   -> HIDDEN
+235775.981 HIT nameplate2 school=32 amount=? flag= fps=90 threat=nil group=false,false,false npc=1955 target=false
+235775.981 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235775.981   -> HIDDEN
+235776.203 HIT nameplate2 school=1 amount=? flag= fps=89 threat=nil group=false,false,false npc=1955 target=false
+235776.203 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235776.203   -> HIDDEN
+235776.746 HIT nameplate2 school=4 amount=? flag= fps=86 threat=nil group=false,false,false npc=1955 target=false
+235776.746 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235776.746   -> HIDDEN
+235776.971 HIT nameplate3 school=4 amount=? flag= fps=85 threat=nil group=false,false,false npc=1956 target=true
+235776.971 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235776.971   -> unknown-solo
+235777.383 HIT nameplate2 school=32 amount=? flag= fps=82 threat=nil group=false,false,false npc=1955 target=false
+235777.383 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235777.383   -> HIDDEN
+235777.548 HIT nameplate2 school=64 amount=? flag= fps=81 threat=nil group=false,false,false npc=1955 target=false
+235777.548 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235777.548   -> HIDDEN
+235778.415 HIT nameplate3 school=1 amount=? flag= fps=75 threat=nil group=false,false,false npc=1956 target=true
+235778.415 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235778.415   -> unknown-solo
+235779.372 HIT nameplate2 school=64 amount=? flag= fps=74 threat=nil group=false,false,false npc=1955 target=false
+235779.372 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235779.372   -> HIDDEN
+235779.437 HIT nameplate3 school=4 amount=? flag= fps=74 threat=nil group=false,false,false npc=1956 target=true
+235779.437 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235779.437   -> unknown-solo
+235779.437 HIT nameplate4 school=4 amount=? flag= fps=74 threat=nil group=false,false,false npc=1956 target=false
+235779.437 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235779.437   -> HIDDEN
+235779.743 HIT nameplate2 school=4 amount=? flag=CRITICAL fps=74 threat=nil group=false,false,false npc=1955 target=false
+235779.743 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235779.743   -> HIDDEN
+235779.850 HIT nameplate3 school=1 amount=? flag= fps=75 threat=nil group=false,false,false npc=1956 target=false
+235779.850 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235779.850   -> HIDDEN
+235779.850 HIT nameplate4 school=1 amount=? flag=CRITICAL fps=75 threat=nil group=false,false,false npc=1956 target=false
+235779.850 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235779.850   -> HIDDEN
+235779.850 HIT nameplate6 school=1 amount=? flag= fps=75 threat=nil group=false,false,false npc=1955 target=false
+235779.850 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235779.850   -> HIDDEN
+235779.968 HIT nameplate2 school=32 amount=? flag= fps=75 threat=nil group=false,false,false npc=1955 target=false
+235779.968 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235779.968   -> HIDDEN
+235779.968 HIT nameplate3 school=4 amount=? flag= fps=75 threat=nil group=false,false,false npc=1956 target=false
+235779.968 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235779.968   -> HIDDEN
+235780.096 HIT nameplate6 school=64 amount=? flag= fps=76 threat=nil group=false,false,false npc=1955 target=false
+235780.096 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235780.096   -> HIDDEN
+235780.096 HIT nameplate4 school=64 amount=? flag= fps=76 threat=nil group=false,false,false npc=1956 target=false
+235780.096 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235780.096   -> HIDDEN
+235780.096 HIT nameplate3 school=64 amount=? flag= fps=76 threat=nil group=false,false,false npc=1956 target=false
+235780.096 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235780.096   -> HIDDEN
+235780.409 HIT nameplate2 school=32 amount=? flag= fps=78 threat=nil group=false,false,false npc=1955 target=false
+235780.409 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235780.409   -> HIDDEN
+235780.558 HIT nameplate1 school=1 amount=? flag= fps=79 threat=nil group=false,false,false npc=1955 target=false
+235780.558 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235780.558   -> HIDDEN
+235780.618 HIT nameplate1 school=8 amount=? flag= fps=80 threat=nil group=false,false,false npc=1955 target=false
+235780.618 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235780.618   -> HIDDEN
+235780.734 HIT nameplate2 school=1 amount=? flag= fps=82 threat=nil group=false,false,false npc=1955 target=false
+235780.734 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235780.734   -> HIDDEN
+235781.159 HIT nameplate2 school=64 amount=? flag= fps=84 threat=nil group=false,false,false npc=1955 target=false
+235781.159 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235781.159   -> HIDDEN
+235781.910 HIT nameplate2 school=32 amount=? flag= fps=87 threat=nil group=false,false,false npc=1955 target=false
+235781.910 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235781.910   -> HIDDEN
+235782.257 HIT nameplate2 school=1 amount=? flag= fps=88 threat=nil group=false,false,false npc=1955 target=false
+235782.257 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235782.257   -> HIDDEN
+235782.795 HIT nameplate2 school=4 amount=? flag= fps=89 threat=nil group=false,false,false npc=1955 target=false
+235782.795 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235782.795   -> HIDDEN
+235783.027 HIT nameplate2 school=64 amount=? flag= fps=89 threat=nil group=false,false,false npc=1955 target=false
+235783.027 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235783.027   -> HIDDEN
+235783.323 HIT nameplate2 school=32 amount=? flag= fps=89 threat=nil group=false,false,false npc=1955 target=false
+235783.323 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235783.323   -> HIDDEN
+235783.982 HIT nameplate2 school=32 amount=? flag= fps=86 threat=nil group=false,false,false npc=1955 target=false
+235783.982 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235783.982   -> HIDDEN
+235784.322 HIT nameplate2 school=1 amount=? flag= fps=84 threat=nil group=false,false,false npc=1955 target=false
+235784.322 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235784.322   -> HIDDEN
+235785.008 HIT nameplate2 school=64 amount=? flag= fps=85 threat=nil group=false,false,false npc=1955 target=false
+235785.008 PROBE amount=secret meter=session:344,75:772,970:142,8102:83,1260198:68
+235785.008   -> HIDDEN
+235786.060 START player 8102
+235787.566 CAST player 8102 base=8102,8102 key=nameplate1
+235787.566 CAST player 970 base=970,970 key=nameplate1
+235787.566 HIT nameplate1 school=32 amount=? flag=CRITICAL fps=105 threat=3 group=false,false,false npc=1955 target=true
+235787.566 PROBE amount=secret meter=session:345,secret:secret
+235787.566   -> tracker 970
+235789.772 CAST player 5019 base=5019,5019 key=nameplate1
+235790.507 HIT nameplate1 school=64 amount=? flag= fps=105 threat=3 group=false,false,false npc=1955 target=true
+235790.507 PROBE amount=secret meter=session:345,secret:secret,secret:secret
+235790.507   -> unknown-solo
+235790.626 HIT nameplate1 school=32 amount=? flag= fps=105 threat=3 group=false,false,false npc=1955 target=true
+235790.626 PROBE amount=secret meter=session:345,secret:secret,secret:secret
+235790.626   -> tracker 970
+235791.548 CAST player 5019 base=5019,5019 key=nameplate1
+235791.766 HIT nameplate1 school=64 amount=? flag= fps=101 threat=3 group=false,false,false npc=1955 target=true
+235791.766 PROBE amount=secret meter=session:345,secret:secret,secret:secret,secret:secret
+235791.766   -> locked 5019
+235793.382 CAST player 5019 base=5019,5019 key=nameplate1
+235793.544 HIT nameplate1 school=64 amount=? flag= fps=89 threat=3 group=false,false,false npc=1955 target=true
+235793.544 PROBE amount=secret meter=session:345,secret:secret,secret:secret,secret:secret
+235793.544   -> locked 5019
+235793.592 HIT nameplate1 school=32 amount=? flag= fps=89 threat=3 group=false,false,false npc=1955 target=true
+235793.592 PROBE amount=secret meter=session:345,secret:secret,secret:secret,secret:secret,secret:secret
+235793.592   -> tracker 970
+235793.592 HEAL player school=1 amount=? flag=
+235793.592 HIT nameplate1 school=32 amount=? flag= fps=89 threat=3 group=false,false,false npc=1955 target=true
+235793.592 PROBE amount=secret meter=session:345,secret:secret,secret:secret,secret:secret,secret:secret
+235793.592   -> unknown-solo
+235793.621 LOCKEDHEAL 1260198 proc
+235793.621   -> heal 1260198
+235795.538 CAST player 5019 base=5019,5019 key=nameplate1
+235795.698 HIT nameplate1 school=64 amount=? flag= fps=84 threat=3 group=false,false,false npc=1955 target=true
+235795.698 PROBE amount=secret meter=session:345,secret:secret,secret:secret,secret:secret,secret:secret
+235795.698   -> locked 5019
+235796.539 HIT nameplate1 school=32 amount=? flag= fps=86 threat=3 group=false,false,false npc=1955 target=true
+235796.539 PROBE amount=secret meter=session:345,secret:secret,secret:secret,secret:secret,secret:secret
+235796.539   -> tracker 970
+235797.308 CAST player 5019 base=5019,5019 key=nameplate1
+235797.473 HIT nameplate1 school=64 amount=? flag= fps=91 threat=3 group=false,false,false npc=1955 target=true
+235797.473 PROBE amount=secret meter=session:345,secret:secret,secret:secret,secret:secret,secret:secret
+235797.473   -> locked 5019
+235799.093 CAST player 5019 base=5019,5019 key=nameplate1
+235799.258 HIT nameplate1 school=64 amount=? flag=CRITICAL fps=103 threat=3 group=false,false,false npc=1955 target=true
+235799.258 PROBE amount=secret meter=session:345,secret:secret,secret:secret,secret:secret,secret:secret
+235799.258   -> locked 5019
+235799.549 HIT nameplate1 school=32 amount=? flag= fps=102 threat=3 group=false,false,false npc=1955 target=true
+235799.549 PROBE amount=secret meter=session:345,secret:secret,secret:secret,secret:secret,secret:secret
+235799.549   -> tracker 970
+235801.853 LOCKED 970 hits=4 total=94 per=24
+235801.853 LOCKED 5019 hits=5 total=? per=?
+235801.853 TEACH session 345 dur=14
+235801.853 TEACH row 75 total=229 overkill=0 override=75
+235801.853 TEACH row 8102 total=126 overkill=0 override=8102
+235801.853 TEACH row 970 total=94 overkill=0 override=970
+235801.853 TEACH row 1260198 total=35 overkill=0 override=1260198
+235801.853 TEACH clean seen=0 meter=484 -> short
+235801.853 TEACH 75 tally=0 meter=229 verdict=unpaired
+235801.853 TEACH 8102 tally=0 meter=126 verdict=unpaired
+235801.853 TEACH 970 tally=0 meter=94 verdict=unpaired
+235801.853 TEACH 1260198 tally=0 meter=35 verdict=unpaired
+235801.853 TEACH heal 1260198 meter=25 over=0
+235803.637 START player 8102
+235805.167 CAST player 8102 base=8102,8102 key=nameplate2
+235805.167 CAST player 970 base=970,970 key=nameplate2
+235805.167 HIT nameplate2 school=32 amount=? flag=CRITICAL fps=79 threat=3 group=false,false,false npc=1955 target=true
+235805.167 PROBE amount=secret meter=session:346,8102:124
+235805.167   -> tracker 970
+235807.365 CAST player 5019 base=5019,5019 key=nameplate2
+235807.614 HIT nameplate2 school=64 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235807.614 PROBE amount=secret meter=session:346,secret:secret,secret:secret
+235807.614   -> locked 5019
+235808.123 HIT nameplate2 school=32 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235808.123 PROBE amount=secret meter=session:346,secret:secret,secret:secret
+235808.123   -> tracker 970
+235809.120 CAST player 5019 base=5019,5019 key=nameplate2
+235809.368 HIT nameplate2 school=64 amount=? flag= fps=82 threat=3 group=false,false,false npc=1955 target=true
+235809.368 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret
+235809.368   -> locked 5019
+235811.016 CAST player 5019 base=5019,5019 key=nameplate2
+235811.126 HIT nameplate2 school=32 amount=? flag= fps=83 threat=3 group=false,false,false npc=1955 target=true
+235811.126 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret
+235811.126   -> tracker 970
+235811.181 HIT nameplate2 school=64 amount=? flag= fps=83 threat=3 group=false,false,false npc=1955 target=true
+235811.181 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret
+235811.181   -> locked 5019
+235812.818 CAST player 5019 base=5019,5019 key=nameplate2
+235812.977 HIT nameplate2 school=64 amount=? flag= fps=85 threat=3 group=false,false,false npc=1955 target=true
+235812.977 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret
+235812.977   -> locked 5019
+235814.148 HIT nameplate2 school=32 amount=? flag= fps=85 threat=3 group=false,false,false npc=1955 target=true
+235814.148 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret
+235814.148   -> tracker 970
+235814.635 CAST player 5019 base=5019,5019 key=nameplate2
+235814.801 HIT nameplate2 school=64 amount=? flag= fps=83 threat=3 group=false,false,false npc=1955 target=true
+235814.801 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret
+235814.801   -> locked 5019
+235816.640 CAST player 5019 base=5019,5019 key=nameplate2
+235816.797 HIT nameplate2 school=64 amount=? flag= fps=77 threat=3 group=false,false,false npc=1955 target=true
+235816.797 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret
+235816.797   -> locked 5019
+235817.092 HIT nameplate2 school=32 amount=? flag= fps=77 threat=3 group=false,false,false npc=1955 target=true
+235817.092 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret
+235817.092   -> tracker 970
+235818.424 CAST player 5019 base=5019,5019 key=nameplate2
+235818.619 HIT nameplate2 school=32 amount=? flag= fps=82 threat=3 group=false,false,false npc=1955 target=true
+235818.619 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret,secret:secret
+235818.619   -> unknown-solo
+235818.619 HEAL player school=1 amount=? flag=
+235818.619 HIT nameplate2 school=64 amount=? flag= fps=82 threat=3 group=false,false,false npc=1955 target=true
+235818.619 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret,secret:secret
+235818.619   -> locked 5019
+235818.636 LOCKEDHEAL 1260198 proc
+235818.636   -> heal 1260198
+235819.812 HIT nameplate3 school=1 amount=? flag= fps=86 threat=nil group=false,false,false npc=1955 target=false
+235819.812 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret,secret:secret
+235819.812   -> HIDDEN
+235819.985 HIT nameplate3 school=1 amount=? flag= fps=86 threat=nil group=false,false,false npc=1955 target=false
+235819.985 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret,secret:secret
+235819.985   -> HIDDEN
+235820.078 HIT nameplate2 school=32 amount=? flag= fps=86 threat=3 group=false,false,false npc=1955 target=true
+235820.078 PROBE amount=secret meter=session:346,secret:secret,secret:secret,secret:secret,secret:secret
+235820.078   -> tracker 970
+235821.289 HIT nameplate3 school=1 amount=? flag= fps=85 threat=nil group=false,false,false npc=1955 target=false
+235821.289 PROBE amount=secret meter=session:346,75:262,8102:124,970:117,1260198:34
+235821.289   -> HIDDEN
+235821.608 HIT nameplate3 school=1 amount=? flag= fps=85 threat=nil group=false,false,false npc=1955 target=false
+235821.608 PROBE amount=secret meter=session:346,75:262,8102:124,970:117,1260198:34
+235821.608   -> HIDDEN
+235821.873 LOCKED 970 hits=5 total=117 per=23
+235821.873 LOCKED 5019 hits=7 total=? per=?
+235821.873 TEACH session 346 dur=16
+235821.873 TEACH row 75 total=262 overkill=0 override=75
+235821.873 TEACH row 8102 total=124 overkill=0 override=8102
+235821.873 TEACH row 970 total=117 overkill=0 override=970
+235821.873 TEACH row 1260198 total=34 overkill=0 override=1260198
+235821.873 TEACH clean seen=0 meter=537 -> short
+235821.873 TEACH 75 tally=0 meter=262 verdict=unpaired
+235821.873 TEACH 8102 tally=0 meter=124 verdict=unpaired
+235821.873 TEACH 970 tally=0 meter=117 verdict=unpaired
+235821.873 TEACH 1260198 tally=0 meter=34 verdict=unpaired
+235821.873 TEACH heal 1260198 meter=34 over=0
+235823.299 HIT nameplate3 school=1 amount=? flag= fps=83 threat=nil group=false,false,false npc=1955 target=true
+235823.299 PROBE amount=secret meter=session:346,75:262,8102:124,970:117,1260198:34
+235823.299   -> unknown-solo
+235823.660 HIT nameplate3 school=1 amount=? flag= fps=82 threat=nil group=false,false,false npc=1955 target=true
+235823.660 PROBE amount=secret meter=session:346,75:262,8102:124,970:117,1260198:34
+235823.660   -> unknown-solo
+235823.807 HIT nameplate3 school=1 amount=? flag= fps=82 threat=nil group=false,false,false npc=1955 target=true
+235823.807 PROBE amount=secret meter=session:346,75:262,8102:124,970:117,1260198:34
+235823.807   -> unknown-solo
+235828.576 START player 8102
+235830.041 CAST player 8102 base=8102,8102 key=nameplate1
+235830.041 CAST player 970 base=970,970 key=nameplate1
+235830.041 HIT nameplate1 school=32 amount=? flag= fps=90 threat=3 group=false,false,false npc=1955 target=true
+235830.041 PROBE amount=secret meter=session:347,8102:81
+235830.041   -> tracker 970
+235831.899 CAST player 5019 base=5019,5019 key=nameplate1
+235832.544 HIT nameplate1 school=64 amount=? flag= fps=89 threat=3 group=false,false,false npc=1955 target=true
+235832.544 PROBE amount=secret meter=session:347,secret:secret,secret:secret
+235832.544   -> unknown-solo
+235833.061 HIT nameplate1 school=32 amount=? flag= fps=94 threat=3 group=false,false,false npc=1955 target=true
+235833.061 PROBE amount=secret meter=session:347,secret:secret,secret:secret
+235833.061   -> tracker 970
+235833.734 CAST player 5019 base=5019,5019 key=nameplate1
+235833.958 HIT nameplate1 school=32 amount=? flag= fps=98 threat=3 group=false,false,false npc=1955 target=true
+235833.958 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235833.958   -> unknown-solo
+235833.958 HEAL player school=1 amount=? flag=
+235833.977 LOCKEDHEAL 1260198 proc
+235833.977   -> heal 1260198
+235833.999 HIT nameplate1 school=64 amount=? flag= fps=97 threat=3 group=false,false,false npc=1955 target=true
+235833.999 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235833.999   -> locked 5019
+235835.560 CAST player 5019 base=5019,5019 key=nameplate1
+235835.815 HIT nameplate1 school=64 amount=? flag= fps=97 threat=3 group=false,false,false npc=1955 target=true
+235835.815 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235835.815   -> locked 5019
+235836.090 HIT nameplate1 school=32 amount=? flag= fps=96 threat=3 group=false,false,false npc=1955 target=true
+235836.090 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235836.090   -> tracker 970
+235837.344 CAST player 5019 base=5019,5019 key=nameplate1
+235837.768 HIT nameplate1 school=64 amount=? flag= fps=90 threat=3 group=false,false,false npc=1955 target=true
+235837.768 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235837.768   -> unknown-solo
+235839.087 HIT nameplate1 school=32 amount=? flag= fps=88 threat=3 group=false,false,false npc=1955 target=true
+235839.087 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235839.087   -> tracker 970
+235839.204 CAST player 5019 base=5019,5019 key=nameplate1
+235839.369 HIT nameplate1 school=64 amount=? flag= fps=88 threat=3 group=false,false,false npc=1955 target=true
+235839.369 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235839.369   -> locked 5019
+235840.956 CAST player 5019 base=5019,5019 key=nameplate1
+235841.156 HIT nameplate1 school=64 amount=? flag= fps=61 threat=3 group=false,false,false npc=1955 target=true
+235841.156 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235841.156   -> locked 5019
+235842.056 HIT nameplate1 school=32 amount=? flag= fps=54 threat=3 group=false,false,false npc=1955 target=true
+235842.056 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235842.056   -> tracker 970
+235843.058 CAST player 5019 base=5019,5019 key=nameplate1
+235843.191 HIT nameplate1 school=64 amount=? flag= fps=46 threat=3 group=false,false,false npc=1955 target=true
+235843.191 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235843.191   -> locked 5019
+235843.491 HIT nameplate2 school=32 amount=? flag= fps=44 threat=nil group=false,false,false npc=1955 target=false
+235843.491 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235843.491   -> HIDDEN
+235844.791 CAST player 5019 base=5019,5019 key=nameplate1
+235844.991 HIT nameplate1 school=64 amount=? flag= fps=37 threat=3 group=false,false,false npc=1955 target=true
+235844.991 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235844.991   -> locked 5019
+235845.124 HIT nameplate1 school=32 amount=? flag= fps=37 threat=3 group=false,false,false npc=1955 target=true
+235845.124 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235845.124   -> tracker 970
+235846.591 CAST player 5019 base=5019,5019 key=nameplate1
+235846.791 HIT nameplate1 school=64 amount=? flag= fps=32 threat=3 group=false,false,false npc=1955 target=false
+235846.791 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235846.791   -> locked 5019
+235848.621 TEACH carry 0 hits seen=0
+235849.913 START player 8102
+235851.804 CAST player 8102 base=8102,8102 key=nameplate3
+235851.804 CAST player 970 base=970,970 key=nameplate3
+235851.804 HIT nameplate3 school=32 amount=? flag= fps=85 threat=3 group=false,false,false npc=1955 target=true
+235851.804 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235851.804   -> tracker 970
+235853.652 CAST player 5019 base=5019,5019 key=nameplate3
+235853.869 HIT nameplate3 school=64 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235853.869 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235853.869   -> locked 5019
+235853.869 HIT nameplate3 school=32 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+235853.869 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235853.869   -> unknown-solo
+235853.869 HEAL player school=1 amount=? flag=
+235853.893 LOCKEDHEAL 1260198 proc
+235853.893   -> heal 1260198
+235854.823 HIT nameplate3 school=32 amount=? flag= fps=71 threat=3 group=false,false,false npc=1955 target=true
+235854.823 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235854.823   -> tracker 970
+235855.475 CAST player 5019 base=5019,5019 key=nameplate3
+235855.695 HIT nameplate3 school=64 amount=? flag= fps=68 threat=3 group=false,false,false npc=1955 target=true
+235855.695 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235855.695   -> locked 5019
+235857.315 CAST player 5019 base=5019,5019 key=nameplate3
+235857.470 HIT nameplate3 school=64 amount=? flag= fps=74 threat=3 group=false,false,false npc=1955 target=true
+235857.470 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235857.470   -> locked 5019
+235857.875 HIT nameplate3 school=32 amount=? flag= fps=74 threat=3 group=false,false,false npc=1955 target=true
+235857.875 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235857.875   -> tracker 970
+235859.298 CAST player 5019 base=5019,5019 key=nameplate3
+235859.523 HIT nameplate3 school=64 amount=? flag= fps=77 threat=3 group=false,false,false npc=1955 target=true
+235859.523 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235859.523   -> locked 5019
+235860.875 HIT nameplate3 school=32 amount=? flag= fps=78 threat=3 group=false,false,false npc=1955 target=true
+235860.875 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235860.875   -> tracker 970
+235861.091 CAST player 5019 base=5019,5019 key=nameplate3
+235861.326 HIT nameplate3 school=64 amount=? flag= fps=79 threat=3 group=false,false,false npc=1955 target=true
+235861.326 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235861.326   -> locked 5019
+235862.918 CAST player 5019 base=5019,5019 key=nameplate3
+235863.154 HIT nameplate3 school=64 amount=? flag= fps=81 threat=3 group=false,false,false npc=1955 target=true
+235863.154 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235863.154   -> locked 5019
+235864.103 HIT nameplate3 school=32 amount=? flag= fps=79 threat=3 group=false,false,false npc=1955 target=true
+235864.103 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235864.103   -> tracker 970
+235864.759 CAST player 5019 base=5019,5019 key=nameplate3
+235864.917 HIT nameplate3 school=64 amount=? flag= fps=74 threat=3 group=false,false,false npc=1955 target=true
+235864.917 PROBE amount=secret meter=session:347,secret:secret,secret:secret,secret:secret,secret:secret
+235864.917   -> locked 5019
+235866.438 LOCKED 970 hits=9 total=212 per=24
+235866.438 LOCKED 5019 hits=14 total=? per=?
+235866.438 TEACH session 347 dur=36
+235866.438 TEACH row 75 total=634 overkill=0 override=75
+235866.438 TEACH row 970 total=212 overkill=0 override=970
+235866.438 TEACH row 8102 total=163 overkill=0 override=8102
+235866.438 TEACH row 1260198 total=67 overkill=0 override=1260198
+235866.438 TEACH clean seen=0 meter=1076 -> short
+235866.438 TEACH 75 tally=0 meter=634 verdict=unpaired
+235866.438 TEACH 970 tally=0 meter=212 verdict=unpaired
+235866.438 TEACH 8102 tally=0 meter=163 verdict=unpaired
+235866.438 TEACH 1260198 tally=0 meter=67 verdict=unpaired
+235866.438 TEACH heal 1260198 meter=67 over=0
+235866.578 HIT nameplate1 school=8 amount=? flag= fps=67 threat=nil group=false,false,false npc=1955 target=false
+235866.578 PROBE amount=secret meter=session:347,75:634,970:212,8102:163,1260198:67
+235866.578   -> HIDDEN
+235866.578 HIT nameplate1 school=8 amount=? flag= fps=67 threat=nil group=false,false,false npc=1955 target=false
+235866.578 PROBE amount=secret meter=session:347,75:634,970:212,8102:163,1260198:67
+235866.578   -> HIDDEN
+235867.116 HIT nameplate1 school=1 amount=? flag=BLOCK_REDUCED fps=67 threat=nil group=false,false,false npc=1955 target=false
+235867.116 PROBE amount=secret meter=session:347,75:634,970:212,8102:163,1260198:67
+235867.116   -> HIDDEN
+235870.445 HIT nameplate1 school=1 amount=? flag= fps=83 threat=nil group=false,false,false npc=1955 target=false
+235870.445 PROBE amount=secret meter=session:347,75:634,970:212,8102:163,1260198:67
+235870.445   -> HIDDEN
+235870.502 HIT nameplate1 school=8 amount=? flag= fps=83 threat=nil group=false,false,false npc=1955 target=false
+235870.502 PROBE amount=secret meter=session:347,75:634,970:212,8102:163,1260198:67
+235870.502   -> HIDDEN
+235874.985 START player 8102
+235876.480 CAST player 8102 base=8102,8102 key=nameplate2
+235876.480 CAST player 970 base=970,970 key=nameplate2
+235876.480 HIT nameplate2 school=32 amount=? flag= fps=87 threat=3 group=false,false,false npc=1955 target=true
+235876.480 PROBE amount=secret meter=session:348,8102:81
+235876.480   -> tracker 970
+235876.480 HIT nameplate2 school=32 amount=? flag= fps=87 threat=3 group=false,false,false npc=1955 target=true
+235876.480 PROBE amount=secret meter=session:348,secret:secret,secret:secret
+235876.480   -> unknown-solo
+235876.480 HEAL player school=1 amount=? flag=
+235876.555 LOCKEDHEAL 1260198 proc
+235876.555   -> heal 1260198
+235878.454 CAST player 5019 base=5019,5019 key=nameplate2
+235878.676 HIT nameplate2 school=64 amount=? flag= fps=79 threat=3 group=false,false,false npc=1955 target=true
+235878.676 PROBE amount=secret meter=session:348,secret:secret,secret:secret,secret:secret
+235878.676   -> locked 5019
+235879.529 HIT nameplate2 school=32 amount=? flag= fps=87 threat=3 group=false,false,false npc=1955 target=true
+235879.529 PROBE amount=secret meter=session:348,secret:secret,secret:secret,secret:secret
+235879.529   -> tracker 970
+235880.435 CAST player 5019 base=5019,5019 key=nameplate2
+235880.576 HIT nameplate2 school=64 amount=? flag= fps=93 threat=3 group=false,false,false npc=1955 target=true
+235880.576 PROBE amount=secret meter=session:348,secret:secret,secret:secret,secret:secret,secret:secret
+235880.576   -> locked 5019
+235882.454 HIT nameplate2 school=32 amount=? flag=CRITICAL fps=93 threat=3 group=false,false,false npc=1955 target=true
+235882.454 PROBE amount=secret meter=session:348,secret:secret,secret:secret,secret:secret,secret:secret
+235882.454   -> tracker 970
+235883.245 CAST player 5019 base=5019,5019 key=nameplate2
+235883.412 HIT nameplate2 school=64 amount=? flag= fps=91 threat=3 group=false,false,false npc=1955 target=true
+235883.412 PROBE amount=secret meter=session:348,secret:secret,secret:secret,secret:secret,secret:secret
+235883.412   -> locked 5019
+235885.182 CAST player 5019 base=5019,5019 key=nameplate2
+235885.344 HIT nameplate2 school=64 amount=? flag= fps=95 threat=3 group=false,false,false npc=1955 target=true
+235885.344 PROBE amount=secret meter=session:348,secret:secret,secret:secret,secret:secret,secret:secret
+235885.344   -> locked 5019
+235885.513 HIT nameplate2 school=32 amount=? flag= fps=95 threat=3 group=false,false,false npc=1955 target=true
+235885.513 PROBE amount=secret meter=session:348,secret:secret,secret:secret,secret:secret,secret:secret
+235885.513   -> tracker 970
+235886.890 CAST player 5019 base=5019,5019 key=nameplate2
+235887.150 HIT nameplate2 school=64 amount=? flag= fps=93 threat=3 group=false,false,false npc=1955 target=true
+235887.150 PROBE amount=secret meter=session:348,secret:secret,secret:secret,secret:secret,secret:secret
+235887.150   -> locked 5019
+235888.514 HIT nameplate2 school=32 amount=? flag= fps=87 threat=3 group=false,false,false npc=1955 target=true
+235888.514 PROBE amount=secret meter=session:348,secret:secret,secret:secret,secret:secret,secret:secret
+235888.514   -> tracker 970
+235888.788 CAST player 5019 base=5019,5019 key=nameplate2
+235888.953 HIT nameplate2 school=64 amount=? flag= fps=86 threat=3 group=false,false,false npc=1955 target=true
+235888.953 PROBE amount=secret meter=session:348,secret:secret,secret:secret,secret:secret,secret:secret
+235888.953   -> locked 5019
+235890.590 CAST player 5019 base=5019,5019 key=nameplate2
+235890.848 HIT nameplate2 school=64 amount=? flag= fps=92 threat=3 group=false,false,false npc=1955 target=false
+235890.848 PROBE amount=secret meter=session:348,secret:secret,secret:secret,secret:secret,secret:secret
+235890.848   -> locked 5019
+235891.962 CAST player 6074 base=6074,6074 key=player
+235892.793 LOCKED 970 hits=4 total=104 per=26
+235892.793 LOCKED 5019 hits=7 total=? per=?
+235892.793 TEACH session 348 dur=16
+235892.793 TEACH row 75 total=272 overkill=0 override=75
+235892.793 TEACH row 970 total=104 overkill=0 override=970
+235892.793 TEACH row 8102 total=81 overkill=0 override=8102
+235892.793 TEACH row 1260198 total=32 overkill=0 override=1260198
+235892.793 TEACH clean seen=0 meter=489 -> short
+235892.793 TEACH 75 tally=0 meter=272 verdict=unpaired
+235892.793 TEACH 970 tally=0 meter=104 verdict=unpaired
+235892.793 TEACH 8102 tally=0 meter=81 verdict=unpaired
+235892.793 TEACH 1260198 tally=0 meter=32 verdict=unpaired
+235892.793 TEACH heal 1260198 meter=32 over=0
+235893.380 START player 2054
+235893.727 HIT nameplate1 school=64 amount=? flag= fps=85 threat=nil group=false,false,false npc=1955 target=false
+235893.727 PROBE amount=secret meter=session:348,75:272,970:104,8102:81,1260198:32
+235893.727   -> HIDDEN
+235894.834 HEAL player school=1 amount=? flag=
+235894.845 LOCKEDHEAL 6074 hot
+235894.845   -> heal 6074
+235895.306 HIT nameplate1 school=64 amount=? flag= fps=90 threat=nil group=false,false,false npc=1955 target=false
+235895.306 PROBE amount=secret meter=session:348,75:272,970:104,8102:81,1260198:32
+235895.306   -> HIDDEN
+235896.188 HEAL player school=1 amount=? flag=
+235896.188 CAST player 2054 base=2054,2054 key=player
+235896.209 LOCKEDHEAL 2054 direct
+235896.209   -> heal 2054
+235897.836 HEAL player school=1 amount=? flag=
+235897.848 LOCKEDHEAL 6074 hot
+235897.848   -> heal 6074
+235900.993 HEAL player school=1 amount=? flag=
+235901.004 LOCKEDHEAL 6074 hot
+235901.004   -> heal 6074
+235903.868 HEAL player school=1 amount=? flag=CRITICAL
+235903.879 LOCKEDHEAL 6074 hot
+235903.879   -> heal 6074
+235904.651 HIT nameplate1 school=64 amount=? flag= fps=92 threat=nil group=false,false,false npc=1955 target=false
+235904.651 PROBE amount=secret meter=session:348,75:272,970:104,8102:81,1260198:32
+235904.651   -> HIDDEN
+235905.416 HIT nameplate1 school=32 amount=? flag= fps=99 threat=nil group=false,false,false npc=1955 target=false
+235905.416 PROBE amount=secret meter=session:348,75:272,970:104,8102:81,1260198:32
+235905.416   -> HIDDEN
+235906.431 HIT nameplate1 school=64 amount=? flag= fps=105 threat=nil group=false,false,false npc=1955 target=false
+235906.431 PROBE amount=secret meter=session:348,75:272,970:104,8102:81,1260198:32
+235906.431   -> HIDDEN
+235906.897 HEAL player school=1 amount=? flag=
+235906.912 LOCKEDHEAL 6074 hot
+235906.912   -> heal 6074
+235907.558 START player 8102
+235908.411 HIT nameplate1 school=32 amount=? flag= fps=102 threat=nil group=false,false,false npc=1955 target=false
+235908.411 PROBE amount=secret meter=session:348,75:272,970:104,8102:81,1260198:32
+235908.411   -> HIDDEN
+235909.137 CAST player 8102 base=8102,8102 key=nameplate2
+235909.137 CAST player 970 base=970,970 key=nameplate2
+235909.137 HIT nameplate2 school=32 amount=? flag= fps=102 threat=3 group=false,false,false npc=1955 target=true
+235909.137 PROBE amount=secret meter=session:349,secret:secret
+235909.137   -> tracker 970
+235910.978 HIT nameplate1 school=64 amount=? flag= fps=104 threat=nil group=false,false,false npc=1955 target=false
+235910.978 PROBE amount=secret meter=session:349,secret:secret
+235910.978   -> HIDDEN
+235911.194 CAST player 5019 base=5019,5019 key=nameplate2
+235911.531 HIT nameplate2 school=64 amount=? flag= fps=108 threat=3 group=false,false,false npc=1955 target=true
+235911.531 PROBE amount=secret meter=session:349,secret:secret,secret:secret
+235911.531   -> locked 5019
+235911.531 HIT nameplate1 school=32 amount=? flag= fps=108 threat=nil group=false,false,false npc=1955 target=false
+235911.531 PROBE amount=secret meter=session:349,secret:secret,secret:secret
+235911.531   -> HIDDEN
+235912.087 HIT nameplate2 school=32 amount=? flag= fps=108 threat=3 group=false,false,false npc=1955 target=true
+235912.087 PROBE amount=secret meter=session:349,secret:secret,secret:secret
+235912.087   -> tracker 970
+235912.754 HIT nameplate1 school=64 amount=? flag= fps=109 threat=nil group=false,false,false npc=1955 target=false
+235912.754 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret
+235912.754   -> HIDDEN
+235912.976 CAST player 5019 base=5019,5019 key=nameplate2
+235913.209 HIT nameplate2 school=64 amount=? flag= fps=109 threat=3 group=false,false,false npc=1955 target=true
+235913.209 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret
+235913.209   -> locked 5019
+235914.423 HIT nameplate1 school=32 amount=? flag= fps=113 threat=nil group=false,false,false npc=1955 target=false
+235914.423 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret
+235914.423   -> HIDDEN
+235914.762 CAST player 5019 base=5019,5019 key=nameplate2
+235914.995 HIT nameplate2 school=64 amount=? flag= fps=113 threat=3 group=false,false,false npc=1955 target=true
+235914.995 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret
+235914.995   -> locked 5019
+235915.074 HIT nameplate2 school=32 amount=? flag= fps=113 threat=3 group=false,false,false npc=1955 target=true
+235915.074 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret
+235915.074   -> tracker 970
+235916.351 HIT nameplate1 school=64 amount=? flag= fps=110 threat=nil group=false,false,false npc=1955 target=false
+235916.351 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret
+235916.351   -> HIDDEN
+235916.810 CAST player 5019 base=5019,5019 key=nameplate2
+235916.971 HIT nameplate2 school=64 amount=? flag= fps=107 threat=3 group=false,false,false npc=1955 target=true
+235916.971 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret
+235916.971   -> locked 5019
+235917.037 HIT nameplate2 school=32 amount=? flag= fps=107 threat=3 group=false,false,false npc=1955 target=true
+235917.037 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret,secret:secret
+235917.037   -> unknown-solo
+235917.037 HEAL player school=1 amount=? flag=
+235917.048 LOCKEDHEAL 1260198 proc
+235917.048   -> heal 1260198
+235917.466 HIT nameplate1 school=32 amount=? flag= fps=106 threat=nil group=false,false,false npc=1955 target=false
+235917.466 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret,secret:secret
+235917.466   -> HIDDEN
+235918.136 HIT nameplate2 school=32 amount=? flag= fps=109 threat=3 group=false,false,false npc=1955 target=true
+235918.136 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret,secret:secret
+235918.136   -> tracker 970
+235918.173 HIT nameplate1 school=64 amount=? flag= fps=109 threat=nil group=false,false,false npc=1955 target=false
+235918.173 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret,secret:secret
+235918.173   -> HIDDEN
+235918.587 CAST player 5019 base=5019,5019 key=nameplate2
+235918.832 HIT nameplate2 school=64 amount=? flag= fps=111 threat=3 group=false,false,false npc=1955 target=true
+235918.832 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret,secret:secret
+235918.832   -> locked 5019
+235920.448 CAST player 5019 base=5019,5019 key=nameplate2
+235920.607 HIT nameplate2 school=64 amount=? flag=CRITICAL fps=101 threat=3 group=false,false,false npc=1955 target=true
+235920.607 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret,secret:secret
+235920.607   -> locked 5019
+235921.121 HIT nameplate2 school=32 amount=? flag= fps=95 threat=3 group=false,false,false npc=1955 target=true
+235921.121 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret,secret:secret
+235921.121   -> tracker 970
+235922.236 CAST player 5019 base=5019,5019 key=nameplate2
+235922.439 HIT nameplate2 school=64 amount=? flag=CRITICAL fps=81 threat=3 group=false,false,false npc=1955 target=false
+235922.439 PROBE amount=secret meter=session:349,secret:secret,secret:secret,secret:secret,secret:secret
+235922.439   -> locked 5019
+235924.430 LOCKED 970 hits=4 total=94 per=24
+235924.430 LOCKED 5019 hits=7 total=? per=?
+235924.430 TEACH session 349 dur=15
+235924.430 TEACH row 75 total=294 overkill=0 override=75
+235924.430 TEACH row 970 total=94 overkill=0 override=970
+235924.430 TEACH row 8102 total=85 overkill=0 override=8102
+235924.430 TEACH row 1260198 total=33 overkill=0 override=1260198
+235924.430 TEACH clean seen=0 meter=506 -> short
+235924.430 TEACH 75 tally=0 meter=294 verdict=unpaired
+235924.430 TEACH 970 tally=0 meter=94 verdict=unpaired
+235924.430 TEACH 8102 tally=0 meter=85 verdict=unpaired
+235924.430 TEACH 1260198 tally=0 meter=33 verdict=unpaired
+235924.430 TEACH heal 1260198 meter=33 over=0
+235924.989 START player 8102
+235926.536 CAST player 8102 base=8102,8102 key=nameplate1
+235926.536 CAST player 970 base=970,970 key=nameplate1
+235926.536 HIT nameplate1 school=32 amount=? flag= fps=93 threat=3 group=false,false,false npc=1956 target=true
+235926.536 PROBE amount=secret meter=session:350,secret:secret
+235926.536   -> tracker 970
+235928.836 CAST player 5019 base=5019,5019 key=nameplate1
+235929.455 HIT nameplate1 school=32 amount=? flag= fps=96 threat=3 group=false,false,false npc=1956 target=true
+235929.455 PROBE amount=secret meter=session:350,secret:secret
+235929.455   -> tracker 970
+235930.626 CAST player 5019 base=5019,5019 key=nameplate1
+235930.788 HIT nameplate1 school=64 amount=? flag= fps=95 threat=3 group=false,false,false npc=1956 target=true
+235930.788 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret
+235930.788   -> locked 5019
+235932.446 CAST player 5019 base=5019,5019 key=nameplate1
+235932.446 HIT nameplate1 school=32 amount=? flag= fps=97 threat=3 group=false,false,false npc=1956 target=true
+235932.446 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret
+235932.446   -> tracker 970
+235932.583 HIT nameplate1 school=32 amount=? flag= fps=97 threat=3 group=false,false,false npc=1956 target=true
+235932.583 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235932.583   -> unknown-solo
+235932.583 HEAL player school=1 amount=? flag=
+235932.600 LOCKEDHEAL 1260198 proc
+235932.600   -> heal 1260198
+235932.611 HIT nameplate1 school=64 amount=? flag= fps=97 threat=3 group=false,false,false npc=1956 target=true
+235932.611 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235932.611   -> locked 5019
+235934.196 CAST player 5019 base=5019,5019 key=nameplate1
+235934.444 HIT nameplate1 school=64 amount=? flag= fps=94 threat=3 group=false,false,false npc=1956 target=true
+235934.444 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235934.444   -> locked 5019
+235935.546 HIT nameplate1 school=32 amount=? flag= fps=89 threat=3 group=false,false,false npc=1956 target=true
+235935.546 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235935.546   -> tracker 970
+235935.988 CAST player 5019 base=5019,5019 key=nameplate1
+235936.200 HIT nameplate1 school=64 amount=? flag= fps=87 threat=3 group=false,false,false npc=1956 target=true
+235936.200 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235936.200   -> locked 5019
+235937.883 CAST player 5019 base=5019,5019 key=nameplate1
+235938.002 HIT nameplate2 school=32 amount=? flag= fps=85 threat=nil group=false,false,false npc=1955 target=false
+235938.002 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235938.002   -> HIDDEN
+235938.042 HIT nameplate1 school=64 amount=? flag= fps=84 threat=3 group=false,false,false npc=1956 target=true
+235938.042 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235938.042   -> locked 5019
+235938.538 HIT nameplate1 school=32 amount=? flag= fps=84 threat=3 group=false,false,false npc=1956 target=true
+235938.538 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235938.538   -> tracker 970
+235939.627 CAST player 5019 base=5019,5019 key=nameplate1
+235939.869 HIT nameplate1 school=64 amount=? flag= fps=84 threat=3 group=false,false,false npc=1956 target=true
+235939.869 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235939.869   -> locked 5019
+235941.497 CAST player 5019 base=5019,5019 key=nameplate1
+235941.497 HIT nameplate1 school=32 amount=? flag= fps=84 threat=3 group=false,false,false npc=1956 target=true
+235941.497 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235941.497   -> tracker 970
+235941.656 HIT nameplate1 school=64 amount=? flag= fps=84 threat=3 group=false,false,false npc=1956 target=true
+235941.656 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235941.656   -> locked 5019
+235943.317 CAST player 5019 base=5019,5019 key=nameplate1
+235943.480 HIT nameplate1 school=64 amount=? flag= fps=85 threat=3 group=false,false,false npc=1956 target=true
+235943.480 PROBE amount=secret meter=session:350,secret:secret,secret:secret,secret:secret,secret:secret
+235943.480   -> locked 5019
+235945.010 LOCKED 970 hits=5 total=119 per=24
+235945.010 LOCKED 5019 hits=8 total=? per=?
+235945.010 TEACH session 350 dur=18
+235945.010 TEACH row 75 total=341 overkill=0 override=75
+235945.010 TEACH row 970 total=119 overkill=0 override=970
+235945.010 TEACH row 8102 total=83 overkill=0 override=8102
+235945.010 TEACH row 1260198 total=33 overkill=0 override=1260198
+235945.010 TEACH clean seen=0 meter=576 -> short
+235945.010 TEACH 75 tally=0 meter=341 verdict=unpaired
+235945.010 TEACH 970 tally=0 meter=119 verdict=unpaired
+235945.010 TEACH 8102 tally=0 meter=83 verdict=unpaired
+235945.010 TEACH 1260198 tally=0 meter=33 verdict=unpaired
+235945.010 TEACH heal 1260198 meter=33 over=0
+235946.684 CAST player 6074 base=6074,6074 key=player
+235946.792 HIT nameplate1 school=8 amount=? flag=CRITICAL fps=85 threat=nil group=false,false,false npc=1955 target=false
+235946.792 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235946.792   -> HIDDEN
+235946.806 HIT nameplate1 school=1 amount=? flag= fps=85 threat=nil group=false,false,false npc=1955 target=false
+235946.806 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235946.806   -> HIDDEN
+235947.116 HIT nameplate1 school=64 amount=? flag= fps=86 threat=nil group=false,false,false npc=1955 target=false
+235947.116 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235947.116   -> HIDDEN
+235947.556 HIT nameplate1 school=64 amount=? flag= fps=85 threat=nil group=false,false,false npc=1955 target=false
+235947.556 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235947.556   -> HIDDEN
+235949.673 HEAL player school=1 amount=? flag=
+235949.687 LOCKEDHEAL 6074 hot
+235949.687   -> heal 6074
+235952.748 HEAL player school=1 amount=? flag=
+235952.759 LOCKEDHEAL 6074 hot
+235952.759   -> heal 6074
+235955.691 HEAL player school=1 amount=? flag=
+235955.710 LOCKEDHEAL 6074 hot
+235955.710   -> heal 6074
+235956.653 HIT nameplate1 school=1 amount=? flag= fps=82 threat=nil group=false,false,false npc=1956 target=false
+235956.653 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235956.653   -> HIDDEN
+235957.004 HIT nameplate1 school=8 amount=? flag= fps=81 threat=nil group=false,false,false npc=1956 target=false
+235957.004 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235957.004   -> HIDDEN
+235958.887 HEAL player school=1 amount=? flag=
+235958.902 LOCKEDHEAL 6074 hot
+235958.902   -> heal 6074
+235958.989 HIT nameplate1 school=8 amount=? flag= fps=74 threat=nil group=false,false,false npc=1956 target=false
+235958.989 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235958.989   -> HIDDEN
+235959.755 HIT nameplate1 school=1 amount=? flag= fps=78 threat=nil group=false,false,false npc=1956 target=false
+235959.755 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235959.755   -> HIDDEN
+235960.083 HIT nameplate1 school=1 amount=? flag= fps=82 threat=nil group=false,false,false npc=1956 target=false
+235960.083 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235960.083   -> HIDDEN
+235961.009 HIT nameplate1 school=8 amount=? flag= fps=92 threat=nil group=false,false,false npc=1956 target=false
+235961.009 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235961.009   -> HIDDEN
+235961.389 HIT nameplate1 school=1 amount=? flag= fps=96 threat=nil group=false,false,false npc=1956 target=false
+235961.389 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235961.389   -> HIDDEN
+235961.763 HEAL player school=1 amount=? flag=
+235961.782 LOCKEDHEAL 6074 hot
+235961.782   -> heal 6074
+235962.055 HIT nameplate1 school=1 amount=? flag= fps=98 threat=nil group=false,false,false npc=1956 target=false
+235962.055 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235962.055   -> HIDDEN
+235962.738 HIT nameplate1 school=64 amount=? flag= fps=98 threat=nil group=false,false,false npc=1956 target=false
+235962.738 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235962.738   -> HIDDEN
+235963.017 HIT nameplate1 school=8 amount=? flag= fps=98 threat=nil group=false,false,false npc=1956 target=false
+235963.017 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235963.017   -> HIDDEN
+235964.015 HIT nameplate1 school=1 amount=? flag= fps=98 threat=nil group=false,false,false npc=1956 target=false
+235964.015 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235964.015   -> HIDDEN
+235964.994 HIT nameplate1 school=8 amount=? flag= fps=98 threat=nil group=false,false,false npc=1956 target=false
+235964.994 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235964.994   -> HIDDEN
+235965.276 HIT nameplate1 school=1 amount=? flag= fps=98 threat=nil group=false,false,false npc=1956 target=false
+235965.276 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235965.276   -> HIDDEN
+235966.007 HIT nameplate1 school=1 amount=? flag= fps=98 threat=nil group=false,false,false npc=1956 target=false
+235966.007 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235966.007   -> HIDDEN
+235966.951 HIT nameplate1 school=8 amount=? flag= fps=101 threat=nil group=false,false,false npc=1956 target=false
+235966.951 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235966.951   -> HIDDEN
+235967.939 HIT nameplate1 school=1 amount=? flag= fps=101 threat=nil group=false,false,false npc=1956 target=false
+235967.939 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235967.939   -> HIDDEN
+235968.263 HIT nameplate1 school=1 amount=? flag= fps=101 threat=nil group=false,false,false npc=1956 target=false
+235968.263 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235968.263   -> HIDDEN
+235968.263 HIT nameplate1 school=8 amount=? flag= fps=101 threat=nil group=false,false,false npc=1956 target=false
+235968.263 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235968.263   -> HIDDEN
+235969.916 HIT nameplate1 school=1 amount=? flag= fps=98 threat=nil group=false,false,false npc=1956 target=false
+235969.916 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235969.916   -> HIDDEN
+235971.267 HIT nameplate1 school=8 amount=? flag= fps=91 threat=nil group=false,false,false npc=1956 target=true
+235971.267 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235971.267   -> unknown-solo
+235975.687 HIT nameplate1 school=64 amount=? flag= fps=100 threat=nil group=false,false,false npc=1955 target=false
+235975.687 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235975.687   -> HIDDEN
+235976.013 HIT nameplate2 school=8 amount=? flag= fps=100 threat=nil group=false,false,false npc=1956 target=false
+235976.013 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235976.013   -> HIDDEN
+235976.869 HIT nameplate2 school=64 amount=? flag= fps=101 threat=nil group=false,false,false npc=1956 target=false
+235976.869 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235976.869   -> HIDDEN
+235977.801 HIT nameplate2 school=64 amount=? flag= fps=102 threat=nil group=false,false,false npc=1956 target=false
+235977.801 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235977.801   -> HIDDEN
+235977.960 HIT nameplate2 school=8 amount=? flag= fps=102 threat=nil group=false,false,false npc=1956 target=false
+235977.960 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235977.960   -> HIDDEN
+235978.300 HIT nameplate2 school=1 amount=? flag= fps=102 threat=nil group=false,false,false npc=1956 target=false
+235978.300 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235978.300   -> HIDDEN
+235978.653 HIT nameplate1 school=64 amount=? flag= fps=102 threat=nil group=false,false,false npc=1955 target=false
+235978.653 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235978.653   -> HIDDEN
+235979.079 HIT nameplate1 school=8 amount=? flag= fps=102 threat=nil group=false,false,false npc=1955 target=false
+235979.079 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235979.079   -> HIDDEN
+235979.292 HIT nameplate2 school=1 amount=? flag= fps=102 threat=nil group=false,false,false npc=1956 target=false
+235979.292 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235979.292   -> HIDDEN
+235979.938 HIT nameplate2 school=1 amount=? flag= fps=102 threat=nil group=false,false,false npc=1956 target=false
+235979.938 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235979.938   -> HIDDEN
+235979.957 HIT nameplate2 school=64 amount=? flag= fps=102 threat=nil group=false,false,false npc=1956 target=false
+235979.957 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235979.957   -> HIDDEN
+235980.063 HIT nameplate2 school=8 amount=? flag= fps=102 threat=nil group=false,false,false npc=1956 target=false
+235980.063 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235980.063   -> HIDDEN
+235980.545 HIT nameplate2 school=1 amount=? flag= fps=103 threat=nil group=false,false,false npc=1956 target=false
+235980.545 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235980.545   -> HIDDEN
+235981.284 HIT nameplate2 school=1 amount=? flag= fps=104 threat=nil group=false,false,false npc=1956 target=false
+235981.284 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235981.284   -> HIDDEN
+235981.648 HIT nameplate1 school=64 amount=? flag= fps=105 threat=nil group=false,false,false npc=1955 target=false
+235981.648 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235981.648   -> HIDDEN
+235982.028 HIT nameplate3 school=32 amount=? flag= fps=104 threat=nil group=false,false,false npc=1955 target=false
+235982.028 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235982.028   -> HIDDEN
+235982.279 HIT nameplate2 school=1 amount=? flag= fps=103 threat=nil group=false,false,false npc=1956 target=false
+235982.279 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235982.279   -> HIDDEN
+235982.300 HIT nameplate3 school=32 amount=? flag= fps=103 threat=nil group=false,false,false npc=1955 target=false
+235982.300 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235982.300   -> HIDDEN
+235982.474 HIT nameplate1 school=1 amount=? flag= fps=103 threat=nil group=false,false,false npc=1955 target=false
+235982.474 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235982.474   -> HIDDEN
+235982.505 HIT nameplate2 school=1 amount=? flag= fps=103 threat=nil group=false,false,false npc=1956 target=false
+235982.505 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235982.505   -> HIDDEN
+235982.505 HIT nameplate1 school=1 amount=? flag= fps=103 threat=nil group=false,false,false npc=1955 target=false
+235982.505 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235982.505   -> HIDDEN
+235982.868 HIT nameplate2 school=64 amount=? flag= fps=102 threat=nil group=false,false,false npc=1956 target=false
+235982.868 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235982.868   -> HIDDEN
+235982.878 HIT nameplate2 school=1 amount=? flag= fps=102 threat=nil group=false,false,false npc=1956 target=false
+235982.878 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235982.878   -> HIDDEN
+235983.080 HIT nameplate1 school=8 amount=? flag= fps=101 threat=nil group=false,false,false npc=1955 target=false
+235983.080 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235983.080   -> HIDDEN
+235983.443 HIT nameplate3 school=32 amount=? flag= fps=99 threat=nil group=false,false,false npc=1955 target=false
+235983.443 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235983.443   -> HIDDEN
+235984.038 HIT nameplate2 school=8 amount=? flag= fps=96 threat=nil group=false,false,false npc=1956 target=false
+235984.038 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235984.038   -> HIDDEN
+235984.271 HIT nameplate2 school=1 amount=? flag= fps=94 threat=nil group=false,false,false npc=1956 target=false
+235984.271 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235984.271   -> HIDDEN
+235984.573 HIT nameplate2 school=1 amount=? flag= fps=93 threat=nil group=false,false,false npc=1956 target=false
+235984.573 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235984.573   -> HIDDEN
+235984.573 HIT nameplate1 school=1 amount=? flag= fps=93 threat=nil group=false,false,false npc=1955 target=false
+235984.573 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235984.573   -> HIDDEN
+235984.672 HIT nameplate1 school=64 amount=? flag= fps=92 threat=nil group=false,false,false npc=1955 target=false
+235984.672 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235984.672   -> HIDDEN
+235985.333 HIT nameplate2 school=1 amount=? flag= fps=92 threat=nil group=false,false,false npc=1956 target=false
+235985.333 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235985.333   -> HIDDEN
+235986.016 HIT nameplate2 school=8 amount=? flag= fps=92 threat=nil group=false,false,false npc=1956 target=false
+235986.016 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235986.016   -> HIDDEN
+235986.328 HIT nameplate1 school=1 amount=? flag= fps=92 threat=nil group=false,false,false npc=1955 target=false
+235986.328 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235986.328   -> HIDDEN
+235987.229 HIT nameplate1 school=8 amount=? flag= fps=98 threat=nil group=false,false,false npc=1955 target=false
+235987.229 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235987.229   -> HIDDEN
+235987.229 HIT nameplate2 school=1 amount=? flag= fps=98 threat=nil group=false,false,false npc=1956 target=false
+235987.229 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235987.229   -> HIDDEN
+235987.674 HIT nameplate1 school=64 amount=? flag= fps=97 threat=nil group=false,false,false npc=1955 target=false
+235987.674 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235987.674   -> HIDDEN
+235987.685 HIT nameplate2 school=1 amount=? flag= fps=97 threat=nil group=false,false,false npc=1956 target=false
+235987.685 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235987.685   -> HIDDEN
+235988.825 HIT nameplate1 school=1 amount=? flag=CRITICAL fps=97 threat=nil group=false,false,false npc=1955 target=false
+235988.825 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235988.825   -> HIDDEN
+235989.267 HIT nameplate1 school=8 amount=? flag= fps=98 threat=nil group=false,false,false npc=1955 target=false
+235989.267 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235989.267   -> HIDDEN
+235989.789 HIT nameplate1 school=64 amount=? flag= fps=98 threat=nil group=false,false,false npc=1955 target=false
+235989.789 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235989.789   -> HIDDEN
+235990.077 HIT nameplate1 school=1 amount=? flag= fps=99 threat=nil group=false,false,false npc=1955 target=false
+235990.077 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235990.077   -> HIDDEN
+235990.903 HIT nameplate1 school=1 amount=? flag= fps=98 threat=nil group=false,false,false npc=1955 target=false
+235990.903 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235990.903   -> HIDDEN
+235990.953 HIT nameplate2 school=1 amount=? flag= fps=98 threat=nil group=false,false,false npc=1956 target=false
+235990.953 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235990.953   -> HIDDEN
+235990.953 HIT nameplate1 school=1 amount=? flag= fps=98 threat=nil group=false,false,false npc=1955 target=false
+235990.953 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235990.953   -> HIDDEN
+235991.066 HIT nameplate2 school=8 amount=? flag= fps=98 threat=nil group=false,false,false npc=1956 target=false
+235991.066 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235991.066   -> HIDDEN
+235992.001 HIT nameplate1 school=1 amount=? flag= fps=97 threat=nil group=false,false,false npc=1955 target=false
+235992.001 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235992.001   -> HIDDEN
+235992.428 HIT nameplate1 school=1 amount=? flag= fps=97 threat=nil group=false,false,false npc=1955 target=false
+235992.428 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235992.428   -> HIDDEN
+235992.428 HIT nameplate2 school=1 amount=? flag=BLOCK_REDUCED fps=97 threat=nil group=false,false,false npc=1956 target=false
+235992.428 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235992.428   -> HIDDEN
+235992.448 HIT nameplate1 school=1 amount=? flag= fps=97 threat=nil group=false,false,false npc=1955 target=false
+235992.448 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235992.448   -> HIDDEN
+235993.057 HIT nameplate2 school=8 amount=? flag= fps=97 threat=nil group=false,false,false npc=1956 target=false
+235993.057 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235993.057   -> HIDDEN
+235993.837 HIT nameplate2 school=1 amount=? flag= fps=97 threat=nil group=false,false,false npc=1956 target=false
+235993.837 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235993.837   -> HIDDEN
+235995.916 HIT nameplate2 school=1 amount=? flag= fps=99 threat=nil group=false,false,false npc=1956 target=false
+235995.916 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235995.916   -> HIDDEN
+235998.217 HIT nameplate1 school=32 amount=? flag= fps=95 threat=nil group=false,false,false npc=1955 target=false
+235998.217 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235998.217   -> HIDDEN
+235998.438 HIT nameplate1 school=1 amount=? flag= fps=94 threat=nil group=false,false,false npc=1955 target=false
+235998.438 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235998.438   -> HIDDEN
+235998.894 HIT nameplate1 school=4 amount=? flag= fps=92 threat=nil group=false,false,false npc=1955 target=false
+235998.894 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235998.894   -> HIDDEN
+235998.930 HIT nameplate1 school=4 amount=? flag= fps=92 threat=nil group=false,false,false npc=1955 target=false
+235998.930 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+235998.930   -> HIDDEN
+236001.111 HIT nameplate2 school=32 amount=? flag= fps=95 threat=nil group=false,false,false npc=1955 target=false
+236001.111 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+236001.111   -> HIDDEN
+236001.238 HIT nameplate1 school=32 amount=? flag= fps=96 threat=nil group=false,false,false npc=1955 target=false
+236001.238 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+236001.238   -> HIDDEN
+236001.437 HIT nameplate1 school=8 amount=? flag= fps=97 threat=nil group=false,false,false npc=1955 target=false
+236001.437 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+236001.437   -> HIDDEN
+236001.833 HIT nameplate1 school=4 amount=? flag= fps=100 threat=nil group=false,false,false npc=1955 target=false
+236001.833 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+236001.833   -> HIDDEN
+236001.919 HIT nameplate1 school=4 amount=? flag= fps=100 threat=nil group=false,false,false npc=1955 target=false
+236001.919 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+236001.919   -> HIDDEN
+236001.976 HIT nameplate1 school=1 amount=? flag=CRITICAL fps=101 threat=nil group=false,false,false npc=1955 target=false
+236001.976 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+236001.976   -> HIDDEN
+236002.474 HIT nameplate2 school=32 amount=? flag= fps=105 threat=nil group=false,false,false npc=1955 target=false
+236002.474 PROBE amount=secret meter=session:350,75:341,970:119,8102:83,1260198:33
+236002.474   -> HIDDEN
+236005.854 START player 8102
+236007.307 CAST player 8102 base=8102,8102 key=nameplate3
+236007.307 CAST player 970 base=970,970 key=nameplate3
+236007.307 HIT nameplate3 school=32 amount=? flag=CRITICAL fps=116 threat=3 group=false,false,false npc=1955 target=true
+236007.307 PROBE amount=secret meter=session:351,8102:125
+236007.307   -> tracker 970
+236009.363 CAST player 5019 base=5019,5019 key=nameplate3
+236009.979 HIT nameplate3 school=64 amount=? flag= fps=108 threat=3 group=false,false,false npc=1955 target=true
+236009.979 PROBE amount=secret meter=session:351,secret:secret,secret:secret
+236009.979   -> unknown-solo
+236010.391 HIT nameplate3 school=32 amount=? flag= fps=108 threat=3 group=false,false,false npc=1955 target=true
+236010.391 PROBE amount=secret meter=session:351,secret:secret,secret:secret
+236010.391   -> tracker 970
+236011.191 CAST player 5019 base=5019,5019 key=nameplate3
+236011.569 HIT nameplate3 school=64 amount=? flag= fps=109 threat=3 group=false,false,false npc=1955 target=true
+236011.569 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret
+236011.569   -> unknown-solo
+236013.020 CAST player 5019 base=5019,5019 key=nameplate3
+236013.181 HIT nameplate3 school=64 amount=? flag= fps=105 threat=3 group=false,false,false npc=1955 target=true
+236013.181 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret
+236013.181   -> locked 5019
+236013.239 HIT nameplate3 school=32 amount=? flag= fps=104 threat=3 group=false,false,false npc=1955 target=true
+236013.239 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret,secret:secret
+236013.239   -> tracker 970
+236013.239 HEAL player school=1 amount=? flag=
+236013.258 LOCKEDHEAL 1260198 proc
+236013.258   -> heal 1260198
+236013.344 HIT nameplate3 school=32 amount=? flag= fps=104 threat=3 group=false,false,false npc=1955 target=true
+236013.344 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret,secret:secret
+236013.344   -> unknown-solo
+236014.842 CAST player 5019 base=5019,5019 key=nameplate3
+236015.009 HIT nameplate3 school=64 amount=? flag= fps=86 threat=3 group=false,false,false npc=1955 target=true
+236015.009 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret,secret:secret
+236015.009   -> locked 5019
+236016.342 HIT nameplate3 school=32 amount=? flag= fps=72 threat=3 group=false,false,false npc=1955 target=true
+236016.342 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret,secret:secret
+236016.342   -> tracker 970
+236016.842 CAST player 5019 base=5019,5019 key=nameplate3
+236017.009 HIT nameplate3 school=64 amount=? flag= fps=66 threat=3 group=false,false,false npc=1955 target=true
+236017.009 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret,secret:secret
+236017.009   -> locked 5019
+236017.428 HIT nameplate1 school=32 amount=? flag= fps=65 threat=nil group=false,false,false npc=1955 target=false
+236017.428 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret,secret:secret
+236017.428   -> HIDDEN
+236017.532 HIT nameplate1 school=32 amount=? flag= fps=64 threat=nil group=false,false,false npc=1955 target=false
+236017.532 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret,secret:secret
+236017.532   -> HIDDEN
+236018.644 CAST player 5019 base=5019,5019 key=nameplate3
+236018.802 HIT nameplate3 school=64 amount=? flag= fps=72 threat=3 group=false,false,false npc=1955 target=true
+236018.802 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret,secret:secret
+236018.802   -> locked 5019
+236019.106 HIT nameplate2 school=4 amount=? flag= fps=75 threat=nil group=false,false,false npc=1955 target=false
+236019.106 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret,secret:secret
+236019.106   -> HIDDEN
+236019.386 HIT nameplate3 school=32 amount=? flag= fps=77 threat=3 group=false,false,false npc=1955 target=true
+236019.386 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret,secret:secret
+236019.386   -> tracker 970
+236019.953 CAST player 970 base=970,970 key=nameplate3
+236022.078 CAST player 5019 base=5019,5019 key=nameplate3
+236022.243 HIT nameplate3 school=64 amount=? flag= fps=104 threat=3 group=false,false,false npc=1955 target=false
+236022.243 PROBE amount=secret meter=session:351,secret:secret,secret:secret,secret:secret,secret:secret
+236022.243   -> locked 5019
+236023.964 LOCKED 970 hits=4 total=93 per=23
+236023.964 LOCKED 5019 hits=5 total=? per=?
+236023.964 TEACH session 351 dur=16
+236023.964 TEACH row 75 total=246 overkill=0 override=75
+236023.964 TEACH row 8102 total=125 overkill=0 override=8102
+236023.964 TEACH row 970 total=93 overkill=0 override=970
+236023.964 TEACH row 1260198 total=34 overkill=0 override=1260198
+236023.964 TEACH clean seen=0 meter=498 -> short
+236023.964 TEACH 75 tally=0 meter=246 verdict=unpaired
+236023.964 TEACH 8102 tally=0 meter=125 verdict=unpaired
+236023.964 TEACH 970 tally=0 meter=93 verdict=unpaired
+236023.964 TEACH 1260198 tally=0 meter=34 verdict=unpaired
+236023.964 TEACH heal 1260198 meter=34 over=0
+236024.429 CAST player 588 base=588,588 key=player
+236025.945 CAST player 2652 base=2652,2652 key=player
+236029.170 START player 8102
+236029.543 HIT nameplate2 school=32 amount=? flag= fps=92 threat=nil group=false,false,false npc=1955 target=false
+236029.543 PROBE amount=secret meter=session:351,75:246,8102:125,970:93,1260198:34
+236029.543   -> HIDDEN
+236030.155 HIT nameplate2 school=1 amount=? flag=GLANCING fps=91 threat=nil group=false,false,false npc=1955 target=false
+236030.155 PROBE amount=secret meter=session:351,75:246,8102:125,970:93,1260198:34
+236030.155   -> HIDDEN
+236030.632 HIT nameplate2 school=4 amount=? flag= fps=90 threat=nil group=false,false,false npc=1955 target=false
+236030.632 PROBE amount=secret meter=session:351,75:246,8102:125,970:93,1260198:34
+236030.632   -> HIDDEN
+236030.632 CAST player 8102 base=8102,8102 key=nameplate1
+236030.632 CAST player 970 base=970,970 key=nameplate1
+236030.632 HIT nameplate1 school=32 amount=? flag=CRITICAL fps=90 threat=3 group=false,false,false npc=1955 target=true
+236030.632 PROBE amount=secret meter=session:352,8102:122
+236030.632   -> tracker 970
+236031.347 HIT nameplate2 school=4 amount=? flag= fps=87 threat=nil group=false,false,false npc=1955 target=false
+236031.347 PROBE amount=secret meter=session:352,secret:secret
+236031.347   -> HIDDEN
+236032.152 START player 598
+236032.590 HIT nameplate2 school=32 amount=? flag= fps=84 threat=nil group=false,false,false npc=1955 target=false
+236032.590 PROBE amount=secret meter=session:352,secret:secret
+236032.590   -> HIDDEN
+236033.644 HIT nameplate1 school=32 amount=? flag= fps=84 threat=3 group=false,false,false npc=1955 target=true
+236033.644 PROBE amount=secret meter=session:352,secret:secret
+236033.644   -> tracker 970
+236033.692 HIT nameplate2 school=1 amount=? flag= fps=84 threat=nil group=false,false,false npc=1955 target=false
+236033.692 PROBE amount=secret meter=session:352,secret:secret,secret:secret
+236033.692   -> HIDDEN
+236033.966 HIT nameplate1 school=32 amount=? flag=CRITICAL fps=84 threat=3 group=false,false,false npc=1955 target=true
+236033.966 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret
+236033.966   -> unknown-solo
+236034.289 HIT nameplate2 school=4 amount=? flag= fps=83 threat=nil group=false,false,false npc=1955 target=false
+236034.289 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret
+236034.289   -> HIDDEN
+236035.499 CAST player 598 base=598,598 key=nameplate1
+236035.499 HIT nameplate1 school=2 amount=? flag= fps=83 threat=3 group=false,false,false npc=1955 target=true
+236035.499 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret,secret:secret
+236035.499   -> unknown-solo
+236036.682 HIT nameplate1 school=32 amount=? flag=CRITICAL fps=81 threat=3 group=false,false,false npc=1955 target=true
+236036.682 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret,secret:secret
+236036.682   -> tracker 970
+236037.860 CAST player 5019 base=5019,5019 key=nameplate1
+236038.022 HIT nameplate1 school=64 amount=? flag= fps=80 threat=3 group=false,false,false npc=1955 target=true
+236038.022 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236038.022   -> locked 5019
+236039.582 CAST player 5019 base=5019,5019 key=nameplate1
+236039.696 HIT nameplate1 school=32 amount=? flag= fps=80 threat=3 group=false,false,false npc=1955 target=true
+236039.696 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236039.696   -> tracker 970
+236039.807 HIT nameplate1 school=64 amount=? flag= fps=80 threat=3 group=false,false,false npc=1955 target=true
+236039.807 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236039.807   -> locked 5019
+236041.393 CAST player 5019 base=5019,5019 key=nameplate1
+236041.627 HIT nameplate1 school=64 amount=? flag= fps=73 threat=3 group=false,false,false npc=1955 target=true
+236041.627 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236041.627   -> locked 5019
+236042.729 HIT nameplate1 school=32 amount=? flag= fps=67 threat=3 group=false,false,false npc=1955 target=true
+236042.729 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236042.729   -> tracker 970
+236043.279 CAST player 5019 base=5019,5019 key=nameplate1
+236043.429 HIT nameplate1 school=64 amount=? flag= fps=64 threat=3 group=false,false,false npc=1955 target=true
+236043.429 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236043.429   -> locked 5019
+236045.062 CAST player 5019 base=5019,5019 key=nameplate1
+236045.212 HIT nameplate1 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236045.212 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236045.212   -> locked 5019
+236045.712 HIT nameplate1 school=32 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236045.712 PROBE amount=secret meter=session:352,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236045.712   -> tracker 970
+236047.506 LOCKED 970 hits=5 total=130 per=26
+236047.506 LOCKED 5019 hits=5 total=? per=?
+236047.506 TEACH session 352 dur=16
+236047.506 TEACH row 75 total=206 overkill=0 override=75
+236047.506 TEACH row 970 total=130 overkill=0 override=970
+236047.506 TEACH row 8102 total=122 overkill=0 override=8102
+236047.506 TEACH row 598 total=65 overkill=0 override=598
+236047.506 TEACH row 2943 total=16 overkill=0 override=2943
+236047.506 TEACH clean seen=0 meter=539 -> short
+236047.506 TEACH 75 tally=0 meter=206 verdict=unpaired
+236047.506 TEACH 970 tally=0 meter=130 verdict=unpaired
+236047.506 TEACH 8102 tally=0 meter=122 verdict=unpaired
+236047.506 TEACH 598 tally=0 meter=65 verdict=unpaired
+236047.506 TEACH 2943 tally=0 meter=16 verdict=unpaired
+236057.448 START player 8102
+236058.963 CAST player 8102 base=8102,8102 key=nameplate1
+236058.963 CAST player 970 base=970,970 key=nameplate1
+236058.963 HIT nameplate1 school=32 amount=? flag= fps=95 threat=3 group=false,false,false npc=1955 target=true
+236058.963 PROBE amount=secret meter=session:353,secret:secret
+236058.963   -> tracker 970
+236058.963 HIT nameplate1 school=32 amount=? flag= fps=95 threat=3 group=false,false,false npc=1955 target=true
+236058.963 PROBE amount=secret meter=session:353,secret:secret,secret:secret
+236058.963   -> unknown-solo
+236058.963 HEAL player school=1 amount=? flag=
+236059.004 LOCKEDHEAL 1260198 proc
+236059.004   -> heal 1260198
+236060.967 CAST player 5019 base=5019,5019 key=nameplate1
+236061.281 HIT nameplate1 school=64 amount=? flag= fps=92 threat=3 group=false,false,false npc=1955 target=true
+236061.281 PROBE amount=secret meter=session:353,secret:secret,secret:secret,secret:secret
+236061.281   -> locked 5019
+236061.937 HIT nameplate1 school=32 amount=? flag= fps=93 threat=3 group=false,false,false npc=1955 target=true
+236061.937 PROBE amount=secret meter=session:353,secret:secret,secret:secret,secret:secret
+236061.937   -> tracker 970
+236063.048 CAST player 600 base=600,600 key=player
+236064.482 START player 598
+236064.908 HIT nameplate1 school=32 amount=? flag= fps=87 threat=3 group=false,false,false npc=1955 target=true
+236064.908 PROBE amount=secret meter=session:353,secret:secret,secret:secret,secret:secret,secret:secret
+236064.908   -> tracker 970
+236066.802 CAST player 598 base=598,598 key=nameplate1
+236066.802 HIT nameplate1 school=2 amount=? flag= fps=89 threat=3 group=false,false,false npc=1955 target=true
+236066.802 PROBE amount=secret meter=session:353,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236066.802   -> unknown-solo
+236067.892 HIT nameplate1 school=32 amount=? flag= fps=92 threat=3 group=false,false,false npc=1955 target=true
+236067.892 PROBE amount=secret meter=session:353,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236067.892   -> tracker 970
+236068.639 CAST player 5019 base=5019,5019 key=nameplate1
+236068.800 HIT nameplate1 school=64 amount=? flag= fps=92 threat=3 group=false,false,false npc=1955 target=true
+236068.800 PROBE amount=secret meter=session:353,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236068.800   -> locked 5019
+236070.387 CAST player 5019 base=5019,5019 key=nameplate1
+236070.579 HIT nameplate1 school=64 amount=? flag= fps=93 threat=3 group=false,false,false npc=1955 target=true
+236070.579 PROBE amount=secret meter=session:353,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236070.579   -> locked 5019
+236070.975 HIT nameplate1 school=32 amount=? flag= fps=93 threat=3 group=false,false,false npc=1955 target=true
+236070.975 PROBE amount=secret meter=session:353,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236070.975   -> tracker 970
+236072.230 CAST player 5019 base=5019,5019 key=nameplate1
+236072.449 HIT nameplate1 school=64 amount=? flag= fps=94 threat=3 group=false,false,false npc=1955 target=true
+236072.449 PROBE amount=secret meter=session:353,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236072.449   -> locked 5019
+236073.914 HIT nameplate1 school=32 amount=? flag= fps=91 threat=3 group=false,false,false npc=1955 target=true
+236073.914 PROBE amount=secret meter=session:353,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236073.914   -> tracker 970
+236074.038 CAST player 5019 base=5019,5019 key=nameplate1
+236074.244 HIT nameplate1 school=64 amount=? flag= fps=92 threat=3 group=false,false,false npc=1955 target=false
+236074.244 PROBE amount=secret meter=session:353,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236074.244   -> locked 5019
+236075.867 LOCKED 970 hits=5 total=119 per=24
+236075.867 LOCKED 5019 hits=5 total=? per=?
+236075.867 TEACH session 353 dur=16
+236075.867 TEACH row 75 total=180 overkill=0 override=75
+236075.867 TEACH row 970 total=119 overkill=0 override=970
+236075.867 TEACH row 8102 total=82 overkill=0 override=8102
+236075.867 TEACH row 598 total=66 overkill=0 override=598
+236075.867 TEACH row 1260198 total=33 overkill=0 override=1260198
+236075.867 TEACH clean seen=0 meter=480 -> short
+236075.867 TEACH 75 tally=0 meter=180 verdict=unpaired
+236075.867 TEACH 970 tally=0 meter=119 verdict=unpaired
+236075.867 TEACH 8102 tally=0 meter=82 verdict=unpaired
+236075.867 TEACH 598 tally=0 meter=66 verdict=unpaired
+236075.867 TEACH 1260198 tally=0 meter=33 verdict=unpaired
+236075.867 TEACH heal 600 meter=114 over=0
+236075.867 TEACH heal 1260198 meter=33 over=0
+236075.950 START player 598
+236078.071 START player 598
+236078.161 CAST player 598 base=598,598 key=nameplate2
+236078.161 START player 598
+236078.161 HIT nameplate2 school=2 amount=? flag= fps=83 threat=3 group=false,false,false npc=1955 target=true
+236078.161 PROBE amount=secret meter=session:354,598:65
+236078.161   -> locked 598
+236078.269 HIT nameplate2 school=32 amount=? flag= fps=82 threat=3 group=false,false,false npc=1955 target=true
+236078.269 PROBE amount=secret meter=session:354,secret:secret,secret:secret
+236078.269   -> unknown-solo
+236078.269 HEAL player school=1 amount=? flag=
+236078.298 LOCKEDHEAL 1260198 proc
+236078.298   -> heal 1260198
+236080.543 CAST player 598 base=598,598 key=nameplate2
+236080.543 CAST player 970 base=970,970 key=nameplate2
+236080.543 HIT nameplate2 school=2 amount=? flag= fps=82 threat=3 group=false,false,false npc=1955 target=true
+236080.543 PROBE amount=secret meter=session:354,secret:secret,secret:secret
+236080.543   -> locked 598
+236082.041 START player 8102
+236083.502 CAST player 8102 base=8102,8102 key=nameplate2
+236083.502 HIT nameplate2 school=32 amount=? flag= fps=81 threat=3 group=false,false,false npc=1955 target=true
+236083.502 PROBE amount=secret meter=session:354,secret:secret,secret:secret,secret:secret
+236083.502   -> tracker 970
+236083.502 HIT nameplate2 school=32 amount=? flag= fps=81 threat=3 group=false,false,false npc=1955 target=true
+236083.502 PROBE amount=secret meter=session:354,secret:secret,secret:secret,secret:secret
+236083.502   -> unknown-solo
+236085.835 CAST player 5019 base=5019,5019 key=nameplate2
+236086.001 HIT nameplate2 school=64 amount=? flag=CRITICAL fps=80 threat=3 group=false,false,false npc=1955 target=true
+236086.001 PROBE amount=secret meter=session:354,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236086.001   -> locked 5019
+236086.483 HIT nameplate2 school=32 amount=? flag= fps=80 threat=3 group=false,false,false npc=1955 target=true
+236086.483 PROBE amount=secret meter=session:354,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236086.483   -> tracker 970
+236087.606 CAST player 5019 base=5019,5019 key=nameplate2
+236087.836 HIT nameplate2 school=64 amount=? flag= fps=82 threat=3 group=false,false,false npc=1955 target=true
+236087.836 PROBE amount=secret meter=session:354,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236087.836   -> locked 5019
+236089.464 CAST player 5019 base=5019,5019 key=nameplate2
+236089.577 HIT nameplate2 school=32 amount=? flag= fps=84 threat=3 group=false,false,false npc=1955 target=true
+236089.577 PROBE amount=secret meter=session:354,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236089.577   -> tracker 970
+236089.624 HIT nameplate2 school=64 amount=? flag= fps=84 threat=3 group=false,false,false npc=1955 target=true
+236089.624 PROBE amount=secret meter=session:354,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236089.624   -> locked 5019
+236091.249 CAST player 5019 base=5019,5019 key=nameplate2
+236091.504 HIT nameplate2 school=64 amount=? flag= fps=83 threat=3 group=false,false,false npc=1955 target=true
+236091.504 PROBE amount=secret meter=session:354,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236091.504   -> locked 5019
+236092.611 LOCKED 598 hits=2 total=130 per=65
+236092.611 LOCKED 970 hits=2 total=70 per=35
+236092.611 LOCKED 5019 hits=4 total=? per=?
+236092.611 TEACH session 354 dur=14
+236092.611 TEACH row 75 total=184 overkill=0 override=75
+236092.611 TEACH row 598 total=130 overkill=0 override=598
+236092.611 TEACH row 8102 total=80 overkill=0 override=8102
+236092.611 TEACH row 970 total=70 overkill=0 override=970
+236092.611 TEACH row 1260198 total=33 overkill=0 override=1260198
+236092.611 TEACH clean seen=0 meter=497 -> short
+236092.611 TEACH 75 tally=0 meter=184 verdict=unpaired
+236092.611 TEACH 598 tally=0 meter=130 verdict=unpaired
+236092.611 TEACH 8102 tally=0 meter=80 verdict=unpaired
+236092.611 TEACH 970 tally=0 meter=70 verdict=unpaired
+236092.611 TEACH 1260198 tally=0 meter=33 verdict=unpaired
+236092.611 TEACH heal 600 meter=47 over=0
+236092.611 TEACH heal 1260198 meter=33 over=0
+236092.662 CAST player 588 base=588,588 key=player
+236094.179 CAST player 2652 base=2652,2652 key=player
+236095.915 CAST player 588 base=588,588 key=player
+236097.200 START player 8102
+236098.712 CAST player 8102 base=8102,8102 key=nameplate1
+236098.712 CAST player 970 base=970,970 key=nameplate1
+236098.712 HIT nameplate1 school=32 amount=? flag= fps=86 threat=3 group=false,false,false npc=1955 target=true
+236098.712 PROBE amount=secret meter=session:355,8102:84
+236098.712   -> tracker 970
+236100.566 HIT nameplate1 school=32 amount=? flag= fps=80 threat=3 group=false,false,false npc=1955 target=true
+236100.566 PROBE amount=secret meter=session:355,secret:secret,secret:secret
+236100.566   -> unknown-solo
+236100.803 CAST player 5019 base=5019,5019 key=nameplate1
+236101.170 HIT nameplate1 school=64 amount=? flag= fps=75 threat=3 group=false,false,false npc=1955 target=true
+236101.170 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret
+236101.170   -> unknown-solo
+236101.703 HIT nameplate1 school=32 amount=? flag= fps=72 threat=3 group=false,false,false npc=1955 target=true
+236101.703 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret
+236101.703   -> tracker 970
+236102.603 CAST player 5019 base=5019,5019 key=nameplate1
+236102.837 HIT nameplate1 school=32 amount=? flag= fps=67 threat=3 group=false,false,false npc=1955 target=true
+236102.837 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236102.837   -> unknown-solo
+236102.837 HEAL player school=1 amount=? flag=
+236102.837 HIT nameplate1 school=64 amount=? flag= fps=67 threat=3 group=false,false,false npc=1955 target=true
+236102.837 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236102.837   -> locked 5019
+236102.853 LOCKEDHEAL 1260198 proc
+236102.853   -> heal 1260198
+236104.453 CAST player 5019 base=5019,5019 key=nameplate1
+236104.620 HIT nameplate1 school=64 amount=? flag=CRITICAL fps=60 threat=3 group=false,false,false npc=1955 target=true
+236104.620 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236104.620   -> locked 5019
+236104.787 HIT nameplate1 school=32 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236104.787 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236104.787   -> tracker 970
+236106.403 CAST player 5019 base=5019,5019 key=nameplate1
+236106.403 HIT nameplate2 school=4 amount=? flag= fps=60 threat=nil group=false,false,false npc=1955 target=false
+236106.403 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236106.403   -> HIDDEN
+236106.403 HIT nameplate2 school=4 amount=? flag= fps=60 threat=nil group=false,false,false npc=1955 target=false
+236106.403 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236106.403   -> HIDDEN
+236106.554 HIT nameplate1 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236106.554 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236106.554   -> locked 5019
+236107.771 HIT nameplate1 school=32 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236107.771 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236107.771   -> tracker 970
+236108.154 CAST player 5019 base=5019,5019 key=nameplate1
+236108.370 HIT nameplate1 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236108.370 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236108.370   -> locked 5019
+236110.004 CAST player 5019 base=5019,5019 key=nameplate1
+236110.154 HIT nameplate1 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236110.154 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236110.154   -> locked 5019
+236110.720 HIT nameplate1 school=32 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236110.720 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236110.720   -> tracker 970
+236111.820 CAST player 5019 base=5019,5019 key=nameplate1
+236111.976 HIT nameplate1 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=false
+236111.976 PROBE amount=secret meter=session:355,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236111.976   -> locked 5019
+236113.210 LOCKED 970 hits=4 total=94 per=24
+236113.210 LOCKED 5019 hits=6 total=? per=?
+236113.210 TEACH session 355 dur=14
+236113.210 TEACH row 75 total=306 overkill=0 override=75
+236113.210 TEACH row 970 total=94 overkill=0 override=970
+236113.210 TEACH row 8102 total=84 overkill=0 override=8102
+236113.210 TEACH row 1260198 total=33 overkill=0 override=1260198
+236113.210 TEACH row 2943 total=11 overkill=0 override=2943
+236113.210 TEACH clean seen=0 meter=528 -> short
+236113.210 TEACH 75 tally=0 meter=306 verdict=unpaired
+236113.210 TEACH 970 tally=0 meter=94 verdict=unpaired
+236113.210 TEACH 8102 tally=0 meter=84 verdict=unpaired
+236113.210 TEACH 1260198 tally=0 meter=33 verdict=unpaired
+236113.210 TEACH 2943 tally=0 meter=11 verdict=unpaired
+236113.210 TEACH heal 1260198 meter=33 over=0
+236119.075 START player 598
+236121.346 CAST player 598 base=598,598 key=nameplate1
+236122.179 CAST player 970 base=970,970 key=nameplate1
+236123.562 HIT nameplate1 school=1 amount=? flag= fps=95 threat=3 group=false,false,false npc=1955 target=true
+236123.562 PROBE amount=secret meter=session:356
+236123.562   -> unknown-solo
+236123.629 START player 598
+236124.176 HIT nameplate1 school=32 amount=? flag= fps=96 threat=0 group=false,false,false npc=1955 target=true
+236124.176 PROBE amount=secret meter=session:356
+236124.176   -> unknown-solo
+236124.497 HIT nameplate1 school=1 amount=? flag= fps=97 threat=0 group=false,false,false npc=1955 target=true
+236124.497 PROBE amount=secret meter=session:356
+236124.497   -> unknown-solo
+236125.167 HIT nameplate1 school=1 amount=? flag=GLANCING fps=97 threat=0 group=false,false,false npc=1955 target=true
+236125.167 PROBE amount=secret meter=session:356
+236125.167   -> unknown-solo
+236125.197 HIT nameplate1 school=32 amount=? flag= fps=97 threat=0 group=false,false,false npc=1955 target=true
+236125.197 PROBE amount=secret meter=session:356
+236125.197   -> tracker 970
+236125.747 HIT nameplate1 school=1 amount=? flag= fps=97 threat=0 group=false,false,false npc=1955 target=true
+236125.747 PROBE amount=secret meter=session:356,secret:secret
+236125.747   -> unknown-solo
+236125.952 CAST player 598 base=598,598 key=nameplate1
+236125.952 HIT nameplate1 school=2 amount=? flag= fps=98 threat=0 group=false,false,false npc=1955 target=true
+236125.952 PROBE amount=secret meter=session:356,secret:secret,secret:secret
+236125.952   -> locked 598
+236126.056 START player 8102
+236126.290 HIT nameplate1 school=1 amount=? flag=BLOCK_REDUCED fps=97 threat=0 group=false,false,false npc=1955 target=true
+236126.290 PROBE amount=secret meter=session:356,secret:secret,secret:secret
+236126.290   -> unknown-solo
+236127.037 HIT nameplate1 school=1 amount=? flag= fps=97 threat=0 group=false,false,false npc=1955 target=true
+236127.037 PROBE amount=secret meter=session:356,secret:secret,secret:secret
+236127.037   -> unknown-solo
+236127.098 HIT nameplate1 school=1 amount=? flag= fps=97 threat=0 group=false,false,false npc=1955 target=true
+236127.098 PROBE amount=secret meter=session:356,secret:secret,secret:secret
+236127.098   -> unknown-solo
+236127.509 CAST player 8102 base=8102,8102 key=nameplate1
+236127.509 HIT nameplate1 school=32 amount=? flag= fps=97 threat=0 group=false,false,false npc=1955 target=true
+236127.509 PROBE amount=secret meter=session:356,secret:secret,secret:secret,secret:secret
+236127.509   -> unknown-solo
+236127.616 HIT nameplate1 school=32 amount=? flag= fps=96 threat=3 group=false,false,false npc=1955 target=true
+236127.616 PROBE amount=secret meter=session:356,secret:secret,secret:secret,secret:secret,secret:secret
+236127.616   -> tracker 970
+236127.616 HEAL player school=1 amount=? flag=
+236127.631 LOCKEDHEAL 1260198 proc
+236127.631   -> heal 1260198
+236128.192 HIT nameplate1 school=32 amount=? flag= fps=97 threat=3 group=false,false,false npc=1955 target=true
+236128.192 PROBE amount=secret meter=session:356,secret:secret,secret:secret,secret:secret,secret:secret
+236128.192   -> locked 970
+236128.793 HIT nameplate1 school=1 amount=? flag= fps=98 threat=3 group=false,false,false npc=1955 target=true
+236128.793 PROBE amount=secret meter=session:356,secret:secret,secret:secret,secret:secret,secret:secret
+236128.793   -> unknown-solo
+236129.809 HIT nameplate2 school=1 amount=? flag=CRITICAL fps=98 threat=nil group=false,false,false npc=1955 target=false
+236129.809 PROBE amount=secret meter=session:356,secret:secret,secret:secret,secret:secret,secret:secret
+236129.809   -> HIDDEN
+236131.027 CAST player 5019 base=5019,5019 key=nameplate1
+236131.142 HIT nameplate1 school=32 amount=? flag= fps=97 threat=3 group=false,false,false npc=1955 target=true
+236131.142 PROBE amount=secret meter=session:356,secret:secret,secret:secret,secret:secret,secret:secret
+236131.142   -> locked 970
+236131.816 HIT nameplate2 school=1 amount=? flag= fps=96 threat=nil group=false,false,false npc=1955 target=false
+236131.816 PROBE amount=secret meter=session:356,8102:81,970:69,598:67,1260198:33
+236131.816   -> HIDDEN
+236132.246 LOCKED 598 hits=1 total=67 per=67
+236132.246 LOCKED 970 hits=3 total=69 per=23
+236132.246 TEACH session 356 dur=10
+236132.246 TEACH row 8102 total=81 overkill=0 override=8102
+236132.246 TEACH row 970 total=69 overkill=0 override=970
+236132.246 TEACH row 598 total=67 overkill=0 override=598
+236132.246 TEACH row 1260198 total=33 overkill=0 override=1260198
+236132.246 TEACH clean seen=0 meter=250 -> short
+236132.246 TEACH 8102 tally=0 meter=81 verdict=unpaired
+236132.246 TEACH 970 tally=0 meter=69 verdict=unpaired
+236132.246 TEACH 598 tally=0 meter=67 verdict=unpaired
+236132.246 TEACH 1260198 tally=0 meter=33 verdict=unpaired
+236132.246 TEACH heal 1260198 meter=33 over=0
+236132.398 HIT nameplate2 school=1 amount=? flag= fps=96 threat=nil group=false,false,false npc=1955 target=false
+236132.398 PROBE amount=secret meter=session:356,8102:81,970:69,598:67,1260198:33
+236132.398   -> HIDDEN
+236134.010 HIT nameplate2 school=1 amount=? flag=BLOCK_REDUCED fps=88 threat=nil group=false,false,false npc=1955 target=false
+236134.010 PROBE amount=secret meter=session:356,8102:81,970:69,598:67,1260198:33
+236134.010   -> HIDDEN
+236135.026 HIT nameplate2 school=1 amount=? flag=CRITICAL fps=83 threat=nil group=false,false,false npc=1955 target=false
+236135.026 PROBE amount=secret meter=session:356,8102:81,970:69,598:67,1260198:33
+236135.026   -> HIDDEN
+236135.531 START player 8102
+236135.742 HIT nameplate2 school=1 amount=? flag=GLANCING fps=79 threat=nil group=false,false,false npc=1955 target=false
+236135.742 PROBE amount=secret meter=session:356,8102:81,970:69,598:67,1260198:33
+236135.742   -> HIDDEN
+236137.047 CAST player 8102 base=8102,8102 key=nameplate1
+236137.047 CAST player 970 base=970,970 key=nameplate1
+236137.047 HIT nameplate1 school=32 amount=? flag= fps=79 threat=3 group=false,false,false npc=1955 target=true
+236137.047 PROBE amount=secret meter=session:357,secret:secret
+236137.047   -> tracker 970
+236137.314 HIT nameplate2 school=1 amount=? flag=GLANCING fps=78 threat=nil group=false,false,false npc=1955 target=false
+236137.314 PROBE amount=secret meter=session:357,secret:secret
+236137.314   -> HIDDEN
+236138.133 HIT nameplate2 school=1 amount=? flag= fps=77 threat=nil group=false,false,false npc=1955 target=false
+236138.133 PROBE amount=secret meter=session:357,secret:secret
+236138.133   -> HIDDEN
+236139.027 CAST player 5019 base=5019,5019 key=nameplate1
+236139.279 HIT nameplate1 school=64 amount=? flag= fps=77 threat=3 group=false,false,false npc=1955 target=true
+236139.279 PROBE amount=secret meter=session:357,secret:secret,secret:secret
+236139.279   -> locked 5019
+236140.055 HIT nameplate1 school=32 amount=? flag= fps=76 threat=3 group=false,false,false npc=1955 target=true
+236140.055 PROBE amount=secret meter=session:357,secret:secret,secret:secret
+236140.055   -> tracker 970
+236140.841 CAST player 5019 base=5019,5019 key=nameplate1
+236140.992 HIT nameplate1 school=64 amount=? flag= fps=74 threat=3 group=false,false,false npc=1955 target=true
+236140.992 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236140.992   -> locked 5019
+236141.308 HIT nameplate2 school=1 amount=? flag= fps=72 threat=nil group=false,false,false npc=1955 target=false
+236141.308 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236141.308   -> HIDDEN
+236141.625 HIT nameplate2 school=1 amount=? flag= fps=70 threat=nil group=false,false,false npc=1955 target=false
+236141.625 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236141.625   -> HIDDEN
+236142.325 HIT nameplate2 school=1 amount=? flag= fps=67 threat=nil group=false,false,false npc=1955 target=false
+236142.325 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236142.325   -> HIDDEN
+236142.575 CAST player 5019 base=5019,5019 key=nameplate1
+236142.826 HIT nameplate1 school=64 amount=? flag= fps=66 threat=3 group=false,false,false npc=1955 target=true
+236142.826 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236142.826   -> locked 5019
+236143.293 HIT nameplate1 school=32 amount=? flag=CRITICAL fps=64 threat=3 group=false,false,false npc=1955 target=true
+236143.293 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236143.293   -> tracker 970
+236143.993 HIT nameplate2 school=1 amount=? flag= fps=61 threat=nil group=false,false,false npc=1955 target=false
+236143.993 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236143.993   -> HIDDEN
+236144.360 CAST player 5019 base=5019,5019 key=nameplate1
+236144.576 HIT nameplate1 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236144.576 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236144.576   -> locked 5019
+236144.710 HIT nameplate2 school=1 amount=? flag=GLANCING fps=60 threat=nil group=false,false,false npc=1955 target=false
+236144.710 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236144.710   -> HIDDEN
+236145.543 HIT nameplate2 school=1 amount=? flag= fps=60 threat=nil group=false,false,false npc=1955 target=false
+236145.543 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236145.543   -> HIDDEN
+236146.062 HIT nameplate1 school=32 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236146.062 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236146.062   -> tracker 970
+236146.183 CAST player 5019 base=5019,5019 key=nameplate1
+236146.440 HIT nameplate1 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236146.440 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236146.440   -> locked 5019
+236148.058 CAST player 5019 base=5019,5019 key=nameplate1
+236148.208 HIT nameplate1 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236148.208 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236148.208   -> locked 5019
+236149.060 HIT nameplate1 school=32 amount=? flag= fps=64 threat=3 group=false,false,false npc=1955 target=true
+236149.060 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236149.060   -> tracker 970
+236149.846 CAST player 5019 base=5019,5019 key=nameplate1
+236150.006 HIT nameplate1 school=64 amount=? flag= fps=70 threat=3 group=false,false,false npc=1955 target=false
+236150.006 PROBE amount=secret meter=session:357,secret:secret,secret:secret,secret:secret
+236150.006   -> locked 5019
+236151.296 LOCKED 970 hits=4 total=105 per=26
+236151.296 LOCKED 5019 hits=7 total=? per=?
+236151.296 TEACH session 357 dur=14
+236151.296 TEACH row 75 total=294 overkill=0 override=75
+236151.296 TEACH row 970 total=105 overkill=0 override=970
+236151.296 TEACH row 8102 total=86 overkill=0 override=8102
+236151.296 TEACH clean seen=0 meter=485 -> short
+236151.296 TEACH 75 tally=0 meter=294 verdict=unpaired
+236151.296 TEACH 970 tally=0 meter=105 verdict=unpaired
+236151.296 TEACH 8102 tally=0 meter=86 verdict=unpaired
+236152.315 CAST player 6074 base=6074,6074 key=player
+236155.337 HEAL player school=1 amount=? flag=
+236155.348 LOCKEDHEAL 6074 hot
+236155.348   -> heal 6074
+236155.786 START player 598
+236158.142 CAST player 598 base=598,598 key=nameplate2
+236158.142 CAST player 970 base=970,970 key=nameplate2
+236158.142 HIT nameplate2 school=2 amount=? flag= fps=86 threat=3 group=false,false,false npc=1955 target=true
+236158.142 PROBE amount=secret meter=session:358,secret:secret
+236158.142   -> locked 598
+236158.351 HEAL player school=1 amount=? flag=
+236158.364 LOCKEDHEAL 6074 hot
+236158.364   -> heal 6074
+236159.641 START player 598
+236161.183 HIT nameplate2 school=32 amount=? flag= fps=93 threat=3 group=false,false,false npc=1955 target=true
+236161.183 PROBE amount=secret meter=session:358,secret:secret
+236161.183   -> tracker 970
+236161.407 HEAL player school=1 amount=? flag=
+236161.416 LOCKEDHEAL 6074 hot
+236161.416   -> heal 6074
+236163.756 CAST player 598 base=598,598 key=nameplate2
+236163.756 HIT nameplate2 school=2 amount=? flag= fps=105 threat=3 group=false,false,false npc=1955 target=true
+236163.756 PROBE amount=secret meter=session:358,secret:secret,secret:secret
+236163.756   -> locked 598
+236164.329 HIT nameplate2 school=32 amount=? flag= fps=104 threat=3 group=false,false,false npc=1955 target=true
+236164.329 PROBE amount=secret meter=session:358,secret:secret,secret:secret
+236164.329   -> tracker 970
+236164.329 HEAL player school=1 amount=? flag=
+236164.340   -> unknown-solo
+236165.779 CAST player 5019 base=5019,5019 key=nameplate2
+236166.043 HIT nameplate2 school=64 amount=? flag= fps=104 threat=3 group=false,false,false npc=1955 target=true
+236166.043 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret
+236166.043   -> locked 5019
+236167.174 HIT nameplate2 school=32 amount=? flag= fps=89 threat=3 group=false,false,false npc=1955 target=true
+236167.174 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret
+236167.174   -> tracker 970
+236167.390 HEAL player school=1 amount=? flag=
+236167.407 LOCKEDHEAL 6074 hot
+236167.407   -> heal 6074
+236167.690 CAST player 5019 base=5019,5019 key=nameplate2
+236167.843 HIT nameplate2 school=64 amount=? flag= fps=80 threat=3 group=false,false,false npc=1955 target=true
+236167.843 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret
+236167.843   -> locked 5019
+236169.593 CAST player 5019 base=5019,5019 key=nameplate2
+236169.743 HIT nameplate2 school=64 amount=? flag= fps=63 threat=3 group=false,false,false npc=1955 target=true
+236169.743 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret
+236169.743   -> locked 5019
+236170.126 HIT nameplate2 school=32 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236170.126 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret
+236170.126   -> tracker 970
+236171.360 CAST player 5019 base=5019,5019 key=nameplate2
+236171.594 HIT nameplate2 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236171.594 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret
+236171.594   -> locked 5019
+236173.177 HIT nameplate2 school=32 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236173.177 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret
+236173.177   -> tracker 970
+236173.177 CAST player 5019 base=5019,5019 key=nameplate2
+236173.415 HIT nameplate2 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236173.415 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret
+236173.415   -> locked 5019
+236175.012 CAST player 5019 base=5019,5019 key=nameplate2
+236175.131 HIT nameplate2 school=32 amount=? flag= fps=70 threat=3 group=false,false,false npc=1955 target=true
+236175.131 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret
+236175.131   -> unknown-solo
+236175.177 HIT nameplate2 school=64 amount=? flag= fps=70 threat=3 group=false,false,false npc=1955 target=true
+236175.177 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret
+236175.177   -> locked 5019
+236175.227 HEAL player school=1 amount=? flag=
+236175.237   -> unknown-solo
+236176.182 HIT nameplate2 school=32 amount=? flag= fps=87 threat=3 group=false,false,false npc=1955 target=true
+236176.182 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret
+236176.182   -> tracker 970
+236176.734 CAST player 5019 base=5019,5019 key=nameplate2
+236176.960 HIT nameplate2 school=64 amount=? flag= fps=97 threat=3 group=false,false,false npc=1955 target=true
+236176.960 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret
+236176.960   -> locked 5019
+236178.828 CAST player 970 base=970,970 key=nameplate1
+236180.793 START player 8102
+236181.810 HIT nameplate1 school=32 amount=? flag= fps=98 threat=3 group=false,false,false npc=1955 target=true
+236181.810 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret
+236181.810   -> tracker 970
+236182.383 CAST player 8102 base=8102,8102 key=nameplate1
+236182.383 HIT nameplate1 school=32 amount=? flag= fps=98 threat=3 group=false,false,false npc=1955 target=true
+236182.383 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236182.383   -> unknown-solo
+236184.246 CAST player 5019 base=5019,5019 key=nameplate1
+236184.411 HIT nameplate1 school=64 amount=? flag= fps=97 threat=3 group=false,false,false npc=1955 target=true
+236184.411 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236184.411   -> locked 5019
+236184.832 HIT nameplate1 school=32 amount=? flag= fps=94 threat=3 group=false,false,false npc=1955 target=true
+236184.832 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236184.832   -> tracker 970
+236186.049 CAST player 5019 base=5019,5019 key=nameplate1
+236186.199 HIT nameplate1 school=64 amount=? flag= fps=78 threat=3 group=false,false,false npc=1955 target=true
+236186.199 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236186.199   -> locked 5019
+236186.232 HIT nameplate2 school=1 amount=? flag= fps=78 threat=nil group=false,false,false npc=1955 target=false
+236186.232 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236186.232   -> HIDDEN
+236186.632 HIT nameplate2 school=4 amount=? flag= fps=74 threat=nil group=false,false,false npc=1955 target=false
+236186.632 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236186.632   -> HIDDEN
+236187.649 HIT nameplate2 school=8 amount=? flag= fps=66 threat=nil group=false,false,false npc=1955 target=false
+236187.649 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236187.649   -> HIDDEN
+236187.749 HIT nameplate1 school=32 amount=? flag= fps=65 threat=3 group=false,false,false npc=1955 target=true
+236187.749 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236187.749   -> tracker 970
+236187.866 CAST player 5019 base=5019,5019 key=nameplate1
+236188.016 HIT nameplate1 school=64 amount=? flag= fps=63 threat=3 group=false,false,false npc=1955 target=true
+236188.016 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236188.016   -> locked 5019
+236189.599 CAST player 5019 base=5019,5019 key=nameplate1
+236189.816 HIT nameplate1 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236189.816 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236189.816   -> locked 5019
+236190.799 HIT nameplate1 school=32 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236190.799 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236190.799   -> tracker 970
+236190.799 HIT nameplate2 school=1 amount=? flag= fps=60 threat=nil group=false,false,false npc=1955 target=false
+236190.799 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236190.799   -> HIDDEN
+236191.449 CAST player 5019 base=5019,5019 key=nameplate1
+236191.599 HIT nameplate2 school=4 amount=? flag= fps=60 threat=nil group=false,false,false npc=1955 target=false
+236191.599 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236191.599   -> HIDDEN
+236191.599 HIT nameplate1 school=64 amount=? flag= fps=60 threat=3 group=false,false,false npc=1955 target=true
+236191.599 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236191.599   -> locked 5019
+236192.282 HIT nameplate2 school=4 amount=? flag=CRITICAL fps=60 threat=nil group=false,false,false npc=1955 target=false
+236192.282 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236192.282   -> HIDDEN
+236193.243 CAST player 5019 base=5019,5019 key=nameplate1
+236193.442 HIT nameplate1 school=64 amount=? flag= fps=62 threat=3 group=false,false,false npc=1955 target=true
+236193.442 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236193.442   -> locked 5019
+236193.843 HIT nameplate1 school=32 amount=? flag= fps=65 threat=3 group=false,false,false npc=1955 target=true
+236193.843 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236193.843   -> tracker 970
+236194.733 START player 8102
+236195.256 HIT nameplate2 school=4 amount=? flag= fps=85 threat=nil group=false,false,false npc=1955 target=false
+236195.256 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236195.256   -> HIDDEN
+236196.426 HIT nameplate2 school=4 amount=? flag= fps=98 threat=nil group=false,false,false npc=1955 target=false
+236196.426 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236196.426   -> HIDDEN
+236196.782 HIT nameplate1 school=32 amount=? flag= fps=99 threat=3 group=false,false,false npc=1955 target=true
+236196.782 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236196.782   -> tracker 970
+236197.245 CAST player 8102 base=8102,8102 key=nameplate1
+236197.245 HIT nameplate1 school=32 amount=? flag= fps=99 threat=3 group=false,false,false npc=1955 target=true
+236197.245 PROBE amount=secret meter=session:358,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+236197.245   -> unknown-solo
+236198.227 HIT nameplate2 school=4 amount=? flag= fps=94 threat=nil group=false,false,false npc=1955 target=false
+236198.227 PROBE amount=secret meter=session:358,75:485,970:285,8102:167,598:126,1260198:33
+236198.227   -> HIDDEN
+236198.694 LOCKED 598 hits=2 total=126 per=63
+236198.694 LOCKED 970 hits=12 total=285 per=24
+236198.694 LOCKED 5019 hits=13 total=? per=?
+236198.694 TEACH session 358 dur=40
+236198.694 TEACH row 75 total=485 overkill=0 override=75
+236198.694 TEACH row 970 total=285 overkill=0 override=970
+236198.694 TEACH row 8102 total=167 overkill=0 override=8102
+236198.694 TEACH row 598 total=126 overkill=0 override=598
+236198.694 TEACH row 1260198 total=33 overkill=0 override=1260198
+236198.694 TEACH clean seen=0 meter=1096 -> short
+236198.694 TEACH 75 tally=0 meter=485 verdict=unpaired
+236198.694 TEACH 970 tally=0 meter=285 verdict=unpaired
+236198.694 TEACH 8102 tally=0 meter=167 verdict=unpaired
+236198.694 TEACH 598 tally=0 meter=126 verdict=unpaired
+236198.694 TEACH 1260198 tally=0 meter=33 verdict=unpaired
+236198.694 TEACH heal 6074 meter=83 over=0
+236198.694 TEACH heal 1260198 meter=33 over=0
+236198.817 HIT nameplate2 school=4 amount=? flag= fps=94 threat=nil group=false,false,false npc=1955 target=false
+236198.817 PROBE amount=secret meter=session:358,75:485,970:285,8102:167,598:126,1260198:33
+236198.817   -> HIDDEN
