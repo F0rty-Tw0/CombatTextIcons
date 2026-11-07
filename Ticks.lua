@@ -34,6 +34,18 @@ local MISS_CASTS = 3    -- checked casts in a row with no fit that retire a save
 local MAX_DELAYS = 16   -- delays a cast keeps, oldest dropped
 local REFINE = 0.25     -- share of the gap to a taken tick's estimate that the saved period moves
 
+-- Direct-damage spells with no DoT: Mind Blast and Smite, every rank, since Forever doesn't fold ranks (capture:
+-- `CAST player 8102 base=8102,8102`). A listed spell on a cast stamp is no partner, so the instant cast queued with it
+-- (SW:P after Mind Blast) is still alone and learns; a listed spell never learns. A list, not "has a cast bar": a hard
+-- cast with its own DoT (Holy Fire) would teach its partner that DoT (spec 2026-11-07-forever-swp-stamp-partner).
+local TICKLESS = {
+    [8092] = true, [8102] = true, [8103] = true, [8104] = true, [8105] = true, [8106] = true,
+    [10945] = true, [10946] = true, [10947] = true, -- Mind Blast
+    [585] = true, [591] = true, [598] = true, [984] = true, [1004] = true, [6060] = true,
+    [10933] = true, [10934] = true, -- Smite
+}
+Ticks.TICKLESS = TICKLESS -- read-only
+
 local issecretvalue = issecretvalue or function() return false end
 local function IsNumber(value) return not issecretvalue(value) and type(value) == "number" end
 
@@ -165,11 +177,11 @@ function Ticks.NoteCast(spellID, now, key, kind)
     if stamp.at ~= now then stamp = { at = now, ids = {}, n = 0, casts = {} } end
     if not stamp.ids[spellID] then
         stamp.ids[spellID] = true
-        stamp.n = stamp.n + 1
+        if not TICKLESS[spellID] then stamp.n = stamp.n + 1 end
     end
 
     if key then
-        local cast = { at = now, kind = kind, alone = true, delays = {}, fits = 0 }
+        local cast = { at = now, kind = kind, alone = not TICKLESS[spellID], delays = {}, fits = 0 }
         newest[key] = newest[key] or {}
         if newest[key][spellID] then EndCast(spellID, newest[key][spellID]) end
         newest[key][spellID] = cast

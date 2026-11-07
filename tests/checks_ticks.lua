@@ -118,6 +118,38 @@ return function(T)
         Check("ticks: alone again on a later stamp learns", store.lockedTicks[594] ~= nil and store.lockedTicks[589] == nil)
     end
 
+    do -- Spec 2026-11-07-forever-swp-stamp-partner: a tickless spell (Mind Blast, Smite) is no stamp partner
+        local function Learns594(first, second)
+            local X, store = Fresh()
+            X.NoteCast(first, 10, "p", "damage")
+            X.NoteCast(second, 10, "p", "damage")
+            for _, at in ipairs({ 13, 16, 19 }) do Tick(X, at) end
+            return store
+        end
+        local s = Learns594(8102, 594)
+        Check("ticks: SW:P on Mind Blast's stamp learns its period", s.lockedTicks[594] and Near(s.lockedTicks[594].period, 3.0)
+            and s.lockedTicks[8102] == nil)
+        s = Learns594(594, 8102)
+        Check("ticks: SW:P before Mind Blast on one stamp learns too", s.lockedTicks[594] and Near(s.lockedTicks[594].period, 3.0))
+        s = Learns594(591, 594)
+        Check("ticks: SW:P on Smite's stamp learns, Smite doesn't", s.lockedTicks[594] and s.lockedTicks[591] == nil)
+        s = Learns594(14914, 594)
+        Check("ticks: SW:P on an unlisted hard cast's stamp (Holy Fire) learns nothing", Empty(s))
+
+        local X, store = Fresh()
+        X.NoteCast(8102, 10, "p", "damage")
+        X.NoteCast(594, 10, "p", "damage")
+        Tick(X, 10.4) -- Mind Blast's own hit, lagged past CAST_GAP
+        for _, at in ipairs({ 13, 16, 19 }) do Tick(X, at) end
+        Check("ticks: a lagged Mind Blast hit doesn't stop SW:P learning",
+            store.lockedTicks[594] and Near(store.lockedTicks[594].period, 3.0))
+
+        X, store = Fresh()
+        X.NoteCast(8102, 10, "p", "damage")
+        for _, at in ipairs({ 13, 16, 19 }) do Tick(X, at) end
+        Check("ticks: a lone Mind Blast learns nothing", Empty(store))
+    end
+
     do
         local X, store = Fresh()
         X.NoteCast(594, 10, "p", "damage")

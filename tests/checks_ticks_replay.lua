@@ -3,7 +3,8 @@
 
 return function(T)
     local Check = T.Check
-    local HARMFUL = { [5019] = true, [585] = true, [589] = true, [591] = true, [594] = true, [8092] = true }
+    local HARMFUL = { [5019] = true, [585] = true, [589] = true, [591] = true, [594] = true, [8092] = true, [8102] = true,
+        [598] = true }
     local LOGS = { "forever-secret-2026-11-05.log", "forever-s4-run1-2026-11-05.log", "forever-s4-run2-2026-11-05.log",
         "forever-s4-run3-2026-11-05.log" }
 
@@ -87,10 +88,11 @@ return function(T)
         local ns, store = Fresh(ticks)
         local R = { hits594 = 0, heals139 = 0, heals1260198 = 0, noHitStamp1260198 = 0, healHarmful = 0, hitWrong = 0,
             two = 0, learned = {}, procEver = {}, periods = {}, shadow594 = 0, shadowNone = 0, shadowOther = 0, healNone = 0,
-            healOther = 0, healsWrong = 0 }
+            healOther = 0, healsWrong = 0, mb594 = 0 }
         local learnedIDs, procIDs = {}, {}
         local helps, cast = {}, {}
-        local helpAt, hitAt = {}, {}
+        -- ticklessAt: [stamp] = true where a Mind Blast or Smite cast landed, so mb594 can catch its own hit drawn as 594
+        local helpAt, hitAt, ticklessAt = {}, {}, {}
         local heals, healAt = {}, nil
 
         local function Flush()
@@ -113,6 +115,7 @@ return function(T)
         local function OnCast(lines, i, at, rest)
             local id = tonumber(rest:match("^CAST player (%d+)"))
             if not id then return end
+            if ns.Ticks.TICKLESS[id] then ticklessAt[at] = true end
             if HARMFUL[id] then
                 ns.Locked.NoteCast(id, at)
                 ns.Ticks.NoteCast(id, at, PlateOf(lines, i), "damage")
@@ -134,6 +137,7 @@ return function(T)
             hitAt[at] = true
             local sole, fits = ns.Locked.Observe(rest:match("^HIT (%S+)"), school, at)
             if sole == 594 then R.hits594 = R.hits594 + 1 end
+            if sole == 594 and ticklessAt[at] then R.mb594 = R.mb594 + 1 end
             if school == 32 then
                 if sole == 594 then R.shadow594 = R.shadow594 + 1
                 elseif sole then R.shadowOther = R.shadowOther + 1
@@ -148,7 +152,7 @@ return function(T)
             ns.Locked.EndFight()
             ns.Ticks.EndFight()
             ns.LockedHeals.Learn(HealRows(lines, i, at), helps, cast)
-            helps, cast, helpAt, hitAt = {}, {}, {}, {}
+            helps, cast, helpAt, hitAt, ticklessAt = {}, {}, {}, {}, {}
         end
 
         for _, name in ipairs(logs) do
@@ -210,8 +214,14 @@ return function(T)
     NoteRun("TICKS S5R2 fresh", S5R2)
     NoteRun("TICKS S5R2 seeded", S5R2Seeded)
 
-    Check("ticks replay: periods learned for 594 and 139 and no other spell (run 3: no 8092 from SW:P ticks on its plate)",
-        R.learned[594] and R.learned[139] and R.learnedCount == 2)
+    -- S6 run 5 (Forever, 2026-11-07, s6-run5.sv.lua): every SW:P cast queued behind Mind Blast 8102, on one cast stamp.
+    -- No proc stamps are passed (plan decision), so healsWrong reads 0; the gate is the learned set and healHarmful.
+    local S6R5 = Replay({ "forever-s6-run5-2026-11-07.log" })
+    NoteRun("TICKS S6R5", S6R5)
+
+    -- 589 learns since Mind Blast 8092 no longer shares its stamp in the four early captures (TICKLESS); 8092 never does.
+    Check("ticks replay: periods learned for 594, 589 and 139 and no other spell (no 8092)",
+        R.learned[594] and R.learned[139] and R.learned[589] and R.learnedCount == 3)
     Check("ticks replay: at least 10 hits drawn as 594", R.hits594 >= 10)
     Check("ticks replay: at least 15 heals drawn as 139", R.heals139 >= 15)
     Check("ticks replay: at least 8 heals drawn as 1260198", R.heals1260198 >= 8)
@@ -230,4 +240,12 @@ return function(T)
     Check("ticks S5R2: SW:P 594 learns its period, fresh and with 139 saved", S5R2.learned[594] and S5R2Seeded.learned[594])
     Check("ticks S5R2: at least 9 shadow hits drawn as 594", S5R2.shadow594 >= 9 and S5R2Seeded.shadow594 >= 9)
     Check("ticks S5R2: no heal on you is drawn as the wrong spell", S5R2.healsWrong == 0 and S5R2Seeded.healsWrong == 0)
+    Check("ticks S6R5: SW:P learns on Mind Blast's stamp", S6R5.learned[594])
+    Check("ticks S6R5: learns only 594 and 6074 (Renew rank 2)", S6R5.learned[6074] and S6R5.learnedCount == 2)
+    -- Floor: measured 23 (2026-11-07), less 3 as the S5 floors do.
+    Check("ticks S6R5: at least 20 shadow hits drawn as 594", S6R5.shadow594 >= 20)
+    Check("ticks S6R5: no shadow hit drawn as another spell, no heal as a harmful one, no hit as a heal",
+        S6R5.shadowOther == 0 and S6R5.healHarmful == 0 and S6R5.hitWrong == 0)
+    Check("ticks replay: no Mind Blast or Smite hit on its own stamp is drawn as 594",
+        R.mb594 == 0 and S5.mb594 == 0 and S5R2.mb594 == 0 and S5R2Seeded.mb594 == 0 and S6R5.mb594 == 0)
 end
