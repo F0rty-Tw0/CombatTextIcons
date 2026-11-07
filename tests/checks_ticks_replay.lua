@@ -50,16 +50,6 @@ return function(T)
         return lines
     end
 
-    -- The unit of the first HIT with target=true at or after line `from`, in the same fight; nil when none.
-    local function PlateOf(lines, from)
-        for i = from, #lines do
-            local rest = lines[i]:match("^%d+%.%d+ (.*)$")
-            if rest:match("^TEACH session") then return nil end
-            local unit = rest:match("^HIT (%S+) .*target=true")
-            if unit then return unit end
-        end
-    end
-
     -- The `TEACH heal <id> meter=<n> over=<n>` rows at stamp `at` after line `from`; nil when none.
     local function HealRows(lines, from, at)
         local rows = {}
@@ -90,7 +80,7 @@ return function(T)
         local ns, store = Fresh(ticks)
         local R = { hits594 = 0, heals139 = 0, heals1260198 = 0, noHitStamp1260198 = 0, healHarmful = 0, hitWrong = 0,
             two = 0, learned = {}, procEver = {}, periods = {}, shadowSwp = 0, shadowNone = 0, shadowOther = 0, healNone = 0,
-            healOther = 0, healsWrong = 0, mbSwp = 0 }
+            healOther = 0, healsWrong = 0, mbSwp = 0, wand64 = 0, mbOwn = 0, ticklessOff = 0 }
         local learnedIDs, procIDs = {}, {}
         local helps, cast = {}, {}
         -- ticklessAt: [stamp] = true where a Mind Blast or Smite cast landed, so mbSwp can catch its own hit drawn as SW:P
@@ -119,8 +109,9 @@ return function(T)
             if not id then return end
             if ns.Ticks.TICKLESS[id] then ticklessAt[at] = true end
             if HARMFUL[id] then
-                ns.Locked.NoteCast(id, at)
-                ns.Ticks.NoteCast(id, at, PlateOf(lines, i), "damage")
+                local plate = T.PlateOf(lines, i)
+                ns.Locked.NoteCast(id, at, plate)
+                ns.Ticks.NoteCast(id, at, plate, "damage")
                 cast[id] = true
                 local base = tonumber(rest:match(" base=(%d+)"))
                 if base then cast[base] = true end
@@ -140,9 +131,17 @@ return function(T)
             local sole, fits = ns.Locked.Observe(rest:match("^HIT (%S+)"), school, at)
             if sole == 594 then R.hits594 = R.hits594 + 1 end
             if SWP[sole] and ticklessAt[at] then R.mbSwp = R.mbSwp + 1 end
+            -- own: a Mind Blast or Smite hit named on its own cast stamp, which is right; off it, it is wrong
+            local tickless = sole and ns.Ticks.TICKLESS[sole]
+            local own = tickless and ticklessAt[at]
+            if own then R.mbOwn = R.mbOwn + 1 end
+            if tickless and not own then R.ticklessOff = R.ticklessOff + 1 end
+            if school == 64 and sole == 5019 then R.wand64 = R.wand64 + 1 end
             if school == 32 then
+                -- an own hit is counted in mbOwn, neither other nor none
                 if SWP[sole] then R.shadowSwp = R.shadowSwp + 1
-                elseif sole then R.shadowOther = R.shadowOther + 1                else R.shadowNone = R.shadowNone + 1 end
+                elseif sole and not own then R.shadowOther = R.shadowOther + 1
+                elseif not sole then R.shadowNone = R.shadowNone + 1 end
             end
             if sole == 139 or sole == 1260198 then R.hitWrong = R.hitWrong + 1 end
             if fits >= 2 then R.two = R.two + 1 end
@@ -195,8 +194,9 @@ return function(T)
         for id, period in pairs(run.periods) do periods[#periods + 1] = string.format("%d=%.3f", id, period) end
         table.sort(periods)
         T.Note(string.format("%s periods=%s shadowSwp=%d shadowNone=%d shadowOther=%d heals139=%d healsNone=%d "
-            .. "healsOther=%d heals1260198=%d healsWrong=%d", label, table.concat(periods, ","), run.shadowSwp,
-            run.shadowNone, run.shadowOther, run.heals139, run.healNone, run.healOther, run.heals1260198, run.healsWrong))
+            .. "healsOther=%d heals1260198=%d healsWrong=%d wand64=%d mbOwn=%d ticklessOff=%d", label,
+            table.concat(periods, ","), run.shadowSwp, run.shadowNone, run.shadowOther, run.heals139, run.healNone,
+            run.healOther, run.heals1260198, run.healsWrong, run.wand64, run.mbOwn, run.ticklessOff))
     end
 
     local S5 = Replay({ "forever-s5-run1-2026-11-06.log" }, S5_PROCS)
@@ -272,15 +272,20 @@ return function(T)
     -- replay of that code named 16. Per-school delays learn it in fight 1, the LAG fit window keeps the late ticks.
     Check("ticks S8R1: SW:P 970 learns about 3.0 and only it and Renew 6074 learn",
         S8R1.learned[970] and math.abs(S8R1.periods[970] - 3.0) < 0.1 and S8R1.learned[6074] and S8R1.learnedCount == 2)
-    -- Floor: measured 31 (2026-11-07), less 3. Its one other shadow sole is Mind Blast 8102 on its own stamp.
+    -- Floor: measured 31 (2026-11-07), less 3.
     Check("ticks S8R1: at least 28 shadow hits drawn as SW:P", S8R1.shadowSwp >= 28)
-    Check("ticks S8R1: no heal drawn as a harmful spell, no hit as a heal, at most Mind Blast's own hit as another spell",
-        S8R1.shadowOther <= 1 and S8R1.healHarmful == 0 and S8R1.hitWrong == 0)
+    Check("ticks S8R1: no heal drawn as a harmful spell, no hit as a heal, no shadow hit as another spell",
+        S8R1.shadowOther == 0 and S8R1.healHarmful == 0 and S8R1.hitWrong == 0)
+    Check("ticks S8R1: Mind Blast's own hit is named on its stamp", S8R1.mbOwn >= 1)
     Check("ticks S9R1: SW:P 970 learns about 3.0 and only it and Renew 6074 learn",
         S9R1.learned[970] and math.abs(S9R1.periods[970] - 3.0) < 0.1 and S9R1.learned[6074] and S9R1.learnedCount == 2)
     -- Floor: measured 21 (2026-11-07, as in game), less 2.
     Check("ticks S9R1: at least 19 shadow hits drawn as SW:P, none as another spell, no heal as a harmful one",
         S9R1.shadowSwp >= 19 and S9R1.shadowOther == 0 and S9R1.healHarmful == 0 and S9R1.hitWrong == 0)
+    -- Floor: 14 before the inherited lock, 24 with it (2026-11-07), less 1: a new mob's first Shoot is named.
+    Check("ticks S9R1: the wand's first Shoot at a new mob is named (inherited lock)", S9R1.wand64 >= 23)
+    Check("ticks replay: no Mind Blast or Smite drawn off its own cast stamp (S6R5-S9R1)",
+        S6R5.ticklessOff == 0 and S7R1.ticklessOff == 0 and S8R1.ticklessOff == 0 and S9R1.ticklessOff == 0)
     Check("ticks replay: no Mind Blast or Smite hit on its own stamp is drawn as SW:P",
         R.mbSwp == 0 and S5.mbSwp == 0 and S5R2.mbSwp == 0 and S5R2Seeded.mbSwp == 0 and S6R5.mbSwp == 0
             and S7R1.mbSwp == 0 and S8R1.mbSwp == 0 and S9R1.mbSwp == 0)

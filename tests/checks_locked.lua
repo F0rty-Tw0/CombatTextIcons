@@ -136,6 +136,88 @@ return function(T)
         Check("locked: PlateGone forgets", Is(nil, 0, L.Observe("p", 32, 15.9)))
     end
 
+    -- Inherited delay (spec 2026-11-07-forever-carried-lock): a lock fit that names its spell alone leaves its delay
+    -- inherited by a new key on the plate the spell's newest cast was aimed at. Steps: { "cast", at, plate, spell }
+    -- (spell 5019 when nil), { "end" }, or { "hit", plate, at, spell, fits } on school 64. Returns whether every hit
+    -- answered as listed.
+    do
+        local function Run(L, steps)
+            local ok = true
+            for _, step in ipairs(steps) do
+                if step[1] == "cast" then L.NoteCast(step[4] or 5019, step[2], step[3])
+                elseif step[1] == "end" then L.EndFight()
+                else ok = Is(step[4], step[5], L.Observe(step[2], 64, step[3])) and ok end
+            end
+
+            return ok
+        end
+        local FORM = { { "cast", 10, "p" }, { "hit", "p", 10.9, nil, 0 }, { "cast", 12, "p" }, { "hit", "p", 12.9, nil, 0 } }
+        -- Forms 0.9 on "p", names a hit with it (so 0.9 is inherited), then the fight ends.
+        local NAMED = { FORM[1], FORM[2], FORM[3], FORM[4], { "cast", 14, "p" }, { "hit", "p", 14.9, 5019, 1 }, { "end" } }
+        local function AfterNamed(...)
+            local L = Fresh()
+            local ok = Run(L, NAMED)
+            for _, steps in ipairs({ ... }) do ok = Run(L, steps) and ok end
+
+            return ok, L
+        end
+
+        Check("locked inherit: a new plate the cast aims at inherits a named lock",
+            AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 20.9, 5019, 1 } }))
+        -- 1.08 is 0.136 from the lock the fits moved (0.944), 0.155 from the first named one (0.925)
+        Check("locked inherit: each named fit moves the inherited delay", Run(Fresh(), { FORM[1], FORM[2], FORM[3], FORM[4],
+            { "cast", 14, "p" }, { "hit", "p", 15.0, 5019, 1 }, { "cast", 16, "p" }, { "hit", "p", 17.0, 5019, 1 },
+            { "end" }, { "cast", 20, "q" }, { "hit", "q", 21.08, 5019, 1 } }))
+        Check("locked inherit: a lock that formed but never named leaves nothing inherited",
+            Run(Fresh(), { FORM[1], FORM[2], FORM[3], FORM[4], { "end" }, { "cast", 20, "q" }, { "hit", "q", 20.9, nil, 0 } }))
+        -- 5019 and 8102 both form 0.9 on "p", so the hit at 14.9 fits both locks and names neither.
+        Check("locked inherit: a lock fit shared with another spell leaves nothing inherited", Run(Fresh(), {
+            { "cast", 10, "p" }, { "cast", 10, "p", 8102 }, { "hit", "p", 10.9, nil, 0 },
+            { "cast", 12, "p" }, { "cast", 12, "p", 8102 }, { "hit", "p", 12.9, nil, 0 },
+            { "cast", 14, "p" }, { "cast", 14, "p", 8102 }, { "hit", "p", 14.9, nil, 2 },
+            { "end" }, { "cast", 20, "q" }, { "hit", "q", 20.9, nil, 0 } }))
+        Check("locked inherit: a cast aimed at another plate inherits nothing",
+            AfterNamed({ { "cast", 20, "p2" }, { "hit", "q", 20.9, nil, 0 } }))
+        Check("locked inherit: a cast with no plate inherits nothing", AfterNamed({ { "cast", 20 }, { "hit", "q", 20.9, nil, 0 } }))
+        local relearned, L = AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 21.2, nil, 0 }, { "cast", 22, "q" },
+            { "hit", "q", 22.2, nil, 0 }, { "cast", 24, "q" }, { "hit", "q", 24.2, nil, 0 }, { "cast", 26, "q" },
+            { "hit", "q", 26.2, 5019, 1 } })
+        Check("locked inherit: an inherited lock that doesn't fit re-learns as a lockless key would", relearned)
+        Check("locked inherit: the re-learned delay is inherited next",
+            Run(L, { { "end" }, { "cast", 40, "r" }, { "hit", "r", 40.2, 5019, 1 } }))
+        Check("locked inherit: after its first fit an inherited lock no longer re-learns",
+            AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 20.9, 5019, 1 }, { "cast", 22, "q" }, { "hit", "q", 22.9, 5019, 1 },
+                { "cast", 24, "q" }, { "hit", "q", 24.2, nil, 0 }, { "cast", 26, "q" }, { "hit", "q", 26.2, nil, 0 },
+                { "cast", 28, "q" }, { "hit", "q", 28.2, nil, 0 } }))
+        -- 0.5 misses 0.9 and is kept; casts 22-26 break the inherited lock; 0.3 pairs into a new lock; 0.7 misses it twice.
+        Check("locked inherit: after a break a new lock no longer re-learns",
+            AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 20.5, nil, 0 }, { "cast", 22, "q" }, { "cast", 24, "q" },
+                { "cast", 26, "q" }, { "hit", "q", 26.3, nil, 0 }, { "cast", 28, "q" }, { "hit", "q", 28.3, nil, 0 },
+                { "cast", 30, "q" }, { "hit", "q", 30.7, nil, 0 }, { "cast", 32, "q" }, { "hit", "q", 32.7, nil, 0 },
+                { "cast", 34, "q" }, { "hit", "q", 34.3, 5019, 1 } }))
+        -- 1.2 misses 0.9 and pairs into a lock at 1.2; 0.6 misses it twice.
+        Check("locked inherit: a lock re-learned from a pair no longer re-learns",
+            AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 21.2, nil, 0 }, { "cast", 22, "q" }, { "hit", "q", 23.2, nil, 0 },
+                { "cast", 24, "q" }, { "hit", "q", 24.6, nil, 0 }, { "cast", 26, "q" }, { "hit", "q", 26.6, nil, 0 },
+                { "cast", 28, "q" }, { "hit", "q", 29.2, 5019, 1 } }))
+        local AIM_Q = { { "cast", 20, "q" }, { "hit", "q", 20.9, nil, 0 } }
+        local _
+        _, L = AfterNamed()
+        L.Forget()
+        Check("locked inherit: Forget clears the inherited delay", Run(L, AIM_Q))
+        _, L = AfterNamed()
+        L.Init({})
+        Check("locked inherit: Init clears the inherited delay", Run(L, AIM_Q))
+        _, L = AfterNamed({ { "cast", 20, "q" } })
+        L.PlateGone("q")
+        Check("locked inherit: PlateGone forgets the plate a cast aimed at", Run(L, { { "hit", "q", 20.9, nil, 0 } }))
+        _, L = AfterNamed()
+        L.PlateGone("x")
+        L.PlateGone("p")
+        Check("locked inherit: PlateGone keeps the inherited delay",
+            Run(L, { { "cast", 20, "q" }, { "hit", "q", 20.9, 5019, 1 } }))
+    end
+
     do
         local L = Fresh()
         Lock(L)
@@ -584,7 +666,7 @@ return function(T)
             local cast = tonumber(rest:match("^CAST %S+ (%d+)"))
             local school = tonumber(rest:match("^HIT %S+ school=(%d+)"))
             if cast and HARMFUL[cast] then
-                L.NoteCast(cast, at)
+                L.NoteCast(cast, at, T.PlateOf(lines, i))
                 if cast == 5019 then lastShoot, shoots = at, shoots + 1 end
             elseif school then
                 ReadMeter(lines[i + 1]:match("meter=(%S+)"))
@@ -843,6 +925,18 @@ return function(T)
         Check("route: three casts and hits at one delay draw ?, ?, then the spell",
             textures[1] == rig.ns.Meter.UNKNOWN_ICON and textures[2] == rig.ns.Meter.UNKNOWN_ICON
             and textures[3] == Texture(OTHER) and rig.drew[1] == OTHER and #rig.drew == 1)
+
+        -- A harmful player cast hands Locked the plate Casts aimed it at, so a new key there can inherit a delay.
+        rig = Routed({})
+        local aimed, plates = "plateX", {}
+        rig.ns.Casts.NoteCast = function() return aimed end
+        rig.ns.Locked.NoteCast = function(_, _, plate) plates[#plates + 1] = plate or "none" end
+        rig.S.now = 10
+        rig.ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c", OTHER)
+        aimed, rig.S.now = nil, 12
+        rig.ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c", OTHER)
+        Check("route: Core passes the cast's plate to Locked.NoteCast, nil without one",
+            plates[1] == "plateX" and plates[2] == "none" and #plates == 2)
     end
 
     -- The debug line: counts of drawn hits against the fight's own row total, printed at the read (Teacher.Judging)

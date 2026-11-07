@@ -1317,8 +1317,9 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
             Teacher.Cast(spellID, Casts.Base(spellID), now, plate, unit == "pet")
             ns.Link.NoteCast(spellID, now, plate)
             if unit == "player" then
-                ns.Locked.NoteCast(spellID, now)
-                tickKey = Plain(plate) and not InGroup() and plate or nil
+                local plainPlate = Plain(plate) and plate or nil
+                ns.Locked.NoteCast(spellID, now, plainPlate)
+                tickKey = not InGroup() and plainPlate or nil
                 ns.Ticks.NoteCast(spellID, now, tickKey, "damage")
             end
         elseif Plain(harmful) and unit == "player" then

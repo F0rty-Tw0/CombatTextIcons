@@ -1245,12 +1245,25 @@ local function RunCheckFile(file, T)
     if not ok then Check("tests/" .. file .. " ran without error: " .. tostring(err), false) end
 end
 
+-- In a replay log's `lines`, the unit of the first HIT with target=true at or after line `from`, in the same fight (a
+-- `TEACH session` line starts the next one); nil when none.
+local function PlateOf(lines, from)
+    for i = from, #lines do
+        local rest = lines[i]:match("^%d+%.%d+ (.*)$")
+        local isNextFight = rest:match("^TEACH session")
+        if isNextFight then return nil end
+        local unit = rest:match("^HIT (%S+) .*target=true")
+        if unit then return unit end
+    end
+end
+
 -- The checks live in tests/checks.lua (which runs the other check files through T.RunFile);
 -- they get the stubs through this table.
 local function RunChecks()
     local T
     T = {
         Boot = Boot, BootSpells = function(setup) return Boot(setup, true) end, Check = Check, Secret = Secret, Generic = Generic, Plate = Plate, TocFiles = TocFiles,
+        PlateOf = PlateOf,
         Note = function(text) notes[#notes + 1] = text end,
         State = function() return S end, Store = Store, Root = ROOT,
         RunFile = function(file) RunCheckFile(file, T) end,

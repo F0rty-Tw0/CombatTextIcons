@@ -13,7 +13,9 @@
 -- DELAY_TOL of it when its cast has not named a hit yet, and moves it. Each cast of the spell closes the period of the
 -- one before it: a period without a fit is a miss, BREAK_CASTS misses clear the lock and its delays. A fit also tells
 -- Ticks the school the spell's own hits have (Ticks.NoteHitSchool), for its cast-free test, and Ticks.Fits gets the
--- spells whose lock the hit fits: that hit is their own and joins no other spell's tick delays.
+-- spells whose lock the hit fits: that hit is their own and joins no other spell's tick delays. A lock fit that names
+-- its spell alone leaves its delay inherited: a new key on the plate the spell's newest cast aims at starts at it,
+-- provisional until its first fit, and a hit that misses it learns as a lockless key would.
 -- Rule 3, the tick join (Ticks.lua): a spell whose tick the hit is (Ticks.Fits: near a whole number of its learned
 -- periods after its newest cast on the plate) fits too; a spell that also fits Rule 1 or Rule 2 counts once. When the
 -- sole fit has such a tick, Observe takes its slot (Ticks.Take).
@@ -38,8 +40,14 @@ local function IsNumber(value) return not issecretvalue(value) and type(value) =
 
 -- [spellID] = the spell's newest cast time
 local casts = {}
--- [plate][spellID][school] = { lock, miss, fit, kept = { { delay, cast }, ... } }
+-- [plate][spellID][school] = { lock, miss, fit, provisional, kept = { { delay, cast }, ... } }; provisional: the lock
+-- is an inherited delay with no fit yet
 local locks = {}
+-- [spellID] = the plate the spell's newest cast was aimed at (nil when none)
+local castPlate = {}
+-- [spellID][school] = the lock of the last fit that named the spell alone. It survives fights and plates, so a new key on
+-- the plate a cast aims at starts locked (NewEntry). In memory only: Init and Forget clear it.
+local inherited = {}
 -- [spellID][castTime] = true: that cast named a hit, on any plate
 local used = {}
 -- [spellID] = { school = number, strays = number, shared = true or nil }: the store's own-school entries
@@ -62,6 +70,7 @@ local function ClearLive()
     Clear(counts)
     Clear(locks)
     Clear(used)
+    Clear(castPlate)
     firstHitRead = false
 end
 
@@ -73,11 +82,17 @@ local function IsValidEntry(spellID, entry)
     return type(entry.school) == "number" and type(entry.strays) == "number" and sharedOk
 end
 
--- Locked.Init(store): binds the store's own-school entries and drops the bad ones; a spec change runs it again.
-function Locked.Init(store)
+-- Everything held in memory: the live state, the last fight's counts, the session read and the inherited delays.
+local function ClearMemory()
     ClearLive()
     Clear(lastFight)
     lastSession = nil
+    Clear(inherited)
+end
+
+-- Locked.Init(store): binds the store's own-school entries and drops the bad ones; a spec change runs it again.
+function Locked.Init(store)
+    ClearMemory()
     if type(store.lockedSchools) ~= "table" then store.lockedSchools = {} end
     schools = store.lockedSchools
 
@@ -87,9 +102,7 @@ function Locked.Init(store)
 end
 
 function Locked.Forget()
-    ClearLive()
-    Clear(lastFight)
-    lastSession = nil
+    ClearMemory()
     Clear(schools)
 end
 
@@ -137,18 +150,34 @@ function Locked.Report(rows)
     end
 end
 
-function Locked.PlateGone(plate) locks[plate] = nil end
+-- A recycled plate frame shows another mob next, so no cast stays aimed at it.
+function Locked.PlateGone(plate)
+    locks[plate] = nil
+    for spellID, aimed in pairs(castPlate) do
+        if aimed == plate then castPlate[spellID] = nil end
+    end
+end
 
 -- A hit drew `spellID`'s icon from the sole fit Observe answered.
 function Locked.Drew(spellID)
     counts[spellID] = (counts[spellID] or 0) + 1
 end
 
+-- A new key on the plate the spell's newest cast aimed at starts at the inherited delay, provisional until its first fit
+-- (Observe); any other new key starts lockless.
+local function NewEntry(plate, spellID, school)
+    local entry = { miss = 0, fit = false, kept = {} }
+    local delay = inherited[spellID] and inherited[spellID][school]
+    if delay and castPlate[spellID] == plate then entry.lock, entry.provisional = delay, true end
+
+    return entry
+end
+
 local function Entry(plate, spellID, school)
     locks[plate] = locks[plate] or {}
     locks[plate][spellID] = locks[plate][spellID] or {}
     local bySchool = locks[plate][spellID]
-    bySchool[school] = bySchool[school] or { miss = 0, fit = false, kept = {} }
+    bySchool[school] = bySchool[school] or NewEntry(plate, spellID, school)
 
     return bySchool[school]
 end
@@ -158,14 +187,16 @@ local function CloseMisses(entry)
     entry.fit = false
     if entry.miss < BREAK_CASTS then return end
 
-    entry.lock, entry.miss = nil, 0
+    entry.lock, entry.miss, entry.provisional = nil, 0, nil
     Clear(entry.kept)
 end
 
--- A cast of `spellID` at `now`: closes the last period of each of its locks, then it is the spell's newest cast.
-function Locked.NoteCast(spellID, now)
+-- A cast of `spellID` at `now`, aimed at `plate` (nil when none): closes the last period of each of its locks, then it is
+-- the spell's newest cast.
+function Locked.NoteCast(spellID, now, plate)
     if not ns.IsForever then return end
     if casts[spellID] == now then return end
+    castPlate[spellID] = plate
 
     for _, bySpell in pairs(locks) do
         for _, entry in pairs(bySpell[spellID] or {}) do
@@ -306,6 +337,30 @@ local function CountKeys(set)
     return count
 end
 
+-- The hit on `spellID`'s key on `plate`: forms its lock, fits it, or re-learns an inherited delay it misses. Returns the
+-- entry when the hit fits its lock, else nil.
+local function ObserveLock(plate, spellID, school, now, castTime)
+    local entry = Entry(plate, spellID, school)
+    local delay = now - castTime
+    if not entry.lock then
+        Form(entry, delay, castTime)
+    elseif Fit(entry, spellID, delay, castTime) then
+        entry.provisional = nil
+        Ticks.NoteHitSchool(spellID, school)
+
+        return entry
+    elseif entry.provisional then
+        Form(entry, delay, castTime)
+        if entry.fit then entry.provisional = nil end
+    end
+end
+
+-- Only a lock fit that named its spell alone is inherited: a wand lock formed from SW:P ticks never names one.
+local function Inherit(spellID, school, lock)
+    inherited[spellID] = inherited[spellID] or {}
+    inherited[spellID][school] = lock
+end
+
 -- A solo secret hit of `school` on `plate` at `now`: `sole, fits`. Moves locks and marks casts as it goes, and takes
 -- the tick slot of a sole fit that Ticks.Fits named.
 function Locked.Observe(plate, school, now)
@@ -315,20 +370,15 @@ function Locked.Observe(plate, school, now)
     end
 
     local fitting = {}
+    -- [spellID] = the entry whose lock the hit fits
     local lockFitting = {}
     ReadOwnSchools(school, now, fitting)
 
     for spellID, castTime in pairs(casts) do
-        if not OwnsOtherSchool(spellID, school) then
-            local entry = Entry(plate, spellID, school)
-            local delay = now - castTime
-            if not entry.lock then
-                Form(entry, delay, castTime)
-            elseif Fit(entry, spellID, delay, castTime) then
-                Ticks.NoteHitSchool(spellID, school)
-                fitting[spellID] = castTime
-                lockFitting[spellID] = true
-            end
+        local entry = not OwnsOtherSchool(spellID, school) and ObserveLock(plate, spellID, school, now, castTime)
+        if entry then
+            fitting[spellID] = castTime
+            lockFitting[spellID] = entry
         end
     end
 
@@ -342,7 +392,10 @@ function Locked.Observe(plate, school, now)
     if fits ~= 1 then return nil, fits end
 
     local sole = next(fitting)
-    if lockFitting[sole] then Mark(sole, fitting[sole]) end
+    if lockFitting[sole] then
+        Mark(sole, fitting[sole])
+        Inherit(sole, school, lockFitting[sole].lock)
+    end
     if slots[sole] then Ticks.Take(sole, slots[sole]) end
 
     return sole, fits
