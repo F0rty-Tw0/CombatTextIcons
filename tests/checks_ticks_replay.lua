@@ -4,7 +4,9 @@
 return function(T)
     local Check = T.Check
     local HARMFUL = { [5019] = true, [585] = true, [589] = true, [591] = true, [594] = true, [8092] = true, [8102] = true,
-        [598] = true }
+        [598] = true, [970] = true, [8122] = true }
+    -- SW:P, every rank in the captures: 589, 594, 970
+    local SWP = { [589] = true, [594] = true, [970] = true }
     local LOGS = { "forever-secret-2026-11-05.log", "forever-s4-run1-2026-11-05.log", "forever-s4-run2-2026-11-05.log",
         "forever-s4-run3-2026-11-05.log" }
 
@@ -87,11 +89,11 @@ return function(T)
     local function Replay(logs, procStamps, ticks)
         local ns, store = Fresh(ticks)
         local R = { hits594 = 0, heals139 = 0, heals1260198 = 0, noHitStamp1260198 = 0, healHarmful = 0, hitWrong = 0,
-            two = 0, learned = {}, procEver = {}, periods = {}, shadow594 = 0, shadowNone = 0, shadowOther = 0, healNone = 0,
-            healOther = 0, healsWrong = 0, mb594 = 0 }
+            two = 0, learned = {}, procEver = {}, periods = {}, shadowSwp = 0, shadowNone = 0, shadowOther = 0, healNone = 0,
+            healOther = 0, healsWrong = 0, mbSwp = 0 }
         local learnedIDs, procIDs = {}, {}
         local helps, cast = {}, {}
-        -- ticklessAt: [stamp] = true where a Mind Blast or Smite cast landed, so mb594 can catch its own hit drawn as 594
+        -- ticklessAt: [stamp] = true where a Mind Blast or Smite cast landed, so mbSwp can catch its own hit drawn as SW:P
         local helpAt, hitAt, ticklessAt = {}, {}, {}
         local heals, healAt = {}, nil
 
@@ -137,11 +139,10 @@ return function(T)
             hitAt[at] = true
             local sole, fits = ns.Locked.Observe(rest:match("^HIT (%S+)"), school, at)
             if sole == 594 then R.hits594 = R.hits594 + 1 end
-            if sole == 594 and ticklessAt[at] then R.mb594 = R.mb594 + 1 end
+            if SWP[sole] and ticklessAt[at] then R.mbSwp = R.mbSwp + 1 end
             if school == 32 then
-                if sole == 594 then R.shadow594 = R.shadow594 + 1
-                elseif sole then R.shadowOther = R.shadowOther + 1
-                else R.shadowNone = R.shadowNone + 1 end
+                if SWP[sole] then R.shadowSwp = R.shadowSwp + 1
+                elseif sole then R.shadowOther = R.shadowOther + 1                else R.shadowNone = R.shadowNone + 1 end
             end
             if sole == 139 or sole == 1260198 then R.hitWrong = R.hitWrong + 1 end
             if fits >= 2 then R.two = R.two + 1 end
@@ -193,8 +194,8 @@ return function(T)
         local periods = {}
         for id, period in pairs(run.periods) do periods[#periods + 1] = string.format("%d=%.3f", id, period) end
         table.sort(periods)
-        T.Note(string.format("%s periods=%s shadow594=%d shadowNone=%d shadowOther=%d heals139=%d healsNone=%d "
-            .. "healsOther=%d heals1260198=%d healsWrong=%d", label, table.concat(periods, ","), run.shadow594,
+        T.Note(string.format("%s periods=%s shadowSwp=%d shadowNone=%d shadowOther=%d heals139=%d healsNone=%d "
+            .. "healsOther=%d heals1260198=%d healsWrong=%d", label, table.concat(periods, ","), run.shadowSwp,
             run.shadowNone, run.shadowOther, run.heals139, run.healNone, run.healOther, run.heals1260198, run.healsWrong))
     end
 
@@ -219,6 +220,20 @@ return function(T)
     local S6R5 = Replay({ "forever-s6-run5-2026-11-07.log" })
     NoteRun("TICKS S6R5", S6R5)
 
+    -- S7 run 1 (Forever, 2026-11-07, s7-run1.sv.lua): SW:P rank 3 (970), cast alone or behind Mind Blast 8102. In game
+    -- it learned 6.028, twice its tick spacing, from a first tick 0.09 s late. No proc stamps, as S6R5.
+    local S7R1 = Replay({ "forever-s7-run1-2026-11-07.log" })
+    NoteRun("TICKS S7R1", S7R1)
+
+    -- S8 run 1 (Forever, 2026-11-07, s8-run1.sv.lua): the spacing learner's first game run; SW:P 970 learned 2.966.
+    local S8R1 = Replay({ "forever-s8-run1-2026-11-07.log" })
+    NoteRun("TICKS S8R1", S8R1)
+
+    -- S9 run 1 (Forever, 2026-11-07, s9-run1.sv.lua): the run-8 fixes in game. 970 learned 3.023 in fight 3 (fights 1
+    -- and 2 ended before SW:P's third tick) and then drew all 21 of its on-grid ticks.
+    local S9R1 = Replay({ "forever-s9-run1-2026-11-07.log" })
+    NoteRun("TICKS S9R1", S9R1)
+
     -- 589 learns since Mind Blast 8092 no longer shares its stamp in the four early captures (TICKLESS); 8092 never does.
     Check("ticks replay: periods learned for 594, 589 and 139 and no other spell (no 8092)",
         R.learned[594] and R.learned[139] and R.learned[589] and R.learnedCount == 3)
@@ -233,19 +248,40 @@ return function(T)
         S5.healsWrong == 0)
     -- Floors (2026-11-06, refined periods): measured 40 and 11, less 2 SW:P ticks and 1 Renew tick, so a later rule may
     -- trade a tick; the counts before the period refinement (36 and 9) stay below them.
-    Check("ticks S5: at least 38 shadow hits drawn as 594", S5.shadow594 >= 38)
+    Check("ticks S5: at least 38 shadow hits drawn as 594", S5.shadowSwp >= 38)
     Check("ticks S5: at least 10 heals drawn as 139", S5.heals139 >= 10)
     -- S5 run 2 floors (2026-11-06, a Shoot's lock-known arcane school no longer drops shadow ticks near its casts):
     -- SW:P learned on 0 of 9 casts before; now it learns in session 21 and names 11 hits, floor 11 less 2.
     Check("ticks S5R2: SW:P 594 learns its period, fresh and with 139 saved", S5R2.learned[594] and S5R2Seeded.learned[594])
-    Check("ticks S5R2: at least 9 shadow hits drawn as 594", S5R2.shadow594 >= 9 and S5R2Seeded.shadow594 >= 9)
+    Check("ticks S5R2: at least 9 shadow hits drawn as 594", S5R2.shadowSwp >= 9 and S5R2Seeded.shadowSwp >= 9)
     Check("ticks S5R2: no heal on you is drawn as the wrong spell", S5R2.healsWrong == 0 and S5R2Seeded.healsWrong == 0)
     Check("ticks S6R5: SW:P learns on Mind Blast's stamp", S6R5.learned[594])
     Check("ticks S6R5: learns only 594 and 6074 (Renew rank 2)", S6R5.learned[6074] and S6R5.learnedCount == 2)
     -- Floor: measured 23 (2026-11-07), less 3 as the S5 floors do.
-    Check("ticks S6R5: at least 20 shadow hits drawn as 594", S6R5.shadow594 >= 20)
+    Check("ticks S6R5: at least 20 shadow hits drawn as 594", S6R5.shadowSwp >= 20)
     Check("ticks S6R5: no shadow hit drawn as another spell, no heal as a harmful one, no hit as a heal",
         S6R5.shadowOther == 0 and S6R5.healHarmful == 0 and S6R5.hitWrong == 0)
-    Check("ticks replay: no Mind Blast or Smite hit on its own stamp is drawn as 594",
-        R.mb594 == 0 and S5.mb594 == 0 and S5R2.mb594 == 0 and S5R2Seeded.mb594 == 0 and S6R5.mb594 == 0)
+    -- S7R1: before the spacing rule 970 learned 6.028; before the older-cast guard PW:S 600 learned Renew's ticks.
+    Check("ticks S7R1: SW:P 970 learns its 3 s tick spacing, not twice it, and nothing else learns",
+        S7R1.learned[970] and math.abs(S7R1.periods[970] - 3.0) < 0.1 and S7R1.learnedCount == 1)
+    -- Floor: measured 11 (2026-11-07; 7 at the doubled period), less 2.
+    Check("ticks S7R1: at least 9 shadow hits drawn as SW:P", S7R1.shadowSwp >= 9)
+    Check("ticks S7R1: no shadow hit drawn as another spell, no heal as a harmful one, no hit as a heal",
+        S7R1.shadowOther == 0 and S7R1.healHarmful == 0 and S7R1.hitWrong == 0)
+    -- S8R1: in game 970 learned 2.966 in fight 3 (a wand hit fixed fights 1 and 2 to arcane) and named 18 ticks; the
+    -- replay of that code named 16. Per-school delays learn it in fight 1, the LAG fit window keeps the late ticks.
+    Check("ticks S8R1: SW:P 970 learns about 3.0 and only it and Renew 6074 learn",
+        S8R1.learned[970] and math.abs(S8R1.periods[970] - 3.0) < 0.1 and S8R1.learned[6074] and S8R1.learnedCount == 2)
+    -- Floor: measured 31 (2026-11-07), less 3. Its one other shadow sole is Mind Blast 8102 on its own stamp.
+    Check("ticks S8R1: at least 28 shadow hits drawn as SW:P", S8R1.shadowSwp >= 28)
+    Check("ticks S8R1: no heal drawn as a harmful spell, no hit as a heal, at most Mind Blast's own hit as another spell",
+        S8R1.shadowOther <= 1 and S8R1.healHarmful == 0 and S8R1.hitWrong == 0)
+    Check("ticks S9R1: SW:P 970 learns about 3.0 and only it and Renew 6074 learn",
+        S9R1.learned[970] and math.abs(S9R1.periods[970] - 3.0) < 0.1 and S9R1.learned[6074] and S9R1.learnedCount == 2)
+    -- Floor: measured 21 (2026-11-07, as in game), less 2.
+    Check("ticks S9R1: at least 19 shadow hits drawn as SW:P, none as another spell, no heal as a harmful one",
+        S9R1.shadowSwp >= 19 and S9R1.shadowOther == 0 and S9R1.healHarmful == 0 and S9R1.hitWrong == 0)
+    Check("ticks replay: no Mind Blast or Smite hit on its own stamp is drawn as SW:P",
+        R.mbSwp == 0 and S5.mbSwp == 0 and S5R2.mbSwp == 0 and S5R2Seeded.mbSwp == 0 and S6R5.mbSwp == 0
+            and S7R1.mbSwp == 0 and S8R1.mbSwp == 0 and S9R1.mbSwp == 0)
 end

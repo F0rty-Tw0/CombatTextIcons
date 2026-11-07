@@ -55,9 +55,57 @@ return function(T)
         X.NoteCast(594, 10, "p", "damage")
         Tick(X, 13.0)
         Tick(X, 16.0625)
-        Tick(X, 19.0)
+        Tick(X, 19.125)
         local e = store.lockedTicks[594]
-        Check("ticks: the period is the mean of the matched delays", e ~= nil and Near(e.period, (3.0 + 3.03125 + 3.0) / 3))
+        Check("ticks: the period is the mean spacing from the first matched tick to the last",
+            e ~= nil and Near(e.period, (9.125 - 3.0) / 2))
+    end
+
+    -- S7 run 1 (2026-11-07): SW:P 970's first tick landed 3.09 s after its cast, then ticked every 2.95-3.04 s, so
+    -- 3 * 3.09 missed the third tick by 0.185 s and the learner saved 6.03 from the 6, 12 and 18 s ticks.
+    do
+        local X, store = Fresh()
+        X.NoteCast(970, 10, "p", "damage")
+        for _, at in ipairs({ 13.091, 16.045, 19.088, 22.079, 25.05, 27.998 }) do Tick(X, at) end
+        local e = store.lockedTicks[970]
+        Check("ticks: a first tick 0.09 s late still learns the tick spacing, not twice it",
+            e ~= nil and Near(e.period, (9.088 - 3.091) / 2))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(594, 10, "p", "damage")
+        for _, at in ipairs({ 13.2, 16.0, 22.0, 28.0 }) do Tick(X, at) end
+        Check("ticks: a period with a cast-free delay near its half learns nothing", Empty(store))
+    end
+
+    -- S8 run 1 (2026-11-07): 970 learned 2.966 on a 3.0 s tick that lands about 0.1 s late, so its 4th and 5th ticks
+    -- landed 0.18 and 0.24 s after k * period, fit nothing, and never refined the period.
+    do
+        local X = Fresh(nil, { [970] = Saved(2.966, "damage", 32) })
+        X.NoteCast(970, 10, "p", "damage")
+        local late = Tick(X, 10 + 4 * 2.966 + 0.177)
+        X.NoteCast(970, 30, "p", "damage")
+        local early = Tick(X, 30 + 2 * 2.966 - 0.2)
+        Check("ticks: a tick up to LAG after k * period fits; one more than TOL before it doesn't",
+            Only(late, 970) and #early == 0)
+    end
+
+    -- S7 run 1: PW:S 600, cast on Renew 6074's first tick, took Renew's next three ticks as its own period.
+    do
+        local X, store = Fresh()
+        X.NoteCast(6074, 10, "player", "heal")
+        X.NoteCast(600, 12.9, "player", "heal")
+        for _, at in ipairs({ 12.9, 15.9, 18.9, 21.9 }) do Heal(X, at) end
+        Check("ticks: a cast on an older unsaved cast's tick phase learns nothing from those ticks", Empty(store))
+    end
+
+    do
+        local X, store = Fresh()
+        X.NoteCast(6074, 10, "player", "heal")
+        X.NoteCast(600, 14.5, "player", "heal")
+        for _, at in ipairs({ 17.5, 20.5, 23.5 }) do Heal(X, at) end
+        Check("ticks: a cast off an older cast's tick phase still learns", store.lockedTicks[600] ~= nil)
     end
 
     do
@@ -96,10 +144,10 @@ return function(T)
         X.NoteCast(594, 10, "p", "damage")
         Tick(X, 13.0)
         Tick(X, 16.0625)
-        local third = Tick(X, 19.0)
+        local third = Tick(X, 19.125)
         X.Take(594, third[1].slot)
         Check("ticks: the tick that learned the period, taken, does not refine it (its delay is in the mean already)",
-            Near(store.lockedTicks[594].period, (3.0 + 3.03125 + 3.0) / 3))
+            Near(store.lockedTicks[594].period, (9.125 - 3.0) / 2))
     end
 
     do
@@ -323,24 +371,28 @@ return function(T)
         Tick(X, 16, 2)
         Tick(X, 19, 32)
         Tick(X, 22, 32)
-        Check("ticks: the first event's school fixes the delays (later school ignored)", Empty(store))
+        Check("ticks: delays are per school: a hit of another school is not the missing tick", Empty(store))
     end
 
+    -- S8 run 1 (2026-11-07): a wand hit (arcane 64) before the wand's lock formed was 970's first cast-free event; it
+    -- fixed the cast's school, and SW:P's shadow ticks after it joined no delays in two fights.
     do
         local X, store = Fresh()
-        X.NoteCast(594, 10, "p", "damage")
-        Tick(X, 13, 2)
-        Tick(X, 16, 32)
-        Tick(X, 19, 32)
-        Tick(X, 22, 32)
-        Check("ticks: the first event's school fixes the delays (first school stays)", Empty(store))
+        X.NoteCast(970, 10, "p", "damage")
+        Tick(X, 12.662, 64)
+        for _, at in ipairs({ 13.047, 16.118, 19.082 }) do Tick(X, at, 32) end
+        local e = store.lockedTicks[970]
+        Check("ticks: a hit of another school first doesn't stop the shadow ticks learning",
+            e ~= nil and e.school == 32 and Near(e.period, (9.082 - 3.047) / 2))
     end
 
     do
         local X = Fresh(16001, { [594] = Saved(3.0, "damage", 32) })
         X.NoteCast(594, 30, "p", "damage")
-        local inside, outside = Tick(X, 33.125), Tick(X, 33.1875)
-        Check("ticks: fit window edge is TOL", Only(inside, 594) and #outside == 0)
+        local inside, outside = Tick(X, 33.25), Tick(X, 33.3125)
+        local early, tooEarly = Tick(X, 32.875), Tick(X, 32.8125)
+        Check("ticks: fit window edges are LAG after the tick and TOL before it",
+            Only(inside, 594) and #outside == 0 and Only(early, 594) and #tooEarly == 0)
 
         local zero, kmax, past = Tick(X, 30.5), Tick(X, 66.0), Tick(X, 69.0)
         Check("ticks: k runs 1..KMAX", #zero == 0 and Only(kmax, 594) and #past == 0)

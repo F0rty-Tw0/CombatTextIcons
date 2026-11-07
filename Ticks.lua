@@ -1,7 +1,10 @@
 -- Combat Text Icons: tick periods (WoW Forever only, where every amount is secret). A DoT or HoT ticks at a steady
 -- period after its cast, so a spell cast alone teaches its period: a key (a plate for damage, "player" for heals on
--- you) whose cast-free events land at delays d1, then about 2 * d1 and 3 * d1 has learned a period (saved per
--- specialization in store.lockedTicks). An event then fits a saved spell when it lands near a whole number of periods
+-- you) whose cast-free events land at delays d1, d1 + p and d1 + 2 * p, with d1 about p (up to LAG late), has learned
+-- a period (saved per specialization in store.lockedTicks). Spacing, not k * d1: a first tick 0.1 s late put the
+-- third 0.185 s off 3 * d1 (S7 run 1, 2026-11-07), and a period with a delay near its half is twice the real one.
+-- A cast keeps its delays per school, so a stray hit of another school (a wand hit before its lock forms, S8 run 1)
+-- can't shut the DoT's own school out. An event then fits a saved spell when it lands near a whole number of periods
 -- after that spell's newest cast on the key; such an event is that spell's tick and joins no other cast's delays.
 -- Fits answers which spells fit; the caller takes the slot of a sole fit.
 -- A taken tick refines the saved period: at k >= 2 periods after its cast, its own estimate age / k moves the period
@@ -14,9 +17,9 @@
 -- or just after its casts, so a tick the learner needed was dropped on 5 of 9 casts and SW:P never learned.
 -- Such an event fits no tick either: it counts as a fit for the cast's misses, but Fits leaves it out and its slot
 -- stays free. S6 run 3 (2026-11-06): a Mind Blast hit on its cast's stamp fit an ended SW:P's tick k=10 and drew SW:P.
--- A damage event that fits another spell's cast lock (Fits' `hitOf`) is that spell's own hit: it neither fixes a
--- cast's school (the first event it learns from does) nor joins its delays, so a wand's arcane hits one swing apart
--- teach SW:P no period. Before the wand's lock forms (its first two hits) they still can.
+-- A damage event that fits another spell's cast lock (Fits' `hitOf`) is that spell's own hit: it joins no other
+-- cast's delays, so a wand's arcane hits one swing apart teach SW:P no period. Before the wand's lock forms (its
+-- first two hits) they still can.
 -- A cast is its timestamp: casts and events share one clock (GetTime).
 
 local _, ns = ...
@@ -28,7 +31,8 @@ local TOL = 0.15        -- how far an event may be from a whole number of period
 local CAST_GAP = 0.35   -- a damage event this close after a cast of yours that may hit its school is not cast-free
 local MIN_PERIOD = 1.0  -- shortest period learned
 local MAX_PERIOD = 10   -- longest period learned
-local NEED = 3          -- delays (d1, 2 * d1, 3 * d1) that learn a period
+local NEED = 3          -- ticks (d1, d1 + p, d1 + 2 * p) that learn a period
+local LAG = 0.25        -- how late a cast's first tick may land after one tick spacing (S7 run 1: 3.09 s on 2.95)
 local KMAX = 12         -- most periods after the cast that an event may fit
 local MISS_CASTS = 3    -- checked casts in a row with no fit that retire a saved spell
 local MAX_DELAYS = 16   -- delays a cast keeps, oldest dropped
@@ -122,25 +126,67 @@ local function DelayNear(delays, target)
     end
 end
 
--- The mean of d1 and each matched d_k / k for k = 2..NEED, or nil when some k * d1 has no delay near it.
-local function MeanPeriod(delays, d1)
-    local sum = d1
-    for k = 2, NEED do
-        local found = DelayNear(delays, k * d1)
-        if not found then return nil end
-        sum = sum + found / k
-    end
-
-    return sum / NEED
+-- Whether `delay` lands from TOL before `target` to LAG after it: where a tick may land.
+local function TickNear(delay, target)
+    return delay >= target - TOL and delay <= target + LAG
 end
 
--- The period the delays teach, or nil: the first d1 in [MIN_PERIOD, MAX_PERIOD] that has a delay near each
--- k * d1 for k = 2..NEED; the period is the mean of the matched d_k / k.
-local function PeriodOf(delays)
-    for _, d1 in ipairs(delays) do
-        local period = d1 >= MIN_PERIOD and d1 <= MAX_PERIOD and MeanPeriod(delays, d1)
-        if period then return period end
+-- The period of the ticks d1, d2 = d1 + p, then a delay near each d1 + k * p up to NEED ticks, where p = d2 - d1 is in
+-- [MIN_PERIOD, MAX_PERIOD] and d1 lands near p; nil otherwise. The period is the mean spacing, first tick to last.
+local function ChainPeriod(delays, d1, d2)
+    local spacing = d2 - d1
+    if spacing < MIN_PERIOD or spacing > MAX_PERIOD or not TickNear(d1, spacing) then return nil end
+
+    local last = d2
+    for k = 2, NEED - 1 do
+        last = DelayNear(delays, d1 + k * spacing)
+        if not last then return nil end
     end
+
+    return (last - d1) / (NEED - 1)
+end
+
+-- Whether a delay lands half a period before the chain's first tick at d1 or halfway between two of its ticks: a
+-- rhythm twice as fast, so the period is twice the real one (ticks between dropped), or the chain is every other hit
+-- of a wand before its lock forms (Shoot every 1.8 s puts arcane hits 3.6, 5.4, 7.2 s after a cast).
+local function HasHalf(delays, d1, period)
+    for j = 0, NEED - 1 do
+        local mid = d1 + (j - 0.5) * period
+        for _, delay in ipairs(delays) do
+            if TickNear(delay, mid) then return true end
+        end
+    end
+
+    return false
+end
+
+-- The period the delays teach and its first tick's delay, or nil: the first chain (ChainPeriod) in delay order with no
+-- delay at a half step (HasHalf).
+local function PeriodOf(delays)
+    for i, d1 in ipairs(delays) do
+        for j = i + 1, #delays do
+            local period = ChainPeriod(delays, d1, delays[j])
+            if period and not HasHalf(delays, d1, period) then return period, d1 end
+        end
+    end
+end
+
+-- Whether another unsaved cast of the kind on the key, older than `cast` and not tickless, lands m in 1..KMAX periods
+-- before the chain's first tick at `firstAt`: the ticks may be that cast's, so `cast` learns nothing from them. S7 run
+-- 1 (2026-11-07): PW:S 600, cast on a Renew tick, saw Renew's next three ticks as its own.
+local function OlderOwns(casts, cast, kind, school, firstAt, period)
+    for otherID, other in pairs(casts) do
+        local older = other ~= cast and other.at < cast.at and other.kind == kind and not saved[otherID]
+            and not TICKLESS[otherID]
+        local schoolOk = kind ~= "damage" or hitSchools[otherID] == nil or hitSchools[otherID] == school
+        if older and schoolOk then
+            local age = firstAt - other.at
+            local m = math.floor(age / period + 0.5)
+            if m >= 1 and m <= KMAX and TickNear(age, m * period) then return true end
+        end
+    end
+
+    return false
 end
 
 -- A newest cast ends (a recast, the key gone, the fight over). Only a checked cast of a saved spell counts: no fit is
@@ -206,13 +252,15 @@ local function CastFree(kind, school, now)
 end
 
 -- The tick slot an event at `now` takes of a saved spell's newest cast and its k, or nil: the event is of the spell's
--- school (damage), lands within TOL of the k-th period for k in 1..KMAX, and no event has taken that slot yet.
+-- school (damage), lands near (TickNear) the k-th period for k in 1..KMAX, and no event has taken that slot yet. LAG,
+-- not TOL, after it: ticks land about 0.1 s late, and with a period learned 0.03 s short the 5th tick of S8 run 1
+-- (2026-11-07) landed 0.24 s after 5 * period, fit nothing, and so never refined the period.
 local function FitSlot(id, entry, cast, school, now)
     local age = now - cast.at
     local k = math.floor(age / entry.period + 0.5)
     local slot = id .. "@" .. cast.at .. "@" .. k
     local schoolFits = entry.kind ~= "damage" or entry.school == school
-    local onTick = k >= 1 and k <= KMAX and math.abs(age - k * entry.period) <= TOL
+    local onTick = k >= 1 and k <= KMAX and TickNear(age, k * entry.period)
 
     if schoolFits and onTick and not used[slot] then return slot, k end
 end
@@ -247,19 +295,17 @@ local function Learn(casts, kind, school, now, hitOf)
 
     for id, cast in pairs(casts) do
         if cast.kind == kind and cast.alone and not saved[id] and not HitOfOther(hitOf, id) then
-            if kind == "damage" and cast.school == nil then cast.school = school end
+            local bucket = school or "heal"
+            cast.delays[bucket] = cast.delays[bucket] or {}
+            local delays = cast.delays[bucket]
+            delays[#delays + 1] = now - cast.at
+            if #delays > MAX_DELAYS then table.remove(delays, 1) end
 
-            if cast.school == school then
-                local delays = cast.delays
-                delays[#delays + 1] = now - cast.at
-                if #delays > MAX_DELAYS then table.remove(delays, 1) end
-
-                local period = PeriodOf(delays)
-                if period then
-                    saved[id] = { period = period, kind = kind, school = cast.school, misses = 0 }
-                    cast.learnedAt = now
-                    if ns.Debug then ns.Debug("TICKS learned %d period=%.3f kind=%s", id, period, kind) end
-                end
+            local period, d1 = PeriodOf(delays)
+            if period and not OlderOwns(casts, cast, kind, school, cast.at + d1, period) then
+                saved[id] = { period = period, kind = kind, school = school, misses = 0 }
+                cast.learnedAt = now
+                if ns.Debug then ns.Debug("TICKS learned %d period=%.3f kind=%s", id, period, kind) end
             end
         end
     end
