@@ -550,6 +550,105 @@ return function(T)
         end
     end
 
+    do -- Blizzard's numbers follow group mode on Forever (spec 2026-11-07-forever-group-blizzard-text)
+        local DAMAGE, HEALING = "floatingCombatTextCombatDamage_v2", "floatingCombatTextCombatHealing_v2"
+        local function Seed()
+            return { [DAMAGE] = "1", floatingCombatTextCombatLogPeriodicSpells_v2 = "1",
+                floatingCombatTextPetMeleeDamage_v2 = "1", floatingCombatTextPetSpellDamage_v2 = "1", [HEALING] = "2" }
+        end
+        local function Zeroed()
+            local zeroed = {}
+            for name in pairs(Seed()) do zeroed[name] = "0" end
+
+            return zeroed
+        end
+        local function Same(a, b)
+            for name, value in pairs(Seed()) do
+                if a[name] ~= (b == "0" and "0" or value) then return false end
+            end
+
+            return true
+        end
+        -- Boots Forever (or retail with `retail`), grouped or solo, with `cvars` (default Seed()) and `saved`
+        -- (CombatTextIconsDB, default none).
+        local function Boot(group, cvars, saved, retail)
+            local ns = T.Boot(function(S)
+                if not retail then S.interface = 16001 end
+                S.group = group
+                S.cvars = cvars or Seed()
+                CombatTextIconsDB = saved
+            end)
+
+            return ns, T.State()
+        end
+
+        local ns, S = Boot(false)
+        Check("blizzard group: solo login zeroes the numbers and hides the scroll",
+            Same(S.cvars, "0") and CombatText.shown == false and CombatTextIconsDB.savedCVars[HEALING] == "2")
+        S.group = true
+        ns.Core.GROUP_ROSTER_UPDATE()
+        Check("blizzard group: joining a group writes the remembered numbers back, keeps them, the scroll stays hidden",
+            Same(S.cvars) and CombatTextIconsDB.savedCVars[DAMAGE] == "1"
+            and CombatTextIconsDB.savedCVars[HEALING] == "2" and CombatText.shown == false)
+        S.group = false
+        ns.Core.GROUP_ROSTER_UPDATE()
+        Check("blizzard group: leaving the group zeroes them again with the same remembered values",
+            Same(S.cvars, "0") and CombatTextIconsDB.savedCVars[DAMAGE] == "1"
+            and CombatTextIconsDB.savedCVars[HEALING] == "2")
+
+        _, S = Boot(true, Zeroed(), { enabled = true, savedCVars = Seed() })
+        Check("blizzard group: a grouped login writes the remembered numbers and hides the scroll",
+            Same(S.cvars) and CombatText.shown == false)
+
+        ns, S = Boot(false)
+        S.group = true
+        ns.Core.GROUP_ROSTER_UPDATE()
+        local applied = S.cvars[DAMAGE] == "1"
+        S.cvars[DAMAGE] = "3"
+        ns.Core.GROUP_ROSTER_UPDATE()
+        ns.Core.PLAYER_REGEN_ENABLED()
+        Check("blizzard group: a change made while grouped stays (it switches only on a mode change)",
+            applied and S.cvars[DAMAGE] == "3")
+
+        for _, failure in ipairs({ true, "error" }) do
+            ns, S = Boot(false)
+            S.cvarFail[HEALING] = failure
+            S.group = true
+            ns.Core.GROUP_ROSTER_UPDATE()
+            local failed = S.cvars[HEALING] == "0"
+            S.cvarFail[HEALING] = nil
+            ns.Core.PLAYER_REGEN_ENABLED()
+            Check("blizzard group: a failed write (" .. tostring(failure) .. ") is retried when the fight ends",
+                failed and S.cvars[HEALING] == "2")
+        end
+
+        ns, S = Boot(true, nil, nil, true)
+        local writes, set = 0, C_CVar.SetCVar
+        C_CVar.SetCVar = function(...) writes = writes + 1 return set(...) end
+        ns.Core.GROUP_ROSTER_UPDATE()
+        ns.Core.PLAYER_REGEN_ENABLED()
+        Check("blizzard group: retail keeps the numbers off in a group and writes nothing after login",
+            Same(S.cvars, "0") and writes == 0)
+
+        ns, S = Boot(true)
+        SlashCmdList.COMBATTEXTICONS("off")
+        local off = Same(S.cvars)
+        ns.Core.GROUP_ROSTER_UPDATE()
+        S.group = false
+        ns.Core.GROUP_ROSTER_UPDATE()
+        local untouched = Same(S.cvars)
+        S.group = true
+        SlashCmdList.COMBATTEXTICONS("on")
+        Check("blizzard group: with the addon off nothing re-zeroes; /cti on in a group writes the numbers, scroll hidden",
+            off and untouched and Same(S.cvars) and CombatText.shown == false)
+
+        local ok
+        ok, ns = pcall(Boot, true, {})
+        S = T.State()
+        Check("blizzard group: a first login in a group with nothing remembered writes nothing",
+            ok and next(S.cvars) == nil)
+    end
+
     T.RunFile("checks_locked.lua")
     T.RunFile("checks_ticks.lua")
     T.RunFile("checks_lockedheals.lua")
