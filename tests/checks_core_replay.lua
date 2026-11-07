@@ -12,6 +12,10 @@ return function(T)
     -- Feeds log `name` to a booted Forever whose store holds `seed` (the char DB at login). Counts each hit drawn as
     -- SW:P by its route: swpOnTickless, on a Mind Blast or Smite cast stamp (Ticks.TICKLESS); swpOnOwnCast, of those,
     -- on a stamp SW:P was cast on too, where it never ticks; swpTicks, off such stamps by the tracker (its real ticks).
+    -- blastOnBlast counts the hits drawn as Mind Blast 8102 (`-> locked` or `-> tickless`) on a Mind Blast or Smite
+    -- cast stamp (ticklessAt); ticklessHits lists each `-> tickless` draw { at = its frame's stamp, unit, id, onStamp
+    -- (on such a stamp), onOwnCast (on a stamp where `id` was cast at `unit`) }, and hitCounts[at|unit|school] the hits
+    -- that frame held on that plate in that school.
     local function Replay(name, seed)
         local ns = T.Boot(function(S)
             S.interface = 16001
@@ -20,14 +24,33 @@ return function(T)
         end)
         local S = T.State()
         ns.Teacher.area = "clear"
-        local R = { swpOnTickless = 0, swpOnOwnCast = 0, swpTicks = 0, hits = 0 }
-        -- [stamp] = true: a Mind Blast or Smite cast, a SW:P cast there; pending: the HIT whose PROBE line comes next
-        local ticklessAt, swpAt, fighting, pending = {}, {}, false, nil
+        local R = { swpOnTickless = 0, swpOnOwnCast = 0, swpTicks = 0, hits = 0, blastOnBlast = 0, ticklessHits = {},
+            hitCounts = {}, schoolOf = ns.Ticks.TICKLESS }
+        -- [stamp] = true: a Mind Blast or Smite cast, a SW:P cast there; aimAt[stamp|id]: the plate that cast aimed at;
+        -- pending: the HIT whose PROBE line comes next
+        local ticklessAt, swpAt, aimAt, fighting, pending = {}, {}, {}, false, nil
+        -- A held hit prints its route when its frame ends, in the first handler call after it: `flushAt` is the stamp of
+        -- the call before that one, the held hit's frame. A `-> tickless` line is followed by the hit's own draw.
+        local flushAt, prevAt, drawing = nil, nil, nil
+        ns.Display.Plate = function(plate)
+            if not drawing then return end
+            R.ticklessHits[#R.ticklessHits + 1] = { at = drawing.at, unit = plate.unit, id = drawing.id,
+                onStamp = ticklessAt[drawing.at] == true,
+                onOwnCast = aimAt[drawing.at .. "|" .. drawing.id] == plate.unit }
+            drawing = nil
+        end
         ns.Display.Player = function() end
         local route
         ns.Debug = function(format, ...)
             local line = string.format(format, ...)
             if line:find("^  %->") then route = line end
+            local tickless = line:match("^  %-> tickless (%d+)")
+            if tickless then drawing = { at = flushAt, id = tonumber(tickless) } end
+        end
+        -- Marks the next handler call: a held hit it flushes belongs to the frame at the previous call's stamp.
+        local function Call(at)
+            flushAt = prevAt
+            prevAt = at or prevAt
         end
 
         local function Start()
@@ -39,9 +62,10 @@ return function(T)
         local function OnCast(at, castID, key)
             S.now = at
             if key ~= "nil" then S.target = key end
-            if ns.Ticks.TICKLESS[castID] then ticklessAt[at] = true end
+            if ns.Ticks.TICKLESS[castID] then ticklessAt[at], aimAt[at .. "|" .. castID] = true, key end
             if SWP[castID] then swpAt[at] = true end
             Start()
+            Call(at)
             ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c", castID)
         end
 
@@ -55,8 +79,12 @@ return function(T)
             pending = { unit = unit, school = tonumber(school), flag = flag, at = at }
         end
 
+        -- Counts the route Core printed for `hit` at once (a held hit's comes at its frame's end, Display.Plate).
         local function CountRoute(hit)
             local named = route and tonumber(route:match("^  %-> %a+ (%d+)$"))
+            if named == 8102 and ticklessAt[hit.at] and route:find("^  %-> locked ") then
+                R.blastOnBlast = R.blastOnBlast + 1
+            end
             if not (named and SWP[named]) then return end
             local onTickless = ticklessAt[hit.at]
             if onTickless then R.swpOnTickless = R.swpOnTickless + 1 end
@@ -68,6 +96,9 @@ return function(T)
             local hit = pending
             pending, route = nil, nil
             ReadMeter(meter)
+            local frameKey = hit.at .. "|" .. hit.unit .. "|" .. hit.school
+            R.hitCounts[frameKey] = (R.hitCounts[frameKey] or 0) + 1
+            Call(hit.at)
             ns.Core.UNIT_COMBAT(hit.unit, "WOUND", hit.flag, T.Secret(31), hit.school)
             R.hits = R.hits + 1
             CountRoute(hit)
@@ -75,8 +106,9 @@ return function(T)
 
         local function OnTeach()
             fighting = false
+            Call()
             ns.Core.PLAYER_REGEN_ENABLED()
-            ticklessAt, swpAt = {}, {}
+            ticklessAt, swpAt, aimAt = {}, {}, {}
         end
 
         for line in io.lines(T.Root .. "/tests/fixtures/" .. name) do
@@ -95,7 +127,11 @@ return function(T)
                 OnTeach()
             end
         end
+        Call()
         ns.Core.FlushMates()
+        for _, drawn in ipairs(R.ticklessHits) do
+            if drawn.id == 8102 and drawn.onStamp then R.blastOnBlast = R.blastOnBlast + 1 end
+        end
 
         return R
     end
@@ -117,4 +153,25 @@ return function(T)
     -- Floor: measured 81 (2026-11-07, 80 in game), less 2.
     Check("core S10R1: at least 79 hits off a Mind Blast or Smite stamp drawn as SW:P by the tracker",
         S10R1.swpTicks >= 79)
+
+    -- A Mind Blast alone on its cast stamp draws its icon (Locked.TicklessCast): 13 of the capture's 17 Mind Blast casts
+    -- have a lone shadow hit on their plate there (3 have two, 1 none), 12 drawn `-> tickless 8102` at their frame's end
+    -- and 1 `-> locked 8102` at once (a hit that the lock fit). The oracle is the log: every tickless draw is the only
+    -- hit of its school on its plate in its frame, counted from the HIT lines, not from the code's own frame list, and
+    -- sits on its own spell's cast stamp aimed at that plate, read from the CAST lines.
+    local byId, notSole, offCast = {}, 0, 0
+    for _, drawn in ipairs(S10R1.ticklessHits) do
+        byId[drawn.id] = (byId[drawn.id] or 0) + 1
+        local school = S10R1.schoolOf[drawn.id]
+        if S10R1.hitCounts[drawn.at .. "|" .. drawn.unit .. "|" .. school] ~= 1 then notSole = notSole + 1 end
+        if not drawn.onOwnCast then offCast = offCast + 1 end
+    end
+    T.Note(string.format("CORE S10R1 blastOnBlast=%d tickless 8102=%d tickless 598=%d notSole=%d offCast=%d",
+        S10R1.blastOnBlast, byId[8102] or 0, byId[598] or 0, notSole, offCast))
+    Check("core S10R1: the 13 of the capture's 17 Mind Blast casts with a lone shadow hit on their plate (3 have two,"
+        .. " 1 none) draw Mind Blast on their stamp", S10R1.blastOnBlast == 13)
+    Check("core S10R1: every tickless draw is the only hit of its school on its plate in its frame",
+        #S10R1.ticklessHits > 0 and notSole == 0)
+    Check("core S10R1: every tickless draw is on its own spell's cast stamp, on the plate that cast aimed at",
+        #S10R1.ticklessHits > 0 and offCast == 0)
 end

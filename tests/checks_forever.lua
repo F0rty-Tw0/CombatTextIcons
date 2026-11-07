@@ -191,6 +191,187 @@ return function(T)
         Check("cast frame: on retail a learned DoT still claims its cast frame's hit next to Mind Blast", drawn == "tex:" .. SWP)
     end
 
+    -- A Mind Blast or Smite alone on its cast stamp draws its icon (Locked.TicklessCast) ---------------------------------
+    do
+        local MIND_BLAST, SMITE = 8102, 585
+        local TICKLESS_ROUTE = "  -> tickless " .. MIND_BLAST
+        -- Casts `ids` at `t` aimed at `plate`; each secret hit of `hits` ({ plate, school }) lands at `t`, then the frame ends.
+        -- Returns the textures drawn (hidden hits draw nothing).
+        local function Frame(rig, t, plate, ids, hits)
+            for _, id in ipairs(ids) do rig.Cast(t, plate, id) end
+            local before = #rig.draws
+            for _, hit in ipairs(hits) do rig.Hit(t, hit[1], Secret(31), hit[2]) end
+            rig.ns.Core.FlushMates()
+            local textures = {}
+            for index = before + 1, #rig.draws do textures[#textures + 1] = rig.draws[index].texture end
+
+            return textures
+        end
+        local function Drew(textures, texture)
+            for _, drawn in ipairs(textures) do if drawn == texture then return true end end
+
+            return false
+        end
+
+        local rig = Rig(nil, true)
+        local drew = Frame(rig, 100, "nameplate1", { MIND_BLAST, SWP }, { { "nameplate1", 32 } })
+        Check("tickless: Mind Blast's lone shadow hit on its cast stamp draws Mind Blast", drew[1] == "tex:" .. MIND_BLAST)
+        Check("tickless: its debug route is 'tickless <id>'", rig.Route() == TICKLESS_ROUTE)
+
+        drew = Frame(rig, 200, "nameplate1", { MIND_BLAST, SWP }, { { "nameplate1", 32 }, { "nameplate1", 32 } })
+        Check("tickless: two shadow hits on the stamp's plate name neither Mind Blast", not Drew(drew, "tex:" .. MIND_BLAST))
+
+        -- a learned SW:P tick on the stamp counts toward the frame's 2: the tracker names one, the other stays unnamed
+        local ticking = Rig(function()
+            CombatTextIconsCharDB.lockedTicks = { [SWP] = { period = P, kind = "damage", school = 32, misses = 0 } }
+        end, true)
+        Frame(ticking, 250 - 3 * P, "nameplate1", { SWP }, {})
+        ticking.Hit(250 - 2 * P, "nameplate1", Secret(31), 32)
+        ticking.Hit(250 - P, "nameplate1", Secret(31), 32)
+        local logged = #ticking.log
+        drew = Frame(ticking, 250, "nameplate1", { MIND_BLAST, SWP }, { { "nameplate1", 32 }, { "nameplate1", 32 } })
+        local trackerNamed = false
+        for index = logged + 1, #ticking.log do
+            if ticking.log[index] == "  -> tracker " .. SWP then trackerNamed = true end
+        end
+        Check("tickless: the tracker names one of the stamp's two shadow hits SW:P", trackerNamed)
+        Check("tickless: a tick the tracker names on the stamp still counts as a second shadow hit",
+            not Drew(drew, "tex:" .. MIND_BLAST))
+
+        -- Rig re-Boots the harness (GetTime, plates): the checks below need a rig newer than `ticking`
+        rig = Rig(nil, true)
+        drew = Frame(rig, 300, "nameplate1", { MIND_BLAST }, { { "nameplate2", 32 } })
+        Check("tickless: a shadow hit on another plate than the cast's aim is not Mind Blast's", not Drew(drew, "tex:" .. MIND_BLAST))
+        drew = Frame(rig, 400, "nameplate1", { MIND_BLAST }, { { "nameplate1", 64 } })
+        Check("tickless: a hit of another school than Mind Blast's is not Mind Blast's", not Drew(drew, "tex:" .. MIND_BLAST))
+        drew = Frame(rig, 450, "nameplate1", { SMITE }, { { "nameplate1", 32 } })
+        Check("tickless: a shadow hit on Smite's stamp is not Smite's", not Drew(drew, "tex:" .. SMITE))
+        drew = Frame(rig, 500, "nameplate1", { SMITE }, { { "nameplate1", 2 } })
+        Check("tickless: Smite's lone holy hit on its cast stamp draws Smite", drew[1] == "tex:" .. SMITE)
+
+        rig.Cast(600, "nameplate1", MIND_BLAST)
+        local before = #rig.draws
+        rig.Hit(600, "nameplate1")
+        rig.ns.Core.FlushMates()
+        Check("tickless: a hit with a plain amount is not named by the cast stamp",
+            not (#rig.draws > before and rig.draws[#rig.draws].texture == "tex:" .. MIND_BLAST))
+
+        -- rule 1: the cast's own stamp only
+        rig.Cast(700, "nameplate1", MIND_BLAST)
+        drew = Frame(rig, 701, "nameplate1", {}, { { "nameplate1", 32 } })
+        Check("tickless: a lone shadow hit a second after Mind Blast's cast stamp is not Mind Blast's",
+            not Drew(drew, "tex:" .. MIND_BLAST))
+        -- only the cast's plate counts: a shadow hit on another plate in the frame leaves Mind Blast's hit alone on its own
+        drew = Frame(rig, 800, "nameplate1", { MIND_BLAST, SWP }, { { "nameplate1", 32 }, { "nameplate2", 32 } })
+        Check("tickless: a shadow hit on another plate in the frame does not stop Mind Blast's own",
+            Drew(drew, "tex:" .. MIND_BLAST))
+
+        -- the one spell a lock fits (Locked.Observe's sole) wins over the cast stamp
+        local locked = Rig(nil, true)
+        locked.ns.Locked.Observe = function() return 5019, 1 end
+        drew = Frame(locked, 100, "nameplate1", { MIND_BLAST }, { { "nameplate1", 32 } })
+        Check("tickless: a hit a lock names on Mind Blast's stamp draws the lock's spell", drew[1] == "tex:5019")
+        Check("tickless: its route stays 'locked <id>'", locked.Route() == "  -> locked 5019")
+    end
+
+    -- Touch of Weakness probe: log-only TAKEN and AURA lines, no routing or drawing change ----------------------
+    do
+        local TOW, TOW_PROC = 2652, 2943
+        local function Has(rig, line)
+            for _, entry in ipairs(rig.log) do if entry == line then return true end end
+
+            return false
+        end
+        local function Count(rig, prefix)
+            local count = 0
+            for _, entry in ipairs(rig.log) do if entry:find(prefix, 1, true) == 1 then count = count + 1 end end
+
+            return count
+        end
+        local function TakenDraws(rig)
+            local count = 0
+            for _, draw in ipairs(rig.draws) do if draw.kind == "taken" then count = count + 1 end end
+
+            return count
+        end
+        local added = { addedAuras = { { spellId = TOW, auraInstanceID = 7, applications = 0, duration = 600, isHelpful = true } } }
+
+        local rig = Rig(nil, true)
+        local Core = rig.ns.Core
+        local function Call(name, ...) return pcall(function(...) return Core[name](...) end, ...) end
+        Call("UNIT_COMBAT", "player", "DODGE", "", nil, 1)
+        Check("tow probe: a player DODGE logs the TAKEN line", Has(rig, "TAKEN player event=DODGE school=1 flag="))
+        Call("UNIT_COMBAT", "player", "WOUND", "CRITICAL", Secret(5), Secret(1))
+        Check("tow probe: a secret school and a flag log as '?' and the flag text",
+            Has(rig, "TAKEN player event=WOUND school=? flag=CRITICAL"))
+        Check("tow probe: a player WOUND still draws a taken number with debug on", TakenDraws(rig) == 1)
+        Call("UNIT_COMBAT", "player", "HEAL", "", 5, 2)
+        Check("tow probe: a player HEAL logs no TAKEN line", Count(rig, "TAKEN") == 2)
+
+        Call("UNIT_AURA", "player", added)
+        Check("tow probe: a helpful aura added to the player logs its id, instance, stacks and duration",
+            Has(rig, "AURA player add id=2652 inst=7 apps=0 dur=600"))
+        Call("UNIT_AURA", "player", { removedAuraInstanceIDs = { 7 } })
+        Check("tow probe: a removed aura instance logs the remove line", Has(rig, "AURA player remove inst=7"))
+        Call("UNIT_AURA", "player", { addedAuras = { { spellId = TOW, auraInstanceID = 8, isHarmful = true } } })
+        Check("tow probe: a harmful aura on the player logs nothing", Count(rig, "AURA player add") == 1)
+        Call("UNIT_AURA", "nameplate1",
+            { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 9, isHarmful = true, isFromPlayerOrPlayerPet = true } } })
+        Check("tow probe: the player's harmful aura on a plate logs its id and instance", Has(rig, "AURA nameplate1 add id=2943 inst=9"))
+        Call("UNIT_AURA", "nameplate1",
+            { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 10, isHarmful = true, sourceUnit = "player" } } })
+        Check("tow probe: a plate aura with sourceUnit player (no isFromPlayerOrPlayerPet) logs too",
+            Has(rig, "AURA nameplate1 add id=2943 inst=10"))
+        Call("UNIT_AURA", "nameplate1",
+            { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 11, isHarmful = true, isFromPlayerOrPlayerPet = false } } })
+        Call("UNIT_AURA", "nameplate1", { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 12, isHelpful = true } } })
+        Call("UNIT_AURA", "target", added)
+        Call("UNIT_AURA", "party1", added)
+        Check("tow probe: another's aura, a helpful plate aura and other units log nothing",
+            Count(rig, "AURA nameplate1 add") == 2 and Count(rig, "AURA player add") == 1)
+        Call("UNIT_AURA", "player", { addedAuras = { { spellId = Secret(TOW), auraInstanceID = 7, isHelpful = true } } })
+        Check("tow probe: a secret spell id logs as '?'", Has(rig, "AURA player add id=? inst=7 apps=? dur=?"))
+
+        local before = #rig.log
+        local okFull = Call("UNIT_AURA", "player", { isFullUpdate = true })
+        local okNil = Call("UNIT_AURA", "player", nil)
+        local okSecretInfo = Call("UNIT_AURA", "player", Secret({ addedAuras = {} }))
+        local okSecretUnit = Call("UNIT_AURA", Secret("player"), added)
+        local okSecretList = Call("UNIT_AURA", "player", { addedAuras = Secret({}), removedAuraInstanceIDs = Secret({}) })
+        Check("tow probe: a full update, nil and secret info or unit raise no error",
+            okFull and okNil and okSecretInfo and okSecretUnit and okSecretList)
+        Check("tow probe: a full update, nil and secret info or unit log no line", #rig.log == before)
+
+        CombatTextIconsDB.enabled = false
+        local logged = #rig.log
+        Call("UNIT_AURA", "player", added)
+        Check("tow probe: with the addon off a player aura logs nothing", #rig.log == logged)
+        CombatTextIconsDB.enabled = true
+
+        local quiet = Rig()
+        local function Saved() return #(CombatTextIconsDB.debugLog or {}) end
+        local saved = Saved()
+        local function QuietCall(name, ...) return pcall(quiet.ns.Core[name], ...) end
+        local okDodge = QuietCall("UNIT_COMBAT", "player", "DODGE", "", nil, 1)
+        local okAura = QuietCall("UNIT_AURA", "player", added)
+        local okGone = QuietCall("UNIT_AURA", "player", { removedAuraInstanceIDs = { 7 } })
+        local okPlate = QuietCall("UNIT_AURA", "nameplate1",
+            { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 9, isHarmful = true, isFromPlayerOrPlayerPet = true } } })
+        quiet.ns.Core.UNIT_COMBAT("player", "WOUND", "", 31, 32)
+        Check("tow probe: with debug off nothing errors", okDodge and okAura and okGone and okPlate)
+        Check("tow probe: with debug off the debug log is untouched", Saved() == saved)
+        Check("tow probe: a player WOUND still draws a taken number with debug off", TakenDraws(quiet) == 1)
+
+        local retail = Rig(function(S) S.interface = 120105 end, true)
+        retail.ns.Core.UNIT_COMBAT("player", "DODGE", "", nil, 1)
+        retail.ns.Core.UNIT_AURA("player", added)
+        retail.ns.Core.UNIT_AURA("nameplate1",
+            { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 9, isHarmful = true, isFromPlayerOrPlayerPet = true } } })
+        retail.ns.Core.UNIT_COMBAT("player", "WOUND", "", 31, 32)
+        Check("tow probe: retail logs no TAKEN or AURA line", Count(retail, "TAKEN") == 0 and Count(retail, "AURA") == 0)
+        Check("tow probe: retail still draws the taken number", TakenDraws(retail) == 1)
+    end
+
     -- 4. Debug lines ------------------------------------------------------------------------
     do
         local rig = Rig(nil, true)

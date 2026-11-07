@@ -507,7 +507,8 @@ local QueueFlush -- the next frame flushes what waits for its frame's end (below
 -- ownFrame = { at = a frame's stamp, schools = { [school] = true } }; held = { at = the frame's stamp, hits = { {
 -- plate, school, amount, flagText, kind, record }, ... } } (kind, record: its Casts.Claim answer; a held share has
 -- `share` instead, HoldShare, a held ground crit `ground`, its record, HoldGround, a held splash `spread`, its
--- record, HoldSpread, and a held chain hop `hop`, its record, HoldHop).
+-- record, HoldSpread, a held chain hop `hop`, its record, HoldHop, and a held hit on a Mind Blast or Smite's cast
+-- stamp `tickless`, that spell's ID, HoldTickless).
 local ownFrame, held = { schools = {} }, { hits = {} }
 
 -- A solo hit of `school` landed on a mob fighting you at `now`: its frame's held hits of that school are mates.
@@ -610,8 +611,9 @@ end
 
 -- A solo hit on a mob fighting you that nothing named: the teacher learns from it (Teacher.Unknown), and it draws the
 -- question mark while MayQuestion holds and the school is one a clear read saw. `cast` is Casts.SoleCast at the hit.
--- `sole` (Locked.Observe, only from Wound) is the one spell that fits the hit: it draws that spell's icon instead.
-local function Question(plate, school, amount, flagText, now, cast, candidates, sole)
+-- `sole` (Locked.Observe from Wound, or Locked.TicklessCast via DrawTickless) is the one spell that fits the hit: it
+-- draws that spell's icon instead, under the debug `route` ("locked" by default; DrawTickless passes "tickless").
+local function Question(plate, school, amount, flagText, now, cast, candidates, sole, route)
     Teacher.Unknown(plate, school, amount, now, cast, flagText, candidates)
     if not MayQuestion(amount) then
         if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
@@ -623,7 +625,7 @@ local function Question(plate, school, amount, flagText, now, cast, candidates, 
         return
     end
     if sole then
-        if ns.Debug then ns.Debug("  -> locked %s", ShowValue(sole)) end
+        if ns.Debug then ns.Debug("  -> %s %s", route or "locked", ShowValue(sole)) end
         Drawn(sole, amount)
         ns.Locked.Drew(sole)
         Ledger.Add("damage", sole, amount)
@@ -645,6 +647,22 @@ local function DrawShare(hit)
     Drawn(hit.share, hit.amount, hit.at)
     Ledger.Add("damage", hit.share, hit.amount)
     Display.Plate(hit.plate, SpellTexture(hit.share), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
+end
+
+-- A hit held on a Mind Blast or Smite's cast stamp (HoldTickless) at its frame's end: that spell's own when it is the
+-- only hit of its school on its plate in the frame (frameHits counts hits the tracker named too), else the question mark
+-- route it was held from (Question), since a second hit there may be a DoT's tick.
+local function DrawTickless(hit)
+    local hits, frameList = 0, frameHits.at == hit.at and frameHits.list or {}
+    for _, entry in ipairs(frameList) do
+        if Plain(entry.school) and entry.school == hit.school and entry.plate == hit.plate then hits = hits + 1 end
+    end
+    if hits ~= 1 then
+        return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates)
+    end
+
+    return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates, hit.tickless,
+        "tickless")
 end
 
 -- A held crit that may start a ground cast's first tick (HoldGround) at its frame's end: drawn as that cast when its
@@ -717,7 +735,8 @@ end
 -- Ends the held hits' frame once `now` is past its stamp, or with nil (the fight ended; the replays end each frame
 -- with it too): each is a mate or a stranger's (DrawMate), a split proc's share (DrawShare), a crit that may start
 -- a ground cast's first tick (DrawGround), a cast's splash (DrawSpread), a chain's hop logged ahead of its own first
--- hit (DrawHop, `plates[record]` the plates its frame's held hops of that record hit), or a ground cast's hit (DrawTick).
+-- hit (DrawHop, `plates[record]` the plates its frame's held hops of that record hit), a hit on a Mind Blast or Smite's
+-- cast stamp (DrawTickless), or a ground cast's hit (DrawTick).
 function Core.FlushMates(now)
     local hits = held.hits
     if #hits == 0 or (now and now <= held.at) then return end
@@ -743,6 +762,8 @@ function Core.FlushMates(now)
     for _, hit in ipairs(hits) do
         if hit.share then
             DrawShare(hit)
+        elseif hit.tickless then
+            DrawTickless(hit)
         elseif hit.spread then
             DrawSpread(hit, spreads)
         elseif hit.ground then
@@ -777,6 +798,18 @@ local function HoldShare(plate, school, amount, flagText, now, procID, cast, can
     held.hits[#held.hits + 1] = { plate = plate, school = school, amount = amount, flagText = flagText, at = now,
         share = procID, cast = cast, candidates = candidates }
     if ns.Debug then ns.Debug("  .. share") end
+    QueueFlush()
+end
+
+-- Holds a solo secret hit that is the school of the Mind Blast or Smite `spellID` (Locked.TicklessCast) cast on this
+-- stamp and aimed at its plate until its frame ends: the frame shows whether it is the only hit of that school there.
+-- DrawTickless decides.
+local function HoldTickless(plate, school, amount, flagText, now, spellID, cast, candidates)
+    Core.FlushMates(now)
+    if held.at ~= now then held = { at = now, hits = {} } end
+    held.hits[#held.hits + 1] = { plate = plate, school = school, amount = amount, flagText = flagText, at = now,
+        tickless = spellID, cast = cast, candidates = candidates }
+    if ns.Debug then ns.Debug("  .. tickless") end
     QueueFlush()
 end
 
@@ -845,7 +878,9 @@ end
 -- and so does a solo '?' hit a learned proc's twin split band holds (HoldShare), or a solo '?' crit that may start a
 -- learned ground cast's first tick (HoldGround), or a solo '?' hit that may be a learned cast's even splash on the
 -- plates around (HoldSpread), or a solo '?' hit that may be a learned chain's hop logged ahead of its own first hit in
--- its frame (HoldHop). The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
+-- its frame (HoldHop), or a solo secret hit of the school of the Mind Blast or Smite cast on its stamp and aimed at its
+-- plate that no lock fits (HoldTickless: it draws that spell when it is its school's only hit on the plate in the
+-- frame, else '?'). The crowd check sees every wound that may be yours: one the tracker names, or one on a mob fighting
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
 -- (run 153349Z: strangers on 8 nearby dummies made both reads crowded). Frame mates reach the area pass only
 -- (Teacher.Mate), never the crowd check.
@@ -1034,6 +1069,10 @@ local function Wound(plate, unit, flagText, amount, school, now)
         local hop = kind == nil and Teacher.NotCrowded()
             and Casts.HopFirst(plate, school, now, Streams.NormalAmount(amount, flagText))
         if hop then return HoldHop(plate, school, amount, flagText, now, hop, cast, candidates) end
+
+        -- a lone secret hit of a Mind Blast or Smite's school on its cast stamp is that spell's (HoldTickless)
+        local tickless = asksLocked and sole == nil and ns.Locked.TicklessCast(plate, school, now)
+        if tickless then return HoldTickless(plate, school, amount, flagText, now, tickless, cast, candidates) end
 
         return Question(plate, school, amount, flagText, now, cast, candidates, sole)
     end
@@ -1294,9 +1333,56 @@ function Core.UNIT_COMBAT(unit, event, flagText, amount, school)
         EnemyHit(unit, event, flagText, amount, school, now)
     elseif event == "HEAL" and (unit == "player" or unit:find("^party[1-4]$")) then
         Core.Heal(unit, flagText, amount, school, now)
-    elseif event == "WOUND" and unit == "player" then
-        Taken(flagText, amount)
+    elseif unit == "player" then
+        -- grug: ToW probe (2026-11-07): remove once the ToW rule is chosen.
+        if ns.Debug and ns.IsForever then
+            ns.Debug("TAKEN player event=%s school=%s flag=%s", event, ShowValue(school), ShowValue(flagText))
+        end
+        if event == "WOUND" then Taken(flagText, amount) end
     end
+end
+
+-- grug: ToW probe (2026-11-07), everything from here to Core.UNIT_AURA: remove once the ToW rule is chosen.
+-- Debug lines only: the player's buffs coming and going, and the player's debuffs on plates, so the log shows what
+-- Touch of Weakness (2652, proc 2943) does. Every field may be secret: ShowValue logs it as "?".
+local function IsTable(value) return Plain(value) and type(value) == "table" end
+
+-- Whether the plain table `aura` is the player's debuff.
+local function IsPlateAura(aura)
+    if not (Plain(aura.isHarmful) and aura.isHarmful) then return false end
+    if Plain(aura.isFromPlayerOrPlayerPet) then return aura.isFromPlayerOrPlayerPet == true end
+
+    return Plain(aura.sourceUnit) and aura.sourceUnit == "player"
+end
+
+-- Logs one added aura of `unit` (player or a plate): the player's buff, or the player's debuff on a plate. A secret
+-- entry names nothing.
+local function LogAddedAura(unit, aura)
+    if not IsTable(aura) then return end
+    if unit == "player" and Plain(aura.isHelpful) and aura.isHelpful then
+        ns.Debug("AURA player add id=%s inst=%s apps=%s dur=%s", ShowValue(aura.spellId),
+            ShowValue(aura.auraInstanceID), ShowValue(aura.applications), ShowValue(aura.duration))
+    elseif unit ~= "player" and IsPlateAura(aura) then
+        ns.Debug("AURA %s add id=%s inst=%s", unit, ShowValue(aura.spellId), ShowValue(aura.auraInstanceID))
+    end
+end
+
+local function LogAuras(unit, updateInfo)
+    local added = updateInfo.addedAuras
+    if IsTable(added) then
+        for _, aura in ipairs(added) do LogAddedAura(unit, aura) end
+    end
+    local removed = updateInfo.removedAuraInstanceIDs
+    if unit == "player" and IsTable(removed) then
+        for _, instance in ipairs(removed) do ns.Debug("AURA player remove inst=%s", ShowValue(instance)) end
+    end
+end
+
+function Core.UNIT_AURA(unit, updateInfo)
+    if not db.enabled then return end
+    local logs, hasInfo = ns.Debug and ns.IsForever, IsTable(updateInfo)
+    if not (logs and hasInfo and Plain(unit)) then return end
+    if unit == "player" or unit:find("^nameplate%d+$") then LogAuras(unit, updateInfo) end
 end
 
 -- The pet's harmful casts join the cast log too: the meter lists pet damage among the player's own rows
@@ -1394,6 +1480,8 @@ events:RegisterEvent("PLAYER_LOGOUT")
 events:RegisterEvent("PLAYER_REGEN_ENABLED")
 events:RegisterEvent("PLAYER_REGEN_DISABLED")
 events:RegisterEvent("UNIT_COMBAT")
+-- grug: ToW probe (2026-11-07): remove once the ToW rule is chosen. Unfiltered: the plates' auras need that.
+events:RegisterEvent("UNIT_AURA")
 events:RegisterEvent("NAME_PLATE_UNIT_ADDED")
 events:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
 events:RegisterEvent("GROUP_ROSTER_UPDATE")

@@ -5,8 +5,7 @@ return function(T)
     local Check = T.Check
     local HARMFUL = { [5019] = true, [585] = true, [589] = true, [591] = true, [594] = true, [8092] = true, [8102] = true,
         [598] = true, [970] = true, [8122] = true }
-    -- SW:P, every rank in the captures: 589, 594, 970
-    local SWP = { [589] = true, [594] = true, [970] = true }
+    local SWP, ReadMeter = T.SWP_RANKS, T.ReadMeter
     local LOGS = { "forever-secret-2026-11-05.log", "forever-s4-run1-2026-11-05.log", "forever-s4-run2-2026-11-05.log",
         "forever-s4-run3-2026-11-05.log" }
 
@@ -20,27 +19,6 @@ return function(T)
         ns.LockedHeals.Init(store)
 
         return ns, store
-    end
-
-    -- rows: list of { spellID, totalAmount }. session nil: GetAvailableCombatSessions errors.
-    local function Meter(session, rows)
-        C_DamageMeter.GetAvailableCombatSessions = function()
-            if session == nil then error("no sessions") end
-            return { { sessionID = session } }
-        end
-        C_DamageMeter.GetCombatSessionSourceFromID = function()
-            local out = {}
-            for i, r in ipairs(rows or {}) do out[i] = { spellID = r[1], totalAmount = r[2] } end
-            return { combatSpells = out }
-        end
-    end
-
-    -- "session:68,591:29" or "session:68,secret:secret,..." -> the session ID, then rows, each part secret or a number.
-    local function ReadMeter(text)
-        local function Part(word) return word == "secret" and T.Secret(1) or tonumber(word) end
-        local rows = {}
-        for spell, total in text:gmatch(",(%w+):(%w+)") do rows[#rows + 1] = { Part(spell), Part(total) } end
-        Meter(tonumber(text:match("session:(%d+)")), rows)
     end
 
     local function ReadLines(name)

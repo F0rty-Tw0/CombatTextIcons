@@ -42,11 +42,13 @@ local REFINE = 0.25     -- share of the gap to a taken tick's estimate that the 
 -- `CAST player 8102 base=8102,8102`). A listed spell on a cast stamp is no partner, so the instant cast queued with it
 -- (SW:P after Mind Blast) is still alone and learns; a listed spell never learns. A list, not "has a cast bar": a hard
 -- cast with its own DoT (Holy Fire) would teach its partner that DoT (spec 2026-11-07-forever-swp-stamp-partner).
+-- The value is the spell's school (Mind Blast shadow 32, Smite holy 2): Locked.TicklessCast names a lone hit of that
+-- school on the cast's stamp as the spell's own.
 local TICKLESS = {
-    [8092] = true, [8102] = true, [8103] = true, [8104] = true, [8105] = true, [8106] = true,
-    [10945] = true, [10946] = true, [10947] = true, -- Mind Blast
-    [585] = true, [591] = true, [598] = true, [984] = true, [1004] = true, [6060] = true,
-    [10933] = true, [10934] = true, -- Smite
+    [8092] = 32, [8102] = 32, [8103] = 32, [8104] = 32, [8105] = 32, [8106] = 32,
+    [10945] = 32, [10946] = 32, [10947] = 32, -- Mind Blast
+    [585] = 2, [591] = 2, [598] = 2, [984] = 2, [1004] = 2, [6060] = 2,
+    [10933] = 2, [10934] = 2, -- Smite
 }
 Ticks.TICKLESS = TICKLESS -- read-only
 

@@ -649,14 +649,6 @@ return function(T)
         local lines = {}
         for line in io.lines(T.Root .. "/tests/fixtures/forever-secret-2026-11-05.log") do lines[#lines + 1] = line end
 
-        -- "session:68,591:29" or "session:68,secret:secret,..." -> the session ID, then rows, each part secret or a number.
-        local function ReadMeter(text)
-            local function Part(word) return word == "secret" and T.Secret(1) or tonumber(word) end
-            local rows = {}
-            for spell, total in text:gmatch(",(%w+):(%w+)") do rows[#rows + 1] = { Part(spell), Part(total) } end
-            Meter(tonumber(text:match("session:(%d+)")), rows)
-        end
-
         local named, shadow, shoots, two, holyNamed, holy = 0, 0, 0, 0, 0, 0
         local fight, perFight = 1, { 0 }
         local lastShoot, perShoot, maxPerShoot = nil, {}, 0
@@ -669,7 +661,7 @@ return function(T)
                 L.NoteCast(cast, at, T.PlateOf(lines, i))
                 if cast == 5019 then lastShoot, shoots = at, shoots + 1 end
             elseif school then
-                ReadMeter(lines[i + 1]:match("meter=(%S+)"))
+                T.ReadMeter(lines[i + 1]:match("meter=(%S+)"))
                 local sole, fits = L.Observe(rest:match("^HIT (%S+)"), school, at)
                 if school == 32 then
                     shadow = shadow + 1

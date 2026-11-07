@@ -206,6 +206,17 @@ function Locked.NoteCast(spellID, now, plate)
     casts[spellID] = now
 end
 
+-- The Mind Blast or Smite (Ticks.TICKLESS) cast at `now` and aimed at `plate` whose school is `school`, else nil: its
+-- direct hit lands on its own cast stamp (S10 run 1: 16 of 17 Mind Blasts did), so a hit of that school on that plate in
+-- that frame is the spell's. Core.DrawTickless checks the hit is the frame's only one of the school on the plate.
+function Locked.TicklessCast(plate, school, now)
+    if not ns.IsForever then return end
+
+    for spellID, spellSchool in pairs(Ticks.TICKLESS) do
+        if casts[spellID] == now and castPlate[spellID] == plate and spellSchool == school then return spellID end
+    end
+end
+
 local function IsUsed(spellID, castTime) return used[spellID] ~= nil and used[spellID][castTime] == true end
 
 -- The kept delay from another cast nearest `delay` and within DELAY_TOL, or nil.
