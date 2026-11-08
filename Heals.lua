@@ -39,8 +39,8 @@
 -- (63K) drew '?'. Its school is the one of the pairs inside the k: a channel's window holds other spells' hits. A
 -- heal under another ID than its hit's is not learned: lock's Drain Life heals log under 1272114, a row the
 -- player's raw cannot sum (it heals the pet too), and each read lists the same three rows.
--- Core's waiting heals ask Heals.Claim which of a frame's heals a learned size, coupled hit, helpful cast or running
--- train made.
+-- PlayerHits' waiting heals ask Heals.Claim which of a frame's heals a learned size, coupled hit, helpful cast or
+-- running train made.
 -- Trains: a HoT or totem a helpful cast starts heals you in ticks phase-locked to that cast (Stormstream 1267068
 -- under Healing Stream Totem 5394, Healing Tide 108280: a first tick PERIOD_LO-PERIOD_HI after the cast, then one
 -- each period, SLACK either side, each within STEP of the last). A clear read's cast walks its ticks; a walk is none
@@ -273,7 +273,7 @@ local function CoupleRow(amount, hits)
 end
 
 -- Whether any heal, size, couple or train is learned, or a cast is one sample from it (Completes): only then do
--- Core's heals on you wait for their frame.
+-- PlayerHits' heals on you wait for their frame.
 function Heals.AnyLearned()
     for spellID, entry in pairs(heals) do
         if Learned(entry) or Completes(spellID, entry.sizes[#entry.sizes]) then return true end

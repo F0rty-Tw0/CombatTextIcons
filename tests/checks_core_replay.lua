@@ -201,7 +201,7 @@ return function(T)
     Check("core S10R1: every tickless draw is on its own spell's cast stamp, on the plate that cast aimed at",
         #S10R1.ticklessHits > 0 and offCast == 0)
 
-    -- Touch of Weakness's proc draws its icon (Core.HoldTow): the hit is a shadow `?` with no `HEAL player` within
+    -- Touch of Weakness's proc draws its icon (TowHold.Hold): the hit is a shadow `?` with no `HEAL player` within
     -- 0.15 s and a buff cast armed it. The oracle is the meter: each TEACH row of the proc in the log is one proc, and
     -- the hit of each is the one the rule picks (run 10 rank 1 buff 2652 -> proc 2943, 2 rows; run 11 rank 2 buff 19261
     -- -> proc 19249, 5 rows, 3 of them with no shadow spell cast yet); no other hit draws as the proc.

@@ -450,7 +450,7 @@ local function Splash(record, plate, school, now, size)
 end
 
 -- Whether no unclaimed hit of `school` NearSizes `record` landed on another plate than its cast's in the QUIET before
--- `at` (Splash's guard; Core's frame mates too): hits like it on other plates anyway are another spell's, or a
+-- `at` (Splash's guard; HitRoute's frame mates too): hits like it on other plates anyway are another spell's, or a
 -- stranger's.
 function Casts.Quiet(record, school, at)
     for _, wound in ipairs(wounds) do
@@ -527,7 +527,7 @@ local function Fits(record, fp, plate, school, now, size, crit)
         -- a tick is anchored only by a normal hit near the learned sizes (Ground's Near: a halved crit of another
         -- spell passes for one), or by a crit near them on its learned scale (GroundSize) on a tick after one seen
         -- (Ground.lua's Walk); the padded band draws the rest of its frame. A first-tick crit waits for its frame's
-        -- end in Core instead (Casts.GroundFirst)
+        -- end in HitRoute instead (Casts.GroundFirst)
         local tick = GroundTick(record, fp, now)
         local lattice = record.tickAt ~= nil and tick ~= nil and tick > record.tick
         local near = NearSizes(record, GroundSize(fp, size, crit))
@@ -799,7 +799,7 @@ end
 -- The ground record a crit that Claim named no one's may start the first tick of, or nil: one that has seen no tick
 -- yet, the crit inside its first-tick window, in band and near the learned sizes on its crit scale (GroundSize). A crit
 -- alone anchors no first tick (Fits): another spell's crits land in that window too (shaman5 F5: three 16.5K crits on
--- one plate at 200335.220). Core holds such a crit to its frame's end, and its frame decides (Casts.GroundStarts).
+-- one plate at 200335.220). HitRoute holds such a crit to its frame's end, and its frame decides (Casts.GroundStarts).
 -- Shaman5 F5: Earthquake's first tick at 200335.316 was five crits on five plates (25.1-26.5K, ~3x its 8.8K normals)
 -- and no normal, all '?'; at 200318.972 two crits came ahead of the normals that anchored their frame, and stayed '?'.
 function Casts.GroundFirst(plate, school, now, size, flagText)
@@ -832,11 +832,11 @@ end
 
 -- The record a solo hit nothing named may be the even splash of before the area pass marked its spell area, or nil:
 -- a learned single-target cast's whose window (RecordWindow, SLACK about it) holds the hit on another plate it has not
--- hit, of its school, in its band from AREA_LO of its smallest; records of two spells hold it: nil. Core holds such a
--- hit to its frame's end, and its frame decides (Casts.Spreads). Run paladin2 F2: Hammer of Light 427453 (learned at
--- 45377-46266 on its target, 0.562-0.565 s after the cast) put 25-29K (crits twice that) on the 4 dummies around in
--- one frame 0.593-0.597 s after each cast, before or after its own target hit (0.53-1.01 s); the area pass marked it
--- only at the fight's end, and 12 of them (370897 of its row 727101) went '?'.
+-- hit, of its school, in its band from AREA_LO of its smallest; records of two spells hold it: nil. HitRoute holds such
+-- a hit to its frame's end, and its frame decides (Casts.Spreads). Run paladin2 F2: Hammer of Light 427453 (learned at
+-- 45377-46266 on its target, 0.562-0.565 s after the cast) put 25-29K (crits twice that) on the 4 dummies around in one
+-- frame 0.593-0.597 s after each cast, before or after its own target hit (0.53-1.01 s); the area pass marked it only
+-- at the fight's end, and 12 of them (370897 of its row 727101) went '?'.
 function Casts.SpreadFirst(plate, school, now, size)
     if not (Plain(plate) and Plain(school) and Plain(now) and IsNumber(size)) then return nil end
     local found
@@ -859,7 +859,7 @@ end
 -- The learned chain record a solo hit nothing named may be a hop of, logged in its frame ahead of the cast's own first
 -- hit, or nil: one that took no hit yet, of the hit's school, the hit on another plate than its cast's, inside its
 -- window (RecordWindow, SLACK about it) and its learned sizes, unpadded. A frame logs its hits plate by plate, in no
--- spell's order. Core holds such a hit to its frame's end, and the record's own hit decides (Casts.HopsAhead). Run
+-- spell's order. HitRoute holds such a hit to its frame's end, and the record's own hit decides (Casts.HopsAhead). Run
 -- shaman6 F3: cast 243932.587 hit 5 plates in one frame 0.19 s after it, and nameplate6's 3 hits (42866 crit, 14247,
 -- 14237) came the lines before its target's first, all '?'.
 function Casts.HopFirst(plate, school, now, size)

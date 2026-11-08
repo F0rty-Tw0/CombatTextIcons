@@ -1727,10 +1727,11 @@ function Teacher.Grouped()
     if Teacher.fight then Teacher.fight.group = true end
 end
 
--- A wound of this size and `school` that may be yours was seen on `plate` at `now`, drawn or not (Core's Wound decides
--- which count; a wound without a plate counts on one shared key). Past the live crowd check's bound (CROWD_PACE) on
--- one plate the fight is crowded until it ends. A wound on your target (`isTarget`) also counts in targetSeen, and its
--- (stamp, plate) pair joins targetHits when it has both: a crowded read can later learn from what hit your target.
+-- A wound of this size and `school` that may be yours was seen on `plate` at `now`, drawn or not (HitRoute's Wound
+-- decides which count; a wound without a plate counts on one shared key). Past the live crowd check's bound
+-- (CROWD_PACE) on one plate the fight is crowded until it ends. A wound on your target (`isTarget`) also counts in
+-- targetSeen, and its (stamp, plate) pair joins targetHits when it has both: a crowded read can later learn from what
+-- hit your target.
 function Teacher.Seen(amount, now, school, plate, isTarget)
     local fight = Teacher.fight
     if not (fight and IsNumber(amount)) then return end
@@ -1852,7 +1853,7 @@ function Teacher.Mate(plate, school, amount, now, flagText)
         crit = Procs.Crit(flagText), size = Streams.NormalAmount(amount, flagText) }
 end
 
--- A hit drawn as the even splash of the learned cast `castID` before its area was marked (Core's DrawSpread): drawn
+-- A hit drawn as the even splash of the learned cast `castID` before its area was marked (HitRoute's DrawSpread): drawn
 -- under its row, but the area pass weighs it as the '?' hit it would have been (Area.Learn), so the meter still
 -- decides whether the cast is area.
 function Teacher.Spread(plate, school, amount, now, flagText, castID)

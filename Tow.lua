@@ -1,6 +1,6 @@
--- Combat Text Icons: Touch of Weakness (WoW Forever only). Its cast arms the buff's proc ID for 600 s; Core holds a
--- shadow `?` hit while armed and draws it as the proc when no heal on you comes with it (Core.HoldTow). Not a lock: no
--- Locked.Observe. Note arms, Armed reads the arm, Spent clears the arm a drawn proc used.
+-- Combat Text Icons: Touch of Weakness (WoW Forever only). Its cast arms the buff's proc ID for 600 s; TowHold.lua
+-- holds a shadow `?` hit while armed and draws it as the proc when no heal on you comes with it (TowHold.Hold). Not a
+-- lock: no Locked.Observe. Note arms, Armed reads the arm, Spent clears the arm a drawn proc used.
 
 local _, ns = ...
 

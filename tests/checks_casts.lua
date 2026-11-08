@@ -1059,10 +1059,10 @@ do -- Phase 3: records and Claim
         end)
     -- Run paladin2 F2: Hammer of Light 427453 (learned on its target) put one 25-29K hit on each of the 4 dummies around
     -- in one frame inside its cast's window, apart from its own target hit and under PAD_LO; before the area pass marked
-    -- it they went '?'. A '?' hit nothing named waits for its frame's end (Core.HoldSpread) and draws as the cast when
-    -- its frame's held hits are one per plate on two plates or more, of one size within 5 %, with no hit of its school
-    -- but the cast's own of their size on the cast's plate in that frame (run hunter F3: Beast Cleave's hits came in
-    -- Kill Command 17253's own hit's frame, 75 % of it) and none like them on another plate in the QUIET before
+    -- it they went '?'. A '?' hit nothing named waits for its frame's end (HitRoute's HoldSpread) and draws as the cast
+    -- when its frame's held hits are one per plate on two plates or more, of one size within 5 %, with no hit of its
+    -- school but the cast's own of their size on the cast's plate in that frame (run hunter F3: Beast Cleave's hits
+    -- came in Kill Command 17253's own hit's frame, 75 % of it) and none like them on another plate in the QUIET before
     -- (Casts.Spreads).
     Scenario("spread: a frame of like-sized hits on the plates around, in a cast's window, draws as the cast",
         function()
@@ -1432,7 +1432,7 @@ do -- Phase 3: records and Claim
                 S.now, S.target = 30, nil
                 ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 462620)
                 for _, hit in ipairs(hits) do
-                    ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (Core.HoldTick)
+                    ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (HitRoute's HoldTick)
                     S.now, drawn = hit[1], nil
                     ns.Core.UNIT_COMBAT(hit[3], "WOUND", hit[4] or "", hit[2], 8)
                 end
@@ -1473,7 +1473,7 @@ do -- Phase 3: records and Claim
             S.now, S.target = 30, nil
             ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c30", 462620)
             for _, hit in ipairs(hits) do
-                ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (Core.HoldTick)
+                ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (HitRoute's HoldTick)
                 S.now, drawn = hit[1], nil
                 ns.Core.UNIT_COMBAT(hit[3], "WOUND", hit[4] or "", hit[2], 8)
             end
@@ -1552,7 +1552,7 @@ do -- Phase 3: records and Claim
                     S.now = second
                     ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c32", 462620)
                 end
-                ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (Core.HoldTick)
+                ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (HitRoute's HoldTick)
                 S.now, drawn = hit[1], nil
                 ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 8)
             end
@@ -1591,7 +1591,7 @@ do -- Phase 3: records and Claim
                     S.now, S.target = castAt, "nameplate2"
                     ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c99", 589)
                 end
-                ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (Core.HoldTick)
+                ns.Core.FlushMates(hit[1]) -- a tick draws at its frame's end (HitRoute's HoldTick)
                 S.now, drawn = hit[1], nil
                 ns.Core.UNIT_COMBAT(hit[3], "WOUND", "", hit[2], 8)
             end
@@ -1923,10 +1923,10 @@ do -- Phase 3: records and Claim
             and ns.Casts.Claim(P(2), 8, 20.3) == nil and ns.Casts.Claim(P(1), 8, 20.3) == nil
     end)
     -- Run shaman6 F3: cast 243932.587 hit 5 plates in one frame, and nameplate6's 3 hits came the lines before its
-    -- target's first, all '?'. A '?' hit nothing named waits for its frame's end (Core.HoldHop) and draws as the chain
-    -- when the record's own first hit landed in that frame (Casts.HopsAhead): its hop and the overload beside it, not a
-    -- third; never with no own hit in the frame, nor with two plates logged ahead of it (shaman6 F2, shaman5 F5: their
-    -- rows ran over).
+    -- target's first, all '?'. A '?' hit nothing named waits for its frame's end (HitRoute's HoldHop) and draws as the
+    -- chain when the record's own first hit landed in that frame (Casts.HopsAhead): its hop and the overload beside it,
+    -- not a third; never with no own hit in the frame, nor with two plates logged ahead of it (shaman6 F2, shaman5 F5:
+    -- their rows ran over).
     Scenario("hop: a chain's hits on another plate logged ahead of its own first hit in that frame draw as it", function()
         -- hits { amount, unit } of Nature at 20.2 after a chain cast at 20 at nameplate1 (learned at 11685-22465, 0.2 s).
         -- Returns nameplate2's icons in draw order.

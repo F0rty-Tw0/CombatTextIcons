@@ -3310,7 +3310,7 @@ return function(T)
         rig.S.now = 99
         rig.ns.Core.PLAYER_REGEN_DISABLED()
         rig.Cast(100, nil, EARTHQUAKE)
-        -- a tick draws at its frame's end (Core.HoldTick)
+        -- a tick draws at its frame's end (HitRoute's HoldTick)
         local function Tick(t, unit, amount)
             local before = #rig.draws
             rig.Hit(t, unit, amount, 8)

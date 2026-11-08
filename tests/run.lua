@@ -345,7 +345,7 @@ local function ParseLog(name, log)
             event.target = hitTarget and hitTarget == "true"    -- nil when the log has no target= (older logs)
             if hitThreat then event.threat = tonumber(hitThreat) or false end -- false: threat=nil (not on its list)
             event.npc = tonumber(hitNPC)                        -- nil: no creature ID (Player, nil, secret, older logs)
-            -- IsInGroup()'s logged answer; secret or err count as grouped, as Core's InGroup does; nil: older logs
+            -- IsInGroup()'s logged answer; secret or err count as grouped, as HitRoute.InGroup does; nil: older logs
             if hitGroup then event.group = hitGroup ~= "false" end
             if pendingRead and pendingRead.t == event.t then
                 event.read, pendingRead.paired, pendingRead = pendingRead, true, nil
@@ -617,7 +617,7 @@ local function Replay(name, opts)
         ns.Teacher.Seen = function() end
     end
     local route -- the last "  -> " debug line of the UNIT_COMBAT being replayed
-    local held -- the UNIT_COMBAT being replayed waits for its frame's end (Core's "  .. held" line)
+    local held -- the UNIT_COMBAT being replayed waits for its frame's end (HitRoute's "  .. held" line)
     local steady = {} -- the steady pass's TEACH lines, for the criteria's detail text
     local onRoute -- while the replay flushes waiting heals: takes each one's route line
     ns.Debug = function(format, ...)
@@ -732,7 +732,7 @@ local function Replay(name, opts)
             local logged = (opts.logThreat or opts.replayThreat) and event.threat
             if logged ~= nil then S.threat[event.unit] = logged end
             if event.group ~= nil then S.group = event.group end
-            -- the logged creature ID, so the dummy rule learns it as in game (Core.CreatureID parses this shape)
+            -- the logged creature ID, so the dummy rule learns it as in game (HitRoute's CreatureID parses this shape)
             if opts.replayThreat then
                 local npc = event.npc
                 S.guids[event.unit] = npc and string.format("Creature-0-0-0-0-%d-%s", npc, event.unit) or nil

@@ -34,4 +34,9 @@ Display.lua
 Progress.lua
 Panel.lua
 MinimapButton.lua
+DebugLog.lua
+HitRoute.lua
+TowHold.lua
+PlayerHits.lua
+BlizzardText.lua
 Core.lua

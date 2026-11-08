@@ -208,7 +208,7 @@ end
 
 -- The Mind Blast or Smite (Ticks.TICKLESS) cast at `now` and aimed at `plate` whose school is `school`, else nil: its
 -- direct hit lands on its own cast stamp (S10 run 1: 16 of 17 Mind Blasts did), so a hit of that school on that plate in
--- that frame is the spell's. Core.DrawTickless checks the hit is the frame's only one of the school on the plate.
+-- that frame is the spell's. HitRoute's DrawTickless checks the hit is the frame's only one of the school on the plate.
 function Locked.TicklessCast(plate, school, now)
     if not ns.IsForever then return end
 

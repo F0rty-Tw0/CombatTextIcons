@@ -1044,7 +1044,7 @@ end
 -- The spell of this fight's casts (`casts`, each { spellID, base }) that is both a learned hit (a fingerprint) and a
 -- learned DoT (Learn) of the group's school, its hit's size band (Fingerprints.Band) one the group's band meets
 -- (Overlaps), or nil. The tracker names that DoT on the cast's plate, and a hit it names so goes to a learned proc before
--- the cast's own claim (Core's Wound): a proc learned from the group would draw the cast's hits. Run hunter2: proc
+-- the cast's own claim (HitRoute's Wound): a proc learned from the group would draw the cast's hits. Run hunter2: proc
 -- 1264485's group (11304-12960, school 32) paired its row in F1, F3, F7 and F10, each a fight Black Arrow 466930 (hit
 -- 12156-14588, DoT ticks 1185, school 32) was cast in; learned at F10, it drew Black Arrow's 12672 on its cast's stamp
 -- in F14 (the tracker named 466930) and a 30409 crit 0.51 s after its cast in F13. A cast with no learned DoT keeps its
