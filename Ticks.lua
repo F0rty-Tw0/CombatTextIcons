@@ -52,6 +52,16 @@ local TICKLESS = {
 }
 Ticks.TICKLESS = TICKLESS -- read-only
 
+-- Forever DoTs with no opening hit: their cast frame deals nothing, so Tracker gives them no hit there (S12 run 1:
+-- the 1260198 drain and a Touch of Weakness proc on SW:P's or Devouring Plague's cast stamp drew as the DoT). DoTs that
+-- open with a hit (Holy Fire, Immolate, Moonfire, Flame Shock) are not listed. 970 and 2944 are from logs; the other
+-- ranks are Classic data.
+Ticks.NO_OPENER = { -- read-only
+    [589] = true, [594] = true, [970] = true, [992] = true, [2767] = true, [10892] = true, [10893] = true,
+    [10894] = true, -- Shadow Word: Pain
+    [2944] = true, [19276] = true, [19277] = true, [19278] = true, [19279] = true, [19280] = true, -- Devouring Plague
+}
+
 local issecretvalue = issecretvalue or function() return false end
 local function IsNumber(value) return not issecretvalue(value) and type(value) == "number" end
 

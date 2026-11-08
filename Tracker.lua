@@ -652,10 +652,11 @@ function Tracker.OnCast(unit, castID, now)
         -- 217200's frame gave a 3719 crit of another spell to it, while its own 2627 came 0.12 s later.
         -- On Forever a Mind Blast or Smite cast on the stamp (ticklessAt) owns that frame's hit: S10 run 1, SW:P 970
         -- queued behind Mind Blast 8102 fired on its stamp, where Mind Blast hits and SW:P deals nothing, and drew 12
-        -- Mind Blast hits as SW:P.
+        -- Mind Blast hits as SW:P. A Forever DoT with no opening hit (Ticks.NO_OPENER) claims none either.
         local tickless = ticklessAt == now
+        local noOpener = ns.IsForever and ns.Ticks.NO_OPENER[castID]
         local frameTaken = directs[key] and directs[key].at == now
-        if learned and not tickless and not Learn.Flat(castID) and not frameTaken then
+        if learned and not tickless and not noOpener and not Learn.Flat(castID) and not frameTaken then
             directs[key] = { at = now, school = spell.school, icon = spell.icon }
         end
         local instance = FindInstance(key, castID)

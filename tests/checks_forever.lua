@@ -172,9 +172,13 @@ return function(T)
         rig.Cast(200, "nameplate1", HOLY_FIRE)
         local smite = rig.Hit(200, "nameplate1", 31, 2)
         Check("cast frame: Smite's hit on the stamp a holy DoT was cast on is not the DoT's", smite ~= "tex:" .. HOLY_FIRE)
-        rig.Cast(300, "nameplate1")
-        Check("cast frame: a hit on a learned DoT's own lone cast stamp is still the DoT's",
-            rig.Hit(300, "nameplate1") == "tex:" .. SWP)
+        rig.Cast(300, "nameplate1", HOLY_FIRE)
+        Check("cast frame: a hit on a learned DoT's own lone cast stamp is still the DoT's (Holy Fire opens with a hit)",
+            rig.Hit(300, "nameplate1", 31, 2) == "tex:" .. HOLY_FIRE)
+        -- S12 run 1: SW:P deals nothing on its cast stamp, so the drain or a Touch of Weakness proc there is not SW:P's
+        rig.Cast(400, "nameplate1")
+        Check("cast frame: a hit on SW:P's own lone cast stamp is not SW:P's (Ticks.NO_OPENER)",
+            rig.Hit(400, "nameplate1") ~= "tex:" .. SWP)
 
         -- retail: Mind Blast 8092 lands 0.17 s after its cast frame, so that frame's hit stays the DoT's own
         local ns = T.Boot(function()

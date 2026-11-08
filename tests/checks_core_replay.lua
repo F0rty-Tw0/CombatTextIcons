@@ -30,10 +30,11 @@ return function(T)
         local S = T.State()
         ns.Teacher.area = "clear"
         local R = { swpOnTickless = 0, swpOnOwnCast = 0, swpTicks = 0, hits = 0, blastOnBlast = 0, ticklessHits = {},
-            hitCounts = {}, schoolOf = ns.Ticks.TICKLESS, tows = {}, teachRows = {}, routes = {} }
+            hitCounts = {}, schoolOf = ns.Ticks.TICKLESS, tows = {}, teachRows = {}, routes = {}, dotOnOwnCast = 0 }
         -- [stamp] = true: a Mind Blast or Smite cast, a SW:P cast there; aimAt[stamp|id]: the plate that cast aimed at;
+        -- dotAt[stamp|id]: SW:P or Devouring Plague `id` cast there (counted as dotOnOwnCast when a hit there draws it);
         -- pending: the HIT whose PROBE line comes next
-        local ticklessAt, swpAt, aimAt, fighting, pending = {}, {}, {}, false, nil
+        local ticklessAt, swpAt, aimAt, dotAt, fighting, pending = {}, {}, {}, {}, false, nil
         -- A held hit prints its route when its frame ends, in the first handler call after it: `flushAt` is the stamp of
         -- the call before that one, the held hit's frame. A `-> tickless` line is followed by the hit's own draw.
         local flushAt, prevAt, drawing, towAt = nil, nil, nil, nil
@@ -74,6 +75,7 @@ return function(T)
             if key ~= "nil" then S.target = key end
             if ns.Ticks.TICKLESS[castID] then ticklessAt[at], aimAt[at .. "|" .. castID] = true, key end
             if SWP[castID] then swpAt[at] = true end
+            if castID == 970 or castID == 2944 then dotAt[at .. "|" .. castID] = true end
             Start()
             Call(at)
             ns.Core.UNIT_SPELLCAST_SUCCEEDED("player", "c", castID)
@@ -96,6 +98,7 @@ return function(T)
             if named == 8102 and ticklessAt[hit.at] and route:find("^  %-> locked ") then
                 R.blastOnBlast = R.blastOnBlast + 1
             end
+            if named and dotAt[hit.at .. "|" .. named] then R.dotOnOwnCast = R.dotOnOwnCast + 1 end
             if not (named and SWP[named]) then return end
             local onTickless = ticklessAt[hit.at]
             if onTickless then R.swpOnTickless = R.swpOnTickless + 1 end
@@ -125,7 +128,7 @@ return function(T)
             fighting = false
             Call()
             ns.Core.PLAYER_REGEN_ENABLED()
-            ticklessAt, swpAt, aimAt = {}, {}, {}
+            ticklessAt, swpAt, aimAt, dotAt = {}, {}, {}, {}
         end
 
         for line in io.lines(T.Root .. "/tests/fixtures/" .. name) do
@@ -233,4 +236,22 @@ return function(T)
     Check("core S11R1: exactly 5 hits draw as Touch of Weakness's proc 19249, as many as the meter's TEACH 19249 rows",
         AllProc(S11R1, 19249) and #S11R1.tows == S11R1.teachRows[19249]
         and Stamps(S11R1) == "263408.478 263455.108 263478.957 263509.482 263653.758")
+
+    -- S12 run 1 (Forever, 2026-11-08, solo, 8 fights): SW:P 970 and Devouring Plague 2944 deal nothing on their own
+    -- cast stamp (Ticks.NO_OPENER), yet in game Tracker's cast-frame claim drew the shadow hit there as the DoT: the
+    -- 1260198 drain (with its `HEAL player`) 5 times, and the Touch of Weakness proc at 279016.467 (no heal), so that
+    -- fight's proc row 19249 had no tow draw. The oracle is the meter: 3 TEACH 19249 rows.
+    local S12R1 = Replay("forever-s12-run1-2026-11-08.log", {
+        learned = { [970] = { school = 32, kind = "dot", period = 3.004, misses = 0 },
+            [2944] = { school = 32, kind = "dot", period = 3.0, misses = 0 } },
+        lockedTicks = { [970] = { period = 3.004, kind = "damage", school = 32, misses = 0 },
+            [2944] = { period = 3.0, kind = "damage", school = 32, misses = 0 } },
+    })
+    RouteNote("S12R1", S12R1)
+    T.Note("CORE S12R1 tow " .. Stamps(S12R1) .. " dotOnOwnCast=" .. S12R1.dotOnOwnCast)
+    Check("core S12R1: exactly 3 hits draw as Touch of Weakness's proc 19249, as many as the meter's TEACH 19249 rows",
+        AllProc(S12R1, 19249) and #S12R1.tows == S12R1.teachRows[19249]
+        and Stamps(S12R1) == "278948.988 279016.467 279045.228")
+    Check("core S12R1: no hit on SW:P's or Devouring Plague's own cast stamp is drawn as that DoT",
+        S12R1.dotOnOwnCast == 0)
 end
