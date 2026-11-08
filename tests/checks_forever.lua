@@ -274,102 +274,223 @@ return function(T)
         Check("tickless: its route stays 'locked <id>'", locked.Route() == "  -> locked 5019")
     end
 
-    -- Touch of Weakness probe: log-only TAKEN and AURA lines, no routing or drawing change ----------------------
+    -- Touch of Weakness: a lone shadow hit after the buff cast, with no self-heal near it, draws the proc's icon ------
+    -- (spec 2026-11-07-forever-tow-proc; runs 10 and 11: 7 procs, each a shadow hit `?` with no heal on you within
+    -- 0.5 s, where the 1260198 drain's heal comes on its hit's stamp or 0.107 s later)
     do
-        local TOW, TOW_PROC = 2652, 2943
-        local function Has(rig, line)
-            for _, entry in ipairs(rig.log) do if entry == line then return true end end
+        local TOW1, PROC1, TOW2, PROC2, WAND = 2652, 2943, 19261, 19249, 5019
+        local TOW_ROUTE = "  -> tow " .. PROC2
+        local function TowRig()
+            return Rig(function(S) S.harmful[TOW1], S.harmful[TOW2] = false, false end, true)
+        end
+        -- The route lines ("  -> ...") the debug log gained since `mark`, a #rig.log.
+        local function RoutesSince(rig, mark)
+            local routes = {}
+            for index = mark + 1, #rig.log do
+                if rig.log[index]:find("^  %->") then routes[#routes + 1] = rig.log[index] end
+            end
+
+            return routes
+        end
+        local function Has(routes, line)
+            for _, route in ipairs(routes) do if route == line then return true end end
 
             return false
         end
-        local function Count(rig, prefix)
-            local count = 0
-            for _, entry in ipairs(rig.log) do if entry:find(prefix, 1, true) == 1 then count = count + 1 end end
+        local function HasTow(routes)
+            for _, route in ipairs(routes) do if route:find("^  %-> tow") then return true end end
 
-            return count
+            return false
         end
-        local function TakenDraws(rig)
-            local count = 0
-            for _, draw in ipairs(rig.draws) do if draw.kind == "taken" then count = count + 1 end end
-
-            return count
+        local function Heal(rig, t)
+            rig.S.now = t
+            rig.ns.Core.UNIT_COMBAT("player", "HEAL", "", Secret(9), 1)
         end
-        local added = { addedAuras = { { spellId = TOW, auraInstanceID = 7, applications = 0, duration = 600, isHelpful = true } } }
+        -- The 0.2 s callbacks Core queued, fired at `t`.
+        local function FireTimers(rig, t)
+            rig.S.now = t
+            for _, timer in ipairs(rig.S.timers) do if timer.delay == 0.2 then timer.fn() end end
+        end
 
-        local rig = Rig(nil, true)
-        local Core = rig.ns.Core
-        local function Call(name, ...) return pcall(function(...) return Core[name](...) end, ...) end
-        Call("UNIT_COMBAT", "player", "DODGE", "", nil, 1)
-        Check("tow probe: a player DODGE logs the TAKEN line", Has(rig, "TAKEN player event=DODGE school=1 flag="))
-        Call("UNIT_COMBAT", "player", "WOUND", "CRITICAL", Secret(5), Secret(1))
-        Check("tow probe: a secret school and a flag log as '?' and the flag text",
-            Has(rig, "TAKEN player event=WOUND school=? flag=CRITICAL"))
-        Check("tow probe: a player WOUND still draws a taken number with debug on", TakenDraws(rig) == 1)
-        Call("UNIT_COMBAT", "player", "HEAL", "", 5, 2)
-        Check("tow probe: a player HEAL logs no TAKEN line", Count(rig, "TAKEN") == 2)
+        local rig = TowRig()
+        local Tow = rig.ns.Tow
+        rig.Cast(90, "nameplate1", TOW2)
+        Check("tow: casting a mapped Touch of Weakness rank arms its proc ID", Tow.Armed(91) == PROC2)
+        rig.Cast(95, "nameplate1", TOW1)
+        Check("tow: a recast re-arms with the new rank's proc ID", Tow.Armed(96) == PROC1)
+        rig.Cast(96, "nameplate1", WAND)
+        Check("tow: an unmapped spell cast changes nothing", Tow.Armed(97) == PROC1)
+        Check("tow: the arm still holds 600 s after the cast", Tow.Armed(95 + 600) == PROC1)
+        Check("tow: the arm is over 601 s after the cast", Tow.Armed(95 + 601) == nil)
 
-        Call("UNIT_AURA", "player", added)
-        Check("tow probe: a helpful aura added to the player logs its id, instance, stacks and duration",
-            Has(rig, "AURA player add id=2652 inst=7 apps=0 dur=600"))
-        Call("UNIT_AURA", "player", { removedAuraInstanceIDs = { 7 } })
-        Check("tow probe: a removed aura instance logs the remove line", Has(rig, "AURA player remove inst=7"))
-        Call("UNIT_AURA", "player", { addedAuras = { { spellId = TOW, auraInstanceID = 8, isHarmful = true } } })
-        Check("tow probe: a harmful aura on the player logs nothing", Count(rig, "AURA player add") == 1)
-        Call("UNIT_AURA", "nameplate1",
-            { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 9, isHarmful = true, isFromPlayerOrPlayerPet = true } } })
-        Check("tow probe: the player's harmful aura on a plate logs its id and instance", Has(rig, "AURA nameplate1 add id=2943 inst=9"))
-        Call("UNIT_AURA", "nameplate1",
-            { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 10, isHarmful = true, sourceUnit = "player" } } })
-        Check("tow probe: a plate aura with sourceUnit player (no isFromPlayerOrPlayerPet) logs too",
-            Has(rig, "AURA nameplate1 add id=2943 inst=10"))
-        Call("UNIT_AURA", "nameplate1",
-            { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 11, isHarmful = true, isFromPlayerOrPlayerPet = false } } })
-        Call("UNIT_AURA", "nameplate1", { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 12, isHelpful = true } } })
-        Call("UNIT_AURA", "target", added)
-        Call("UNIT_AURA", "party1", added)
-        Check("tow probe: another's aura, a helpful plate aura and other units log nothing",
-            Count(rig, "AURA nameplate1 add") == 2 and Count(rig, "AURA player add") == 1)
-        Call("UNIT_AURA", "player", { addedAuras = { { spellId = Secret(TOW), auraInstanceID = 7, isHelpful = true } } })
-        Check("tow probe: a secret spell id logs as '?'", Has(rig, "AURA player add id=? inst=7 apps=? dur=?"))
+        rig = TowRig()
+        local taught = {}
+        local drawn = rig.ns.Teacher.Drawn
+        rig.ns.Teacher.Drawn = function(spellID, amount, at, school)
+            taught[#taught + 1] = { spellID = spellID, at = at }
 
-        local before = #rig.log
-        local okFull = Call("UNIT_AURA", "player", { isFullUpdate = true })
-        local okNil = Call("UNIT_AURA", "player", nil)
-        local okSecretInfo = Call("UNIT_AURA", "player", Secret({ addedAuras = {} }))
-        local okSecretUnit = Call("UNIT_AURA", Secret("player"), added)
-        local okSecretList = Call("UNIT_AURA", "player", { addedAuras = Secret({}), removedAuraInstanceIDs = Secret({}) })
-        Check("tow probe: a full update, nil and secret info or unit raise no error",
-            okFull and okNil and okSecretInfo and okSecretUnit and okSecretList)
-        Check("tow probe: a full update, nil and secret info or unit log no line", #rig.log == before)
+            return drawn(spellID, amount, at, school)
+        end
+        rig.Cast(90, "nameplate1", TOW2)
+        local mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Check("tow: a candidate is held, not drawn and routes nothing yet", #rig.draws == 0
+            and #RoutesSince(rig, mark) == 0)
+        Check("tow: the held candidate leaves ToW armed until it is decided", rig.ns.Tow.Armed(100) == PROC2)
+        local held = false
+        for index = mark + 1, #rig.log do held = held or rig.log[index] == "  .. tow" end
+        Check("tow: the hold logs the route line '  .. tow'", held)
+        rig.Cast(100.2, "nameplate1", WAND)
+        local routes = RoutesSince(rig, mark)
+        Check("tow: no heal near it -> the next event past 0.15 s draws it as Touch of Weakness's proc",
+            Has(routes, TOW_ROUTE) and rig.draws[1] and rig.draws[1].texture == "tex:" .. PROC2)
+        Check("tow: the ToW draw disarms", rig.ns.Tow.Armed(101) == nil)
+        Check("tow: the teacher is told the proc at the held hit's stamp, not the deciding event's",
+            #taught == 1 and taught[1].spellID == PROC2 and taught[1].at == 100)
 
-        CombatTextIconsDB.enabled = false
-        local logged = #rig.log
-        Call("UNIT_AURA", "player", added)
-        Check("tow probe: with the addon off a player aura logs nothing", #rig.log == logged)
-        CombatTextIconsDB.enabled = true
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        rig.Hit(100.3, "nameplate1", Secret(31), 2)
+        Check("tow: a hit event past 0.15 s decides the held candidate before it routes its own hit",
+            RoutesSince(rig, mark)[1] == TOW_ROUTE)
 
-        local quiet = Rig()
-        local function Saved() return #(CombatTextIconsDB.debugLog or {}) end
-        local saved = Saved()
-        local function QuietCall(name, ...) return pcall(quiet.ns.Core[name], ...) end
-        local okDodge = QuietCall("UNIT_COMBAT", "player", "DODGE", "", nil, 1)
-        local okAura = QuietCall("UNIT_AURA", "player", added)
-        local okGone = QuietCall("UNIT_AURA", "player", { removedAuraInstanceIDs = { 7 } })
-        local okPlate = QuietCall("UNIT_AURA", "nameplate1",
-            { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 9, isHarmful = true, isFromPlayerOrPlayerPet = true } } })
-        quiet.ns.Core.UNIT_COMBAT("player", "WOUND", "", 31, 32)
-        Check("tow probe: with debug off nothing errors", okDodge and okAura and okGone and okPlate)
-        Check("tow probe: with debug off the debug log is untouched", Saved() == saved)
-        Check("tow probe: a player WOUND still draws a taken number with debug off", TakenDraws(quiet) == 1)
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        routes = RoutesSince(rig, mark)
+        Check("tow: a heal on the hit's stamp after it -> '?', ToW stays armed",
+            #routes == 1 and routes[1] == ROUTE_UNKNOWN and rig.ns.Tow.Armed(100) == PROC2)
+        rig.Cast(101, "nameplate1", WAND)
+        Check("tow: ... and nothing is drawn as ToW later", not HasTow(RoutesSince(rig, mark)))
 
-        local retail = Rig(function(S) S.interface = 120105 end, true)
-        retail.ns.Core.UNIT_COMBAT("player", "DODGE", "", nil, 1)
-        retail.ns.Core.UNIT_AURA("player", added)
-        retail.ns.Core.UNIT_AURA("nameplate1",
-            { addedAuras = { { spellId = TOW_PROC, auraInstanceID = 9, isHarmful = true, isFromPlayerOrPlayerPet = true } } })
-        retail.ns.Core.UNIT_COMBAT("player", "WOUND", "", 31, 32)
-        Check("tow probe: retail logs no TAKEN or AURA line", Count(retail, "TAKEN") == 0 and Count(retail, "AURA") == 0)
-        Check("tow probe: retail still draws the taken number", TakenDraws(retail) == 1)
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100.107)
+        routes = RoutesSince(rig, mark)
+        Check("tow: a heal 0.107 s after the hit -> '?', ToW stays armed",
+            #routes == 1 and routes[1] == ROUTE_UNKNOWN and rig.ns.Tow.Armed(101) == PROC2)
+
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        Heal(rig, 100)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        routes = RoutesSince(rig, mark)
+        Check("tow: a heal logged on the stamp before the hit -> '?' at once, ToW stays armed",
+            #routes == 1 and routes[1] == ROUTE_UNKNOWN and rig.ns.Tow.Armed(100) == PROC2)
+
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        mark = #rig.log
+        rig.Hit(100.05, "nameplate1", Secret(31), 32)
+        routes = RoutesSince(rig, mark)
+        Check("tow: a second candidate while one is held -> '?' at once",
+            #routes == 1 and routes[1] == ROUTE_UNKNOWN)
+        rig.Cast(100.3, "nameplate1", WAND)
+        Check("tow: ... and the first one still decides as ToW's proc", Has(RoutesSince(rig, mark), TOW_ROUTE))
+
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 2)
+        Check("tow: a hit of another school than shadow is not a candidate",
+            RoutesSince(rig, mark)[1] == ROUTE_UNKNOWN and rig.ns.Tow.Armed(100) == PROC2)
+
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        rig.ns.Locked.Observe = function() return WAND, 1 end
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Check("tow: a hit a lock names (sole set) keeps its route and ToW armed",
+            RoutesSince(rig, mark)[1] == "  -> locked " .. WAND and rig.ns.Tow.Armed(100) == PROC2)
+
+        rig = TowRig()
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Check("tow: not armed -> '?' as today", RoutesSince(rig, mark)[1] == ROUTE_UNKNOWN)
+
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(691, "nameplate1", Secret(31), 32)
+        Check("tow: armed 601 s ago -> '?' as today", RoutesSince(rig, mark)[1] == ROUTE_UNKNOWN)
+        rig.Cast(700, "nameplate1", WAND)
+        Check("tow: ... and the expired arm draws nothing as ToW", not HasTow(RoutesSince(rig, mark)))
+
+        rig = TowRig()
+        rig.ns.IsForever = false
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        rig.Cast(101, "nameplate1", WAND)
+        Check("tow: off Forever ToW never arms and no hit is held", rig.ns.Tow.Armed(100) == nil
+            and not HasTow(RoutesSince(rig, mark)))
+
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        rig.S.now = 100.01
+        rig.ns.Core.PLAYER_REGEN_ENABLED()
+        Check("tow: fight end decides a held candidate as ToW whatever its age and disarms",
+            Has(RoutesSince(rig, mark), TOW_ROUTE) and rig.ns.Tow.Armed(101) == nil)
+
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        rig.S.now = 100
+        rig.ns.Core.PLAYER_REGEN_ENABLED()
+        Check("tow: fight end with nothing held does not disarm", rig.ns.Tow.Armed(101) == PROC2)
+
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        rig.Cast(100.05, "nameplate1", TOW1)
+        rig.Cast(100.3, "nameplate1", WAND)
+        Check("tow: a recast after the hold -> the held proc ID draws and the new arm stays",
+            Has(RoutesSince(rig, mark), TOW_ROUTE) and rig.ns.Tow.Armed(101) == PROC1)
+
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        FireTimers(rig, 100.1)
+        Check("tow: the 0.2 s timer decides nothing before 0.15 s have passed", not HasTow(RoutesSince(rig, mark)))
+        FireTimers(rig, 100.2)
+        Check("tow: the 0.2 s timer decides a held candidate as ToW", Has(RoutesSince(rig, mark), TOW_ROUTE))
+        FireTimers(rig, 100.4)
+        Check("tow: a candidate is decided once", #RoutesSince(rig, mark) == 1)
+
+        -- a second secret hit on the held hit's stamp: the decision tags the held frame entry without comparing amounts
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        rig.Hit(100, "nameplate2", Secret(40), 2)
+        local decided, err = pcall(rig.Cast, 100.3, "nameplate1", WAND)
+        Check("tow: a second secret hit on the held hit's stamp does not break the decision"
+            .. (decided and "" or (" (" .. tostring(err) .. ")")), decided)
+        Check("tow: ... and the held hit still draws as the proc", Has(RoutesSince(rig, mark), TOW_ROUTE))
+        Check("tow: ... and the arm is spent", rig.ns.Tow.Armed(101) == nil)
+
+        -- /cti off inside the 0.2 s window: the held hit is dropped, the timer draws nothing
+        rig = TowRig()
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        rig.S.now = 100.1
+        SlashCmdList.COMBATTEXTICONS("off")
+        FireTimers(rig, 100.25)
+        Check("tow: /cti off while a candidate is held draws it as nothing", #rig.draws == 0
+            and not HasTow(RoutesSince(rig, mark)))
+        SlashCmdList.COMBATTEXTICONS("on")
     end
 
     -- 4. Debug lines ------------------------------------------------------------------------

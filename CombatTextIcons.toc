@@ -28,6 +28,7 @@ Link.lua
 Ticks.lua
 Locked.lua
 LockedHeals.lua
+Tow.lua
 Teacher.lua
 Display.lua
 Progress.lua

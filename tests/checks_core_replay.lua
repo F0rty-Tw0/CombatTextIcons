@@ -5,9 +5,10 @@
 return function(T)
     local Check = T.Check
     local SWP, ReadMeter = T.SWP_RANKS, T.ReadMeter
-    -- The helpful casts of the captures (Lesser Heal, Heal, Touch of Weakness, Inner Fire, PW:S, Renew): every other
-    -- cast is harmful, as the harness answers by default.
-    local HELPFUL = { 139, 17, 600, 2053, 2054, 2652, 588, 6074 }
+    -- The helpful casts of the captures (Lesser Heal, Heal, Touch of Weakness 2652 and 19261, Inner Fire, PW:S, Renew,
+    -- and run 11's other buffs, all `key=player` in that log): every other cast is harmful, as the harness answers by
+    -- default.
+    local HELPFUL = { 139, 17, 600, 2053, 2054, 2652, 588, 6074, 19261, 7128, 3747, 6075, 2055, 1245, 426639, 426754 }
 
     -- Feeds log `name` to a booted Forever whose store holds `seed` (the char DB at login). Counts each hit drawn as
     -- SW:P by its route: swpOnTickless, on a Mind Blast or Smite cast stamp (Ticks.TICKLESS); swpOnOwnCast, of those,
@@ -15,7 +16,11 @@ return function(T)
     -- blastOnBlast counts the hits drawn as Mind Blast 8102 (`-> locked` or `-> tickless`) on a Mind Blast or Smite
     -- cast stamp (ticklessAt); ticklessHits lists each `-> tickless` draw { at = its frame's stamp, unit, id, onStamp
     -- (on such a stamp), onOwnCast (on a stamp where `id` was cast at `unit`) }, and hitCounts[at|unit|school] the hits
-    -- that frame held on that plate in that school.
+    -- that frame held on that plate in that school. `tows` lists each `-> tow <id>` draw { at = the stamp of the
+    -- `  .. tow` line before it, id }, `teachRows[id]` the log's TEACH lines of that spell (the meter's rows),
+    -- `routes[kind]` the routes printed by kind (`-> <kind> ...`). Each `HEAL player` line goes through
+    -- Core.UNIT_COMBAT as OnHit's hits do, and no queued timer fires (the stub has no clock): a held candidate waits
+    -- for the log's next event or fight end.
     local function Replay(name, seed)
         local ns = T.Boot(function(S)
             S.interface = 16001
@@ -25,13 +30,13 @@ return function(T)
         local S = T.State()
         ns.Teacher.area = "clear"
         local R = { swpOnTickless = 0, swpOnOwnCast = 0, swpTicks = 0, hits = 0, blastOnBlast = 0, ticklessHits = {},
-            hitCounts = {}, schoolOf = ns.Ticks.TICKLESS }
+            hitCounts = {}, schoolOf = ns.Ticks.TICKLESS, tows = {}, teachRows = {}, routes = {} }
         -- [stamp] = true: a Mind Blast or Smite cast, a SW:P cast there; aimAt[stamp|id]: the plate that cast aimed at;
         -- pending: the HIT whose PROBE line comes next
         local ticklessAt, swpAt, aimAt, fighting, pending = {}, {}, {}, false, nil
         -- A held hit prints its route when its frame ends, in the first handler call after it: `flushAt` is the stamp of
         -- the call before that one, the held hit's frame. A `-> tickless` line is followed by the hit's own draw.
-        local flushAt, prevAt, drawing = nil, nil, nil
+        local flushAt, prevAt, drawing, towAt = nil, nil, nil, nil
         ns.Display.Plate = function(plate)
             if not drawing then return end
             R.ticklessHits[#R.ticklessHits + 1] = { at = drawing.at, unit = plate.unit, id = drawing.id,
@@ -44,6 +49,11 @@ return function(T)
         ns.Debug = function(format, ...)
             local line = string.format(format, ...)
             if line:find("^  %->") then route = line end
+            local kind = line:match("^  %-> (%S+)")
+            if kind then R.routes[kind] = (R.routes[kind] or 0) + 1 end
+            if line == "  .. tow" then towAt = S.now end
+            local tow = line:match("^  %-> tow (%d+)")
+            if tow then R.tows[#R.tows + 1] = { at = towAt, id = tonumber(tow) } end
             local tickless = line:match("^  %-> tickless (%d+)")
             if tickless then drawing = { at = flushAt, id = tonumber(tickless) } end
         end
@@ -74,7 +84,8 @@ return function(T)
             S.now = at
             if rest:find(" target=true$") then S.target = unit end
             local threat = rest:match(" threat=(%S+) ")
-            S.threat[unit] = threat == "nil" and false or tonumber(threat)
+            -- `threat=nil` is a mob that does not fight you (S.threat false); Lua's `x and false or y` would give y
+            if threat == "nil" then S.threat[unit] = false else S.threat[unit] = tonumber(threat) end
             Start()
             pending = { unit = unit, school = tonumber(school), flag = flag, at = at }
         end
@@ -104,6 +115,12 @@ return function(T)
             CountRoute(hit)
         end
 
+        local function OnHeal(at, flag)
+            S.now = at
+            Call(at)
+            ns.Core.UNIT_COMBAT("player", "HEAL", flag, T.Secret(31), 1)
+        end
+
         local function OnTeach()
             fighting = false
             Call()
@@ -117,15 +134,20 @@ return function(T)
             local castID, key = rest:match("^CAST player (%d+) .*key=(%S+)$")
             local unit, school, flag = rest:match("^HIT (%S+) school=(%d+) amount=%S+ flag=(%S*) ")
             local meter = rest:match("^PROBE amount=%S+ meter=(%S+)")
+            local healFlag = rest:match("^HEAL player school=%d+ amount=%S+ flag=(%S*)$")
+            local taught = rest:match("^TEACH (%d+) ")
             if castID then
                 OnCast(at, tonumber(castID), key)
             elseif unit then
                 OnHit(at, rest, unit, school, flag)
             elseif meter and pending then
                 OnProbe(meter)
+            elseif healFlag then
+                OnHeal(at, healFlag)
             elseif rest:match("^TEACH session") and fighting then
                 OnTeach()
             end
+            if taught then R.teachRows[tonumber(taught)] = (R.teachRows[tonumber(taught)] or 0) + 1 end
         end
         Call()
         ns.Core.FlushMates()
@@ -150,7 +172,8 @@ return function(T)
     -- The one left: 236083.502 holds two shadow hits, Mind Blast's and SW:P's first tick (cast 236080.543, 2.96 s
     -- before); the tracker names the first SW:P and the second draws '?', so one of them is right either way.
     Check("core S10R1: at most 1 hit on a Mind Blast or Smite stamp is drawn as SW:P", S10R1.swpOnTickless <= 1)
-    -- Floor: measured 81 (2026-11-07, 80 in game), less 2.
+    -- Floor: measured 80 (2026-11-07, 80 in game; 81 while the replay took a `threat=nil` mob for one that fights you),
+    -- less 1.
     Check("core S10R1: at least 79 hits off a Mind Blast or Smite stamp drawn as SW:P by the tracker",
         S10R1.swpTicks >= 79)
 
@@ -174,4 +197,40 @@ return function(T)
         #S10R1.ticklessHits > 0 and notSole == 0)
     Check("core S10R1: every tickless draw is on its own spell's cast stamp, on the plate that cast aimed at",
         #S10R1.ticklessHits > 0 and offCast == 0)
+
+    -- Touch of Weakness's proc draws its icon (Core.HoldTow): the hit is a shadow `?` with no `HEAL player` within
+    -- 0.15 s and a buff cast armed it. The oracle is the meter: each TEACH row of the proc in the log is one proc, and
+    -- the hit of each is the one the rule picks (run 10 rank 1 buff 2652 -> proc 2943, 2 rows; run 11 rank 2 buff 19261
+    -- -> proc 19249, 5 rows, 3 of them with no shadow spell cast yet); no other hit draws as the proc.
+    local function Stamps(replay)
+        local stamps = {}
+        for _, drawn in ipairs(replay.tows) do stamps[#stamps + 1] = string.format("%.3f", drawn.at) end
+
+        return table.concat(stamps, " ")
+    end
+    local function AllProc(replay, proc)
+        for _, drawn in ipairs(replay.tows) do if drawn.id ~= proc then return false end end
+
+        return #replay.tows > 0
+    end
+    local function RouteNote(label, replay)
+        local kinds = {}
+        for kind, count in pairs(replay.routes) do kinds[#kinds + 1] = kind .. "=" .. count end
+        table.sort(kinds)
+        T.Note("CORE " .. label .. " routes " .. table.concat(kinds, " "))
+    end
+
+    local S11R1 = Replay("forever-s11-run1-2026-11-07.log", {
+        learned = { [970] = { school = 32, kind = "dot", period = 3.023, misses = 0 } },
+        lockedTicks = { [970] = { period = 3.023, kind = "damage", school = 32, misses = 0 } },
+    })
+    RouteNote("S10R1", S10R1)
+    RouteNote("S11R1", S11R1)
+    T.Note("CORE S10R1 tow " .. Stamps(S10R1))
+    T.Note("CORE S11R1 tow " .. Stamps(S11R1))
+    Check("core S10R1: exactly 2 hits draw as Touch of Weakness's proc 2943, as many as the meter's TEACH 2943 rows",
+        AllProc(S10R1, 2943) and #S10R1.tows == S10R1.teachRows[2943] and Stamps(S10R1) == "236033.966 236100.566")
+    Check("core S11R1: exactly 5 hits draw as Touch of Weakness's proc 19249, as many as the meter's TEACH 19249 rows",
+        AllProc(S11R1, 19249) and #S11R1.tows == S11R1.teachRows[19249]
+        and Stamps(S11R1) == "263408.478 263455.108 263478.957 263509.482 263653.758")
 end

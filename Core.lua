@@ -356,11 +356,12 @@ end
 
 -- A hit was drawn with this spell's icon: the teacher tallies it, a running heal train of its row ticks
 -- (Heals.Struck), and its frame entry (FrameHit) takes the ID: the newest, or for a hit held to its frame's end
--- (`at`, Core.FlushMates) the newest unnamed one of its amount.
-local function Drawn(spellID, amount, at)
+-- (`at`, Core.FlushMates) the newest unnamed one of its amount, or `entry` itself when the caller kept it (DecideTow;
+-- `at` is then its stamp, and no amount is compared: a frame's other amounts may be secret).
+local function Drawn(spellID, amount, at, entry)
     local now = at or GetTime()
-    local hit
-    if frameHits.at == now then
+    local hit = entry
+    if not entry and frameHits.at == now then
         for index = #frameHits.list, 1, -1 do
             local entry = frameHits.list[index]
             if not at or (entry.amount == amount and not entry.spellID) then
@@ -510,6 +511,16 @@ local QueueFlush -- the next frame flushes what waits for its frame's end (below
 -- record, HoldSpread, a held chain hop `hop`, its record, HoldHop, and a held hit on a Mind Blast or Smite's cast
 -- stamp `tickless`, that spell's ID, HoldTickless).
 local ownFrame, held = { schools = {} }, { hits = {} }
+-- The one solo secret shadow hit held while Touch of Weakness is armed (HoldTow), kept apart from `held.hits` so
+-- FlushMates never draws it: { at, plate, school, amount, flagText, cast, candidates, proc (the proc ID armed when it
+-- was held), entry (its frameHits entry, which DecideTow tags) }, or nil. DecideTow draws it as the proc, Core.Heal
+-- gives it back to the question mark, and `/cti off` drops it.
+local towHeld
+-- The heals on you waiting for their frame's end and the frame's own helpful casts (FlushHeals, Heal, further below);
+-- declared here for TowProc, which reads `waiting`.
+-- waiting = { at = the frame's stamp, heals = { { flagText, amount, school, size }, ... } }; frameCasts = { at, ids =
+-- your helpful casts on that stamp, in cast order, each once (seen) }.
+local waiting, frameCasts = { heals = {} }, { ids = {} }
 
 -- A solo hit of `school` landed on a mob fighting you at `now`: its frame's held hits of that school are mates.
 local function OwnHit(school, now)
@@ -612,8 +623,10 @@ end
 -- A solo hit on a mob fighting you that nothing named: the teacher learns from it (Teacher.Unknown), and it draws the
 -- question mark while MayQuestion holds and the school is one a clear read saw. `cast` is Casts.SoleCast at the hit.
 -- `sole` (Locked.Observe from Wound, or Locked.TicklessCast via DrawTickless) is the one spell that fits the hit: it
--- draws that spell's icon instead, under the debug `route` ("locked" by default; DrawTickless passes "tickless").
-local function Question(plate, school, amount, flagText, now, cast, candidates, sole, route)
+-- draws that spell's icon instead, under the debug `route` ("locked" by default; DrawTickless passes "tickless",
+-- DecideTow "tow"). `entry`: the hit's frame entry, when the caller kept it (DecideTow): `now` is then its stamp and
+-- Drawn tags `entry` itself.
+local function Question(plate, school, amount, flagText, now, cast, candidates, sole, route, entry)
     Teacher.Unknown(plate, school, amount, now, cast, flagText, candidates)
     if not MayQuestion(amount) then
         if ns.Debug then ns.Debug("  -> %s", HiddenRoute()) end
@@ -626,7 +639,7 @@ local function Question(plate, school, amount, flagText, now, cast, candidates, 
     end
     if sole then
         if ns.Debug then ns.Debug("  -> %s %s", route or "locked", ShowValue(sole)) end
-        Drawn(sole, amount)
+        Drawn(sole, amount, entry and now, entry)
         ns.Locked.Drew(sole)
         Ledger.Add("damage", sole, amount)
 
@@ -637,12 +650,16 @@ local function Question(plate, school, amount, flagText, now, cast, candidates, 
     Display.Plate(plate, UnknownTexture(), HitText(flagText, amount), flagText, school)
 end
 
+-- Question for a held hit (Hold*): its fields are the route's, `sole` and `route` as Question's.
+local function QuestionHeld(hit, sole, route)
+    return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates, sole, route,
+        hit.entry)
+end
+
 -- A held share (HoldShare) at its frame's end: drawn as its proc when a later share in its frame drew it (that one
 -- had this one for its twin, Procs.Name), else the question mark route it was held from (Question).
 local function DrawShare(hit)
-    if not DrawnInFrame(hit.share, hit.at) then
-        return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates)
-    end
+    if not DrawnInFrame(hit.share, hit.at) then return QuestionHeld(hit) end
     if ns.Debug then ns.Debug("  -> share %s", ShowValue(hit.share)) end
     Drawn(hit.share, hit.amount, hit.at)
     Ledger.Add("damage", hit.share, hit.amount)
@@ -657,21 +674,65 @@ local function DrawTickless(hit)
     for _, entry in ipairs(frameList) do
         if Plain(entry.school) and entry.school == hit.school and entry.plate == hit.plate then hits = hits + 1 end
     end
-    if hits ~= 1 then
-        return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates)
-    end
+    if hits ~= 1 then return QuestionHeld(hit) end
 
-    return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates, hit.tickless,
-        "tickless")
+    return QuestionHeld(hit, hit.tickless, "tickless")
+end
+
+-- A Touch of Weakness proc's hit and the 1260198 drain are both shadow hits `?`; the drain's `HEAL player` line comes
+-- on its hit's stamp (32 of 35) or 0.096-0.107 s later (3), every proc's had none within 0.5 s (S10 + S11 run 1).
+local TOW_DRAIN = 0.15 -- a heal this soon after the held hit is the drain's
+local TOW_TIMER = 0.2  -- decides a held hit no event has: later than TOW_DRAIN, so it never fires early
+
+-- The held Touch of Weakness candidate (towHeld) is the proc: drawn through Question with the proc's ID, and the arm
+-- spent unless a recast came after the hold. It leaves the hold first, so it is decided once. Decides only when `now`
+-- is more than TOW_DRAIN past the hit, or at any age with `fightEnd`.
+local function DecideTow(now, fightEnd)
+    local candidate = towHeld
+    if not candidate then return end
+    if not fightEnd and now - candidate.at <= TOW_DRAIN then return end
+
+    towHeld = nil
+    QuestionHeld(candidate, candidate.proc, "tow")
+    ns.Tow.Spent(candidate.proc, candidate.at)
+end
+
+-- The held candidate is the drain's: a `HEAL player` came within TOW_DRAIN of it. It draws as any unexplained hit
+-- (Question) and Touch of Weakness stays armed.
+local function ReleaseTow(now)
+    local candidate = towHeld
+    if not candidate or now - candidate.at > TOW_DRAIN then return end
+
+    towHeld = nil
+    QuestionHeld(candidate)
+end
+
+-- The proc ID a solo secret shadow hit at `now` may be, or nil: Touch of Weakness is armed, no candidate is held yet,
+-- and no `HEAL player` already waits on the hit's own stamp (S10 run 1 235793.592: the drain's heal is logged before
+-- its hit).
+local function TowProc(school, now)
+    local proc = school == 32 and ns.Tow.Armed(now)
+    local healWaits = waiting.at == now and #waiting.heals > 0
+    if not proc or towHeld or healWaits then return end
+
+    return proc
+end
+
+-- Holds a solo secret shadow hit nothing named, while Touch of Weakness is armed, to see whether a heal on you comes
+-- with it (DecideTow, ReleaseTow). `proc`: TowProc's answer. Its frame entry is the newest (Wound added it).
+local function HoldTow(plate, school, amount, flagText, now, cast, candidates, proc)
+    local entry = frameHits.list[#frameHits.list]
+    towHeld = { at = now, plate = plate, school = school, amount = amount, flagText = flagText, cast = cast,
+        candidates = candidates, proc = proc, entry = entry }
+    if ns.Debug then ns.Debug("  .. tow") end
+    pcall(C_Timer.After, TOW_TIMER, function() DecideTow(GetTime()) end)
 end
 
 -- A held crit that may start a ground cast's first tick (HoldGround) at its frame's end: drawn as that cast when its
 -- frame is the first tick (Casts.GroundStarts, `plates` the plates its frame's held crits of that record hit), else
 -- the question mark route it was held from (Question).
 local function DrawGround(hit, plates)
-    if not Casts.GroundStarts(hit.ground, hit.at, plates) then
-        return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates)
-    end
+    if not Casts.GroundStarts(hit.ground, hit.at, plates) then return QuestionHeld(hit) end
     DrawHeld(hit, hit.ground, "ground")
 end
 
@@ -683,9 +744,7 @@ local function DrawSpread(hit, spreads)
     if group.splash == nil then
         group.splash = Casts.Spreads(hit.spread, hit.school, hit.at, group.sizes, group.count)
     end
-    if not group.splash then
-        return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates)
-    end
+    if not group.splash then return QuestionHeld(hit) end
     DrawHeld(hit, hit.spread, "spread")
     Teacher.Spread(hit.plate, hit.school, hit.amount, hit.at, hit.flagText, hit.spread.base)
 end
@@ -694,9 +753,7 @@ end
 -- chain when its frame held the record's own first hit and the plate is its hop's (Casts.HopsAhead), else the question
 -- mark route it was held from (Question).
 local function DrawHop(hit, plates)
-    if not Casts.HopsAhead(hit.hop, hit.plate, hit.at, plates) then
-        return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates)
-    end
+    if not Casts.HopsAhead(hit.hop, hit.plate, hit.at, plates) then return QuestionHeld(hit) end
     DrawHeld(hit, hit.hop, "hop")
 end
 
@@ -704,7 +761,7 @@ end
 -- the frame was none (Casts.Overrun) and the hit is the question mark solo, hidden in a group.
 local function DrawTick(hit, ticked)
     if ticked[hit.tick.base] then return DrawHeld(hit, hit.tick, "cast", true) end
-    if hit.solo then return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates) end
+    if hit.solo then return QuestionHeld(hit) end
     if ns.Debug then ns.Debug("  -> HIDDEN") end
 end
 
@@ -1071,8 +1128,14 @@ local function Wound(plate, unit, flagText, amount, school, now)
         if hop then return HoldHop(plate, school, amount, flagText, now, hop, cast, candidates) end
 
         -- a lone secret hit of a Mind Blast or Smite's school on its cast stamp is that spell's (HoldTickless)
-        local tickless = asksLocked and sole == nil and ns.Locked.TicklessCast(plate, school, now)
+        local lockedAsk = asksLocked and sole == nil
+        local tickless = lockedAsk and ns.Locked.TicklessCast(plate, school, now)
         if tickless then return HoldTickless(plate, school, amount, flagText, now, tickless, cast, candidates) end
+
+        -- a lone secret shadow hit while Touch of Weakness is armed may be its proc, unless a heal on you comes with it
+        -- (HoldTow)
+        local tow = lockedAsk and TowProc(school, now)
+        if tow then return HoldTow(plate, school, amount, flagText, now, cast, candidates, tow) end
 
         return Question(plate, school, amount, flagText, now, cast, candidates, sole)
     end
@@ -1115,10 +1178,8 @@ end
 -- on you that no channel named waits for the end of its frame (Core.FlushHeals): it lands before its own cast's
 -- UNIT_SPELLCAST_SUCCEEDED in that frame
 -- (shamanheal: the heal of each of 17 Chain Heal 1064 casts is logged on the cast's stamp, the line before the CAST
--- line), so only then does the frame know its casts; its hits (frameHits) come with them.
--- waiting = { at = the frame's stamp, heals = { { flagText, amount, school, size }, ... } }; frameCasts = { at, ids =
--- your helpful casts on that stamp, in cast order, each once (seen) }.
-local waiting, frameCasts = { heals = {} }, { ids = {} }
+-- line), so only then does the frame know its casts; its hits (frameHits) come with them. (`waiting` and `frameCasts`
+-- are declared further up, beside `towHeld`.)
 local flushQueued = false -- a flush waits on C_Timer.After(0)
 
 -- A heal on you no channel named is drawn: with the icon of the spell that claimed it (on Forever
@@ -1181,7 +1242,10 @@ function Core.Heal(unit, flagText, amount, school, now)
     if ns.Debug then
         ns.Debug("HEAL %s school=%s amount=%s flag=%s", unit, ShowValue(school), ShowValue(amount), ShowValue(flagText))
     end
-    if unit == "player" then Teacher.Healed(amount, flagText, now) end
+    if unit == "player" then
+        ReleaseTow(now)
+        Teacher.Healed(amount, flagText, now)
+    end
     local spellID = unit == "player" and Tracker.ChannelHeal(now) or nil
     local texture = spellID and SpellTexture(spellID) or nil
     if texture ~= nil then
@@ -1306,6 +1370,7 @@ function Core.PLAYER_REGEN_ENABLED()
     Core.SyncBlizzard() -- retries a write the fight may have refused
     Core.FlushHeals()
     Core.FlushMates()
+    DecideTow(GetTime(), true) -- a held Touch of Weakness candidate is decided at any age; the arm itself stays
     Casts.Flush(GetTime())
     Ledger.Finish(GetTime())
     Teacher.Finish(GetTime())
@@ -1329,60 +1394,14 @@ function Core.UNIT_COMBAT(unit, event, flagText, amount, school)
     if not (Plain(unit) and Plain(event)) then return end
     Core.FlushHeals(now)
     Core.FlushMates(now)
+    DecideTow(now)
     if unit:find("^nameplate%d+$") then
         EnemyHit(unit, event, flagText, amount, school, now)
     elseif event == "HEAL" and (unit == "player" or unit:find("^party[1-4]$")) then
         Core.Heal(unit, flagText, amount, school, now)
     elseif unit == "player" then
-        -- grug: ToW probe (2026-11-07): remove once the ToW rule is chosen.
-        if ns.Debug and ns.IsForever then
-            ns.Debug("TAKEN player event=%s school=%s flag=%s", event, ShowValue(school), ShowValue(flagText))
-        end
         if event == "WOUND" then Taken(flagText, amount) end
     end
-end
-
--- grug: ToW probe (2026-11-07), everything from here to Core.UNIT_AURA: remove once the ToW rule is chosen.
--- Debug lines only: the player's buffs coming and going, and the player's debuffs on plates, so the log shows what
--- Touch of Weakness (2652, proc 2943) does. Every field may be secret: ShowValue logs it as "?".
-local function IsTable(value) return Plain(value) and type(value) == "table" end
-
--- Whether the plain table `aura` is the player's debuff.
-local function IsPlateAura(aura)
-    if not (Plain(aura.isHarmful) and aura.isHarmful) then return false end
-    if Plain(aura.isFromPlayerOrPlayerPet) then return aura.isFromPlayerOrPlayerPet == true end
-
-    return Plain(aura.sourceUnit) and aura.sourceUnit == "player"
-end
-
--- Logs one added aura of `unit` (player or a plate): the player's buff, or the player's debuff on a plate. A secret
--- entry names nothing.
-local function LogAddedAura(unit, aura)
-    if not IsTable(aura) then return end
-    if unit == "player" and Plain(aura.isHelpful) and aura.isHelpful then
-        ns.Debug("AURA player add id=%s inst=%s apps=%s dur=%s", ShowValue(aura.spellId),
-            ShowValue(aura.auraInstanceID), ShowValue(aura.applications), ShowValue(aura.duration))
-    elseif unit ~= "player" and IsPlateAura(aura) then
-        ns.Debug("AURA %s add id=%s inst=%s", unit, ShowValue(aura.spellId), ShowValue(aura.auraInstanceID))
-    end
-end
-
-local function LogAuras(unit, updateInfo)
-    local added = updateInfo.addedAuras
-    if IsTable(added) then
-        for _, aura in ipairs(added) do LogAddedAura(unit, aura) end
-    end
-    local removed = updateInfo.removedAuraInstanceIDs
-    if unit == "player" and IsTable(removed) then
-        for _, instance in ipairs(removed) do ns.Debug("AURA player remove inst=%s", ShowValue(instance)) end
-    end
-end
-
-function Core.UNIT_AURA(unit, updateInfo)
-    if not db.enabled then return end
-    local logs, hasInfo = ns.Debug and ns.IsForever, IsTable(updateInfo)
-    if not (logs and hasInfo and Plain(unit)) then return end
-    if unit == "player" or unit:find("^nameplate%d+$") then LogAuras(unit, updateInfo) end
 end
 
 -- The pet's harmful casts join the cast log too: the meter lists pet damage among the player's own rows
@@ -1392,6 +1411,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     if not db.enabled then return end
     Core.FlushHeals(GetTime())
     Core.FlushMates(GetTime())
+    DecideTow(GetTime())
     local now = GetTime()
     local tickKey
     if (unit == "player" or unit == "pet") and Plain(spellID) then
@@ -1415,6 +1435,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
                 frameCasts.ids[#frameCasts.ids + 1] = spellID
             end
             Teacher.Helped(spellID, now)
+            ns.Tow.Note(spellID, now) -- a Touch of Weakness rank arms its proc (Tow.lua)
             Heals.Cast(spellID, now)
             tickKey = not InGroup() and "player" or nil
             ns.Ticks.NoteCast(spellID, now, tickKey, "heal")
@@ -1480,8 +1501,6 @@ events:RegisterEvent("PLAYER_LOGOUT")
 events:RegisterEvent("PLAYER_REGEN_ENABLED")
 events:RegisterEvent("PLAYER_REGEN_DISABLED")
 events:RegisterEvent("UNIT_COMBAT")
--- grug: ToW probe (2026-11-07): remove once the ToW rule is chosen. Unfiltered: the plates' auras need that.
-events:RegisterEvent("UNIT_AURA")
 events:RegisterEvent("NAME_PLATE_UNIT_ADDED")
 events:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
 events:RegisterEvent("GROUP_ROSTER_UPDATE")
@@ -1617,6 +1636,7 @@ SlashCmdList.COMBATTEXTICONS = function(message)
         Tracker.Reset()
         Ledger.Finish(GetTime())
         Teacher.fight = nil -- a cut-short fight is not read
+        towHeld = nil -- the 0.2 s timer then decides nothing
     end
     print(PREFIX .. (db.enabled and "on" or "off"))
 end
