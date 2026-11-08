@@ -363,6 +363,16 @@ function Ticks.Take(spellID, slot)
     if entry and estimate then entry.period = entry.period + REFINE * (estimate - entry.period) end
 end
 
+-- Ticks.DropHeal(spellID): forgets a saved heal HoT the meter never listed (a harmful cast's self-heals landed on its
+-- rhythm: S11 run 1, Devouring Plague on Touch of Weakness); a damage entry stays.
+function Ticks.DropHeal(spellID)
+    local entry = saved[spellID]
+    if not ns.IsForever or not entry or entry.kind ~= "heal" then return end
+
+    saved[spellID] = nil
+    if ns.Debug then ns.Debug("TICKS dropped %d", spellID) end
+end
+
 -- Ticks.PlateGone(plate): that plate's casts end.
 function Ticks.PlateGone(plate)
     if ns.IsForever then EndKey(plate) end

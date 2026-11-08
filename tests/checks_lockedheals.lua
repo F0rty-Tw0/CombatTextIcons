@@ -133,7 +133,7 @@ return function(T)
             rig.store.lockedHeals[PROC] ~= nil and rig.store.lockedHeals[PROC].strikes == 0 and Has(rig.log, "LOCKEDHEAL row " .. PROC))
 
         rig, H = Fresh()
-        H.Learn({ Row(139) }, { { spellID = 139, at = 5 } }, {})
+        H.Learn({ Row(139) }, { helps = { { spellID = 139, at = 5 } } }, {})
         Check("lockedheals learn: a row in helps is not saved", next(rig.store.lockedHeals) == nil)
         H.Learn({ Row(591) }, {}, { [591] = true })
         Check("lockedheals learn: a row in the harmful cast set is not saved", next(rig.store.lockedHeals) == nil)
@@ -199,6 +199,64 @@ return function(T)
 
         local ns = Load()
         Check("lockedheals learn: before Init it does not error", pcall(ns.LockedHeals.Learn, { Row(PROC) }, {}, {}))
+    end
+
+    do -- Learn drops a wrongly learned HoT: S11 run 1 (2026-11-07) drew 7 Devouring Plague self-heals as Touch of
+       -- Weakness 19261 (a saved heal period of 3.03), yet the meter's heal rows never listed 19261
+        local TOW, DP, FROM, TO = 19261, 2944, 100, 120
+        -- Real Ticks on Forever with 19261 saved as a heal HoT and cast at 100; one heal at `at` claimed as a hot draw.
+        local function HotDrawn(at)
+            local ns = Load()
+            T.Store().lockedTicks = { [TOW] = { period = 3.0, kind = "heal", misses = 0 } }
+            ns.Ticks.Init(T.Store())
+            ns.Ticks.NoteCast(TOW, 100, "player", "heal")
+            ns.LockedHeals.Init(T.Store())
+            local claims = ns.LockedHeals.Claim({}, { { amount = Secret(9) } }, at, false, true)
+
+            return ns, claims
+        end
+        local function Saved() return T.Store().lockedTicks[TOW] ~= nil end
+
+        local ns, claims = HotDrawn(103)
+        ns.LockedHeals.Learn({ Row(DP) }, { at = FROM, ended = TO }, {})
+        Check("lockedheals learn: a HoT drawn in the fight but absent from a read with rows is dropped from Ticks",
+            claims[1] == TOW and not Saved())
+
+        ns = HotDrawn(103)
+        ns.LockedHeals.Learn({ Row(TOW), Row(DP) }, { at = FROM, ended = TO }, {})
+        Check("lockedheals learn: a drawn HoT the read lists is kept", Saved())
+
+        ns = HotDrawn(103)
+        ns.LockedHeals.Learn({}, { at = FROM, ended = TO }, {})
+        ns.LockedHeals.Learn(nil, { at = FROM, ended = TO }, {})
+        Check("lockedheals learn: an empty or nil read drops no HoT", Saved())
+
+        ns = HotDrawn(103)
+        ns.LockedHeals.Learn({ Row(DP) }, { at = 104, ended = TO }, {})
+        Check("lockedheals learn: a hot draw before the fight window is kept", Saved())
+        ns.LockedHeals.Learn({ Row(DP) }, { at = FROM, ended = TO }, {})
+        Check("lockedheals learn: the draws clear at every Learn (the next read has none to drop)", Saved())
+
+        ns = HotDrawn(103)
+        ns.LockedHeals.Learn({ Row(DP) }, {}, {})
+        Check("lockedheals learn: no fight window given: no HoT dropped", Saved())
+
+        ns = HotDrawn(103)
+        ns.LockedHeals.Forget()
+        ns.LockedHeals.Learn({ Row(DP) }, { at = FROM, ended = TO }, {})
+        Check("lockedheals forget: clears the hot draws too", Saved())
+
+        ns = Load()
+        T.Store().lockedTicks = { [TOW] = { period = 3.0, kind = "damage", school = 32, misses = 0 } }
+        ns.Ticks.Init(T.Store())
+        ns.Ticks.DropHeal(TOW)
+        Check("ticks dropheal: a damage entry is untouched", Saved())
+
+        ns = Load(120105)
+        T.Store().lockedTicks = { [TOW] = { period = 3.0, kind = "heal", misses = 0 } }
+        ns.Ticks.Init(T.Store())
+        ns.Ticks.DropHeal(TOW)
+        Check("ticks dropheal: off Forever it drops nothing", Saved())
     end
 
     do -- Core wiring

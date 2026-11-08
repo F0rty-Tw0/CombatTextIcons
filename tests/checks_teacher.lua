@@ -2808,7 +2808,9 @@ return function(T)
             local rig = Rig({})
             rig.ns.IsForever = forever
             local calls = {}
-            rig.ns.LockedHeals.Learn = function(healRows, helps, cast) calls[#calls + 1] = { healRows, helps, cast } end
+            rig.ns.LockedHeals.Learn = function(healRows, run, cast)
+                calls[#calls + 1] = { healRows = healRows, run = run, cast = cast }
+            end
             local start = rig.ns.Teacher.Start
             rig.ns.Teacher.Start = function(...)
                 start(...)
@@ -2824,10 +2826,13 @@ return function(T)
             return rig, calls
         end
         local rig, calls = ShortRead(true, false)
-        Check("lockedheals teacher: Forever, short read, debug off: the heal rows are read and Learn gets rows, helps and the harmful set",
+        Check("lockedheals teacher: Forever, short read, debug off: the heal rows are read and Learn gets rows, "
+            .. "the run (helps, fight window) and the harmful set",
             rig.ns.Teacher.last.area == "short" and #rig.S.sourceCalls == 2 and #calls == 1
-            and calls[1][1][1].spellID == HEAL_ID and calls[1][2][1] ~= nil and calls[1][2][1].spellID == HELP_ID
-            and calls[1][3][SMITE] == true and calls[1][3][SMITE_BASE] == true)
+            and calls[1].healRows[1].spellID == HEAL_ID and calls[1].run.helps[1] ~= nil
+            and calls[1].run.helps[1].spellID == HELP_ID
+            and calls[1].cast[SMITE] == true and calls[1].cast[SMITE_BASE] == true
+            and calls[1].run.at == 10 and calls[1].run.ended == 20)
         rig, calls = ShortRead(false, false)
         Check("lockedheals teacher: retail, short read, debug off: no heal read, Learn not called",
             rig.ns.Teacher.last.area == "short" and #rig.S.sourceCalls == 1 and #calls == 0)

@@ -16,6 +16,8 @@ local function IsNumber(value) return not issecretvalue(value) and type(value) =
 local saved = {}
 -- [spellID] = true: a proc row named a heal since the last read
 local drew = {}
+-- [spellID] = stamp: a learned HoT named a heal at that stamp since the last read
+local hotDrew = {}
 
 local function Clear(list) for key in pairs(list) do list[key] = nil end end
 
@@ -26,11 +28,13 @@ function LockedHeals.Init(store)
     end
     saved = store.lockedHeals
     Clear(drew)
+    Clear(hotDrew)
 end
 
 function LockedHeals.Forget()
     Clear(saved)
     Clear(drew)
+    Clear(hotDrew)
 end
 
 -- The only saved proc row's ID, or nil when none or several are saved
@@ -71,7 +75,10 @@ function LockedHeals.Claim(castIDs, heals, at, ownAt, solo)
         if #ids == 1 then
             local id = ids[1]
             claims[index] = id
-            if HasKind(kinds[id], "hot") then ns.Ticks.Take(id, slots[id]) end
+            if HasKind(kinds[id], "hot") then
+                ns.Ticks.Take(id, slots[id])
+                hotDrew[id] = at
+            end
             if HasKind(kinds[id], "proc") then drew[id] = true end
             if ns.Debug then ns.Debug("LOCKEDHEAL %s %s", id, kinds[id][1]) end
         end
@@ -106,11 +113,25 @@ local function Strike(id, row, present)
     end
 end
 
+-- Ticks drops each learned HoT that named a heal inside the fight (from..to) yet is absent from `rows`.
+local function DropWrongHots(rows, from, to)
+    local hasWindow = IsNumber(from) and IsNumber(to)
+    if not hasWindow then return end
+
+    for id, at in pairs(hotDrew) do
+        local inWindow = from <= at and at <= to
+        if inWindow and not rows[id] then ns.Ticks.DropHeal(id) end
+    end
+end
+
 -- Reads the heal rows of a fight: saves a row nothing of yours cast as a proc row, drops a saved row that is your
 -- own cast, and strikes a proc row that named a heal but is absent from a read that has rows. A nil or empty read
--- strikes nothing. helps: run.helps; cast: fight.cast (harmful IDs and bases), either may be nil.
-function LockedHeals.Learn(healRows, helps, cast)
+-- strikes nothing. A learned HoT that named a heal inside the fight (run.at..run.ended) yet is absent from a read with
+-- rows was a wrong rhythm (S11 run 1: Devouring Plague's self-heals read as Touch of Weakness): Ticks drops it.
+-- run: the teacher's run (helps, at, ended); cast: fight.cast (harmful IDs and bases); either may be nil.
+function LockedHeals.Learn(healRows, run, cast)
     if not ns.IsForever then return end
+    local fight = type(run) == "table" and run or {}
     local rows = {}
     if not issecretvalue(healRows) and type(healRows) == "table" then
         for _, row in ipairs(healRows) do
@@ -123,7 +144,7 @@ function LockedHeals.Learn(healRows, helps, cast)
     for id in pairs(rows) do
         if saved[id] then
             if ns.Ticks.IsOwnCast(id) then Drop(id) end
-        elseif not InHelps(helps, id) and not harmful[id] and not ns.Ticks.IsOwnCast(id) then
+        elseif not InHelps(fight.helps, id) and not harmful[id] and not ns.Ticks.IsOwnCast(id) then
             saved[id] = { strikes = 0 }
             if ns.Debug then ns.Debug("LOCKEDHEAL row %s", id) end
         end
@@ -132,6 +153,8 @@ function LockedHeals.Learn(healRows, helps, cast)
         for id in pairs(drew) do
             if saved[id] then Strike(id, saved[id], rows[id]) end
         end
+        DropWrongHots(rows, fight.at, fight.ended)
     end
     Clear(drew)
+    Clear(hotDrew)
 end

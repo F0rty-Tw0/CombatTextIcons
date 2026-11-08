@@ -129,7 +129,7 @@ return function(T)
             Flush()
             ns.Locked.EndFight()
             ns.Ticks.EndFight()
-            ns.LockedHeals.Learn(HealRows(lines, i, at), helps, cast)
+            ns.LockedHeals.Learn(HealRows(lines, i, at), { helps = helps }, cast)
             helps, cast, helpAt, hitAt, ticklessAt = {}, {}, {}, {}, {}
         end
 
