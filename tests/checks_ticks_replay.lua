@@ -28,17 +28,25 @@ return function(T)
         return lines
     end
 
-    -- The `TEACH heal <id> meter=<n> over=<n>` rows at stamp `at` after line `from`; nil when none.
-    local function HealRows(lines, from, at)
+    -- The meter rows logged at stamp `at` after line `from` by lines matching `pattern` (captures id, total, overkill);
+    -- nil when none.
+    local function LoggedRows(lines, from, at, pattern)
         local rows = {}
         for i = from + 1, #lines do
             local stamp, rest = lines[i]:match("^(%d+%.%d+) (.*)$")
             if tonumber(stamp) ~= at then break end
-            local id, total, over = rest:match("^TEACH heal (%d+) meter=(%d+) over=(%d+)")
+            local id, total, over = rest:match(pattern)
             if id then rows[#rows + 1] = { spellID = tonumber(id), total = tonumber(total), overkill = tonumber(over) } end
         end
 
         return #rows > 0 and rows or nil
+    end
+    -- The `TEACH heal <id> meter=<n> over=<n>` rows of a read.
+    local function HealRows(lines, from, at) return LoggedRows(lines, from, at, "^TEACH heal (%d+) meter=(%d+) over=(%d+)") end
+    -- The `TEACH row <id> total=<n> overkill=<n>` damage rows of a read. On a session read again they are its Growth
+    -- rows, not the full read Teacher hands LockedHeals.Learn, so a proc row there may miss its damage row.
+    local function DamageRows(lines, from, at)
+        return LoggedRows(lines, from, at, "^TEACH row (%d+) total=(%d+) overkill=(%d+)")
     end
 
     -- Adds the IDs of `saved` not yet in `seen` to `seen` and to `list`, sorted within one call.
@@ -129,7 +137,7 @@ return function(T)
             Flush()
             ns.Locked.EndFight()
             ns.Ticks.EndFight()
-            ns.LockedHeals.Learn(HealRows(lines, i, at), { helps = helps }, cast)
+            ns.LockedHeals.Learn(HealRows(lines, i, at), { helps = helps }, cast, DamageRows(lines, i, at))
             helps, cast, helpAt, hitAt, ticklessAt = {}, {}, {}, {}, {}
         end
 

@@ -2808,8 +2808,8 @@ return function(T)
             local rig = Rig({})
             rig.ns.IsForever = forever
             local calls = {}
-            rig.ns.LockedHeals.Learn = function(healRows, run, cast)
-                calls[#calls + 1] = { healRows = healRows, run = run, cast = cast }
+            rig.ns.LockedHeals.Learn = function(healRows, run, cast, damageRows)
+                calls[#calls + 1] = { healRows = healRows, run = run, cast = cast, damageRows = damageRows }
             end
             local start = rig.ns.Teacher.Start
             rig.ns.Teacher.Start = function(...)
@@ -2832,7 +2832,8 @@ return function(T)
             and calls[1].healRows[1].spellID == HEAL_ID and calls[1].run.helps[1] ~= nil
             and calls[1].run.helps[1].spellID == HELP_ID
             and calls[1].cast[SMITE] == true and calls[1].cast[SMITE_BASE] == true
-            and calls[1].run.at == 10 and calls[1].run.ended == 20)
+            and calls[1].run.at == 10 and calls[1].run.ended == 20
+            and calls[1].damageRows ~= nil and calls[1].damageRows[1].spellID == SMITE and #calls[1].damageRows == 1)
         rig, calls = ShortRead(false, false)
         Check("lockedheals teacher: retail, short read, debug off: no heal read, Learn not called",
             rig.ns.Teacher.last.area == "short" and #rig.S.sourceCalls == 1 and #calls == 0)
@@ -2846,6 +2847,19 @@ return function(T)
         rig.S.sourceFail = "heal error" -- ReadRows returns nil for the heal read only
         rig.Read({ [SMITE] = { 53 } }, { Session(nextSession, { Row(SMITE, 1000) }) })
         Check("lockedheals teacher: a Forever read whose heal read fails (healRows nil) still calls Learn once", learned == 1)
+
+        -- the same session read again: Learn's damage rows are the full read, not its Growth (the drain did not grow)
+        rig = Rig({ [SMITE] = 2 })
+        rig.ns.IsForever = true
+        local damage = {}
+        rig.ns.LockedHeals.Learn = function(_, _, _, damageRows) damage[#damage + 1] = damageRows end
+        nextSession = nextSession + 1
+        rig.Read({ [SMITE] = { 53 } }, { Session(nextSession, { Row(SMITE, 53), Row(GRAVE, 20) }) })
+        rig.Read({ [SMITE] = { 40 } }, { Session(nextSession, { Row(SMITE, 93), Row(GRAVE, 20) }) })
+        local grave = false
+        for _, row in ipairs(damage[2] or {}) do grave = grave or row.spellID == GRAVE end
+        Check("lockedheals teacher: a session read again hands Learn its full damage rows, the drain that did not grow too",
+            #damage == 2 and grave)
     end
 
     do -- steady pass (plan 2026-10-25-steady-learning): long fights learn from a steady delay and size

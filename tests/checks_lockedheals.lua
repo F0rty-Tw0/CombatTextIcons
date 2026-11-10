@@ -7,10 +7,10 @@ return function(T)
         return T.Boot(function(S) S.interface = interface or 16001 CombatTextIconsCharDB = {} end)
     end
     -- Stub of ns.Ticks: Fits answers `rig.fits(at)` (a list of { spellID, slot }, default none) and records its args;
-    -- Take records; IsOwnCast reads rig.own[id].
+    -- Take records; IsOwnCast reads rig.own[id]. The store is at the current rows version, so Init keeps `saved`.
     local function Fresh(interface, saved)
         local ns = Load(interface)
-        local store = { lockedHeals = saved }
+        local store = { lockedHeals = saved, lockedHealsV = 2 }
         local rig = { ns = ns, store = store, taken = {}, fitCalls = {}, own = {}, log = {}, fits = function() return {} end }
         ns.Ticks = {
             Fits = function(key, kind, school, at) rig.fitCalls[#rig.fitCalls + 1] = { key, kind, school, at } return rig.fits(at) end,
@@ -119,6 +119,17 @@ return function(T)
         Check("lockedheals forget: clears the saved rows", next(rig.store.lockedHeals) == nil)
         rig, H = Fresh()
         Check("lockedheals init: a store with no lockedHeals gets an empty table", type(rig.store.lockedHeals) == "table")
+
+        -- rows saved before the damage-row rule (Bone-Apetit, 2026-11-10: Holy Nova 23455/23458 and Cannibalize 20578
+        -- beside the drain) never drop, so a store without version 2 is emptied once
+        local old = { lockedHeals = { [23455] = { strikes = 0 }, [1260198] = { strikes = 0 } } }
+        Load().LockedHeals.Init(old)
+        Check("lockedheals init: a store saved before version 2 is emptied and marked version 2",
+            next(old.lockedHeals) == nil and old.lockedHealsV == 2)
+        local current = { lockedHeals = { [1260198] = { strikes = 1 } }, lockedHealsV = 2 }
+        Load().LockedHeals.Init(current)
+        Check("lockedheals init: a version 2 store keeps its rows",
+            current.lockedHeals[1260198] ~= nil and current.lockedHeals[1260198].strikes == 1 and current.lockedHealsV == 2)
     end
 
     do -- Learn: rows, strikes, nil reads, secrets, gate
@@ -128,17 +139,30 @@ return function(T)
         end
 
         local rig, H = Fresh()
-        H.Learn({ Row(PROC) }, {}, {})
-        Check("lockedheals learn: a row nothing of yours cast is saved with strikes 0",
+        H.Learn({ Row(PROC) }, {}, {}, { Row(PROC) })
+        Check("lockedheals learn: a heal row nothing of yours cast that is also a damage row is saved with strikes 0",
             rig.store.lockedHeals[PROC] ~= nil and rig.store.lockedHeals[PROC].strikes == 0 and Has(rig.log, "LOCKEDHEAL row " .. PROC))
 
+        -- Bone-Apetit, 2026-11-10: Holy Nova rank 2 (cast 15430) heals under 23458, which has no damage row
         rig, H = Fresh()
-        H.Learn({ Row(139) }, { helps = { { spellID = 139, at = 5 } } }, {})
+        H.Learn({ Row(23458), Row(PROC) }, {}, { [15430] = true }, { Row(15430), Row(PROC) })
+        Check("lockedheals learn: a heal row with no damage row of its ID is no proc row (Holy Nova heal 23458)",
+            rig.store.lockedHeals[23458] == nil and rig.store.lockedHeals[PROC] ~= nil)
+
+        rig, H = Fresh()
+        H.Learn({ Row(PROC) }, {}, {}, nil)
+        H.Learn({ Row(PROC) }, {}, {}, Secret({ Row(PROC) }))
+        H.Learn({ Row(PROC) }, {}, {}, { Row(Secret(PROC)), Secret(Row(PROC)) })
+        Check("lockedheals learn: a nil or secret damage read, a secret damage row or row ID saves nothing",
+            next(rig.store.lockedHeals) == nil)
+
+        rig, H = Fresh()
+        H.Learn({ Row(139) }, { helps = { { spellID = 139, at = 5 } } }, {}, { Row(139) })
         Check("lockedheals learn: a row in helps is not saved", next(rig.store.lockedHeals) == nil)
-        H.Learn({ Row(591) }, {}, { [591] = true })
+        H.Learn({ Row(591) }, {}, { [591] = true }, { Row(591) })
         Check("lockedheals learn: a row in the harmful cast set is not saved", next(rig.store.lockedHeals) == nil)
         rig.own[17] = true
-        H.Learn({ Row(17) }, nil, nil)
+        H.Learn({ Row(17) }, nil, nil, { Row(17) })
         Check("lockedheals learn: a row Ticks.IsOwnCast knows is not saved; nil helps and cast do not error",
             next(rig.store.lockedHeals) == nil)
 
@@ -175,7 +199,7 @@ return function(T)
             local rows if read == "empty" then rows = {} end -- `x and nil or {}` is always {} in Lua
             H.Learn(rows, {}, {})
             local after = rig.store.lockedHeals[PROC].strikes
-            H.Learn({ Row(OTHER) }, {}, {})
+            H.Learn({ Row(OTHER) }, {}, {}, { Row(OTHER) })
             Check("lockedheals learn: a " .. read .. " read strikes nothing, saves nothing and clears drew (the next read does not strike)",
                 after == 0 and rig.store.lockedHeals[PROC].strikes == 0 and rig.store.lockedHeals[OTHER] ~= nil)
         end
@@ -188,13 +212,13 @@ return function(T)
         Check("lockedheals forget: clears drew too", rig.store.lockedHeals[PROC].strikes == 0)
 
         rig, H = Fresh()
-        local ok = pcall(H.Learn, Secret({}), {}, {})
-        local ok2 = pcall(H.Learn, { Row(Secret(5)), Secret(1) }, {}, {})
+        local ok = pcall(H.Learn, Secret({}), {}, {}, { Row(5) })
+        local ok2 = pcall(H.Learn, { Row(Secret(5)), Secret(1) }, {}, {}, { Row(5) })
         Check("lockedheals learn: a secret healRows, a secret row ID and a secret row do not error and save nothing",
             ok and ok2 and next(rig.store.lockedHeals) == nil)
 
         rig, H = Fresh(120105)
-        H.Learn({ Row(PROC) }, {}, {})
+        H.Learn({ Row(PROC) }, {}, {}, { Row(PROC) })
         Check("lockedheals learn: off Forever it saves nothing", next(rig.store.lockedHeals) == nil)
 
         local ns = Load()
@@ -350,7 +374,7 @@ return function(T)
         rig = Wired(nil, { [1260198] = { strikes = 0 } })
         SlashCmdList.COMBATTEXTICONS("forget")
         Check("lockedheals wiring: /cti forget clears the saved rows", next(T.Store().lockedHeals) == nil)
-        local booted = T.Boot(function(S) S.interface = 16001 CombatTextIconsCharDB = { lockedHeals = { [1260198] = { strikes = 0 } } } end)
+        local booted = T.Boot(function(S) S.interface = 16001 CombatTextIconsCharDB = { lockedHeals = { [1260198] = { strikes = 0 } }, lockedHealsV = 2 } end)
         Check("lockedheals wiring: boot hands LockedHeals the saved rows (the proc fit finds the row)",
             booted.LockedHeals.Claim({}, { {} }, 10, true, true)[1] == 1260198)
     end

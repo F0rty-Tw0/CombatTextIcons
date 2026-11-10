@@ -1660,7 +1660,8 @@ local function Judging(run, sessionID, rows, reason)
     if readsHeals then healRows, healReason = ReadRows(sessionID, Meter.HEALING_DONE) end
     local fight = { cast = {}, unknown = {}, unseen = math.max(0, total - run.seen) }
     for _, item in ipairs(run.casts or {}) do fight.cast[item.spellID], fight.cast[item.base] = true, true end
-    if ns.IsForever then ns.LockedHeals.Learn(healRows, run, fight.cast) end
+    -- `full`, not the Growth rows: a proc row must be a damage row of the read, and an again read's Growth can omit it
+    if ns.IsForever then ns.LockedHeals.Learn(healRows, run, fight.cast, full) end
     for _, hit in ipairs(run.unknown) do fight.unknown[hit.school] = (fight.unknown[hit.school] or 0) + hit.amount end
     local results, open = Verdicts(run.tally, rows, frozen, fight)
     if not frozen then SafetyNet(results, run.drawn) end

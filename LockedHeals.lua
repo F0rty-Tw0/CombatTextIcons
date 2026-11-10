@@ -8,6 +8,7 @@ local LockedHeals = {}
 ns.LockedHeals = LockedHeals
 
 local STRIKES_MAX = 2 -- strikes that drop a saved proc row
+local LOCKED_HEALS_V = 2 -- the saved rows' learning rule; a store saved under another is emptied once (Init)
 
 local issecretvalue = issecretvalue or function() return false end
 local function IsNumber(value) return not issecretvalue(value) and type(value) == "number" end
@@ -22,6 +23,12 @@ local hotDrew = {}
 local function Clear(list) for key in pairs(list) do list[key] = nil end end
 
 function LockedHeals.Init(store)
+    -- once per store: rows saved before version 2 learned without the damage-row test (Learn) and hold heal-only
+    -- IDs that never drop; the drain relearns on its next solo fight
+    if store.lockedHealsV ~= LOCKED_HEALS_V then
+        store.lockedHeals = {}
+        store.lockedHealsV = LOCKED_HEALS_V
+    end
     if type(store.lockedHeals) ~= "table" then store.lockedHeals = {} end
     for id, row in pairs(store.lockedHeals) do
         if not IsNumber(id) or type(row) ~= "table" or not IsNumber(row.strikes) then store.lockedHeals[id] = nil end
@@ -124,27 +131,39 @@ local function DropWrongHots(rows, from, to)
     end
 end
 
--- Reads the heal rows of a fight: saves a row nothing of yours cast as a proc row, drops a saved row that is your
--- own cast, and strikes a proc row that named a heal but is absent from a read that has rows. A nil or empty read
--- strikes nothing. A learned HoT that named a heal inside the fight (run.at..run.ended) yet is absent from a read with
--- rows was a wrong rhythm (S11 run 1: Devouring Plague's self-heals read as Touch of Weakness): Ticks drops it.
--- run: the teacher's run (helps, at, ended); cast: fight.cast (harmful IDs and bases); either may be nil.
-function LockedHeals.Learn(healRows, run, cast)
+-- [spellID] = true for each meter row of `list` with a plain spell ID; a nil or secret list gives none.
+local function PlainIDs(list)
+    local ids = {}
+    if issecretvalue(list) or type(list) ~= "table" then return ids end
+    for _, row in ipairs(list) do
+        local isTable = not issecretvalue(row) and type(row) == "table"
+        local isPlainRow = isTable and IsNumber(row.spellID)
+        if isPlainRow then ids[row.spellID] = true end
+    end
+
+    return ids
+end
+
+-- Reads the heal rows of a fight: saves as a proc row a heal row nothing of yours cast that is also a damage row of
+-- the same read, drops a saved row that is your own cast, and strikes a proc row that named a heal but is absent from
+-- a read that has rows. The damage-row test is what tells the proc from a cast's heal under its own effect ID: the
+-- drain 1260198 heals and hits under one ID in every read, while Holy Nova (casts 15237/15430, heals 23455/23458) and
+-- Cannibalize (20577, heals 20578) only heal; saved, those jammed the proc fit for good (OnlyRow needs one row).
+-- A nil or empty read strikes nothing. A learned HoT that named a heal inside the fight (run.at..run.ended) yet is
+-- absent from a read with rows was a wrong rhythm (S11 run 1: Devouring Plague's self-heals read as Touch of
+-- Weakness): Ticks drops it.
+-- run: the teacher's run (helps, at, ended); cast: fight.cast (harmful IDs and bases); damageRows: the read's full
+-- damage rows (nil or secret saves nothing new); any may be nil.
+function LockedHeals.Learn(healRows, run, cast, damageRows)
     if not ns.IsForever then return end
     local fight = type(run) == "table" and run or {}
-    local rows = {}
-    if not issecretvalue(healRows) and type(healRows) == "table" then
-        for _, row in ipairs(healRows) do
-            local isTable = not issecretvalue(row) and type(row) == "table"
-            local isPlainRow = isTable and IsNumber(row.spellID)
-            if isPlainRow then rows[row.spellID] = true end
-        end
-    end
+    local rows = PlainIDs(healRows)
+    local damage = PlainIDs(damageRows)
     local harmful = type(cast) == "table" and cast or {}
     for id in pairs(rows) do
         if saved[id] then
             if ns.Ticks.IsOwnCast(id) then Drop(id) end
-        elseif not InHelps(fight.helps, id) and not harmful[id] and not ns.Ticks.IsOwnCast(id) then
+        elseif damage[id] and not InHelps(fight.helps, id) and not harmful[id] and not ns.Ticks.IsOwnCast(id) then
             saved[id] = { strikes = 0 }
             if ns.Debug then ns.Debug("LOCKEDHEAL row %s", id) end
         end
