@@ -43,6 +43,14 @@ local function InGroup()
     return not Plain(inGroup) or inGroup -- unknown counts as grouped
 end
 
+-- Every popup over an enemy plate goes through here. On Forever while grouped it draws nothing: Blizzard's numbers are
+-- back there (BlizzardText.Sync) and the addon names only DoT ticks (2026-11-10 dungeon log: 50 of 2861 hits), so a
+-- drawn tick showed twice. The routes still run: learning and the ledger are untouched.
+local function DrawPlate(...)
+    if ns.IsForever and InGroup() then return end
+    return Display.Plate(...)
+end
+
 local function IsTarget(unit)
     local ok, isTarget = pcall(UnitIsUnit, unit, "target")
     return ok and Plain(isTarget) and isTarget
@@ -208,7 +216,7 @@ local function ProcWound(plate, school, amount, flagText, now, held)
     if ns.Debug then ns.Debug("  -> proc %s", ShowValue(procID)) end
     Drawn(procID, amount, held and now or nil)
     Ledger.Add("damage", procID, amount)
-    Display.Plate(plate, SpellTexture(procID), HitText(flagText, amount), flagText, school)
+    DrawPlate(plate, SpellTexture(procID), HitText(flagText, amount), flagText, school)
 
     return true
 end
@@ -221,7 +229,7 @@ local function DrawRhythm(plate, rhythmID, school, amount, flagText, now, onsetA
     Procs.Drew(rhythmID, now, onsetAt)
     Drawn(rhythmID, amount, held and now or nil)
     Ledger.Add("damage", rhythmID, amount)
-    Display.Plate(plate, SpellTexture(rhythmID), HitText(flagText, amount), flagText, school)
+    DrawPlate(plate, SpellTexture(rhythmID), HitText(flagText, amount), flagText, school)
 
     return true
 end
@@ -283,7 +291,7 @@ local function SwingWound(plate, unit, school, amount, flagText, candidates, now
     if ns.Debug then ns.Debug("  -> swing %s", ShowValue(swingID)) end
     Drawn(swingID, amount)
     Ledger.Add("damage", swingID, amount)
-    Display.Plate(plate, SpellTexture(swingID), HitText(flagText, amount), flagText, school)
+    DrawPlate(plate, SpellTexture(swingID), HitText(flagText, amount), flagText, school)
 
     return true
 end
@@ -351,7 +359,7 @@ local function DrawHeld(hit, record, route, accepted)
     Streams.Landed(hit.plate, record.spellID, hit.at)
     Drawn(record.base, hit.amount, hit.at)
     Ledger.Add("damage", record.base, hit.amount)
-    Display.Plate(hit.plate, SpellTexture(record.spellID), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
+    DrawPlate(hit.plate, SpellTexture(record.spellID), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
 end
 
 -- A held hit at its frame's end, when `mated`: drawn when a learned cast claimed it and drew a hit in its frame (an
@@ -386,7 +394,7 @@ local function DrawMate(hit, mated, ticked)
             if ns.Debug then ns.Debug("  -> like %s", ShowValue(base)) end
             Drawn(base, hit.amount, hit.at)
             Ledger.Add("damage", base, hit.amount)
-            Display.Plate(hit.plate, SpellTexture(base), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
+            DrawPlate(hit.plate, SpellTexture(base), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
             return
         end
         if PairWound(hit.plate, hit.stream, hit.school, hit.amount, hit.flagText,
@@ -428,11 +436,11 @@ local function Question(plate, school, amount, flagText, now, cast, candidates, 
         ns.Locked.Drew(sole)
         Ledger.Add("damage", sole, amount)
 
-        return Display.Plate(plate, SpellTexture(sole), HitText(flagText, amount), flagText, school)
+        return DrawPlate(plate, SpellTexture(sole), HitText(flagText, amount), flagText, school)
     end
     if ns.Debug then ns.Debug("  -> unknown-solo") end
     Ledger.Add("damage", UnknownKey(school), amount)
-    Display.Plate(plate, UnknownTexture(), HitText(flagText, amount), flagText, school)
+    DrawPlate(plate, UnknownTexture(), HitText(flagText, amount), flagText, school)
 end
 
 -- Question for a held hit (Hold*): its fields are the route's, `sole` and `route` as Question's.
@@ -448,7 +456,7 @@ local function DrawShare(hit)
     if ns.Debug then ns.Debug("  -> share %s", ShowValue(hit.share)) end
     Drawn(hit.share, hit.amount, hit.at)
     Ledger.Add("damage", hit.share, hit.amount)
-    Display.Plate(hit.plate, SpellTexture(hit.share), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
+    DrawPlate(hit.plate, SpellTexture(hit.share), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
 end
 
 -- A hit held on a Mind Blast or Smite's cast stamp (HoldTickless) at its frame's end: that spell's own when it is the
@@ -731,7 +739,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         Drawn(spellID, amount)
         if Learn.Get(spellID) then Teacher.Ticked(school, amount, flagText, spellID, now, plate) end
         Ledger.Add("damage", spellID, amount)
-        return Display.Plate(plate, SpellTexture(spellID), text, flagText, school)
+        return DrawPlate(plate, SpellTexture(spellID), text, flagText, school)
     end
     if not claimed then
         kind, record = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText), crowded,
@@ -752,7 +760,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         Streams.Landed(plate, record.spellID, now) -- and an unlearned one's ticks name the cast from it (Owners)
         Drawn(record.base, amount) -- an override is tallied under the base spell's meter row
         Ledger.Add("damage", record.base, amount)
-        return Display.Plate(plate, SpellTexture(record.spellID), text, flagText, school)
+        return DrawPlate(plate, SpellTexture(record.spellID), text, flagText, school)
     end
     -- An UNKNOWN answer is not fed: the tracker already holds the candidates. The teacher
     -- learns from it only solo.
@@ -768,7 +776,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
                 Casts.Candidates(plate, now, school))
         end
         Ledger.Add("damage", UnknownKey(school), amount)
-        return Display.Plate(plate, UnknownTexture(), text, flagText, school)
+        return DrawPlate(plate, UnknownTexture(), text, flagText, school)
     end
     -- A hit a learned proc names is no DoT tick: fed to the streams, its rhythm gave its votes to a cast
     -- in the proc's frame (Surging Totem's ~12K hits learned Lava Burst as a DoT, run 20261025T182530Z).
@@ -799,7 +807,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         if loose then loose.stackID = stack.base end
         Drawn(stack.base, amount)
         Ledger.Add("damage", stack.base, amount)
-        return Display.Plate(plate, SpellTexture(stack.spellID), text, flagText, school)
+        return DrawPlate(plate, SpellTexture(stack.spellID), text, flagText, school)
     end
     -- A loose tick pairs with the one a learned rhythm period before it only after the stack spells had it: lock3
     -- F2, Unstable Affliction's 7821 (2 stacks x 3258 x 1.2) at 199540.864 sits in Darkglare's band.
@@ -812,7 +820,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         if ns.Debug then ns.Debug("  -> volley %s", ShowValue(volleyID)) end
         Drawn(volleyID, amount)
         Ledger.Add("damage", volleyID, amount)
-        return Display.Plate(plate, SpellTexture(volleyID), text, flagText, school)
+        return DrawPlate(plate, SpellTexture(volleyID), text, flagText, school)
     end
     -- A learned link's hit (Link.Name): a cast's like-sized hit on the plates around its target, filed under another row.
     local linkID = solo and Teacher.NotCrowded() and ns.Link.Name(plate, school, amount, flagText, now)
@@ -821,7 +829,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         ns.Volley.Spent(amount, flagText, now)
         Drawn(linkID, amount)
         Ledger.Add("damage", linkID, amount)
-        return Display.Plate(plate, SpellTexture(linkID), text, flagText, school)
+        return DrawPlate(plate, SpellTexture(linkID), text, flagText, school)
     end
     -- A learned DoT's twin (Tracker.Twin), then a cast's echo, are the last solo routes before the question mark: the
     -- meter taught their shares.
@@ -831,7 +839,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         ns.Volley.Spent(amount, flagText, now)
         Drawn(twinID, amount)
         Ledger.Add("damage", twinID, amount)
-        return Display.Plate(plate, SpellTexture(twinID), text, flagText, school)
+        return DrawPlate(plate, SpellTexture(twinID), text, flagText, school)
     end
     -- A learned cast's echo (Casts.Echo): a hit on its plate soon after its own hit, at its learned share of that hit.
     local echo = solo and Teacher.NotCrowded()
@@ -841,7 +849,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         ns.Volley.Spent(amount, flagText, now)
         Drawn(echo.base, amount)
         Ledger.Add("damage", echo.base, amount)
-        return Display.Plate(plate, SpellTexture(echo.spellID), text, flagText, school)
+        return DrawPlate(plate, SpellTexture(echo.spellID), text, flagText, school)
     end
     if solo then
         local cast = Casts.SoleCast(plate, now, school)
@@ -890,7 +898,7 @@ local function Miss(plate, unit, event, now)
     if InGroup() or not Teacher.AreaClear() or not IsTarget(unit) then return end
     local castID = Tracker.TakeMissCast(now)
     if castID then
-        Display.Plate(plate, SpellTexture(castID), _G[event] or event)
+        DrawPlate(plate, SpellTexture(castID), _G[event] or event)
     end
 end
 

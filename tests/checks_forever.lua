@@ -866,6 +866,21 @@ return function(T)
             rig.Strike("WOUND", "nameplate1", 500) == nil and rig.Route() == "  -> HIDDEN"
             and rig.Strike("HEAL", "player", 500) == nil and rig.Route() == "  -> HIDDEN")
 
+        -- Grouped, Blizzard's numbers are on: a learned DoT's ticks the tracker names draw nothing, or they showed
+        -- twice (2026-11-10 dungeon log: the addon drew only DoT ticks, 50 of 2861 hits).
+        local function TickDraws(group)
+            local ticks = Rig(function(S) S.group = group end)
+            ticks.Cast(100, "nameplate1")
+            local drawn = 0
+            for k = 1, 3 do
+                if ticks.Hit(100 + k * P, "nameplate1") then drawn = drawn + 1 end
+            end
+
+            return drawn
+        end
+        Check("group: a learned DoT's ticks draw solo but draw nothing in a group on Forever",
+            TickDraws(false) == 3 and TickDraws(true) == 0)
+
         rig = Crowd("clear")
         rig.ns.Meter.Disable()
         Check("crowd: clear but meter disabled -> no ?",
