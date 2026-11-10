@@ -281,14 +281,16 @@ return function(T)
 
         return true
     end
-    -- Floors: measured 11, 27 and 8 (2026-11-10), less 1 each.
-    for _, case in ipairs({ { "S10R1", S10R1, 10 }, { "S11R1", S11R1, 26 }, { "S12R1", S12R1, 7 } }) do
-        local label, replay, floor = case[1], case[2], case[3]
+    -- Floors: measured 11, 27 and 8 (2026-11-10), less 1 each. Ceilings: the measured counts, so a drain drawn for a
+    -- heal the claim did not name fails here too (that leak drew 28 in S11R1).
+    for _, case in ipairs({ { "S10R1", S10R1, 10, 11 }, { "S11R1", S11R1, 26, 27 }, { "S12R1", S12R1, 7, 8 } }) do
+        local label, replay, floor, ceiling = case[1], case[2], case[3], case[4]
         local count, off = Drains(replay)
         T.Note(string.format("CORE %s drain=%d off=%d", label, count, off))
         Check("core " .. label .. ": every hit drawn as the drain sits on a stamp with a HEAL player line in the log",
             count > 0 and off == 0)
         Check("core " .. label .. ": every drain draw is the saved row 1260198", AllRow(replay))
-        Check("core " .. label .. ": at least " .. floor .. " hits draw as the drain 1260198", count >= floor)
+        Check("core " .. label .. ": " .. floor .. " to " .. ceiling .. " hits draw as the drain 1260198",
+            count >= floor and count <= ceiling)
     end
 end

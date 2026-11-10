@@ -612,6 +612,32 @@ return function(T)
         rig.S.now = 100.05
         rig.ns.Core.PLAYER_REGEN_ENABLED()
         Check("drain: fight end right after the same-stamp heal draws the drain", Has(RoutesSince(rig, mark), DRAIN_ROUTE))
+
+        rig = Rig(function(S)
+            S.harmful[2652], S.harmful[TOW2], S.harmful[2061] = false, false, false
+            S.group = false
+            CombatTextIconsCharDB.lockedHealsV = 2
+            CombatTextIconsCharDB.lockedHeals = { [DRAIN] = { strikes = 0 } }
+        end, true)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100, "nameplate1", 2061)
+        rig.Cast(100.2, "nameplate1", WAND)
+        Check("drain: a same-stamp heal the claim does not name draws the hit '?', not the drain",
+            not Has(RoutesSince(rig, mark), DRAIN_ROUTE) and Has(RoutesSince(rig, mark), ROUTE_UNKNOWN))
+
+        -- A channel heal on the hit's stamp marks it healed but never waits (PlayerHits.Heal: Release, then the
+        -- channel draw); the Release call stands in for it. A later heal claimed for another own hit must not name it.
+        rig = DrainRig({ DRAIN })
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        rig.ns.TowHold.Release(100)
+        rig.Hit(100.1, "nameplate2", Secret(31), 32)
+        Heal(rig, 100.1)
+        rig.Cast(100.3, "nameplate1", WAND)
+        Check("drain: a hit healed by a heal that never waits is not named by a later stamp's claim",
+            not Has(RoutesSince(rig, mark), DRAIN_ROUTE))
     end
 
     -- 4. Debug lines ------------------------------------------------------------------------
