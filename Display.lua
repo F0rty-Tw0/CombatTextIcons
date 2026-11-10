@@ -83,7 +83,15 @@ local function SchoolColor(school)
     return WHITE
 end
 
+-- A secret amount (12.x: every hit in an instance) is abbreviated too: AbbreviateNumbers takes secrets from addon
+-- code and returns a secret string. Shown raw, a dungeon hit read 26742 where the open world read 26K. The pcall
+-- keeps the raw secret if a build refuses it. A secret is never compared or tested: tainted code may only pass it on.
 local function FormatAmount(amount)
+    if issecretvalue(amount) then
+        local ok, shown = pcall(AbbreviateNumbers, amount)
+        if ok then return shown end
+        return amount
+    end
     if type(amount) ~= "number" then return amount end
     return AbbreviateNumbers and AbbreviateNumbers(amount) or tostring(amount)
 end
@@ -174,7 +182,7 @@ local function Acquire(texture, text, flagText, color, prefix, anchor, point, re
     popup.text:SetPoint("CENTER", popup, "CENTER", iconShown and (ICON_SIZE + ICON_GAP) / 2 or 0, 0)
     popup.text:SetFont(STANDARD_TEXT_FONT, crit and FONT_SIZE * CRIT_SCALE or FONT_SIZE, "OUTLINE")
     popup.text:SetTextColor(color[1], color[2], color[3])
-    local shown = Plain(text) and FormatAmount(text) or text
+    local shown = FormatAmount(text)
     if prefix then
         popup.text:SetFormattedText(prefix .. "%s", shown)
     else

@@ -391,6 +391,18 @@ return function(T)
         end)
         Check("display: popups draw without errors" .. (ok and "" or (" (" .. tostring(err) .. ")")), ok)
         Check("display: at most 40 popup frames", created == 40)
+        local abbreviated, abbreviate = {}, AbbreviateNumbers
+        AbbreviateNumbers = function(value) abbreviated[#abbreviated + 1] = value return "26K" end
+        ok, err = pcall(function()
+            ns.Display.Plate(plate, "tex", Secret(26742), "", 32)
+            ns.Display.Plate(plate, "tex", 26742, "", 32)
+            ns.Display.Plate(plate, "tex", "Miss")
+            ns.Display.ReleasePlate(plate)
+        end)
+        AbbreviateNumbers = abbreviate
+        Check("display: a secret amount (a hit in an instance) is abbreviated like a plain one; a miss word is not"
+            .. (ok and "" or (" (" .. tostring(err) .. ")")),
+            ok and #abbreviated == 2 and issecretvalue(abbreviated[1]) and abbreviated[2] == 26742)
         ok, err = pcall(function()
             ns.Display.Update(T.State().now + 0.6)
             ns.Display.Update(T.State().now + 5)
