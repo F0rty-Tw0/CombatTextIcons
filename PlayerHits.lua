@@ -50,8 +50,18 @@ local function DrawOwnHeal(heal, castID)
     if ns.Debug then ns.Debug("  -> %s", route) end
 end
 
+-- The one saved proc row's ID when a claim of the frame's heals names it, else nil (TowHold.Healed).
+local function ProcClaim(claims, count)
+    local row = ns.LockedHeals.OnlyRow()
+    if not row then return end
+    for index = 1, count do
+        if claims[index] == row then return row end
+    end
+end
+
 -- Draws the waiting heals once their frame is over: `now` past its stamp, or nil (the fight ended; the replays end
--- each frame with it too). Each waits for at most one frame: an event of a later one flushes them first.
+-- each frame with it too). Each waits for at most one frame: an event of a later one flushes them first. On Forever
+-- the frame's claims then settle the drain hit TowHold holds for them (TowHold.Healed).
 function PlayerHits.FlushHeals(now)
     local heals = waiting.heals
     if #heals == 0 or (now and now <= waiting.at) then return end
@@ -61,6 +71,7 @@ function PlayerHits.FlushHeals(now)
     local claims
     if ns.IsForever then
         claims = ns.LockedHeals.Claim(casts, heals, at, HitRoute.OwnFrameAt(at), not InGroup())
+        TowHold.Healed(at, ProcClaim(claims, #heals))
     else
         claims = Heals.Claim(casts, heals, hits, at, not InGroup() and Teacher.AreaClear())
     end
@@ -80,7 +91,7 @@ end
 
 PlayerHits.QueueFlush = QueueFlush
 
--- Whether a heal on you already waits on the stamp `now` (TowHold.Proc).
+-- Whether a heal on you already waits on the stamp `now` (TowHold.Hold).
 function PlayerHits.HealWaits(now)
     return waiting.at == now and #waiting.heals > 0
 end

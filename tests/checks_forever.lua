@@ -278,6 +278,30 @@ return function(T)
         Check("tickless: its route stays 'locked <id>'", locked.Route() == "  -> locked 5019")
     end
 
+    -- The route lines ("  -> ...") the debug log gained since `mark`, a #rig.log.
+    local function RoutesSince(rig, mark)
+        local routes = {}
+        for index = mark + 1, #rig.log do
+            if rig.log[index]:find("^  %->") then routes[#routes + 1] = rig.log[index] end
+        end
+
+        return routes
+    end
+    local function Has(routes, line)
+        for _, route in ipairs(routes) do if route == line then return true end end
+
+        return false
+    end
+    local function Heal(rig, t)
+        rig.S.now = t
+        rig.ns.Core.UNIT_COMBAT("player", "HEAL", "", Secret(9), 1)
+    end
+    -- The 0.2 s callbacks Core queued, fired at `t`.
+    local function FireTimers(rig, t)
+        rig.S.now = t
+        for _, timer in ipairs(rig.S.timers) do if timer.delay == 0.2 then timer.fn() end end
+    end
+
     -- Touch of Weakness: a lone shadow hit after the buff cast, with no self-heal near it, draws the proc's icon ------
     -- (spec 2026-11-07-forever-tow-proc; runs 10 and 11: 7 procs, each a shadow hit `?` with no heal on you within
     -- 0.5 s, where the 1260198 drain's heal comes on its hit's stamp or 0.107 s later)
@@ -287,33 +311,10 @@ return function(T)
         local function TowRig()
             return Rig(function(S) S.harmful[TOW1], S.harmful[TOW2] = false, false end, true)
         end
-        -- The route lines ("  -> ...") the debug log gained since `mark`, a #rig.log.
-        local function RoutesSince(rig, mark)
-            local routes = {}
-            for index = mark + 1, #rig.log do
-                if rig.log[index]:find("^  %->") then routes[#routes + 1] = rig.log[index] end
-            end
-
-            return routes
-        end
-        local function Has(routes, line)
-            for _, route in ipairs(routes) do if route == line then return true end end
-
-            return false
-        end
         local function HasTow(routes)
             for _, route in ipairs(routes) do if route:find("^  %-> tow") then return true end end
 
             return false
-        end
-        local function Heal(rig, t)
-            rig.S.now = t
-            rig.ns.Core.UNIT_COMBAT("player", "HEAL", "", Secret(9), 1)
-        end
-        -- The 0.2 s callbacks Core queued, fired at `t`.
-        local function FireTimers(rig, t)
-            rig.S.now = t
-            for _, timer in ipairs(rig.S.timers) do if timer.delay == 0.2 then timer.fn() end end
         end
 
         local rig = TowRig()
@@ -495,6 +496,122 @@ return function(T)
         Check("tow: /cti off while a candidate is held draws it as nothing", #rig.draws == 0
             and not HasTow(RoutesSince(rig, mark)))
         SlashCmdList.COMBATTEXTICONS("on")
+    end
+
+    -- The 1260198 drain: a lone shadow hit held while exactly one proc row is saved draws that row's icon when a heal on
+    -- its stamp is claimed as the row (spec 2026-11-10-forever-drain-hit) -------------------------------------------
+    do
+        local TOW2, PROC2, WAND, DRAIN, OTHER = 19261, 19249, 5019, 1260198, 23455
+        local DRAIN_ROUTE = "  -> drain " .. DRAIN
+        -- Forever, solo unless `group`, with the proc rows `rows` saved and Touch of Weakness castable
+        local function DrainRig(rows, group)
+            return Rig(function(S)
+                S.harmful[2652], S.harmful[TOW2] = false, false
+                S.group = group == true
+                CombatTextIconsCharDB.lockedHealsV = 2
+                CombatTextIconsCharDB.lockedHeals = {}
+                for _, id in ipairs(rows) do CombatTextIconsCharDB.lockedHeals[id] = { strikes = 0 } end
+            end, true)
+        end
+        local function PlateTexture(rig)
+            for index = #rig.draws, 1, -1 do
+                if rig.draws[index].plate then return rig.draws[index].texture end
+            end
+        end
+        local function Logged(rig, line)
+            for _, logged in ipairs(rig.log) do if logged == line then return true end end
+
+            return false
+        end
+
+        local rig = DrainRig({ DRAIN })
+        local mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100.2, "nameplate1", WAND)
+        Check("drain: a lone shadow hit with a heal on its stamp draws the one saved proc row",
+            Has(RoutesSince(rig, mark), DRAIN_ROUTE) and PlateTexture(rig) == "tex:" .. DRAIN)
+
+        rig = DrainRig({ DRAIN })
+        mark = #rig.log
+        Heal(rig, 100)
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        rig.Cast(100.2, "nameplate1", WAND)
+        Check("drain: a heal logged on the stamp before the hit draws the same",
+            Has(RoutesSince(rig, mark), DRAIN_ROUTE) and PlateTexture(rig) == "tex:" .. DRAIN)
+
+        rig = DrainRig({ DRAIN })
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100.1)
+        local routes = RoutesSince(rig, mark)
+        Check("drain: a heal 0.1 s after the hit draws it '?' at the heal", #routes == 1 and routes[1] == ROUTE_UNKNOWN)
+        rig.Cast(100.3, "nameplate1", WAND)
+        Check("drain: ... and no hit draws as the drain later", not Has(RoutesSince(rig, mark), DRAIN_ROUTE))
+
+        rig = DrainRig({ DRAIN })
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Check("drain: no heal, Touch of Weakness not armed -> the hit is held and logs '  .. drain'",
+            #RoutesSince(rig, mark) == 0 and Logged(rig, "  .. drain"))
+        FireTimers(rig, 100.2)
+        Check("drain: ... and the 0.2 s timer draws it '?'", RoutesSince(rig, mark)[1] == ROUTE_UNKNOWN)
+
+        rig = DrainRig({ DRAIN })
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        rig.Cast(100.2, "nameplate1", WAND)
+        Check("drain: Touch of Weakness armed, no heal -> the proc draws as before",
+            Has(RoutesSince(rig, mark), "  -> tow " .. PROC2))
+
+        rig = DrainRig({ DRAIN })
+        rig.Cast(90, "nameplate1", TOW2)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100.2, "nameplate1", WAND)
+        Check("drain: Touch of Weakness armed, heal on the stamp -> the drain draws and the arm stays",
+            Has(RoutesSince(rig, mark), DRAIN_ROUTE) and rig.ns.Tow.Armed(100.2) == PROC2)
+
+        rig = Rig(nil, true)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Check("drain: no row saved -> '?' at once and no hold", RoutesSince(rig, mark)[1] == ROUTE_UNKNOWN
+            and not Logged(rig, "  .. drain"))
+
+        rig = DrainRig({ DRAIN, OTHER })
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Check("drain: two rows saved -> '?' at once", RoutesSince(rig, mark)[1] == ROUTE_UNKNOWN)
+
+        rig = DrainRig({ DRAIN }, true)
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100.2, "nameplate1", WAND)
+        Check("drain: grouped -> no plate draw for the hit", PlateTexture(rig) == nil)
+
+        rig = DrainRig({ DRAIN })
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 1)
+        Check("drain: a physical hit is not held", RoutesSince(rig, mark)[1] == ROUTE_UNKNOWN)
+
+        rig = DrainRig({ DRAIN })
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        rig.Hit(100.1, "nameplate2", Secret(31), 32)
+        Heal(rig, 100.1)
+        rig.Cast(100.3, "nameplate1", WAND)
+        Check("drain: a heal claimed for a later own hit does not name the earlier held hit",
+            not Has(RoutesSince(rig, mark), DRAIN_ROUTE) and PlateTexture(rig) ~= "tex:" .. DRAIN)
+
+        rig = DrainRig({ DRAIN })
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.S.now = 100.05
+        rig.ns.Core.PLAYER_REGEN_ENABLED()
+        Check("drain: fight end right after the same-stamp heal draws the drain", Has(RoutesSince(rig, mark), DRAIN_ROUTE))
     end
 
     -- 4. Debug lines ------------------------------------------------------------------------

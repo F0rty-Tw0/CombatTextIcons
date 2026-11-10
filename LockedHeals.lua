@@ -49,6 +49,7 @@ local function OnlyRow()
     local id = next(saved)
     if id ~= nil and next(saved, id) == nil then return id end
 end
+LockedHeals.OnlyRow = OnlyRow
 
 -- Adds a fit of `kind` for `id` to this heal's tally; `ids` lists each distinct spell once, in first-fit order
 local function Fit(kinds, ids, id, kind)

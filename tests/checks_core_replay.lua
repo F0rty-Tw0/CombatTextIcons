@@ -17,10 +17,13 @@ return function(T)
     -- cast stamp (ticklessAt); ticklessHits lists each `-> tickless` draw { at = its frame's stamp, unit, id, onStamp
     -- (on such a stamp), onOwnCast (on a stamp where `id` was cast at `unit`) }, and hitCounts[at|unit|school] the hits
     -- that frame held on that plate in that school. `tows` lists each `-> tow <id>` draw { at = the stamp of the
-    -- `  .. tow` line before it, id }, `teachRows[id]` the log's TEACH lines of that spell (the meter's rows),
-    -- `routes[kind]` the routes printed by kind (`-> <kind> ...`). Each `HEAL player` line goes through
-    -- Core.UNIT_COMBAT as OnHit's hits do, and no queued timer fires (the stub has no clock): a held candidate waits
-    -- for the log's next event or fight end.
+    -- `  .. tow` or `  .. drain` line before it, id }, `drains` each `-> drain <id>` draw the same way, `healAt` the
+    -- stamps ("%.3f") of the log's `HEAL player` lines, `teachRows[id]` the log's TEACH lines of that spell (the
+    -- meter's rows), `routes[kind]` the routes printed by kind (`-> <kind> ...`). Each `HEAL player` line goes
+    -- through Core.UNIT_COMBAT as OnHit's hits do, and no queued timer fires (the stub has no clock): a held candidate
+    -- waits for the log's next event or fight end. A seed's `lockedHeals` row 1260198 stays the only saved proc row
+    -- (the drain hold needs exactly one): Teacher's fight-end read waits in `S.timers` (Teacher.lua:1909), which this
+    -- replay never fires, so LockedHeals.Learn never runs; Boot wraps the seed as the spec store (run.lua:236-239).
     local function Replay(name, seed)
         local ns = T.Boot(function(S)
             S.interface = 16001
@@ -30,14 +33,15 @@ return function(T)
         local S = T.State()
         ns.Teacher.area = "clear"
         local R = { swpOnTickless = 0, swpOnOwnCast = 0, swpTicks = 0, hits = 0, blastOnBlast = 0, ticklessHits = {},
-            hitCounts = {}, schoolOf = ns.Ticks.TICKLESS, tows = {}, teachRows = {}, routes = {}, dotOnOwnCast = 0 }
+            hitCounts = {}, schoolOf = ns.Ticks.TICKLESS, tows = {}, drains = {}, healAt = {}, teachRows = {}, routes = {},
+            dotOnOwnCast = 0 }
         -- [stamp] = true: a Mind Blast or Smite cast, a SW:P cast there; aimAt[stamp|id]: the plate that cast aimed at;
         -- dotAt[stamp|id]: SW:P or Devouring Plague `id` cast there (counted as dotOnOwnCast when a hit there draws it);
         -- pending: the HIT whose PROBE line comes next
         local ticklessAt, swpAt, aimAt, dotAt, fighting, pending = {}, {}, {}, {}, false, nil
         -- A held hit prints its route when its frame ends, in the first handler call after it: `flushAt` is the stamp of
         -- the call before that one, the held hit's frame. A `-> tickless` line is followed by the hit's own draw.
-        local flushAt, prevAt, drawing, towAt = nil, nil, nil, nil
+        local flushAt, prevAt, drawing, heldAt = nil, nil, nil, nil
         ns.Display.Plate = function(plate)
             if not drawing then return end
             R.ticklessHits[#R.ticklessHits + 1] = { at = drawing.at, unit = plate.unit, id = drawing.id,
@@ -52,9 +56,11 @@ return function(T)
             if line:find("^  %->") then route = line end
             local kind = line:match("^  %-> (%S+)")
             if kind then R.routes[kind] = (R.routes[kind] or 0) + 1 end
-            if line == "  .. tow" then towAt = S.now end
+            if line == "  .. tow" or line == "  .. drain" then heldAt = S.now end
             local tow = line:match("^  %-> tow (%d+)")
-            if tow then R.tows[#R.tows + 1] = { at = towAt, id = tonumber(tow) } end
+            if tow then R.tows[#R.tows + 1] = { at = heldAt, id = tonumber(tow) } end
+            local drain = line:match("^  %-> drain (%d+)")
+            if drain then R.drains[#R.drains + 1] = { at = heldAt, id = tonumber(drain) } end
             local tickless = line:match("^  %-> tickless (%d+)")
             if tickless then drawing = { at = flushAt, id = tonumber(tickless) } end
         end
@@ -120,6 +126,7 @@ return function(T)
 
         local function OnHeal(at, flag)
             S.now = at
+            R.healAt[string.format("%.3f", at)] = true
             Call(at)
             ns.Core.UNIT_COMBAT("player", "HEAL", flag, T.Secret(31), 1)
         end
@@ -167,6 +174,7 @@ return function(T)
     local S10R1 = Replay("forever-s10-run1-2026-11-07.log", {
         learned = { [970] = { school = 32, kind = "dot", period = 3.023, misses = 0 } },
         lockedTicks = { [970] = { period = 3.023, kind = "damage", school = 32, misses = 0 } },
+        lockedHeals = { [1260198] = { strikes = 0 } }, lockedHealsV = 2,
     })
     T.Note(string.format("CORE S10R1 hits=%d swpOnTickless=%d swpOnOwnCast=%d swpTicks=%d", S10R1.hits,
         S10R1.swpOnTickless, S10R1.swpOnOwnCast, S10R1.swpTicks))
@@ -226,6 +234,7 @@ return function(T)
     local S11R1 = Replay("forever-s11-run1-2026-11-07.log", {
         learned = { [970] = { school = 32, kind = "dot", period = 3.023, misses = 0 } },
         lockedTicks = { [970] = { period = 3.023, kind = "damage", school = 32, misses = 0 } },
+        lockedHeals = { [1260198] = { strikes = 0 } }, lockedHealsV = 2,
     })
     RouteNote("S10R1", S10R1)
     RouteNote("S11R1", S11R1)
@@ -246,6 +255,7 @@ return function(T)
             [2944] = { school = 32, kind = "dot", period = 3.0, misses = 0 } },
         lockedTicks = { [970] = { period = 3.004, kind = "damage", school = 32, misses = 0 },
             [2944] = { period = 3.0, kind = "damage", school = 32, misses = 0 } },
+        lockedHeals = { [1260198] = { strikes = 0 } }, lockedHealsV = 2,
     })
     RouteNote("S12R1", S12R1)
     T.Note("CORE S12R1 tow " .. Stamps(S12R1) .. " dotOnOwnCast=" .. S12R1.dotOnOwnCast)
@@ -254,4 +264,31 @@ return function(T)
         and Stamps(S12R1) == "278948.988 279016.467 279045.228")
     Check("core S12R1: no hit on SW:P's or Devouring Plague's own cast stamp is drawn as that DoT",
         S12R1.dotOnOwnCast == 0)
+
+    -- The drain's damage hit draws its heal's proc row (TowHold.Healed): with the one row 1260198 saved, a held lone
+    -- shadow hit whose same-stamp heal is claimed as the row draws `-> drain 1260198`. The oracle is the log: each such
+    -- draw sits on a stamp with a `HEAL player` line, read from the log's lines, not from the code's own frame list.
+    local function Drains(replay) -- the count, and how many sit on a stamp with no HEAL player line in the log
+        local off = 0
+        for _, drawn in ipairs(replay.drains) do
+            if not replay.healAt[string.format("%.3f", drawn.at)] then off = off + 1 end
+        end
+
+        return #replay.drains, off
+    end
+    local function AllRow(replay)
+        for _, drawn in ipairs(replay.drains) do if drawn.id ~= 1260198 then return false end end
+
+        return true
+    end
+    -- Floors: measured 11, 27 and 8 (2026-11-10), less 1 each.
+    for _, case in ipairs({ { "S10R1", S10R1, 10 }, { "S11R1", S11R1, 26 }, { "S12R1", S12R1, 7 } }) do
+        local label, replay, floor = case[1], case[2], case[3]
+        local count, off = Drains(replay)
+        T.Note(string.format("CORE %s drain=%d off=%d", label, count, off))
+        Check("core " .. label .. ": every hit drawn as the drain sits on a stamp with a HEAL player line in the log",
+            count > 0 and off == 0)
+        Check("core " .. label .. ": every drain draw is the saved row 1260198", AllRow(replay))
+        Check("core " .. label .. ": at least " .. floor .. " hits draw as the drain 1260198", count >= floor)
+    end
 end

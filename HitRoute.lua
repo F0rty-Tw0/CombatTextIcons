@@ -877,13 +877,11 @@ local function Wound(plate, unit, flagText, amount, school, now)
         local tickless = lockedAsk and ns.Locked.TicklessCast(plate, school, now)
         if tickless then return HoldTickless(plate, school, amount, flagText, now, tickless, cast, candidates) end
 
-        -- a lone secret shadow hit while Touch of Weakness is armed may be its proc, unless a heal on you comes with it
-        -- (TowHold.Hold)
-        local tow = lockedAsk and ns.TowHold.Proc(school, now)
-        if tow then
-            return ns.TowHold.Hold(plate, school, amount, flagText, now, cast, candidates, tow,
-                frameHits.list[#frameHits.list])
-        end
+        -- a lone secret shadow hit while Touch of Weakness is armed may be its proc, unless a heal on you comes with it;
+        -- with one proc row saved it may be the drain's, which that row's heal names (TowHold.Hold)
+        local held = lockedAsk and ns.TowHold.Hold(plate, school, amount, flagText, now, cast, candidates,
+            frameHits.list[#frameHits.list])
+        if held then return end
 
         return Question(plate, school, amount, flagText, now, cast, candidates, sole)
     end
