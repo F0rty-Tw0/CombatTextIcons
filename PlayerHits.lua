@@ -24,6 +24,13 @@ local waiting, frameCasts = { heals = {} }, { ids = {} }
 -- line), so only then does the frame know its casts; its hits (frameHits, HitRoute.FrameHits) come with them.
 local flushQueued = false -- a flush waits on C_Timer.After(0)
 
+-- A named heal on you (a claim or a channel's). On Forever while grouped it draws nothing: Blizzard's heal numbers are
+-- back there (BlizzardText.Sync), so a self-heal would show twice, like the plate hits (HitRoute's DrawPlate).
+local function DrawHeal(texture, amount, flagText)
+    if ns.IsForever and InGroup() then return end
+    Display.Player("heal", texture, amount, flagText)
+end
+
 -- A heal on you no channel named is drawn: with the icon of the spell that claimed it (on Forever
 -- LockedHeals.Claim: a direct, HoT or proc fit; else Heals.Claim: its frame's
 -- helpful cast, a learned size or share, or the tick of a running train), else as any unexplained heal on you: the question mark solo while the area is clear, else hidden.
@@ -32,7 +39,7 @@ local function DrawOwnHeal(heal, castID)
     if castID then
         route = "heal " .. castID
         Ledger.Add("heal", castID, heal.amount)
-        Display.Player("heal", SpellTexture(castID), heal.amount, heal.flagText)
+        DrawHeal(SpellTexture(castID), heal.amount, heal.flagText)
     elseif not InGroup() and MayQuestion(heal.amount) then
         route = "unknown-solo"
         Ledger.Add("heal", UnknownKey(heal.school), heal.amount)
@@ -108,7 +115,7 @@ function PlayerHits.Heal(unit, flagText, amount, school, now)
     local texture = spellID and SpellTexture(spellID) or nil
     if texture ~= nil then
         Ledger.Add("heal", spellID, amount)
-        Display.Player("heal", texture, amount, flagText)
+        DrawHeal(texture, amount, flagText)
         if ns.Debug then ns.Debug("  -> channel") end
     elseif unit == "player" then
         local heal = { flagText = flagText, amount = amount, school = school,

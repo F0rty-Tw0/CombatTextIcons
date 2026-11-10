@@ -309,6 +309,24 @@ return function(T)
             rig.args[5] == false and #rig.draws == 0 and not Has(rig.log, "LOCKEDHEAL 17 direct")
             and rig.log[#rig.log] == "  -> HIDDEN")
 
+        -- Grouped on Forever Blizzard's heal numbers are on: a heal a claim names is tallied but not drawn (it showed
+        -- twice); retail draws it.
+        local function GroupedNamed(interface)
+            local named = Wired(interface)
+            named.S.group = true
+            named.ns.LockedHeals.Claim = function() return { 17 } end
+            named.ns.Heals.Claim = function() return { 17 } end
+            named.ns.Heals.AnyLearned = function() return true end
+            named.Heal(10, interface and 9 or Secret(9))
+            named.ns.Core.FlushHeals(11)
+
+            return named
+        end
+        local forever, retail = GroupedNamed(), GroupedNamed(120105)
+        Check("lockedheals wiring: a named heal in a group draws nothing on Forever (route still heal 17), draws on retail",
+            #forever.draws == 0 and forever.log[#forever.log] == "  -> heal 17"
+            and retail.draws[1] and retail.draws[1].texture == Texture(17))
+
         rig = Wired(nil, { [1260198] = { strikes = 0 } })
         rig.S.now = 10
         rig.ns.Core.UNIT_COMBAT(PLATE, "WOUND", "", Secret(31), 32) -- your solo hit on the stamp
