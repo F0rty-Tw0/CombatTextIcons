@@ -1276,6 +1276,34 @@ local function ReadMeter(text)
     end
 end
 
+-- The globals Owner reads about the Combat Log (OwnerActive.lua), set live: a party, the lines on or off (log.on), the
+-- "My actions" filter picked, the Combat Log tab hidden (log.shown). `log` (a new table by default) keeps the stub's
+-- state: log.on, log.shown, log.setError (SetFilteredEventsEnabled raises) and log.setCalls (each value it was given).
+-- Call after Boot or inside its setup; a Boot does not clear them, T.CombatLogClear does.
+local COMBAT_LOG_GLOBALS = { "IsInRaid", "C_CombatLog", "Blizzard_CombatLog_Filters", "COMBATLOG" }
+
+local function CombatLogLive(log)
+    log = log or {}
+    log.on, log.shown, log.setCalls = log.on or false, log.shown or false, log.setCalls or {}
+    IsInRaid = function() return false end
+    C_CombatLog = {
+        AreFilteredEventsEnabled = function() return log.on end,
+        SetFilteredEventsEnabled = function(value)
+            if log.setError then error("refused") end
+            log.on = value
+            log.setCalls[#log.setCalls + 1] = value
+        end,
+    }
+    Blizzard_CombatLog_Filters = { currentFilter = 1, filters = { { name = "My actions" } } }
+    COMBATLOG = { IsShown = function() return log.shown end }
+
+    return log
+end
+
+local function CombatLogClear()
+    for _, name in ipairs(COMBAT_LOG_GLOBALS) do _G[name] = nil end
+end
+
 -- SW:P, every rank in the Forever captures (read-only)
 local SWP_RANKS = { [589] = true, [594] = true, [970] = true }
 
@@ -1286,6 +1314,7 @@ local function RunChecks()
     T = {
         Boot = Boot, BootSpells = function(setup) return Boot(setup, true) end, Check = Check, Secret = Secret, Generic = Generic, Plate = Plate, TocFiles = TocFiles,
         PlateOf = PlateOf, ReadMeter = ReadMeter, SWP_RANKS = SWP_RANKS,
+        CombatLogLive = CombatLogLive, CombatLogClear = CombatLogClear,
         Note = function(text) notes[#notes + 1] = text end,
         State = function() return S end, Store = Store, Root = ROOT,
         RunFile = function(file) RunCheckFile(file, T) end,

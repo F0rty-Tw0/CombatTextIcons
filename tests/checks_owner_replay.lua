@@ -8,23 +8,7 @@ return function(T)
     -- They are inferred from the ids; a wrong one only changes which cast route runs.
     local HELPFUL = { 596, 6064, 6077, 14751, 8690 }
     local SEED_SCHOOLS = { [589] = 32, [585] = 2 }
-    local GLOBALS = { "IsInRaid", "C_CombatLog", "Blizzard_CombatLog_Filters", "COMBATLOG" }
-
-    local function Clean()
-        for _, name in ipairs(GLOBALS) do _G[name] = nil end
-    end
-
-    -- Sets the Combat Log globals Owner reads: a party, the lines on, "My actions" picked, the Combat Log tab hidden.
-    local function SetCombatLog()
-        local on = false
-        IsInRaid = function() return false end
-        C_CombatLog = {
-            AreFilteredEventsEnabled = function() return on end,
-            SetFilteredEventsEnabled = function(value) on = value end,
-        }
-        Blizzard_CombatLog_Filters = { currentFilter = 1, filters = { { name = "My actions" } } }
-        COMBATLOG = { IsShown = function() return false end }
-    end
+    local Clean, SetCombatLog = T.CombatLogClear, T.CombatLogLive
 
     -- Feeds `lines` to a booted Forever party and returns what happened. R.owned lists each HitRoute.Route call
     -- { unit, now (the hit's stamp), releasedAt (S.now at the call), clock (ns.Now() at the call) }, R.hits the HIT lines

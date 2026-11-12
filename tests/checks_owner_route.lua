@@ -551,15 +551,11 @@ return function(T)
             rig.Before("KeepLinesOn", "SyncBlizzard") and rig.Count("KeepLinesOn") == 1)
 
         -- retail never switches the Combat Log lines; the same events on Forever do (the control)
-        local clog = { set = 0 }
+        local clog
         local function Lines(interface)
-            local lines = Wired({ interface = interface, setup = function()
-                C_CombatLog = {
-                    SetFilteredEventsEnabled = function() clog.set = clog.set + 1 end,
-                    AreFilteredEventsEnabled = function() return false end,
-                }
-            end })
-            clog.set = 0
+            clog = {}
+            local lines = Wired({ interface = interface, setup = function() T.CombatLogLive(clog) end })
+            clog.setCalls, clog.on = {}, false -- the boot may have switched them on; count only the events below
             lines.ns.Core.GROUP_ROSTER_UPDATE()
             lines.ns.Core.PLAYER_REGEN_DISABLED()
             lines.ns.Core.PLAYER_LOGIN()
@@ -568,11 +564,11 @@ return function(T)
             return lines
         end
         local retail = Lines(120105)
-        local retailSet = clog.set
+        local retailSet = #clog.setCalls
         local forever = Lines(16001)
-        C_CombatLog = nil
+        T.CombatLogClear()
         Check("wiring: on retail GROUP_ROSTER_UPDATE and PLAYER_REGEN_DISABLED never call KeepLinesOn (the C_CombatLog.SetFilteredEventsEnabled stub is not called)",
-            retail.Count("KeepLinesOn") == 0 and retailSet == 0 and forever.Count("KeepLinesOn") == 3 and clog.set > 0)
+            retail.Count("KeepLinesOn") == 0 and retailSet == 0 and forever.Count("KeepLinesOn") == 3 and #clog.setCalls > 0)
 
         Check("wiring: on retail a player cast never calls Owner.Cast (no cast count, no check timer)",
             retail.Count("Cast") == 0 and forever.Count("Cast") == 1)

@@ -217,26 +217,17 @@ return function(T)
     -- 1.4 Active, switch-on and liveness
     do
         local function Rig(interface, group)
-            local rig = { on = false, setCalls = {}, syncs = 0, routes = 0, shown = false }
-            IsInRaid, C_CombatLog, Blizzard_CombatLog_Filters, COMBATLOG = nil, nil, nil, nil -- clean boot: from Task 2.4 PLAYER_LOGIN calls Owner.KeepLinesOn
+            local rig = { syncs = 0, routes = 0 }
+            T.CombatLogClear() -- clean boot: from Task 2.4 PLAYER_LOGIN calls Owner.KeepLinesOn
             rig.ns = T.Boot(function(S) S.interface = interface or 16001 S.group = group ~= false end)
             rig.S = T.State()
-            IsInRaid = function() return false end
-            C_CombatLog = {
-                AreFilteredEventsEnabled = function() return rig.on end,
-                SetFilteredEventsEnabled = function(value)
-                    if rig.setError then error("refused") end
-                    rig.on = value rig.setCalls[#rig.setCalls + 1] = value
-                end,
-            }
-            Blizzard_CombatLog_Filters = { currentFilter = 1, filters = { { name = "My actions" } } }
-            COMBATLOG = { IsShown = function() return rig.shown end }
+            T.CombatLogLive(rig) -- rig.on, rig.shown, rig.setError, rig.setCalls
             rig.ns.Core.SyncBlizzard = function() rig.syncs = rig.syncs + 1 end
             rig.ns.HitRoute.Route = function() rig.routes = rig.routes + 1 end
             rig.ns.PlayerHits.FlushHeals = function() end
             return rig
         end
-        local function Clean() IsInRaid, C_CombatLog, Blizzard_CombatLog_Filters, COMBATLOG = nil, nil, nil, nil end
+        local Clean = T.CombatLogClear
         local rig, Owner
 
         rig = Rig() Owner = rig.ns.Owner

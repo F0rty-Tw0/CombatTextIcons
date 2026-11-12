@@ -552,10 +552,7 @@ return function(T)
                 lockedSchools = { [589] = { school = 32, strays = 0 } } }
         end)
         local State, Core, Owner = T.State(), real.Core, real.Owner
-        IsInRaid = function() return false end
-        C_CombatLog = { AreFilteredEventsEnabled = function() return true end, SetFilteredEventsEnabled = function() end }
-        Blizzard_CombatLog_Filters = { currentFilter = 1, filters = { { name = "My actions" } } }
-        COMBATLOG = { IsShown = function() return false end }
+        T.CombatLogLive({ on = true })
         local plateTexture, healDrawn
         real.Teacher.area = "clear"
         real.Display.Plate = function(_, texture) plateTexture = texture end
@@ -572,6 +569,6 @@ return function(T)
         Core.UNIT_SPELLCAST_SUCCEEDED("player", "c", WAND)
         Check("owner heals: grouped drain with the real Owner draws the claimed row on the plate and the heal",
             plateTexture == Texture(DRAIN) and healDrawn == true)
-        IsInRaid, C_CombatLog, Blizzard_CombatLog_Filters, COMBATLOG = nil, nil, nil, nil
+        T.CombatLogClear()
     end
 end
