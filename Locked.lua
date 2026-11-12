@@ -225,7 +225,12 @@ function Locked.TicklessCast(plate, school, now)
     end
 end
 
-local function IsUsed(spellID, castTime) return used[spellID] ~= nil and used[spellID][castTime] == true end
+-- Used per plate: an area spell (Holy Nova) hits every plate on the cast stamp, and each plate may name it once.
+local function IsUsed(spellID, castTime, plate)
+    local plates = used[spellID] and used[spellID][castTime]
+
+    return plates ~= nil and plates[plate] == true
+end
 
 -- The kept delay from another cast nearest `delay` and within DELAY_TOL, or nil.
 local function NearestKept(entry, delay, castTime)
@@ -254,9 +259,9 @@ local function Form(entry, delay, castTime)
 end
 
 -- Whether the hit fits this key's lock; a fit moves the lock.
-local function Fit(entry, spellID, delay, castTime)
+local function Fit(entry, spellID, delay, castTime, plate)
     local close = math.abs(delay - entry.lock) <= DELAY_TOL
-    if not close or IsUsed(spellID, castTime) then return false end
+    if not close or IsUsed(spellID, castTime, plate) then return false end
 
     entry.lock = (1 - FOLLOW) * entry.lock + FOLLOW * delay
     entry.fit = true
@@ -264,9 +269,10 @@ local function Fit(entry, spellID, delay, castTime)
     return true
 end
 
-local function Mark(spellID, castTime)
+local function Mark(spellID, castTime, plate)
     used[spellID] = used[spellID] or {}
-    used[spellID][castTime] = true
+    used[spellID][castTime] = used[spellID][castTime] or {}
+    used[spellID][castTime][plate] = true
 end
 
 -- The highest plain session ID in the list, or nil when the list is secret or holds none. Never disables the meter.
@@ -366,7 +372,7 @@ local function ObserveLock(plate, spellID, school, now, castTime)
     local delay = now - castTime
     if not entry.lock then
         Form(entry, delay, castTime)
-    elseif Fit(entry, spellID, delay, castTime) then
+    elseif Fit(entry, spellID, delay, castTime, plate) then
         entry.provisional = nil
         Ticks.NoteHitSchool(spellID, school)
 
@@ -415,7 +421,7 @@ function Locked.Observe(plate, school, now)
 
     local sole = next(fitting)
     if lockFitting[sole] then
-        Mark(sole, fitting[sole])
+        Mark(sole, fitting[sole], plate)
         Inherit(sole, school, lockFitting[sole].lock)
     end
     if slots[sole] then Ticks.Take(sole, slots[sole]) end

@@ -281,7 +281,25 @@ return function(T)
         L.Observe("q", 32, 12.3)
         L.NoteCast(5019, 15)
         local onP = Is(5019, 1, L.Observe("p", 32, 15.9))
-        Check("locked: used on every plate", onP and Is(nil, 0, L.Observe("q", 32, 15.9)))
+        local onQ = Is(5019, 1, L.Observe("q", 32, 15.9))
+        Check("locked: a cast is used once per plate, a repeat hit on either plate stays unnamed",
+            onP and onQ and Is(nil, 0, L.Observe("p", 32, 15.95)) and Is(nil, 0, L.Observe("q", 32, 15.95)))
+    end
+
+    do
+        -- Holy Nova (15431, school 2) hits four plates on its cast stamp: every plate names it, not just the first
+        local L = Fresh()
+        local plates = { "a", "b", "c", "d" }
+        for _, castTime in ipairs({ 10, 11.4 }) do
+            L.NoteCast(15431, castTime)
+            for _, plate in ipairs(plates) do L.Observe(plate, 2, castTime + 0.9) end
+        end
+        L.NoteCast(15431, 15)
+        local named = 0
+        for _, plate in ipairs(plates) do
+            if Is(15431, 1, L.Observe(plate, 2, 15.9)) then named = named + 1 end
+        end
+        Check("locked: an area cast names its spell on every plate it hit", named == 4)
     end
 
     do
