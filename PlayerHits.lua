@@ -13,9 +13,10 @@ local PlayerHits = {}
 ns.PlayerHits = PlayerHits
 
 -- The heals on you waiting for their frame's end and the frame's own helpful casts (FlushHeals, Heal, below).
--- waiting = { at = the frame's stamp, heals = { { flagText, amount, school, size }, ... } }; frameCasts = { at, ids =
--- your helpful casts on that stamp, in cast order, each once (seen) }.
-local waiting, frameCasts = { heals = {} }, { ids = {} }
+-- waiting = { { at = a frame's stamp, heals = { { flagText, amount, school, size }, ... } }, ... }, one entry per
+-- stamp, oldest first (a stamp whose hits Owner still holds keeps its entry while later stamps queue behind it);
+-- frameCasts = { at, ids = your helpful casts on that stamp, in cast order, each once (seen) }.
+local waiting, frameCasts = {}, { ids = {} }
 
 -- Once a heal is learned or one sample from it (Heals.AnyLearned), and on Forever always (LockedHeals.Claim), a heal
 -- on you that no channel named waits for the end of its frame (Core.FlushHeals): it lands before its own cast's
@@ -59,23 +60,28 @@ local function ProcClaim(claims, count)
     end
 end
 
--- Draws the waiting heals once their frame is over: `now` past its stamp, or nil (the fight ended; the replays end
--- each frame with it too). Each waits for at most one frame: an event of a later one flushes them first. On Forever
--- the frame's claims then settle the drain hit TowHold holds for them (TowHold.Healed).
+-- Draws the waiting heals, oldest stamp first, once their frame is over: `now` past its stamp, or nil (the fight ended;
+-- the replays end each frame with it too). Each waits for at most one frame: an event of a later one flushes them
+-- first, unless Owner still holds a hit on that stamp (Owner.Pending): the walk stops there, so a held stamp keeps its
+-- own heals until Owner releases it. On Forever the frame's claims then settle the drain hit TowHold holds for them
+-- (TowHold.Healed).
 function PlayerHits.FlushHeals(now)
-    local heals = waiting.heals
-    if #heals == 0 or (now and now <= waiting.at) then return end
-    local casts = frameCasts.at == waiting.at and frameCasts.ids or {}
-    local hits, at = HitRoute.FrameHits(waiting.at), waiting.at
-    waiting = { heals = {} }
-    local claims
-    if ns.IsForever then
-        claims = ns.LockedHeals.Claim(casts, heals, at, HitRoute.OwnFrameAt(at), not InGroup())
-        TowHold.Healed(at, ProcClaim(claims, #heals))
-    else
-        claims = Heals.Claim(casts, heals, hits, at, not InGroup() and Teacher.AreaClear())
+    while waiting[1] do
+        local entry = waiting[1]
+        if (now and now <= entry.at) or ns.Owner.Pending(entry.at) then return end
+        table.remove(waiting, 1)
+        local heals = entry.heals
+        local casts = frameCasts.at == entry.at and frameCasts.ids or {}
+        local hits, at = HitRoute.FrameHits(entry.at), entry.at
+        local claims
+        if ns.IsForever then
+            claims = ns.LockedHeals.Claim(casts, heals, at, HitRoute.OwnFrameAt(at), not InGroup())
+            TowHold.Healed(at, ProcClaim(claims, #heals))
+        else
+            claims = Heals.Claim(casts, heals, hits, at, not InGroup() and Teacher.AreaClear())
+        end
+        for index, heal in ipairs(heals) do DrawOwnHeal(heal, claims[index]) end
     end
-    for index, heal in ipairs(heals) do DrawOwnHeal(heal, claims[index]) end
 end
 
 -- The game's next frame flushes Owner's held hits, the waiting heals and the held frame mates; a callback still on their
@@ -87,7 +93,7 @@ local function QueueFlush()
         ns.Owner.Flush(GetTime())
         PlayerHits.FlushHeals(GetTime())
         HitRoute.FlushMates(GetTime())
-        if #waiting.heals > 0 or HitRoute.Holding() or ns.Owner.Waiting() then QueueFlush() end
+        if #waiting > 0 or HitRoute.Holding() or ns.Owner.Waiting() then QueueFlush() end
     end)
 end
 
@@ -95,7 +101,11 @@ PlayerHits.QueueFlush = QueueFlush
 
 -- Whether a heal on you already waits on the stamp `now` (TowHold.Hold).
 function PlayerHits.HealWaits(now)
-    return waiting.at == now and #waiting.heals > 0
+    for _, entry in ipairs(waiting) do
+        if entry.at == now then return true end
+    end
+
+    return false
 end
 
 -- Your helpful cast of `spellID` at `now`: the frame's waiting heals may be its (frameCasts, FlushHeals).
@@ -135,8 +145,12 @@ function PlayerHits.Heal(unit, flagText, amount, school, now)
             size = Streams.NormalAmount(amount, flagText) }
         local waits = ns.IsForever or Heals.AnyLearned()
         if not waits then return DrawOwnHeal(heal) end
-        waiting.at = now
-        waiting.heals[#waiting.heals + 1] = heal
+        local last = waiting[#waiting]
+        if not last or last.at ~= now then
+            last = { at = now, heals = {} }
+            waiting[#waiting + 1] = last
+        end
+        last.heals[#last.heals + 1] = heal
         QueueFlush()
     elseif ns.Debug then
         ns.Debug("  -> HIDDEN")
