@@ -206,7 +206,7 @@ end
 local function EndCast(spellID, cast)
     local entry = saved[spellID]
 
-    if entry and cast.checked then
+    if entry and cast.checked and not ns.HitRoute.InGroup() then
         entry.misses = cast.fits == 0 and entry.misses + 1 or 0
         if entry.misses >= MISS_CASTS then
             saved[spellID] = nil
@@ -314,7 +314,8 @@ local function Learn(casts, kind, school, now, hitOf)
             if #delays > MAX_DELAYS then table.remove(delays, 1) end
 
             local period, d1 = PeriodOf(delays)
-            if period and not OlderOwns(casts, cast, kind, school, cast.at + d1, period) then
+            local older = period and OlderOwns(casts, cast, kind, school, cast.at + d1, period)
+            if period and not older and not ns.HitRoute.InGroup() then
                 saved[id] = { period = period, kind = kind, school = school, misses = 0 }
                 cast.learnedAt = now
                 if ns.Debug then ns.Debug("TICKS learned %d period=%.3f kind=%s", id, period, kind) end
@@ -370,7 +371,9 @@ function Ticks.Take(spellID, slot)
 
     used[slot] = true
     local entry, estimate = saved[spellID], estimates[slot]
-    if entry and estimate then entry.period = entry.period + REFINE * (estimate - entry.period) end
+    if entry and estimate and not ns.HitRoute.InGroup() then
+        entry.period = entry.period + REFINE * (estimate - entry.period)
+    end
 end
 
 -- Ticks.DropHeal(spellID): forgets a saved heal HoT the meter never listed (a harmful cast's self-heals landed on its

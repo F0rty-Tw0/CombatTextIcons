@@ -1482,14 +1482,15 @@ local function Link(id, castID)
 end
 
 -- A pending lead whose window closed with no burst of its rhythm: the cast leads it no more. The window runs to the
--- stream's birth (the fourth tick) and a period more, the latest a burst's first draw comes.
-local function Expire(now)
+-- stream's birth (the fourth tick) and a period more, the latest a burst's first draw comes. `keepLinks`: the lead is
+-- pruned but its saved link stays (grouped, where the bursts that would renew it are not seen).
+local function Expire(now, keepLinks)
     local kept = {}
     for _, lead in ipairs(pending) do
         local link, entry = Link(lead.id, lead.cast)
         if link and now - lead.at <= link.hi + ONSET_SLACK + (BURST_GAP + 1) * entry.period then
             kept[#kept + 1] = lead
-        elseif link then
+        elseif link and not keepLinks then
             entry.onset[lead.cast] = nil
             if next(entry.onset) == nil then entry.onset = nil end
         end
@@ -1540,7 +1541,7 @@ end
 
 -- Procs.Drew(id, now, onsetAt): the rhythm `id` drew a hit at `now`. A draw BURST_GAP periods past its last starts a
 -- burst: its pending leads are met, and `onsetAt` (its first tick: the stream's birth, the pair's partner) teaches
--- the links; nil (a hit its link named) teaches none.
+-- the links; nil (a hit its link named) teaches none, and so does a grouped burst.
 function Procs.Drew(id, now, onsetAt)
     local entry = Procs.Get(id)
     if not (entry and entry.period and IsNumber(now)) then return end
@@ -1556,7 +1557,7 @@ function Procs.Drew(id, now, onsetAt)
         if not met then kept[#kept + 1] = lead end
     end
     pending = kept
-    if not IsNumber(onsetAt) then return end
+    if not IsNumber(onsetAt) or ns.HitRoute.InGroup() then return end
     Learn(entry, onsetAt)
     if ns.Debug then
         local links = {}
@@ -1573,7 +1574,7 @@ end
 -- several.
 function Procs.NameOnset(school, amount, flagText, now)
     if not (IsNumber(school) and IsNumber(amount) and IsNumber(now)) then return nil end
-    Expire(now)
+    Expire(now, ns.HitRoute.InGroup())
     local crit = Procs.Crit(flagText)
     local found
     for id, entry in pairs(procs) do

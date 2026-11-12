@@ -307,7 +307,10 @@ local function CastInWindow(spellID, now)
     return now - castTime <= OWN_WINDOW
 end
 
+-- Saves nothing while grouped: owned grouped hits run the solo routes, which must not learn from a group fight.
 local function Teach(spellID, school)
+    if ns.HitRoute.InGroup() then return end
+
     local entry = schools[spellID]
     if entry and (entry.shared or entry.school == school) then return end
 
@@ -335,7 +338,7 @@ local function ReadOwnSchools(school, now, fitting)
         if entry.school == school and not entry.shared then
             if CastInWindow(spellID, now) then
                 fitting[spellID] = casts[spellID]
-            else
+            elseif not ns.HitRoute.InGroup() then
                 entry.strays = entry.strays + 1
                 entry.shared = entry.strays >= STRAYS_MAX or nil
             end
