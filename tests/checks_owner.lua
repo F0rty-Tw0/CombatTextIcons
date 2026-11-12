@@ -89,6 +89,8 @@ return function(T)
         Check("owner: a held hit queues the frame-end flush", #rig.S.timers == before + 1)
         Hit(rig, "nameplate2", 10, 1)
         Check("owner: HIT debug line is written at arrival, owned or not", Logged(rig, "HIT nameplate1") and Logged(rig, "HIT nameplate2") and #rig.routes == 0)
+        local replayShape = "^HIT (%S+) school=(%d+) amount=%S+ flag=(%S*) .-threat=(%S+) .-target=(%a+)$" -- as checks_owner_replay.lua parses it
+        Check("owner: the HIT debug line has the shape the replay parses", rig.log[1]:match(replayShape) == "nameplate1")
         Owner.Line(0, 10)
         Owner.Flush(10.06)
         Check("owner: the own-school hit with a line routes owned, the stranger's drops", #rig.routes == 1 and rig.routes[1].unit == "nameplate1" and rig.routes[1].owned == true)

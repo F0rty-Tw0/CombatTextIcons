@@ -107,7 +107,6 @@ function Owner.Match(lines, events, own)
     return taken, clean
 end
 
-local DebugLog = ns.DebugLog
 local issecretvalue = issecretvalue or function() return false end
 local function Plain(value) return not issecretvalue(value) and value ~= nil end
 
@@ -141,14 +140,6 @@ local function IsTarget(unit)
     return ok and Plain(isTarget) and isTarget == true
 end
 
-local function LogHit(hit)
-    if not ns.Debug then return end
-    local unit = hit.unit
-    ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit,
-        DebugLog.ShowValue(hit.school), DebugLog.ShowValue(hit.amount), DebugLog.ShowValue(hit.flagText), GetFramerate(),
-        DebugLog.ShowThreat(unit), DebugLog.ShowGroup(), DebugLog.ShowNPC(unit), DebugLog.ShowIsTarget(unit))
-end
-
 -- A Combat Log line of yours. Only order 0 (this frame's) counts; a backlog line pairs nothing. The flush is queued so
 -- a line that comes before any hit still gets its frame-end release.
 function Owner.Line(order, now)
@@ -163,7 +154,7 @@ function Owner.Hit(plate, unit, flagText, amount, school, now)
     local hit = { kind = "hit", plate = plate, unit = unit, flagText = flagText, amount = amount, school = school,
         now = now, isTarget = IsTarget(unit) }
     hits[#hits + 1] = hit
-    LogHit(hit)
+    ns.HitRoute.LogHit(unit, school, amount, flagText)
     ns.PlayerHits.QueueFlush()
 end
 

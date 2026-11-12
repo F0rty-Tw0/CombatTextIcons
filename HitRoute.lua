@@ -57,6 +57,15 @@ local function IsTarget(unit)
     return ok and Plain(isTarget) and isTarget
 end
 
+-- The HIT debug line of a hit, written at its arrival (Wound; Owner.Hit for a grouped hit it holds). The offline replay
+-- (tests/checks_owner_replay.lua) parses this exact line.
+function HitRoute.LogHit(unit, school, amount, flagText)
+    if not ns.Debug then return end
+    ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit, ShowValue(school),
+        ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowThreat(unit), ShowGroup(), ShowNPC(unit),
+        ShowIsTarget(unit))
+end
+
 -- Whether the hit was on your target: an owned hit (Owner's release) answers with the target it had at arrival, since
 -- the target may have changed by the release; any other hit asks the unit now.
 local function OnTarget(unit, owned)
@@ -715,11 +724,7 @@ local function Wound(plate, unit, flagText, amount, school, now, owned)
     end
     local text = HitText(flagText, amount)
     if ns.Debug then
-        if not owned then
-            ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit,
-                ShowValue(school), ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowThreat(unit), ShowGroup(),
-                ShowNPC(unit), ShowIsTarget(unit))
-        end
+        if not owned then HitRoute.LogHit(unit, school, amount, flagText) end
         if not Plain(amount) then ns.Debug("PROBE amount=%s meter=%s", ShowRaw(amount), Teacher.ProbeMeter()) end
     end
     -- A crowded fight draws only like-sized ticks (Tracker.Identify) and CrowdFits casts (Casts.Claim).
