@@ -139,6 +139,7 @@ function Core.PLAYER_LOGIN()
     spec = nil
     UseSpec()
     BlizzardText.ResetSync()
+    if ns.IsForever and db.enabled then ns.Owner.KeepLinesOn() end
     Core.SyncBlizzard()
     if fresh and db.enabled then
         print(PREFIX .. "'?' icons are hits it hasn't learned yet. Fight a few mobs solo and they turn into your spell icons."
@@ -160,12 +161,15 @@ function Core.PLAYER_SPECIALIZATION_CHANGED()
 end
 
 function Core.PLAYER_LOGOUT()
+    ns.Owner.LinesOff()
     Core.RestoreBlizzard(false)
 end
 
 -- The fight ends: casts, ledger and the teacher's read close out.
 function Core.PLAYER_REGEN_ENABLED()
     if not db.enabled then return end
+    ns.Owner.Flush(nil)
+    ns.Owner.Active()
     Core.SyncBlizzard() -- retries a write the fight may have refused
     Core.FlushHeals()
     Core.FlushMates()
@@ -181,6 +185,8 @@ end
 -- is drawn (same `now`, so the verdicts find the fight); Progress snapshots the learn state.
 function Core.PLAYER_REGEN_DISABLED()
     if not db.enabled then return end
+    if ns.IsForever then ns.Owner.KeepLinesOn() end
+    ns.Owner.Active()
     local now = GetTime()
     Ledger.Start(now, InGroup())
     Teacher.Start(now, InGroup())
@@ -191,12 +197,14 @@ function Core.UNIT_COMBAT(unit, event, flagText, amount, school)
     if not db.enabled then return end
     local now = GetTime()
     if not (Plain(unit) and Plain(event)) then return end
+    ns.Owner.Flush(now)
     Core.FlushHeals(now)
     Core.FlushMates(now)
     TowHold.Decide(now)
     if unit:find("^nameplate%d+$") then
         HitRoute.EnemyHit(unit, event, flagText, amount, school, now)
     elseif event == "HEAL" and (unit == "player" or unit:find("^party[1-4]$")) then
+        if ns.Owner.Active() then ns.Owner.Heal(unit, now) end
         Core.Heal(unit, flagText, amount, school, now)
     elseif unit == "player" then
         if event == "WOUND" then PlayerHits.Taken(flagText, amount) end
@@ -208,10 +216,12 @@ end
 -- heals: the frame's waiting heals get them (Core.FlushHeals), and the teacher too (Heals.lua).
 function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
     if not db.enabled then return end
-    Core.FlushHeals(GetTime())
-    Core.FlushMates(GetTime())
-    TowHold.Decide(GetTime())
     local now = GetTime()
+    ns.Owner.Flush(now, true)
+    Core.FlushHeals(now)
+    Core.FlushMates(now)
+    TowHold.Decide(now)
+    local keyed = not InGroup() or ns.Owner.Active()
     local tickKey
     if (unit == "player" or unit == "pet") and Plain(spellID) then
         Procs.NoteCast(spellID, now) -- a rhythm's onset may follow any cast (a totem's is not harmful)
@@ -224,7 +234,8 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
             if unit == "player" then
                 local plainPlate = Plain(plate) and plate or nil
                 ns.Locked.NoteCast(spellID, now, plainPlate)
-                tickKey = not InGroup() and plainPlate or nil
+                if ns.IsForever then ns.Owner.Cast(now) end -- only Forever counts casts that bring no line
+                tickKey = keyed and plainPlate or nil
                 ns.Ticks.NoteCast(spellID, now, tickKey, "damage")
             end
         elseif Plain(harmful) and unit == "player" then
@@ -232,7 +243,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
             Teacher.Helped(spellID, now)
             ns.Tow.Note(spellID, now) -- a Touch of Weakness rank arms its proc (Tow.lua)
             Heals.Cast(spellID, now)
-            tickKey = not InGroup() and "player" or nil
+            tickKey = keyed and "player" or nil
             ns.Ticks.NoteCast(spellID, now, tickKey, "heal")
         end
     end
@@ -264,6 +275,9 @@ function Core.UNIT_SPELLCAST_CHANNEL_STOP(unit, castGUID)
 end
 
 function Core.GROUP_ROSTER_UPDATE()
+    ns.Owner.Flush(nil)
+    if ns.IsForever and db.enabled then ns.Owner.KeepLinesOn() end
+    ns.Owner.Active()
     Tracker.OnRosterChanged()
     Core.SyncBlizzard()
 end
@@ -276,6 +290,7 @@ function Core.NAME_PLATE_UNIT_REMOVED(unit)
         Tracker.OnPlateRemoved(plate, PlainGUID(unit), GetTime())
         Display.ReleasePlate(plate)
         HitRoute.PlateGone(plate)
+        ns.Owner.PlateGone(plate)
         ns.Locked.PlateGone(plate)
         ns.Ticks.PlateGone(plate)
         plateUnits[plate] = nil
@@ -299,12 +314,19 @@ events:RegisterEvent("UNIT_COMBAT")
 events:RegisterEvent("NAME_PLATE_UNIT_ADDED")
 events:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
 events:RegisterEvent("GROUP_ROSTER_UPDATE")
+pcall(events.RegisterEvent, events, "COMBAT_LOG_MESSAGE") -- a client without the event raises
 events:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
 events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pet")
 events:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
 events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
 events:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player")
 events:SetScript("OnEvent", function(_, event, ...) Core[event](...) end)
+
+-- One of your Combat Log lines (the lines Owner pairs with the hits).
+function Core.COMBAT_LOG_MESSAGE(text, r, g, b, order)
+    if not db.enabled then return end
+    ns.Owner.Line(order, GetTime())
+end
 
 -- Slash commands --------------------------------------------------------------------
 
@@ -434,6 +456,8 @@ SlashCmdList.COMBATTEXTICONS = function(message)
         Ledger.Finish(GetTime())
         Teacher.fight = nil -- a cut-short fight is not read
         TowHold.Drop() -- the 0.2 s timer then decides nothing
+        ns.Owner.Drop() -- the held hits are neither routed nor drawn
+        ns.Owner.LinesOff()
     end
     print(PREFIX .. (db.enabled and "on" or "off"))
 end

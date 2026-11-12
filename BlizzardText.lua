@@ -1,5 +1,5 @@
 -- Combat Text Icons: Blizzard's own combat text. The addon turns Blizzard's outgoing numbers off while it draws them
--- and gives them back on /cti off, at logout, and on Forever while grouped (SyncBlizzard). Core.SuppressBlizzard,
+-- and gives them back on /cti off, at logout, and on Forever while grouped without Owner (SyncBlizzard). Core.SuppressBlizzard,
 -- Core.RestoreBlizzard and Core.SyncBlizzard are these.
 
 local _, ns = ...
@@ -95,13 +95,13 @@ function BlizzardText.ResetSync()
     applied, pending = nil, false
 end
 
--- On Forever every amount is secret, so the addon names nothing in a group: while grouped Blizzard's numbers come
--- back (the remembered values; its scrolling self-text stays hidden, the addon draws damage you take). It switches
--- only when the mode changes, so an option the player sets while grouped stays, and retries a failed write
--- (spec 2026-11-07-forever-group-blizzard-text).
+-- On Forever every amount is secret, so the addon names nothing in a group unless Owner is active (it pairs the hits
+-- with the Combat Log's lines): while grouped without it Blizzard's numbers come back (the remembered values; its
+-- scrolling self-text stays hidden, the addon draws damage you take). It switches only when the mode changes, so an
+-- option the player sets while grouped stays, and retries a failed write (spec 2026-11-07-forever-group-blizzard-text).
 function BlizzardText.Sync()
     if not db.enabled then return end
-    local wanted = ns.IsForever and InGroup() and "blizzard" or "addon"
+    local wanted = ns.IsForever and InGroup() and not ns.Owner.IsActive() and "blizzard" or "addon"
     if wanted == applied and not pending then return end
 
     local ok

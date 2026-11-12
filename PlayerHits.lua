@@ -78,14 +78,16 @@ function PlayerHits.FlushHeals(now)
     for index, heal in ipairs(heals) do DrawOwnHeal(heal, claims[index]) end
 end
 
--- The game's next frame flushes the waiting heals and held hits; a callback still on their own stamp waits again.
+-- The game's next frame flushes Owner's held hits, the waiting heals and the held frame mates; a callback still on their
+-- own stamp waits again.
 local function QueueFlush()
     if flushQueued then return end
     flushQueued = pcall(C_Timer.After, 0, function()
         flushQueued = false
+        ns.Owner.Flush(GetTime())
         PlayerHits.FlushHeals(GetTime())
         HitRoute.FlushMates(GetTime())
-        if #waiting.heals > 0 or HitRoute.Holding() then QueueFlush() end
+        if #waiting.heals > 0 or HitRoute.Holding() or ns.Owner.Waiting() then QueueFlush() end
     end)
 end
 
