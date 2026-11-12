@@ -400,11 +400,13 @@ SlashCmdList.COMBATTEXTICONS = function(message)
     if message == "debug" then
         if ns.Debug then
             ns.Debug = nil
+            DebugLog.StopLines()
             print(PREFIX .. "debug log off, " .. #db.debugLog .. " lines kept; /reload to save them")
         else
             db.debugLog = {}
             ns.Debug = DebugLog.Debug
             DebugLog.Debug("PROBE api %s", ShowApis())
+            DebugLog.Debug("PROBE clog %s", DebugLog.StartLines())
             print(PREFIX .. "debug log on (cleared)")
         end
         return

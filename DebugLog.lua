@@ -48,6 +48,89 @@ function DebugLog.ShowApis()
     return table.concat(answers, " ")
 end
 
+-- grug: Forever probe (2026-11-11), the block below: remove once the Combat Log's lines are judged.
+-- COMBAT_LOG_MESSAGE hands addons each line the Combat Log prints, its words secret. On the default "My actions"
+-- filter only your own actions print one, so a line in a hit's frame may mark the hit yours (the idea behind
+-- Shuklock's Scrolling Battle Text). The game makes these lines only while they are switched on, which the Combat
+-- Log tab does when it shows; C_CombatLog.SetFilteredEventsEnabled keeps them on. /cti debug logs each line
+-- (CLOG) and swing (SWING) beside the HIT lines, to judge in game whether they pair.
+local lineFrame -- made on the first /cti debug
+local switchedOn -- this probe switched the lines on
+
+local function Valid(event)
+    local ok, valid = pcall(function() return C_EventUtils.IsEventValid(event) end)
+    return ok and Plain(valid) and valid == true
+end
+
+-- The lines' state, switching them on when off: on / switched / err / none (no C_CombatLog call).
+local function KeepLinesOn()
+    local log = C_CombatLog
+    if not (log and log.SetFilteredEventsEnabled and log.AreFilteredEventsEnabled) then return "none" end
+    local ok, on = pcall(log.AreFilteredEventsEnabled)
+    if ok and Plain(on) and on == true then return "on" end
+    if not pcall(log.SetFilteredEventsEnabled, true) then return "err" end
+    switchedOn = true
+    return "switched"
+end
+
+-- The Combat Log's picked filter as index:name (spaces as _), or none before Blizzard_CombatLog loads.
+local function ShowFilter()
+    local all = _G.Blizzard_CombatLog_Filters
+    if type(all) ~= "table" or type(all.filters) ~= "table" then return "none" end
+    local current = all.filters[all.currentFilter]
+    local name = type(current) == "table" and type(current.name) == "string" and current.name or "?"
+    return tostring(all.currentFilter) .. ":" .. (name:gsub("%s", "_"))
+end
+
+local function ShowText(text)
+    if issecretvalue(text) then return "secret" end
+    if type(text) ~= "string" then return type(text) end
+    return (text:sub(1, 60):gsub("|", "/"))
+end
+
+local function ShowShade(value)
+    if Plain(value) and type(value) == "number" then return string.format("%.2f", value) end
+    return DebugLog.ShowValue(value)
+end
+
+local function OnLineEvent(_, event, ...)
+    if not ns.Debug then return end
+    if event == "COMBAT_LOG_MESSAGE" then
+        local text, r, g, b, order = ...
+        ns.Debug("CLOG text=%s rgb=%s,%s,%s order=%s", ShowText(text), ShowShade(r), ShowShade(g), ShowShade(b),
+            DebugLog.ShowValue(order))
+    elseif event == "PLAYER_SWING" then
+        local first, kind = ...
+        ns.Debug("SWING %s kind=%s", DebugLog.ShowValue(first), DebugLog.ShowValue(kind))
+    else -- PLAYER_REGEN_DISABLED: the Combat Log tab hiding switches the lines off again
+        local state = KeepLinesOn()
+        if state ~= "on" then ns.Debug("PROBE clog lines=%s filter=%s", state, ShowFilter()) end
+    end
+end
+
+-- Starts the line probe; returns what the client allowed, for the log's PROBE clog line.
+function DebugLog.StartLines()
+    lineFrame = lineFrame or CreateFrame("Frame")
+    lineFrame:SetScript("OnEvent", OnLineEvent)
+    local answers = {}
+    for _, event in ipairs({ "COMBAT_LOG_MESSAGE", "PLAYER_SWING", "PLAYER_REGEN_DISABLED" }) do
+        local registered = Valid(event) and pcall(lineFrame.RegisterEvent, lineFrame, event)
+        answers[#answers + 1] = event .. "=" .. tostring(registered and true or false)
+    end
+    answers[#answers + 1] = "lines=" .. KeepLinesOn()
+    answers[#answers + 1] = "filter=" .. ShowFilter()
+    return table.concat(answers, " ")
+end
+
+-- Stops it, switching the lines back off when this probe switched them on and the Combat Log tab is hidden.
+function DebugLog.StopLines()
+    if lineFrame then lineFrame:UnregisterAllEvents() end
+    local log = _G.COMBATLOG
+    local ok, showing = pcall(function() return log:IsShown() end)
+    if switchedOn and not (ok and Plain(showing) and showing) then pcall(C_CombatLog.SetFilteredEventsEnabled, false) end
+    switchedOn = nil
+end
+
 -- IsTarget's raw answer for the log: true / false, "secret" or "err".
 function DebugLog.ShowIsTarget(unit)
     local ok, isTarget = pcall(UnitIsUnit, unit, "target")

@@ -769,7 +769,41 @@ return function(T)
         local first = CombatTextIconsDB.debugLog[1]
         Check("probe: /cti debug starts the log with the client's combat APIs", first ~= nil
             and first:find("PROBE api issecretvalue=true CombatLogGetCurrentEventInfo=%a+ C_CombatLog=%a+ C_DamageMeter=true cleu=%a+$") ~= nil)
+        local second = CombatTextIconsDB.debugLog[2]
+        Check("probe: a client without the Combat Log's lines says so and registers nothing", second ~= nil
+            and second:find("PROBE clog COMBAT_LOG_MESSAGE=false PLAYER_SWING=false PLAYER_REGEN_DISABLED=false "
+            .. "lines=none filter=none$") ~= nil)
         slash.ns.Debug = nil
+    end
+
+    -- Probe (2026-11-11): /cti debug logs the Combat Log's lines and switches them on, and back off when it stops ---
+    do
+        local rig = Rig()
+        local enabled = false
+        C_EventUtils = { IsEventValid = function() return true end }
+        C_CombatLog = {
+            AreFilteredEventsEnabled = function() return enabled end,
+            SetFilteredEventsEnabled = function(on) enabled = on end,
+        }
+        Blizzard_CombatLog_Filters = { currentFilter = 1, filters = { { name = "My actions" } } }
+        SlashCmdList.COMBATTEXTICONS("debug")
+        local probe = rig.S.frames[#rig.S.frames] -- made by /cti debug, after every frame the addon made at load
+        local log = CombatTextIconsDB.debugLog
+        Check("probe: the lines are switched on and the picked filter is named", log[2] ~= nil
+            and log[2]:find("PROBE clog COMBAT_LOG_MESSAGE=true PLAYER_SWING=true PLAYER_REGEN_DISABLED=true "
+            .. "lines=switched filter=1:My_actions$") ~= nil and enabled == true)
+        probe.scripts.OnEvent(probe, "COMBAT_LOG_MESSAGE", Secret("text"), 1, 0.5, Secret(0), 2)
+        probe.scripts.OnEvent(probe, "PLAYER_SWING", false, 1)
+        Check("probe: a line logs its words as secret and its plain colour",
+            log[3] ~= nil and log[3]:find("CLOG text=secret rgb=1.00,0.50,%? order=2$") ~= nil)
+        Check("probe: a swing logs its kind", log[4] ~= nil and log[4]:find("SWING false kind=1$") ~= nil)
+        enabled = false
+        probe.scripts.OnEvent(probe, "PLAYER_REGEN_DISABLED")
+        Check("probe: a fight start switches the lines back on when the tab turned them off",
+            log[5] ~= nil and log[5]:find("PROBE clog lines=switched filter=1:My_actions$") ~= nil and enabled)
+        SlashCmdList.COMBATTEXTICONS("debug")
+        Check("probe: /cti debug off switches the lines back off", enabled == false)
+        C_EventUtils, C_CombatLog, Blizzard_CombatLog_Filters = nil, nil, nil
     end
 
     -- Forever's amounts are secret: no read decides the area, yet your hits and heals still draw --------
