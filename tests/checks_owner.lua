@@ -65,4 +65,103 @@ return function(T)
         taken = Match({ { now = 10 }, { now = 10.03 } }, { H(10, 32), H(10.03, 32) }, OWN)
         Check("match: pass 1 keeps each stamp's own hit, pass 2 does not steal", taken[1] == 1 and taken[2] == 2)
     end
+
+    -- 1.3 Holding and release
+    do
+        local function Rig()
+            local rig = { routes = {}, clocks = {}, heals = 0, log = {} }
+            rig.ns = T.Boot(function() CombatTextIconsCharDB = { lockedSchools = { [589] = { school = 32, strays = 0 } } } end)
+            rig.S = T.State()
+            local ns = rig.ns
+            ns.HitRoute.Route = function(hit) rig.routes[#rig.routes + 1] = hit rig.clocks[#rig.clocks + 1] = ns.Now() end
+            ns.PlayerHits.FlushHeals = function(now) rig.heals = rig.heals + 1 rig.healAt = now end
+            ns.Debug = function(fmt, ...) rig.log[#rig.log + 1] = string.format(fmt, ...) end
+            return rig
+        end
+        local function Hit(rig, unit, now, school) rig.ns.Owner.Hit("plate-" .. unit, unit, "", 5, school or 32, now) end
+        local function Logged(rig, text) for _, line in ipairs(rig.log) do if line:find(text, 1, true) then return true end end end
+        local rig, Owner
+
+        rig = Rig() Owner = rig.ns.Owner
+        rig.S.timers = {}
+        local before = #rig.S.timers
+        Hit(rig, "nameplate1", 10)
+        Check("owner: a held hit queues the frame-end flush", #rig.S.timers == before + 1)
+        Hit(rig, "nameplate2", 10, 1)
+        Check("owner: HIT debug line is written at arrival, owned or not", Logged(rig, "HIT nameplate1") and Logged(rig, "HIT nameplate2") and #rig.routes == 0)
+        Owner.Line(0, 10)
+        Owner.Flush(10.06)
+        Check("owner: the own-school hit with a line routes owned, the stranger's drops", #rig.routes == 1 and rig.routes[1].unit == "nameplate1" and rig.routes[1].owned == true)
+        Check("owner: a released hit routes on its own stamp (route clock)", rig.clocks[1] == 10 and rig.ns.Now() == rig.S.now)
+        Check("owner: unowned hits log HIDDEN (not yours)", Logged(rig, "  -> HIDDEN (not yours)"))
+        Check("owner: FlushHeals(now) runs after the stamp releases, with Flush's now", rig.heals == 1 and rig.healAt == 10.06)
+        Check("owner: nothing waits after release", Owner.Waiting() == false and Owner.Pending(10) == false)
+
+        rig = Rig() Owner = rig.ns.Owner
+        Hit(rig, "nameplate1", 10)
+        Owner.Flush(10.03)
+        Check("owner: a hit with no line waits inside 0.05 s", #rig.routes == 0 and Owner.Pending(10) == true and Owner.Waiting() == true)
+        Owner.Line(0, 10.03)
+        Owner.Flush(10.04)
+        Check("owner: a late line owns the held hit (pass 2)", #rig.routes == 1)
+        rig = Rig() Owner = rig.ns.Owner
+        Owner.Line(0, 10)
+        Hit(rig, "nameplate1", 10.03)
+        Owner.Flush(10.04)
+        Check("owner: a late hit takes the waiting line (pass 2)", #rig.routes == 1)
+        rig = Rig() Owner = rig.ns.Owner
+        Hit(rig, "nameplate1", 10)
+        Owner.Flush(10.05)
+        Check("owner: 0.05 s old is still held (strict past 0.05)", #rig.routes == 0 and Owner.Pending(10) == true)
+        Owner.Flush(10.06)
+        Check("owner: past 0.05 s the leftover is dropped", #rig.routes == 0 and Owner.Pending(10) == false and Owner.Waiting() == false)
+
+        rig = Rig() Owner = rig.ns.Owner
+        Hit(rig, "nameplate1", 10, 1)          -- stamp A: no line, held
+        Hit(rig, "nameplate2", 10.01)           -- stamp B: owned by its line
+        Owner.Line(0, 10.01)
+        Owner.Flush(10.03)
+        Check("owner: a later owned stamp waits behind an older unreleased one", #rig.routes == 0)
+        Owner.Flush(10.06)
+        Check("owner: then A drops and B routes, in stamp order", #rig.routes == 1 and rig.routes[1].unit == "nameplate2")
+
+        rig = Rig() Owner = rig.ns.Owner
+        Hit(rig, "nameplate1", 10)
+        Owner.Flush(10.02, true)
+        Check("owner: force releases every older stamp at once, leftovers dropped", #rig.routes == 0 and Owner.Pending(10) == false)
+        Hit(rig, "nameplate1", 11) Owner.Line(0, 11)
+        Owner.Flush(nil)
+        Check("owner: Flush(nil) releases an unsettled stamp", #rig.routes == 1)
+
+        rig = Rig() Owner = rig.ns.Owner
+        Owner.Line(1, 10) Hit(rig, "nameplate1", 10) Owner.Flush(nil)
+        Check("owner: a backlog line (order 1) pairs nothing", #rig.routes == 0)
+        Hit(rig, "nameplate1", 12) Owner.Line(0, 12) Owner.PlateGone("plate-nameplate1") Owner.Flush(nil)
+        Check("owner: a plate gone before release draws nothing", #rig.routes == 0)
+        Hit(rig, "nameplate1", 13) Owner.Line(0, 13) Owner.Drop() Owner.Flush(nil)
+        Check("owner: Drop forgets held hits without routing", #rig.routes == 0 and Owner.Waiting() == false)
+
+        rig = Rig() Owner = rig.ns.Owner
+        Owner.Heal("player", 10) Owner.Heal("player", 10) Owner.Heal("party1", 10)
+        Owner.Line(0, 10)
+        Owner.Flush(10.02)
+        Check("owner: one line owns the first heal on you, the rest stay unowned", Owner.HealOwned(10, 1) == true and Owner.HealOwned(10, 2) == false)
+        rig = Rig() Owner = rig.ns.Owner
+        Owner.Heal("party1", 10) Hit(rig, "nameplate1", 10, 1) Owner.Line(0, 10)
+        Owner.Flush(10.02)
+        Check("owner: a party heal takes the stamp's line from a stranger's hit", #rig.routes == 0)
+
+        rig = Rig() Owner = rig.ns.Owner
+        Hit(rig, "nameplate1", 10) Owner.Line(0, 10)
+        rig.ns.HitRoute.Route = function(hit) rig.routes[#rig.routes + 1] = hit Owner.Flush(nil) end
+        Owner.Flush(10.02)
+        Check("owner: Flush called from inside a release does not recurse", #rig.routes == 1)
+        rig = Rig() Owner = rig.ns.Owner
+        Hit(rig, "nameplate1", 10) Hit(rig, "nameplate2", 10) Owner.Line(0, 10) Owner.Line(0, 10)
+        local calls = 0
+        rig.ns.HitRoute.Route = function() calls = calls + 1 if calls == 1 then error("route broke") end end
+        rig.S.now = 10.02
+        Owner.Flush(10.02)
+        Check("owner: a failing route resets the clock and the next hit still routes", calls == 2 and rig.ns.Now() == 10.02)
+    end
 end
