@@ -314,6 +314,22 @@ return function(T)
         Check("active: turning false returns false", Owner.Active() == false)
         Check("active: flipping false routes the held owned hit once, no recursion", #seen == 1 and rig.syncs == 1)
         Check("active: the flip's flush left nothing waiting", Owner.Waiting() == false)
+
+        -- Active flips false INSIDE a release (two stamps held): the nested Flush(nil) must not release the younger one
+        rig = Rig() Owner = rig.ns.Owner Owner.KeepLinesOn() Owner.Active()
+        Owner.Hit("p1", "nameplate1", "", 5, 32, 10) Owner.Line(0, 10)
+        Owner.Hit("p3", "nameplate3", "", 5, 32, 10.03) Owner.Line(0, 10.03)
+        local inside = {}
+        rig.ns.HitRoute.Route = function(hit)
+            inside[#inside + 1] = hit.unit
+            Blizzard_CombatLog_Filters.filters[1].name = "Everything"
+            Owner.Active()
+        end
+        rig.syncs = 0
+        Owner.Flush(10.03)
+        Check("active: a flip inside a release leaves the younger stamp held, one route", #inside == 1 and inside[1] == "nameplate1")
+        Check("active: a flip inside a release syncs once and the younger hit still waits",
+            rig.syncs == 1 and Owner.Waiting() == true and Owner.Pending(10.03) == true)
         Clean()
     end
 end
