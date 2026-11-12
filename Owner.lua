@@ -2,7 +2,8 @@
 -- are paired by their stamps (Owner.Match, a pure function). A grouped hit waits here (Owner.Hit) until a line owns it
 -- or its stamp is too old, then goes to HitRoute (Owner.Flush).
 -- Run 2, replayed offline by the script clog_match.lua: 36 lines paired cleanly on one stamp, 1 needed the ranking and
--- 1 needed the 0.05 s window.
+-- 1 needed the 0.05 s window. Both passes pair only settled stamps (older than the flush's `now`), so a stamp's own
+-- hit or line arriving later in the frame keeps its claim.
 
 local _, ns = ...
 
@@ -204,15 +205,17 @@ local function PassOneSettled(cut)
     lines = Select(lines, function(line) return not spent[line] end)
 end
 
--- Pass 2 over everything left, unsettled stamps too; then the lines still unpaired and too old to pair are dropped.
+-- Pass 2 over the settled lines and hits left (before `cut`): a stamp still open may get its own hit or line later this
+-- frame, which pass 1 must see first. Then the lines still unpaired and too old to pair are dropped.
 local function PassTwoLeft(cut)
-    local open = Select(hits, function(hit) return not hit.owned end)
+    local settledLines = Select(lines, function(line) return line.now < cut end)
+    local open = Select(hits, function(hit) return not hit.owned and hit.now < cut end)
     local taken = {}
-    PassTwo(lines, open, Own(), taken)
+    PassTwo(settledLines, open, Own(), taken)
     local spent = {}
     for eventIndex, lineIndex in pairs(taken) do
         open[eventIndex].owned = true
-        spent[lines[lineIndex]] = true
+        spent[settledLines[lineIndex]] = true
     end
     lines = Select(lines, function(line) return not spent[line] and cut - line.now <= LATE + SLACK end)
 end

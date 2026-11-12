@@ -165,6 +165,53 @@ return function(T)
         Check("owner: a failing route resets the clock and the next hit still routes", calls == 2 and rig.ns.Now() == 10.02)
     end
 
+    -- 1.5 Pass 2 waits for the stamp to settle (run 2: a line spent on an older hit before its own stamp's hit came)
+    do
+        local function Rig()
+            local rig = { routes = {} }
+            rig.ns = T.Boot(function() CombatTextIconsCharDB = { lockedSchools = { [589] = { school = 32, strays = 0 } } } end)
+            rig.ns.HitRoute.Route = function(hit) rig.routes[#rig.routes + 1] = hit end
+            rig.ns.PlayerHits.FlushHeals = function() end
+            return rig
+        end
+        local function Hit(rig, unit, now) rig.ns.Owner.Hit("plate-" .. unit, unit, "", 5, 32, now) end
+        local rig, Owner
+
+        rig = Rig() Owner = rig.ns.Owner
+        Hit(rig, "nameplate1", 10)
+        Owner.Line(0, 10.034)
+        Owner.Flush(10.034)
+        Hit(rig, "nameplate2", 10.034)
+        Owner.Flush(10.1)
+        Check("owner: a line on an open stamp waits for its own hit, not an older one", #rig.routes == 1 and rig.routes[1].unit == "nameplate2")
+        Check("owner: then nothing waits", Owner.Waiting() == false)
+
+        rig = Rig() Owner = rig.ns.Owner
+        Hit(rig, "nameplate1", 10.02)
+        Owner.Line(0, 10.03) Owner.Line(0, 10.03) Owner.Line(0, 10.03)
+        Owner.Flush(10.03)
+        Owner.Heal("party1", 10.03)
+        Owner.Flush(10.03)
+        Hit(rig, "nameplate2", 10.03)
+        Owner.Flush(10.03)
+        Owner.Heal("player", 10.03)
+        Owner.Flush(10.1)
+        Check("owner: three lines on an open stamp keep all three for its three events", Owner.HealOwned(10.03, 1) == true and #rig.routes == 1 and rig.routes[1].unit == "nameplate2")
+
+        rig = Rig() Owner = rig.ns.Owner
+        Hit(rig, "nameplate1", 10)
+        Owner.Line(0, 10.03)
+        Owner.Flush(10.04, true)
+        Check("owner: a forced flush still pairs a settled late line first", #rig.routes == 1)
+        rig = Rig() Owner = rig.ns.Owner
+        Hit(rig, "nameplate1", 10)
+        Owner.Line(0, 10.03)
+        Owner.Flush(10.03, true)
+        Hit(rig, "nameplate2", 10.03)
+        Owner.Flush(10.1)
+        Check("owner: a forced flush keeps a line on its own stamp open; the older hit drops", #rig.routes == 1 and rig.routes[1].unit == "nameplate2")
+    end
+
     -- 1.4 Active, switch-on and liveness
     do
         local function Rig(interface, group)
