@@ -177,4 +177,44 @@ return function(T)
         Check("owner route: an owned grouped hit draws a learned cast as solo",
             viaOwner == "tex:" .. SWP and viaOwner == solo.draws[1].texture)
     end
+
+    -- Routes a released SW:P tick stamped `at` while the game clock reads at + 0.05; the route clock is set to `at`
+    -- when `clock`. Returns the spellID on the frame entry at `at`, the `now` Teacher.Drawn and Heals.Struck got, `at`.
+    local function Released(clock)
+        local rig = Rig()
+        local drewAt, struckAt
+        local Drawn, Struck = rig.ns.Teacher.Drawn, rig.ns.Heals.Struck
+        rig.ns.Teacher.Drawn = function(spellID, amount, now, school)
+            drewAt = now
+
+            return Drawn(spellID, amount, now, school)
+        end
+        rig.ns.Heals.Struck = function(spellID, now)
+            struckAt = now
+
+            return Struck(spellID, now)
+        end
+        rig.Cast(100, "nameplate1")
+        local at = 100 + P
+        rig.S.now = at + 0.05
+        if clock then rig.ns.SetRouteClock(at) end
+        rig.Route(rig.Snap(at, "nameplate1", 31, 32, true))
+        rig.ns.SetRouteClock(nil)
+        local entry = rig.ns.HitRoute.FrameHits(at)[1]
+
+        return entry and entry.spellID, drewAt, struckAt, at
+    end
+
+    -- 2. A released hit is judged at its own stamp
+    do
+        local tagged, drewAt, struckAt, at = Released(true)
+        Check("route clock: a released hit's Drawn tags its own frame entry", tagged == SWP)
+        Check("route clock: Teacher.Drawn and Heals.Struck get the hit's stamp, not the release time",
+            drewAt == at and struckAt == at)
+        tagged, drewAt = Released(false)
+        Check("route clock: with no clock set Drawn still reads the game clock (the release time misses the entry)",
+            tagged == nil and drewAt ~= at)
+        local source = assert(io.open(T.Root .. "/HitRoute.lua", "rb")):read("a")
+        Check("route clock: HitRoute.lua reads no GetTime of its own", not source:find("GetTime", 1, true))
+    end
 end

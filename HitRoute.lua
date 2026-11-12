@@ -170,7 +170,7 @@ end
 -- (`at`, Core.FlushMates) the newest unnamed one of its amount, or `entry` itself when the caller kept it
 -- (TowHold.Decide; `at` is then its stamp, and no amount is compared: a frame's other amounts may be secret).
 local function Drawn(spellID, amount, at, entry)
-    local now = at or GetTime()
+    local now = at or ns.Now() -- the route clock holds a released hit's stamp, else the game clock
     local hit = entry
     if not entry and frameHits.at == now then
         for index = #frameHits.list, 1, -1 do
