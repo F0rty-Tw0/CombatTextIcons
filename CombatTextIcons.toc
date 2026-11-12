@@ -39,5 +39,6 @@ DebugLog.lua
 HitRoute.lua
 TowHold.lua
 PlayerHits.lua
+Owner.lua
 BlizzardText.lua
 Core.lua
