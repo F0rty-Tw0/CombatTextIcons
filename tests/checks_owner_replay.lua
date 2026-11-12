@@ -154,4 +154,45 @@ return function(T)
     local control = Replay(MINI, { owner = false })
     Check("owner replay: Owner off (no Combat Log) -> nothing owned, nothing hidden, no plate draw",
         #control.owned == 0 and control.hidden == 0 and control.plateDraws == 0)
+
+    -- Run 2 (Forever dungeon, 2026-11-12, party, filter "My actions"): the floor of the whole design.
+    local function Fixture(name)
+        local lines = {}
+        for line in io.lines(T.Root .. "/tests/fixtures/" .. name) do lines[#lines + 1] = line end
+        return lines
+    end
+    local function Stamps(lines) -- per "%.3f" stamp: candidate events and live lines, read from the log only
+        local events, live, hits = {}, {}, 0
+        for _, text in ipairs(lines) do
+            local at, tag, rest = text:match("^(%d+%.%d+) (%u+) ?(.*)$")
+            if tag == "HIT" or tag == "PHEAL" or (tag == "HEAL" and rest:find("^player")) then
+                events[at] = (events[at] or 0) + 1
+            end
+            if tag == "HIT" then hits = hits + 1 end
+            if tag == "CLOG" and rest:find("order=0", 1, true) then live[at] = (live[at] or 0) + 1 end
+        end
+        return events, live, hits
+    end
+    local lines = Fixture("forever-group-run2-2026-11-12.log")
+    local events, live, hitCount = Stamps(lines)
+    Check("owner replay run 2: the fixture is the save (1460 lines, 302 hits)", #lines == 1460 and hitCount == 302)
+
+    local R2 = Replay(lines)
+    local owned, clean, lineNear = #R2.owned, 0, 0
+    for _, route in ipairs(R2.owned) do
+        local key = string.format("%.3f", route.now)
+        if (live[key] or 0) > 0 and events[key] <= live[key] then clean = clean + 1 end
+        for key in pairs(live) do
+            if math.abs(tonumber(key) - route.now) <= 0.05 + 1e-9 then lineNear = lineNear + 1 break end
+        end
+    end
+    T.Note(string.format("OWNER REPLAY run2 owned=%d clean=%d hidden=%d plateDraws=%d", owned, clean, R2.hidden, R2.plateDraws))
+    Check("owner replay run 2: owned hits within the offline matcher's 36 clean to 38 taken (0.05 s window)", owned >= 36 and owned <= 38)
+    Check("owner replay run 2: at least 90% of owned hits are clean (offline 36 of 38)", owned > 0 and clean / owned >= 0.90)
+    Check("owner replay run 2: every owned hit has a live line within 0.05 s in the log", lineNear == owned)
+    Check("owner replay run 2: every hit ends owned or hidden (302)", R2.hits == 302 and owned + R2.hidden == 302)
+    Check("owner replay run 2: strangers' hits stay off the screen (plate draws <= owned hits)", R2.plateDraws <= owned)
+    local off = Replay(lines, { owner = false })
+    Check("owner replay run 2: Owner inactive -> today's grouped behavior, nothing owned, nothing drawn on plates",
+        #off.owned == 0 and off.plateDraws == 0)
 end

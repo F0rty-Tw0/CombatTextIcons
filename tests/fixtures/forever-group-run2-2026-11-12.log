@@ -1,0 +1,1460 @@
+619947.598 PROBE api issecretvalue=true CombatLogGetCurrentEventInfo=false C_CombatLog=true C_DamageMeter=true cleu=true
+619947.598 PROBE clog COMBAT_LOG_MESSAGE=true PLAYER_SWING=true PLAYER_REGEN_DISABLED=true UNIT_COMBAT=true PLAYER_REGEN_ENABLED=true lines=switched filter=1:My_actions
+619947.598 CLOG text=/Ky884/k rgb=0.70,0.70,0.70 order=1
+619947.598 HIT nameplate1 school=1 amount=? flag=GLANCING fps=23 threat=nil group=true,true,false npc=secret target=false
+619947.598 PROBE amount=secret meter=session:28
+619947.598   -> HIDDEN
+619947.627 CLOG text=/Ky1161/k rgb=0.70,0.70,0.70 order=1
+619947.662 CLOG text=/Ky1151/k rgb=0.70,0.70,0.70 order=1
+619947.682 CLOG text=/Ky1038/k rgb=0.70,0.70,0.70 order=1
+619947.703 CLOG text=/Ky1038/k rgb=0.70,0.70,0.70 order=1
+619947.724 CLOG text=/Ky1162/k rgb=0.70,0.70,0.70 order=1
+619947.745 CLOG text=/Ky870/k rgb=0.70,0.70,0.70 order=1
+619947.763 CLOG text=/Ky1163/k rgb=0.70,0.70,0.70 order=1
+619947.790 CLOG text=/Ky792/k rgb=0.70,0.70,0.70 order=1
+619947.820 CLOG text=/Ky799/k rgb=0.70,0.70,0.70 order=1
+619947.833 CLOG text=/Ky1164/k rgb=0.70,0.70,0.70 order=1
+619947.844 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=1
+619947.852 CLOG text=/Ky1165/k rgb=0.70,0.70,0.70 order=1
+619947.862 CLOG text=/Ky1166/k rgb=0.70,0.70,0.70 order=1
+619947.870 CLOG text=/Ky1167/k rgb=0.70,0.70,0.70 order=1
+619947.897 CLOG text=/Ky1168/k rgb=0.70,0.70,0.70 order=1
+619947.916 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619947.938 CLOG text=/Ky1169/k rgb=0.70,0.70,0.70 order=1
+619947.938 HIT nameplate2 school=1 amount=? flag= fps=23 threat=nil group=true,true,false npc=secret target=false
+619947.938 PROBE amount=secret meter=session:28
+619947.938   -> HIDDEN
+619947.958 CLOG text=/Ky1170/k rgb=0.70,0.70,0.70 order=1
+619947.979 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=1
+619948.008 CLOG text=/Ky1169/k rgb=0.70,0.70,0.70 order=1
+619948.020 CLOG text=/Ky1171/k rgb=0.70,0.70,0.70 order=1
+619948.028 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619948.042 CLOG text=/Ky1172/k rgb=0.70,0.70,0.70 order=1
+619948.050 CLOG text=/Ky799/k rgb=0.70,0.70,0.70 order=1
+619948.065 CLOG text=/Ky529/k rgb=0.70,0.70,0.70 order=1
+619948.097 CLOG text=/Ky786/k rgb=0.70,0.70,0.70 order=1
+619948.129 CLOG text=/Ky1173/k rgb=0.70,0.70,0.70 order=1
+619948.138 CLOG text=/Ky1174/k rgb=0.70,0.70,0.70 order=1
+619948.210 HIT nameplate1 school=1 amount=? flag= fps=22 threat=nil group=true,true,false npc=secret target=false
+619948.210 PROBE amount=secret meter=session:28
+619948.210   -> HIDDEN
+619948.210 CLOG text=/Ky1175/k rgb=0.70,0.70,0.70 order=1
+619948.244 CLOG text=/Ky1176/k rgb=0.70,0.70,0.70 order=1
+619948.259 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619948.274 CLOG text=/Ky1177/k rgb=0.70,0.70,0.70 order=1
+619948.313 CLOG text=/Ky1173/k rgb=0.70,0.70,0.70 order=1
+619948.348 CLOG text=/Ky1174/k rgb=0.70,0.70,0.70 order=1
+619948.370 HIT nameplate1 school=2 amount=? flag= fps=22 threat=nil group=true,true,false npc=secret target=false
+619948.370 PROBE amount=secret meter=session:28
+619948.370   -> HIDDEN
+619948.370 CLOG text=/Ky539/k rgb=0.70,0.70,0.70 order=1
+619948.388 CLOG text=/Ky1178/k rgb=0.70,0.70,0.70 order=1
+619948.405 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=1
+619948.421 CLOG text=/Ky760/k rgb=0.70,0.70,0.70 order=1
+619948.454 CLOG text=/Ky1179/k rgb=0.70,0.70,0.70 order=1
+619948.476 CLOG text=/Ky1180/k rgb=0.70,0.70,0.70 order=1
+619948.492 CLOG text=/Ky1181/k rgb=0.70,0.70,0.70 order=1
+619948.510 CLOG text=/Ky1182/k rgb=0.70,0.70,0.70 order=1
+619948.525 CLOG text=/Ky529/k rgb=0.70,0.70,0.70 order=1
+619948.553 CLOG text=/Ky1183/k rgb=0.70,0.70,0.70 order=1
+619948.568 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619948.590 CLOG text=/Ky1173/k rgb=0.70,0.70,0.70 order=1
+619948.605 CLOG text=/Ky1174/k rgb=0.70,0.70,0.70 order=1
+619948.620 CLOG text=/Ky529/k rgb=0.70,0.70,0.70 order=1
+619948.629 CLOG text=/Ky1181/k rgb=0.70,0.70,0.70 order=1
+619948.653 CLOG text=/Ky1182/k rgb=0.70,0.70,0.70 order=1
+619948.661 CLOG text=/Ky1184/k rgb=0.70,0.70,0.70 order=1
+619948.669 CLOG text=/Ky799/k rgb=0.70,0.70,0.70 order=1
+619948.678 CLOG text=/Ky1185/k rgb=0.70,0.70,0.70 order=1
+619948.686 CLOG text=/Ky1173/k rgb=0.70,0.70,0.70 order=1
+619948.694 CLOG text=/Ky1174/k rgb=0.70,0.70,0.70 order=1
+619948.703 CLOG text=/Ky1186/k rgb=0.70,0.70,0.70 order=1
+619948.711 CLOG text=/Ky539/k rgb=0.70,0.70,0.70 order=1
+619948.719 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=1
+619948.728 CLOG text=/Ky1187/k rgb=0.70,0.70,0.70 order=1
+619948.736 CLOG text=/Ky1173/k rgb=0.70,0.70,0.70 order=1
+619948.755 CLOG text=/Ky1174/k rgb=0.70,0.70,0.70 order=1
+619948.763 CLOG text=/Ky1188/k rgb=0.70,0.70,0.70 order=1
+619948.771 CLOG text=/Ky1176/k rgb=0.70,0.70,0.70 order=1
+619948.780 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619948.788 CLOG text=/Ky539/k rgb=0.70,0.70,0.70 order=1
+619948.796 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=1
+619948.805 CLOG text=/Ky539/k rgb=0.70,0.70,0.70 order=1
+619948.813 CLOG text=/Ky529/k rgb=0.70,0.70,0.70 order=1
+619948.821 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=1
+619948.830 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=1
+619948.841 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619948.861 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619948.869 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=1
+619948.878 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619948.906 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619948.914 CLOG text=/Ky1189/k rgb=0.70,0.70,0.70 order=1
+619948.922 HIT nameplate2 school=1 amount=? flag= fps=67 threat=nil group=true,true,false npc=secret target=false
+619948.922 PROBE amount=secret meter=session:28
+619948.922   -> HIDDEN
+619948.922 HIT nameplate1 school=1 amount=? flag= fps=67 threat=nil group=true,true,false npc=secret target=false
+619948.922 PROBE amount=secret meter=session:28
+619948.922   -> HIDDEN
+619948.922 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=1
+619948.932 CAST player 6077 base=6077,6077 key=nil
+619948.932 CLOG text=/Ky1190/k rgb=0.70,0.70,0.70 order=1
+619948.951 CLOG text=/Ky1085/k rgb=0.70,0.70,0.70 order=1
+619948.951 HIT nameplate1 school=1 amount=? flag=GLANCING fps=67 threat=nil group=true,true,false npc=secret target=false
+619948.951 PROBE amount=secret meter=session:28
+619948.951   -> HIDDEN
+619948.973 CLOG text=/Ky1191/k rgb=0.70,0.70,0.70 order=1
+619948.982 CLOG text=/Ky1192/k rgb=0.70,0.70,0.70 order=1
+619948.991 CLOG text=/Ky1193/k rgb=0.70,0.70,0.70 order=1
+619948.999 CLOG text=/Ky1192/k rgb=0.70,0.70,0.70 order=1
+619949.007 CLOG text=/Ky1194/k rgb=0.70,0.70,0.70 order=1
+619949.016 CLOG text=/Ky1195/k rgb=0.70,0.70,0.70 order=1
+619949.024 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619949.032 CLOG text=/Ky1196/k rgb=0.70,0.70,0.70 order=1
+619949.044 HIT nameplate1 school=2 amount=? flag= fps=68 threat=nil group=true,true,false npc=secret target=false
+619949.044 PROBE amount=secret meter=session:28
+619949.044   -> HIDDEN
+619949.044 CLOG text=/Ky1197/k rgb=0.70,0.70,0.70 order=1
+619949.054 CLOG text=/Ky1193/k rgb=0.70,0.70,0.70 order=1
+619949.062 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619949.070 CLOG text=/Ky1189/k rgb=0.70,0.70,0.70 order=1
+619949.079 CLOG text=/Ky1084/k rgb=0.70,0.70,0.70 order=1
+619949.087 CLOG text=/Ky1198/k rgb=0.70,0.70,0.70 order=1
+619949.097 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=1
+619949.105 CLOG text=/Ky1084/k rgb=0.70,0.70,0.70 order=1
+619949.114 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=1
+619949.702 HIT nameplate1 school=16 amount=? flag= fps=86 threat=nil group=true,true,false npc=secret target=false
+619949.702 PROBE amount=secret meter=session:28
+619949.702   -> HIDDEN
+619949.877 HIT nameplate1 school=1 amount=? flag=GLANCING fps=86 threat=nil group=true,true,false npc=secret target=false
+619949.877 PROBE amount=secret meter=session:28
+619949.877   -> HIDDEN
+619950.201 HIT nameplate1 school=2 amount=? flag= fps=86 threat=0 group=true,true,false npc=secret target=false
+619950.201 PROBE amount=secret meter=session:28
+619950.201   -> HIDDEN
+619950.419 START player 6064
+619950.419 HIT nameplate1 school=1 amount=? flag= fps=92 threat=0 group=true,true,false npc=secret target=false
+619950.419 PROBE amount=secret meter=session:28
+619950.419   -> HIDDEN
+619950.458 HIT nameplate1 school=1 amount=? flag= fps=92 threat=0 group=true,true,false npc=secret target=false
+619950.458 PROBE amount=secret meter=session:28
+619950.458   -> HIDDEN
+619950.662 HIT nameplate2 school=2 amount=? flag= fps=105 threat=0 group=true,true,false npc=secret target=false
+619950.662 PROBE amount=secret meter=session:28
+619950.662   -> HIDDEN
+619951.002 HIT nameplate1 school=1 amount=? flag=GLANCING fps=110 threat=0 group=true,true,false npc=secret target=false
+619951.002 PROBE amount=secret meter=session:28
+619951.002   -> HIDDEN
+619951.567 HIT nameplate2 school=2 amount=? flag= fps=113 threat=0 group=true,true,false npc=secret target=true
+619951.567 PROBE amount=secret meter=session:28
+619951.567   -> HIDDEN
+619951.635 HIT nameplate1 school=1 amount=? flag=GLANCING fps=113 threat=0 group=true,true,false npc=secret target=false
+619951.635 PROBE amount=secret meter=session:28
+619951.635   -> HIDDEN
+619951.802 HIT nameplate2 school=1 amount=? flag= fps=112 threat=0 group=true,true,false npc=secret target=true
+619951.802 PROBE amount=secret meter=session:28
+619951.802   -> HIDDEN
+619951.934 HEAL party1 school=1 amount=? flag=
+619951.934   -> HIDDEN
+619951.934 PHEAL party1 school=1 flag=
+619951.934 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=0
+619952.361 HIT nameplate1 school=2 amount=? flag= fps=111 threat=0 group=true,true,false npc=secret target=false
+619952.361 PROBE amount=secret meter=session:28
+619952.361   -> HIDDEN
+619952.403 HIT nameplate1 school=16 amount=? flag=CRITICAL fps=111 threat=0 group=true,true,false npc=secret target=false
+619952.403 PROBE amount=secret meter=session:28
+619952.403   -> HIDDEN
+619952.499 HIT nameplate1 school=16 amount=? flag= fps=111 threat=0 group=true,true,false npc=secret target=false
+619952.499 PROBE amount=secret meter=session:28
+619952.499   -> HIDDEN
+619952.569 HIT nameplate2 school=2 amount=? flag= fps=110 threat=0 group=true,true,false npc=secret target=true
+619952.569 PROBE amount=secret meter=session:28
+619952.569   -> HIDDEN
+619952.699 HIT nameplate2 school=2 amount=? flag= fps=111 threat=0 group=true,true,false npc=secret target=true
+619952.699 PROBE amount=secret meter=session:28
+619952.699   -> HIDDEN
+619952.924 CAST player 6064 base=6064,6064 key=nil
+619952.924 CAST player 19277 base=19277,19277 key=nil
+619952.924 HEAL party1 school=1 amount=? flag=
+619952.924   -> HIDDEN
+619952.924 PHEAL party1 school=1 flag=
+619952.924 CLOG text=/Ky1199/k rgb=0.70,0.70,0.70 order=0
+619952.966 HIT nameplate1 school=1 amount=? flag=GLANCING fps=109 threat=0 group=true,true,false npc=secret target=false
+619952.966 PROBE amount=secret meter=session:28
+619952.966   -> HIDDEN
+619953.117 HIT nameplate1 school=2 amount=? flag= fps=110 threat=0 group=true,true,false npc=secret target=false
+619953.117 PROBE amount=secret meter=session:28
+619953.117   -> HIDDEN
+619953.368 HIT nameplate1 school=1 amount=? flag= fps=111 threat=0 group=true,true,false npc=secret target=false
+619953.368 PROBE amount=secret meter=session:28
+619953.368   -> HIDDEN
+619953.426 HIT nameplate1 school=1 amount=? flag= fps=111 threat=0 group=true,true,false npc=secret target=false
+619953.426 PROBE amount=secret meter=session:28
+619953.426   -> HIDDEN
+619953.426 HIT nameplate2 school=1 amount=? flag= fps=111 threat=0 group=true,true,false npc=secret target=true
+619953.426 PROBE amount=secret meter=session:28
+619953.426   -> HIDDEN
+619953.426 HIT nameplate1 school=1 amount=? flag= fps=111 threat=0 group=true,true,false npc=secret target=false
+619953.426 PROBE amount=secret meter=session:28
+619953.426   -> HIDDEN
+619953.734 HIT nameplate2 school=2 amount=? flag= fps=113 threat=0 group=true,true,false npc=secret target=true
+619953.734 PROBE amount=secret meter=session:28
+619953.734   -> HIDDEN
+619954.330 HIT nameplate1 school=1 amount=? flag=GLANCING fps=115 threat=0 group=true,true,false npc=secret target=false
+619954.330 PROBE amount=secret meter=session:28
+619954.330   -> HIDDEN
+619954.355 HIT nameplate1 school=1 amount=? flag= fps=115 threat=0 group=true,true,false npc=secret target=false
+619954.355 PROBE amount=secret meter=session:28
+619954.355   -> HIDDEN
+619954.422 CAST player 2767 base=2767,2767 key=nil
+619954.440 CLOG text=/Ky1200/k rgb=0.70,0.70,0.70 order=0
+619954.440 HIT nameplate2 school=32 amount=? flag= fps=115 threat=0 group=true,true,false npc=secret target=true
+619954.440 PROBE amount=secret meter=session:28,secret:secret
+619954.440   -> HIDDEN
+619954.455 HEAL player school=1 amount=? flag=
+619954.455 CLOG text=/Ky884/k rgb=0.70,0.70,0.70 order=0
+619954.464   -> HIDDEN
+619954.531 HIT nameplate1 school=2 amount=? flag= fps=115 threat=0 group=true,true,false npc=secret target=false
+619954.531 PROBE amount=secret meter=session:28,secret:secret
+619954.531   -> HIDDEN
+619954.564 HIT nameplate1 school=2 amount=? flag= fps=115 threat=0 group=true,true,false npc=secret target=false
+619954.564 PROBE amount=secret meter=session:28,secret:secret
+619954.564   -> HIDDEN
+619954.564 HIT nameplate2 school=2 amount=? flag= fps=115 threat=0 group=true,true,false npc=secret target=true
+619954.564 PROBE amount=secret meter=session:28,secret:secret
+619954.564   -> HIDDEN
+619954.931 HEAL party1 school=1 amount=? flag=
+619954.931   -> HIDDEN
+619954.931 PHEAL party1 school=1 flag=
+619954.931 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=0
+619955.161 HIT nameplate1 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=false
+619955.161 PROBE amount=secret meter=session:28,secret:secret
+619955.161   -> HIDDEN
+619955.562 HIT nameplate1 school=2 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=false
+619955.562 PROBE amount=secret meter=session:28,secret:secret
+619955.562   -> HIDDEN
+619955.562 HIT nameplate2 school=2 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+619955.562 PROBE amount=secret meter=session:28,secret:secret
+619955.562   -> HIDDEN
+619955.868 HIT nameplate1 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=false
+619955.868 PROBE amount=secret meter=session:28,secret:secret
+619955.868   -> HIDDEN
+619955.918 CAST player 6077 base=6077,6077 key=nil
+619955.918 CLOG text=/Ky1201/k rgb=0.70,0.70,0.70 order=0
+619955.918 HIT nameplate2 school=32 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+619955.918 PROBE amount=secret meter=session:28,secret:secret,secret:secret
+619955.918   -> HIDDEN
+619955.939 HEAL player school=1 amount=? flag=
+619955.939 CLOG text=/Ky1152/k rgb=0.70,0.70,0.70 order=0
+619955.947   -> HIDDEN
+619956.360 HIT nameplate1 school=2 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=false
+619956.360 PROBE amount=secret meter=session:28,secret:secret,secret:secret
+619956.360   -> HIDDEN
+619956.593 HIT nameplate1 school=1 amount=? flag= fps=115 threat=0 group=true,true,false npc=secret target=false
+619956.593 PROBE amount=secret meter=session:28,secret:secret,secret:secret
+619956.593   -> HIDDEN
+619956.719 HIT nameplate1 school=2 amount=? flag= fps=114 threat=0 group=true,true,false npc=secret target=false
+619956.719 PROBE amount=secret meter=session:28,secret:secret,secret:secret
+619956.719   -> HIDDEN
+619956.771 HIT nameplate1 school=16 amount=? flag= fps=113 threat=0 group=true,true,false npc=secret target=false
+619956.771 PROBE amount=secret meter=session:28,secret:secret,secret:secret
+619956.771   -> HIDDEN
+619957.034 HIT nameplate1 school=1 amount=? flag= fps=111 threat=0 group=true,true,false npc=secret target=false
+619957.034 PROBE amount=secret meter=session:28,secret:secret,secret:secret
+619957.034   -> HIDDEN
+619957.322 HIT nameplate1 school=1 amount=? flag= fps=109 threat=0 group=true,true,false npc=secret target=false
+619957.322 PROBE amount=secret meter=session:28,secret:secret,secret:secret
+619957.322   -> HIDDEN
+619957.425 HIT nameplate2 school=32 amount=? flag= fps=107 threat=0 group=true,true,false npc=secret target=true
+619957.425 PROBE amount=secret meter=session:28,secret:secret,secret:secret
+619957.425   -> tracker 2767
+619957.425 CLOG text=/Ky1202/k rgb=0.70,0.70,0.70 order=0
+619957.569 HIT nameplate2 school=2 amount=? flag= fps=107 threat=0 group=true,true,false npc=secret target=true
+619957.569 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret
+619957.569   -> HIDDEN
+619957.907 HIT nameplate1 school=1 amount=? flag= fps=105 threat=0 group=true,true,false npc=secret target=false
+619957.907 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret
+619957.907   -> HIDDEN
+619957.926 HEAL party1 school=1 amount=? flag=
+619957.926   -> HIDDEN
+619957.926 PHEAL party1 school=1 flag=
+619957.926 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=0
+619957.998 HIT nameplate1 school=2 amount=? flag= fps=105 threat=0 group=true,true,false npc=secret target=false
+619957.998 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret
+619957.998   -> HIDDEN
+619958.031 HIT nameplate1 school=32 amount=? flag= fps=104 threat=0 group=true,true,false npc=secret target=false
+619958.031 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret
+619958.031   -> HIDDEN
+619958.041 HEAL party4 school=1 amount=? flag=
+619958.041   -> HIDDEN
+619958.041 PHEAL party4 school=1 flag=
+619958.227 CAST player 5019 base=5019,5019 key=nil
+619958.227 SWING 1.5000001192093 kind=2
+619958.390 HIT nameplate1 school=1 amount=? flag=GLANCING fps=104 threat=0 group=true,true,false npc=secret target=false
+619958.390 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret
+619958.390   -> HIDDEN
+619958.390 HIT nameplate1 school=1 amount=? flag=GLANCING fps=104 threat=0 group=true,true,false npc=secret target=false
+619958.390 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret
+619958.390   -> HIDDEN
+619958.579 HIT nameplate2 school=2 amount=? flag= fps=105 threat=0 group=true,true,false npc=secret target=true
+619958.579 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret
+619958.579   -> HIDDEN
+619958.579 HIT nameplate1 school=2 amount=? flag= fps=105 threat=0 group=true,true,false npc=secret target=false
+619958.579 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret
+619958.579   -> HIDDEN
+619958.719 CLOG text=/Ky1203/k rgb=0.70,0.70,0.70 order=0
+619958.719 HIT nameplate2 school=32 amount=? flag= fps=105 threat=0 group=true,true,false npc=secret target=true
+619958.719 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619958.719   -> HIDDEN
+619958.927 HEAL party3 school=1 amount=? flag=
+619958.927   -> HIDDEN
+619958.927 PHEAL party3 school=1 flag=
+619958.927 CLOG text=/Ky1084/k rgb=0.70,0.70,0.70 order=0
+619958.927 CLOG text=/Ky1204/k rgb=0.70,0.70,0.70 order=0
+619958.927 HIT nameplate2 school=32 amount=? flag= fps=107 threat=0 group=true,true,false npc=secret target=true
+619958.927 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619958.927   -> HIDDEN
+619958.927 HEAL player school=1 amount=? flag=
+619958.927 CLOG text=/Ky1155/k rgb=0.70,0.70,0.70 order=0
+619958.936   -> HIDDEN
+619958.962 HIT nameplate1 school=1 amount=? flag=GLANCING fps=108 threat=0 group=true,true,false npc=secret target=false
+619958.962 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619958.962   -> HIDDEN
+619959.283 HIT nameplate1 school=1 amount=? flag=GLANCING fps=110 threat=0 group=true,true,false npc=secret target=false
+619959.283 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619959.283   -> HIDDEN
+619959.428 HIT nameplate1 school=1 amount=? flag= fps=110 threat=0 group=true,true,false npc=secret target=false
+619959.428 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619959.428   -> HIDDEN
+619959.581 HIT nameplate1 school=16 amount=? flag= fps=114 threat=0 group=true,true,false npc=secret target=false
+619959.581 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619959.581   -> HIDDEN
+619959.733 CAST player 5019 base=5019,5019 key=nil
+619959.733 SWING 1.5000001192093 kind=2
+619960.190 HIT nameplate1 school=1 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=false
+619960.190 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619960.190   -> HIDDEN
+619960.224 CLOG text=/Ky1205/k rgb=0.70,0.70,0.70 order=0
+619960.224 HIT nameplate2 school=32 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+619960.224 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619960.224   -> tracker 2767
+619960.419 HIT nameplate2 school=32 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+619960.419 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619960.419   -> HIDDEN
+619960.419 CLOG text=/Ky1202/k rgb=0.70,0.70,0.70 order=0
+619960.570 HIT nameplate1 school=2 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=false
+619960.570 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619960.570   -> HIDDEN
+619960.931 HEAL party1 school=1 amount=? flag=
+619960.931   -> HIDDEN
+619960.931 PHEAL party1 school=1 flag=
+619960.931 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=0
+619961.248 CAST player 5019 base=5019,5019 key=nil
+619961.248 SWING 1.5000001192093 kind=2
+619961.340 HIT nameplate1 school=1 amount=? flag= fps=118 threat=nil group=true,true,false npc=secret target=false
+619961.340 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619961.340   -> HIDDEN
+619961.356 HIT nameplate2 school=2 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+619961.356 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619961.356   -> HIDDEN
+619961.481 HIT nameplate2 school=2 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+619961.481 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619961.481   -> HIDDEN
+619961.748 CLOG text=/Ky1206/k rgb=0.70,0.70,0.70 order=0
+619961.748 HIT nameplate2 school=32 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+619961.748 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619961.748   -> HIDDEN
+619961.916 HEAL party3 school=1 amount=? flag=
+619961.916   -> HIDDEN
+619961.916 PHEAL party3 school=1 flag=
+619961.916 CLOG text=/Ky1084/k rgb=0.70,0.70,0.70 order=0
+619961.916 CLOG text=/Ky1201/k rgb=0.70,0.70,0.70 order=0
+619961.916 HIT nameplate2 school=32 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+619961.916 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619961.916   -> HIDDEN
+619961.916 HEAL player school=1 amount=? flag=
+619961.916 CLOG text=/Ky1152/k rgb=0.70,0.70,0.70 order=0
+619961.926   -> HIDDEN
+619961.934 HIT nameplate2 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=true
+619961.934 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619961.934   -> HIDDEN
+619961.984 HIT nameplate2 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+619961.984 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619961.984   -> HIDDEN
+619962.243 HIT nameplate2 school=16 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+619962.243 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619962.243   -> HIDDEN
+619962.327 HIT nameplate2 school=16 amount=? flag=CRITICAL fps=119 threat=0 group=true,true,false npc=secret target=true
+619962.327 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619962.327   -> HIDDEN
+619962.437 HIT nameplate2 school=8 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+619962.437 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619962.437   -> HIDDEN
+619962.487 HIT nameplate2 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+619962.487 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619962.487   -> HIDDEN
+619962.571 HIT nameplate2 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+619962.571 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619962.571   -> HIDDEN
+619962.755 CAST player 5019 base=5019,5019 key=nil
+619962.755 SWING 1.5000001192093 kind=2
+619962.920 HIT nameplate2 school=1 amount=? flag=BLOCK_REDUCED fps=117 threat=0 group=true,true,false npc=secret target=true
+619962.920 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619962.920   -> HIDDEN
+619963.246 CLOG text=/Ky1207/k rgb=0.70,0.70,0.70 order=0
+619963.246 HIT nameplate2 school=32 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+619963.246 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619963.246   -> tracker 2767
+619963.355 HIT nameplate2 school=1 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+619963.355 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619963.355   -> HIDDEN
+619963.406 HIT nameplate2 school=1 amount=? flag=GLANCING fps=117 threat=0 group=true,true,false npc=secret target=true
+619963.406 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619963.406   -> HIDDEN
+619963.422 HIT nameplate2 school=32 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+619963.422 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619963.422   -> HIDDEN
+619963.422 CLOG text=/Ky1202/k rgb=0.70,0.70,0.70 order=0
+619963.448 HIT nameplate2 school=2 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+619963.448 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619963.448   -> HIDDEN
+619963.640 HIT nameplate2 school=2 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+619963.640 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619963.640   -> HIDDEN
+619963.934 HEAL party1 school=1 amount=? flag=
+619963.934   -> HIDDEN
+619963.934 PHEAL party1 school=1 flag=
+619963.934 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=0
+619964.267 CAST player 5019 base=5019,5019 key=nil
+619964.267 SWING 1.5000001192093 kind=2
+619964.345 HIT nameplate2 school=1 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+619964.345 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619964.345   -> HIDDEN
+619964.380 HIT nameplate2 school=8 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+619964.380 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619964.380   -> HIDDEN
+619964.764 CLOG text=/Ky1208/k rgb=0.70,0.70,0.70 order=0
+619964.764 HIT nameplate2 school=32 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+619964.764 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619964.764   -> HIDDEN
+619964.929 HEAL party3 school=1 amount=? flag=
+619964.929   -> HIDDEN
+619964.929 PHEAL party3 school=1 flag=
+619964.929 CLOG text=/Ky1088/k rgb=0.70,0.70,0.70 order=0
+619964.929 CLOG text=/Ky1204/k rgb=0.70,0.70,0.70 order=0
+619964.929 HIT nameplate2 school=32 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+619964.929 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619964.929   -> HIDDEN
+619964.929 HEAL player school=1 amount=? flag=
+619964.929 CLOG text=/Ky1155/k rgb=0.70,0.70,0.70 order=0
+619964.944   -> HIDDEN
+619965.231 HIT nameplate2 school=1 amount=? flag= fps=114 threat=0 group=true,true,false npc=secret target=true
+619965.231 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619965.231   -> HIDDEN
+619965.269 CAST player 6077 base=6077,6077 key=nil
+619965.301 HIT nameplate2 school=1 amount=? flag=GLANCING fps=113 threat=0 group=true,true,false npc=secret target=true
+619965.301 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619965.301   -> HIDDEN
+619965.560 HIT nameplate2 school=2 amount=? flag= fps=114 threat=0 group=true,true,false npc=secret target=true
+619965.560 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619965.560   -> HIDDEN
+619966.044 HIT nameplate2 school=32 amount=? flag= fps=112 threat=0 group=true,true,false npc=secret target=true
+619966.044 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619966.044   -> tracker 2767
+619966.053 HEAL party3 school=1 amount=? flag=
+619966.053   -> HIDDEN
+619966.053 PHEAL party3 school=1 flag=
+619966.426 HIT nameplate2 school=32 amount=? flag= fps=111 threat=0 group=true,true,false npc=secret target=true
+619966.426 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619966.426   -> HIDDEN
+619966.426 CLOG text=/Ky1202/k rgb=0.70,0.70,0.70 order=0
+619966.451 HIT nameplate2 school=1 amount=? flag= fps=112 threat=0 group=true,true,false npc=secret target=true
+619966.451 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619966.451   -> HIDDEN
+619966.567 HIT nameplate2 school=2 amount=? flag= fps=112 threat=0 group=true,true,false npc=secret target=true
+619966.567 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619966.567   -> HIDDEN
+619966.636 HIT nameplate2 school=16 amount=? flag= fps=112 threat=0 group=true,true,false npc=secret target=true
+619966.636 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619966.636   -> HIDDEN
+619967.007 HIT nameplate2 school=1 amount=? flag= fps=113 threat=0 group=true,true,false npc=secret target=true
+619967.007 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619967.007   -> HIDDEN
+619967.049 CAST player 5019 base=5019,5019 key=nil
+619967.049 SWING 1.5000001192093 kind=2
+619967.390 HIT nameplate2 school=1 amount=? flag=CRITICAL fps=116 threat=0 group=true,true,false npc=secret target=true
+619967.390 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619967.390   -> HIDDEN
+619967.466 CLOG text=/Ky1209/k rgb=0.70,0.70,0.70 order=0
+619967.466 HIT nameplate2 school=32 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+619967.466 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619967.466   -> HIDDEN
+619967.466 HIT nameplate2 school=1 amount=? flag=GLANCING fps=116 threat=0 group=true,true,false npc=secret target=true
+619967.466 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619967.466   -> HIDDEN
+619967.697 HIT nameplate2 school=2 amount=? flag=CRITICAL fps=116 threat=0 group=true,true,false npc=secret target=true
+619967.697 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619967.697   -> HIDDEN
+619967.917 HIT nameplate2 school=1 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+619967.917 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619967.917   -> HIDDEN
+619967.926 HEAL party3 school=1 amount=? flag=
+619967.926   -> HIDDEN
+619967.926 PHEAL party3 school=1 flag=
+619967.926 CLOG text=/Ky1084/k rgb=0.70,0.70,0.70 order=0
+619967.926 CLOG text=/Ky1201/k rgb=0.70,0.70,0.70 order=0
+619967.926 HIT nameplate2 school=32 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+619967.926 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619967.926   -> HIDDEN
+619967.926 HEAL player school=1 amount=? flag=
+619967.926 CLOG text=/Ky1152/k rgb=0.70,0.70,0.70 order=0
+619967.936   -> HIDDEN
+619968.272 HEAL party1 school=1 amount=? flag=CRITICAL
+619968.272   -> HIDDEN
+619968.272 PHEAL party1 school=1 flag=CRITICAL
+619968.272 CLOG text=/Ky799/k rgb=0.70,0.70,0.70 order=0
+619968.523 HIT nameplate2 school=1 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+619968.523 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619968.523   -> HIDDEN
+619969.044 HIT nameplate2 school=1 amount=? flag=GLANCING fps=116 threat=0 group=true,true,false npc=secret target=true
+619969.044 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619969.044   -> HIDDEN
+619969.423 HIT nameplate2 school=32 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+619969.423 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619969.423   -> tracker 2767
+619969.423 CLOG text=/Ky1202/k rgb=0.70,0.70,0.70 order=0
+619969.451 HIT nameplate2 school=16 amount=? flag= fps=115 threat=0 group=true,true,false npc=secret target=true
+619969.451 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619969.451   -> HIDDEN
+619969.513 HIT nameplate2 school=2 amount=? flag= fps=115 threat=0 group=true,true,false npc=secret target=true
+619969.513 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619969.513   -> HIDDEN
+619969.530 HIT nameplate2 school=1 amount=? flag=GLANCING fps=115 threat=0 group=true,true,false npc=secret target=true
+619969.530 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619969.530   -> HIDDEN
+619969.717 HIT nameplate2 school=2 amount=? flag= fps=115 threat=0 group=true,true,false npc=secret target=true
+619969.717 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619969.717   -> HIDDEN
+619970.111 HIT nameplate2 school=1 amount=? flag= fps=113 threat=0 group=true,true,false npc=secret target=true
+619970.111 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619970.111   -> HIDDEN
+619970.627 HIT nameplate2 school=1 amount=? flag=GLANCING fps=113 threat=0 group=true,true,false npc=secret target=true
+619970.627 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619970.627   -> HIDDEN
+619970.931 HEAL party3 school=1 amount=? flag=
+619970.931   -> HIDDEN
+619970.931 PHEAL party3 school=1 flag=
+619970.931 CLOG text=/Ky1088/k rgb=0.70,0.70,0.70 order=0
+619970.931 CLOG text=/Ky1204/k rgb=0.70,0.70,0.70 order=0
+619970.931 HIT nameplate2 school=32 amount=? flag= fps=115 threat=0 group=true,true,false npc=secret target=true
+619970.931 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619970.931   -> HIDDEN
+619970.931 HEAL player school=1 amount=? flag=
+619970.931 CLOG text=/Ky1155/k rgb=0.70,0.70,0.70 order=0
+619970.941   -> HIDDEN
+619971.003 CAST player 5019 base=5019,5019 key=nil
+619971.003 SWING 1.5000001192093 kind=2
+619971.271 HEAL party1 school=1 amount=? flag=CRITICAL
+619971.271   -> HIDDEN
+619971.271 PHEAL party1 school=1 flag=CRITICAL
+619971.271 CLOG text=/Ky786/k rgb=0.70,0.70,0.70 order=0
+619971.608 CLOG text=/Ky1210/k rgb=0.70,0.70,0.70 order=0
+619971.636 CLOG text=/Ky1211/k rgb=0.70,0.70,0.70 order=0
+619971.636 HIT nameplate2 school=32 amount=? flag= fps=114 threat=0 group=true,true,false npc=secret target=true
+619971.636 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619971.636   -> HIDDEN
+619971.647 HEAL player school=1 amount=? flag=
+619971.647 CLOG text=/Ky1212/k rgb=0.70,0.70,0.70 order=0
+619971.659   -> HIDDEN
+619971.676 HIT nameplate2 school=8 amount=? flag= fps=113 threat=0 group=true,true,false npc=secret target=true
+619971.676 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619971.676   -> HIDDEN
+619971.712 HIT nameplate2 school=2 amount=? flag= fps=113 threat=0 group=true,true,false npc=secret target=true
+619971.712 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619971.712   -> HIDDEN
+619971.743 HIT nameplate2 school=32 amount=? flag= fps=113 threat=0 group=true,true,false npc=secret target=true
+619971.743 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619971.743   -> HIDDEN
+619972.338 HIT nameplate2 school=1 amount=? flag=GLANCING fps=112 threat=0 group=true,true,false npc=secret target=true
+619972.338 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619972.338   -> HIDDEN
+619972.389 HIT nameplate2 school=1 amount=? flag= fps=112 threat=0 group=true,true,false npc=secret target=true
+619972.389 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619972.389   -> HIDDEN
+619972.439 HIT nameplate2 school=1 amount=? flag=GLANCING fps=111 threat=0 group=true,true,false npc=secret target=false
+619972.439 PROBE amount=secret meter=session:28,secret:secret,secret:secret,secret:secret,secret:secret
+619972.439   -> HIDDEN
+619974.183 TEACH session 28 dur=31 again
+619974.183 TEACH row 75 total=412 overkill=0 override=75
+619974.183 TEACH row 2767 total=320 overkill=0 override=2767
+619974.183 TEACH row 19277 total=309 overkill=0 override=19277
+619974.183 TEACH row 1260198 total=143 overkill=0 override=1260198
+619974.183 TEACH clean seen=0 meter=1184 -> group
+619974.183 TEACH 75 tally=0 meter=412 verdict=unpaired
+619974.183 TEACH 2767 tally=0 meter=320 verdict=unpaired
+619974.183 TEACH 19277 tally=0 meter=309 verdict=unpaired
+619974.183 TEACH 1260198 tally=0 meter=143 verdict=unpaired
+619974.183 TEACH heal 6077 meter=1150 over=0
+619974.183 TEACH heal 6064 meter=765 over=0
+619974.183 TEACH heal 6066 meter=354 over=0
+619974.183 PROBE meterfields session:28 {combatSpells={1={amountPerSecond=13.066920280457,combatSpellDetails={amount=0,classification=,isMob=false,isPet=false,unitClassFilename=,unitName=},creatureName=,isAvoidable=false,isDeadly=false,overkillAmount=0,spellID=75,totalAmount=412},2={amountPerSecond=10.149064064026,combatSpellDetails={amount=0,classification=,isMob=false,isPet=false,unitClassFilename=,unitName=},creatureName=,isAvoidable=false,isDeadly=false,overkillAmount=0,spellID=2767,totalAmount=320},3={amountPerSecond=9.8001899719238,combatSpellDetails={amount=0,classification=,isMob=false,isPet=false,unitClassFilename=,unitName=},creatureName=,isAvoidable=false,isDeadly=false,overkillAmount=0,spellID=19277,totalAmount=309},4={amountPerSecond=4.5353631973267,combatSpellDetails={amount=0,classification=,isMob=false,isPet=false,unitClassFilename=,unitName=},creatureName=,isAvoidable=false,isDeadly=false,overkillAmount=0,spellID=1260198,totalAmount=143}},maxAmount=412,totalAmount=1184}
+619974.283 HEAL party1 school=1 amount=? flag=
+619974.283   -> HIDDEN
+619974.283 PHEAL party1 school=1 flag=
+619974.283 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=0
+619977.273 HEAL party1 school=1 amount=? flag=
+619977.273   -> HIDDEN
+619977.273 PHEAL party1 school=1 flag=
+619977.273 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=0
+619980.275 HEAL party1 school=1 amount=? flag=
+619980.275   -> HIDDEN
+619980.275 PHEAL party1 school=1 flag=
+619980.275 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=0
+619994.724 START player 15264
+619994.724 HIT nameplate1 school=1 amount=? flag= fps=118 threat=nil group=true,true,false npc=secret target=true
+619994.724 PROBE amount=secret meter=session:29
+619994.724   -> HIDDEN
+619994.990 HIT nameplate1 school=1 amount=? flag=BLOCK_REDUCED fps=118 threat=nil group=true,true,false npc=secret target=true
+619994.990 PROBE amount=secret meter=session:29
+619994.990   -> HIDDEN
+619995.942 HIT nameplate1 school=2 amount=? flag= fps=118 threat=nil group=true,true,false npc=secret target=true
+619995.942 PROBE amount=secret meter=session:29
+619995.942   -> HIDDEN
+619996.126 HIT nameplate1 school=1 amount=? flag= fps=118 threat=nil group=true,true,false npc=secret target=true
+619996.126 PROBE amount=secret meter=session:29
+619996.126   -> HIDDEN
+619996.151 HIT nameplate1 school=8 amount=? flag= fps=118 threat=nil group=true,true,false npc=secret target=true
+619996.151 PROBE amount=secret meter=session:29
+619996.151   -> HIDDEN
+619997.118 HIT nameplate1 school=1 amount=? flag= fps=115 threat=nil group=true,true,false npc=secret target=true
+619997.118 PROBE amount=secret meter=session:29
+619997.118   -> HIDDEN
+619997.118 HIT nameplate1 school=1 amount=? flag=GLANCING fps=115 threat=nil group=true,true,false npc=secret target=true
+619997.118 PROBE amount=secret meter=session:29
+619997.118   -> HIDDEN
+619997.747 HIT nameplate1 school=1 amount=? flag=GLANCING fps=116 threat=0 group=true,true,false npc=secret target=true
+619997.747 PROBE amount=secret meter=session:29
+619997.747   -> HIDDEN
+619998.297 HIT nameplate1 school=2 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+619998.297 PROBE amount=secret meter=session:29
+619998.297   -> HIDDEN
+619998.714 CAST player 19277 base=19277,19277 key=nil
+619998.734 CLOG text=/Ky1213/k rgb=0.70,0.70,0.70 order=0
+619998.734 HIT nameplate1 school=32 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+619998.734 PROBE amount=secret meter=session:29,secret:secret
+619998.734   -> HIDDEN
+619998.751 HIT nameplate1 school=8 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+619998.751 PROBE amount=secret meter=session:29,secret:secret
+619998.751   -> HIDDEN
+619998.751 HEAL player school=1 amount=? flag=
+619998.751 CLOG text=/Ky1214/k rgb=0.70,0.70,0.70 order=0
+619998.760   -> HIDDEN
+619999.536 HIT nameplate1 school=16 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+619999.536 PROBE amount=secret meter=session:29,secret:secret
+619999.536   -> HIDDEN
+619999.711 HIT nameplate1 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=true
+619999.711 PROBE amount=secret meter=session:29,secret:secret
+619999.711   -> HIDDEN
+619999.869 HIT nameplate1 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=true
+619999.869 PROBE amount=secret meter=session:29,secret:secret
+619999.869   -> HIDDEN
+620000.225 CAST player 2767 base=2767,2767 key=nil
+620000.705 HIT nameplate1 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=true
+620000.705 PROBE amount=secret meter=session:29,secret:secret
+620000.705   -> HIDDEN
+620000.764 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620000.764 PROBE amount=secret meter=session:29,secret:secret
+620000.764   -> HIDDEN
+620001.640 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620001.640 PROBE amount=secret meter=session:29,secret:secret
+620001.640   -> HIDDEN
+620001.723 CLOG text=/Ky1215/k rgb=0.70,0.70,0.70 order=0
+620001.723 HIT nameplate1 school=32 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620001.723 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620001.723   -> HIDDEN
+620001.723 HEAL player school=1 amount=? flag=
+620001.723 CLOG text=/Ky1216/k rgb=0.70,0.70,0.70 order=0
+620001.732   -> HIDDEN
+620001.949 HIT nameplate1 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620001.949 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620001.949   -> HIDDEN
+620002.332 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=true
+620002.332 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620002.332   -> HIDDEN
+620002.340 HIT nameplate1 school=16 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620002.340 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620002.340   -> HIDDEN
+620002.532 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620002.532 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620002.532   -> HIDDEN
+620003.035 CAST player 6077 base=6077,6077 key=nil
+620003.602 HIT nameplate1 school=1 amount=? flag=GLANCING fps=117 threat=0 group=true,true,false npc=secret target=true
+620003.602 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620003.602   -> HIDDEN
+620003.777 HIT nameplate1 school=2 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620003.777 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620003.777   -> HIDDEN
+620004.128 HIT nameplate1 school=1 amount=? flag=GLANCING fps=117 threat=0 group=true,true,false npc=secret target=true
+620004.128 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620004.128   -> HIDDEN
+620004.728 CLOG text=/Ky1217/k rgb=0.70,0.70,0.70 order=0
+620004.728 HIT nameplate1 school=32 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620004.728 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620004.728   -> HIDDEN
+620004.728 HEAL player school=1 amount=? flag=
+620004.728 CLOG text=/Ky1218/k rgb=0.70,0.70,0.70 order=0
+620004.737   -> HIDDEN
+620004.770 HIT nameplate1 school=2 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620004.770 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620004.770   -> HIDDEN
+620005.113 HIT nameplate1 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=true
+620005.113 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620005.113   -> HIDDEN
+620005.948 HIT nameplate1 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620005.948 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620005.948   -> HIDDEN
+620005.956 HIT nameplate1 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620005.956 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620005.956   -> HIDDEN
+620006.039 HEAL party3 school=1 amount=? flag=
+620006.039   -> HIDDEN
+620006.039 PHEAL party3 school=1 flag=
+620006.039 CLOG text=/Ky1088/k rgb=0.70,0.70,0.70 order=0
+620006.064 HIT nameplate1 school=1 amount=? flag= fps=120 threat=0 group=true,true,false npc=secret target=true
+620006.064 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620006.064   -> HIDDEN
+620006.308 HIT nameplate1 school=1 amount=? flag=GLANCING fps=120 threat=0 group=true,true,false npc=secret target=true
+620006.308 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620006.308   -> HIDDEN
+620006.766 HIT nameplate1 school=2 amount=? flag= fps=120 threat=0 group=true,true,false npc=secret target=true
+620006.766 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620006.766   -> HIDDEN
+620007.724 CLOG text=/Ky1219/k rgb=0.70,0.70,0.70 order=0
+620007.724 HEAL player school=1 amount=? flag=
+620007.724 CLOG text=/Ky1220/k rgb=0.70,0.70,0.70 order=0
+620007.736   -> HIDDEN
+620007.963 HIT nameplate1 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620007.963 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620007.963   -> HIDDEN
+620008.096 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=true
+620008.096 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620008.096   -> HIDDEN
+620008.480 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620008.480 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620008.480   -> HIDDEN
+620009.032 HEAL party3 school=1 amount=? flag=
+620009.032   -> HIDDEN
+620009.032 PHEAL party3 school=1 flag=
+620009.032 CLOG text=/Ky1088/k rgb=0.70,0.70,0.70 order=0
+620010.721 CLOG text=/Ky1215/k rgb=0.70,0.70,0.70 order=0
+620010.721 HEAL player school=1 amount=? flag=
+620010.721 CLOG text=/Ky1216/k rgb=0.70,0.70,0.70 order=0
+620010.730   -> HIDDEN
+620012.029 HEAL party3 school=1 amount=? flag=
+620012.029   -> HIDDEN
+620012.029 PHEAL party3 school=1 flag=
+620012.029 CLOG text=/Ky1084/k rgb=0.70,0.70,0.70 order=0
+620012.722 HIT nameplate2 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=true
+620012.722 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620012.722   -> HIDDEN
+620012.956 HIT nameplate2 school=1 amount=? flag=GLANCING fps=120 threat=0 group=true,true,false npc=secret target=true
+620012.956 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620012.956   -> HIDDEN
+620013.156 HIT nameplate2 school=1 amount=? flag=GLANCING fps=120 threat=0 group=true,true,false npc=secret target=true
+620013.156 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620013.156   -> HIDDEN
+620013.341 HIT nameplate2 school=1 amount=? flag= fps=120 threat=0 group=true,true,false npc=secret target=true
+620013.341 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620013.341   -> HIDDEN
+620013.374 HIT nameplate2 school=8 amount=? flag= fps=120 threat=0 group=true,true,false npc=secret target=true
+620013.374 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620013.374   -> HIDDEN
+620013.433 HIT nameplate2 school=4 amount=? flag= fps=120 threat=0 group=true,true,false npc=secret target=true
+620013.433 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620013.433   -> HIDDEN
+620013.500 HIT nameplate2 school=32 amount=? flag= fps=120 threat=0 group=true,true,false npc=secret target=true
+620013.500 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620013.500   -> HIDDEN
+620013.642 HIT nameplate2 school=1 amount=? flag=BLOCK_REDUCED fps=120 threat=0 group=true,true,false npc=secret target=true
+620013.642 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620013.642   -> HIDDEN
+620013.725 CLOG text=/Ky1217/k rgb=0.70,0.70,0.70 order=0
+620013.725 HIT nameplate2 school=32 amount=? flag= fps=120 threat=0 group=true,true,false npc=secret target=true
+620013.725 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620013.725   -> HIDDEN
+620013.725 HEAL player school=1 amount=? flag=
+620013.725 CLOG text=/Ky1218/k rgb=0.70,0.70,0.70 order=0
+620013.733   -> HIDDEN
+620013.964 HIT nameplate2 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620013.964 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620013.964   -> HIDDEN
+620014.348 HIT nameplate2 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=true
+620014.348 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620014.348   -> HIDDEN
+620014.498 CAST player 14751 base=14751,14751 key=nil
+620014.652 HIT nameplate2 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620014.652 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620014.652   -> HIDDEN
+620014.947 START player 596
+620015.034 HEAL party3 school=1 amount=? flag=
+620015.034   -> HIDDEN
+620015.034 PHEAL party3 school=1 flag=
+620015.034 CLOG text=/Ky1084/k rgb=0.70,0.70,0.70 order=0
+620015.292 HIT nameplate2 school=1 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620015.292 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620015.292   -> HIDDEN
+620015.325 HIT nameplate2 school=32 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620015.325 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620015.325   -> HIDDEN
+620015.325 HIT nameplate2 school=8 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620015.325 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620015.325   -> HIDDEN
+620015.334 HEAL party3 school=1 amount=? flag=
+620015.334   -> HIDDEN
+620015.334 PHEAL party3 school=1 flag=
+620015.968 HIT nameplate2 school=2 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620015.968 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620015.968   -> HIDDEN
+620016.196 HIT nameplate2 school=1 amount=? flag=CRITICAL fps=118 threat=0 group=true,true,false npc=secret target=true
+620016.196 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620016.196   -> HIDDEN
+620016.322 HIT nameplate2 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=true
+620016.322 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620016.322   -> HIDDEN
+620016.719 CLOG text=/Ky1221/k rgb=0.70,0.70,0.70 order=0
+620016.719 HIT nameplate2 school=32 amount=? flag=CRITICAL fps=118 threat=0 group=true,true,false npc=secret target=true
+620016.719 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620016.719   -> HIDDEN
+620016.719 HEAL player school=1 amount=? flag=
+620016.719 CLOG text=/Ky1220/k rgb=0.70,0.70,0.70 order=0
+620016.730   -> HIDDEN
+620017.355 HIT nameplate2 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=true
+620017.355 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620017.355   -> HIDDEN
+620017.668 HIT nameplate2 school=16 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620017.668 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620017.668   -> HIDDEN
+620017.947 HEAL player school=1 amount=? flag=
+620017.947 CLOG text=/Ky1222/k rgb=0.70,0.70,0.70 order=0
+620017.947 CAST player 596 base=596,596 key=nil
+620017.947 HEAL party2 school=1 amount=? flag=
+620017.947   -> HIDDEN
+620017.947 PHEAL party2 school=1 flag=
+620017.947 CLOG text=/Ky1223/k rgb=0.70,0.70,0.70 order=0
+620017.947 HEAL party3 school=1 amount=? flag=
+620017.947   -> HIDDEN
+620017.947 PHEAL party3 school=1 flag=
+620017.947 CLOG text=/Ky1224/k rgb=0.70,0.70,0.70 order=0
+620017.947 HEAL party4 school=1 amount=? flag=CRITICAL
+620017.947   -> HIDDEN
+620017.947 PHEAL party4 school=1 flag=CRITICAL
+620017.947 CLOG text=/Ky1225/k rgb=0.70,0.70,0.70 order=0
+620017.947 HEAL party1 school=1 amount=? flag=CRITICAL
+620017.947   -> HIDDEN
+620017.947 PHEAL party1 school=1 flag=CRITICAL
+620017.947 CLOG text=/Ky1226/k rgb=0.70,0.70,0.70 order=0
+620017.972   -> HIDDEN
+620018.042 HEAL party3 school=1 amount=? flag=
+620018.042   -> HIDDEN
+620018.042 PHEAL party3 school=1 flag=
+620018.042 CLOG text=/Ky1088/k rgb=0.70,0.70,0.70 order=0
+620018.737 HIT nameplate2 school=1 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620018.737 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620018.737   -> HIDDEN
+620019.090 HIT nameplate2 school=2 amount=? flag=CRITICAL fps=118 threat=0 group=true,true,false npc=secret target=true
+620019.090 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620019.090   -> HIDDEN
+620019.117 CAST player 6077 base=6077,6077 key=nil
+620019.340 HIT nameplate2 school=1 amount=? flag=GLANCING fps=117 threat=0 group=true,true,false npc=secret target=true
+620019.340 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620019.340   -> HIDDEN
+620019.715 CLOG text=/Ky1217/k rgb=0.70,0.70,0.70 order=0
+620019.715 HIT nameplate2 school=32 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620019.715 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620019.715   -> HIDDEN
+620019.715 HEAL player school=1 amount=? flag=
+620019.715 CLOG text=/Ky1227/k rgb=0.70,0.70,0.70 order=0
+620019.724   -> HIDDEN
+620019.758 HIT nameplate2 school=1 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620019.758 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620019.758   -> HIDDEN
+620020.464 HIT nameplate2 school=16 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620020.464 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620020.464   -> HIDDEN
+620020.600 CAST player 6077 base=6077,6077 key=nil
+620020.734 HIT nameplate2 school=1 amount=? flag=GLANCING fps=117 threat=0 group=true,true,false npc=secret target=true
+620020.734 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620020.734   -> HIDDEN
+620020.929 HIT nameplate2 school=1 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620020.929 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620020.929   -> HIDDEN
+620021.099 HIT nameplate2 school=2 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620021.099 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620021.099   -> HIDDEN
+620021.757 HIT nameplate2 school=1 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620021.757 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620021.757   -> HIDDEN
+620021.929 HIT nameplate2 school=8 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620021.929 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620021.929   -> HIDDEN
+620022.105 CAST player 2767 base=2767,2767 key=nil
+620022.123 HEAL party1 school=1 amount=? flag=
+620022.123   -> HIDDEN
+620022.123 PHEAL party1 school=1 flag=
+620022.123 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=0
+620022.139 CLOG text=/Ky1213/k rgb=0.70,0.70,0.70 order=0
+620022.139 HIT nameplate2 school=32 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+620022.139 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620022.139   -> HIDDEN
+620022.139 HEAL player school=1 amount=? flag=
+620022.139 CLOG text=/Ky1228/k rgb=0.70,0.70,0.70 order=0
+620022.151   -> HIDDEN
+620022.276 HIT nameplate2 school=2 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+620022.276 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620022.276   -> HIDDEN
+620022.725 CLOG text=/Ky1217/k rgb=0.70,0.70,0.70 order=0
+620022.725 HIT nameplate2 school=32 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+620022.725 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620022.725   -> HIDDEN
+620022.725 HEAL player school=1 amount=? flag=
+620022.725 CLOG text=/Ky1227/k rgb=0.70,0.70,0.70 order=0
+620022.736   -> HIDDEN
+620022.819 HIT nameplate2 school=1 amount=? flag=GLANCING fps=116 threat=0 group=true,true,false npc=secret target=true
+620022.819 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620022.819   -> HIDDEN
+620022.895 HIT nameplate2 school=1 amount=? flag=GLANCING fps=116 threat=0 group=true,true,false npc=secret target=true
+620022.895 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620022.895   -> HIDDEN
+620023.271 HIT nameplate2 school=16 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=true
+620023.271 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620023.271   -> HIDDEN
+620023.617 HEAL party3 school=1 amount=? flag=
+620023.617   -> HIDDEN
+620023.617 PHEAL party3 school=1 flag=
+620023.617 CLOG text=/Ky1084/k rgb=0.70,0.70,0.70 order=0
+620023.735 HIT nameplate2 school=1 amount=? flag=CRITICAL fps=116 threat=0 group=true,true,false npc=secret target=true
+620023.735 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620023.735   -> HIDDEN
+620024.461 HIT nameplate2 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=true
+620024.461 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620024.461   -> HIDDEN
+620025.107 HIT nameplate2 school=32 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620025.107 PROBE amount=secret meter=session:29,secret:secret,secret:secret
+620025.107   -> tracker 2767
+620025.107 CLOG text=/Ky1229/k rgb=0.70,0.70,0.70 order=0
+620025.116 HEAL party1 school=1 amount=? flag=
+620025.116   -> HIDDEN
+620025.116 PHEAL party1 school=1 flag=
+620025.116 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=0
+620025.293 HIT nameplate1 school=1 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620025.293 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620025.293   -> HIDDEN
+620025.548 HIT nameplate1 school=8 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620025.548 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620025.548   -> HIDDEN
+620025.583 HIT nameplate1 school=1 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620025.583 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620025.583   -> HIDDEN
+620025.614 HIT nameplate1 school=1 amount=? flag=GLANCING fps=117 threat=0 group=true,true,false npc=secret target=true
+620025.614 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620025.614   -> HIDDEN
+620026.082 HIT nameplate1 school=16 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620026.082 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620026.082   -> HIDDEN
+620026.515 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=true
+620026.515 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620026.515   -> HIDDEN
+620026.607 HEAL party3 school=1 amount=? flag=CRITICAL
+620026.607   -> HIDDEN
+620026.607 PHEAL party3 school=1 flag=CRITICAL
+620026.607 CLOG text=/Ky1089/k rgb=0.70,0.70,0.70 order=0
+620027.573 HIT nameplate1 school=1 amount=? flag= fps=120 threat=0 group=true,true,false npc=secret target=true
+620027.573 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620027.573   -> HIDDEN
+620027.821 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620027.821 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620027.821   -> HIDDEN
+620028.104 HIT nameplate1 school=32 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620028.104 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620028.104   -> HIDDEN
+620028.104 CLOG text=/Ky1229/k rgb=0.70,0.70,0.70 order=0
+620028.112 HEAL party1 school=1 amount=? flag=CRITICAL
+620028.112   -> HIDDEN
+620028.112 PHEAL party1 school=1 flag=CRITICAL
+620028.112 CLOG text=/Ky786/k rgb=0.70,0.70,0.70 order=0
+620028.137 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=true
+620028.137 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620028.137   -> HIDDEN
+620028.271 HIT nameplate1 school=8 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620028.271 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620028.271   -> HIDDEN
+620029.608 HEAL party3 school=1 amount=? flag=
+620029.608   -> HIDDEN
+620029.608 PHEAL party3 school=1 flag=
+620029.608 CLOG text=/Ky1084/k rgb=0.70,0.70,0.70 order=0
+620030.981 HEAL party3 school=1 amount=? flag=
+620030.981   -> HIDDEN
+620030.981 PHEAL party3 school=1 flag=
+620031.111 CLOG text=/Ky1229/k rgb=0.70,0.70,0.70 order=0
+620031.111 HEAL party1 school=1 amount=? flag=
+620031.111   -> HIDDEN
+620031.111 PHEAL party1 school=1 flag=
+620031.111 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=0
+620032.613 HEAL party3 school=1 amount=? flag=
+620032.613   -> HIDDEN
+620032.613 PHEAL party3 school=1 flag=
+620032.613 CLOG text=/Ky1084/k rgb=0.70,0.70,0.70 order=0
+620034.040 START player 6064
+620034.115 HEAL party1 school=1 amount=? flag=
+620034.115   -> HIDDEN
+620034.115 PHEAL party1 school=1 flag=
+620034.115 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=0
+620035.608 HEAL party3 school=1 amount=? flag=
+620035.608   -> HIDDEN
+620035.608 PHEAL party3 school=1 flag=
+620035.608 CLOG text=/Ky1084/k rgb=0.70,0.70,0.70 order=0
+620036.546 CAST player 6064 base=6064,6064 key=nil
+620036.561 HEAL party3 school=1 amount=? flag=
+620036.561   -> HIDDEN
+620036.561 PHEAL party3 school=1 flag=
+620036.561 CLOG text=/Ky1230/k rgb=0.70,0.70,0.70 order=0
+620040.048 CAST player 6077 base=6077,6077 key=nil
+620040.116 HIT nameplate3 school=32 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=false
+620040.116 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620040.116   -> HIDDEN
+620040.116 CLOG text=/Ky1229/k rgb=0.70,0.70,0.70 order=0
+620041.553 START player 6064
+620041.845 HIT nameplate3 school=1 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=false
+620041.845 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620041.845   -> HIDDEN
+620041.887 HIT nameplate3 school=8 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=false
+620041.887 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620041.887   -> HIDDEN
+620041.908 HIT nameplate3 school=8 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=false
+620041.908 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620041.908   -> HIDDEN
+620042.309 HIT nameplate3 school=1 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=false
+620042.309 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620042.309   -> HIDDEN
+620042.460 HIT nameplate3 school=2 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=false
+620042.460 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620042.460   -> HIDDEN
+620042.848 HIT nameplate3 school=1 amount=? flag=GLANCING fps=117 threat=0 group=true,true,false npc=secret target=false
+620042.848 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620042.848   -> HIDDEN
+620042.967 HIT nameplate3 school=1 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=false
+620042.967 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620042.967   -> HIDDEN
+620043.058 HEAL party2 school=1 amount=? flag=
+620043.058   -> HIDDEN
+620043.058 PHEAL party2 school=1 flag=
+620043.058 CLOG text=/Ky792/k rgb=0.70,0.70,0.70 order=0
+620043.851 HIT nameplate3 school=1 amount=? flag=GLANCING fps=115 threat=0 group=true,true,false npc=secret target=false
+620043.851 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620043.851   -> HIDDEN
+620044.064 CAST player 6064 base=6064,6064 key=nil
+620044.064 CAST player 6077 base=6077,6077 key=nil
+620044.064 HEAL party1 school=1 amount=? flag=
+620044.064   -> HIDDEN
+620044.064 PHEAL party1 school=1 flag=
+620044.064 CLOG text=/Ky1039/k rgb=0.70,0.70,0.70 order=0
+620044.207 HIT nameplate3 school=1 amount=? flag= fps=114 threat=0 group=true,true,false npc=secret target=false
+620044.207 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620044.207   -> HIDDEN
+620044.839 HIT nameplate3 school=1 amount=? flag=GLANCING fps=115 threat=0 group=true,true,false npc=secret target=false
+620044.839 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620044.839   -> HIDDEN
+620045.014 HIT nameplate3 school=1 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=false
+620045.014 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620045.014   -> HIDDEN
+620045.272 HIT nameplate3 school=1 amount=? flag=GLANCING fps=117 threat=0 group=true,true,false npc=secret target=false
+620045.272 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620045.272   -> HIDDEN
+620045.689 HIT nameplate3 school=1 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=false
+620045.689 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620045.689   -> HIDDEN
+620046.056 HEAL party2 school=1 amount=? flag=
+620046.056   -> HIDDEN
+620046.056 PHEAL party2 school=1 flag=
+620046.056 CLOG text=/Ky792/k rgb=0.70,0.70,0.70 order=0
+620047.066 HEAL player school=1 amount=? flag=
+620047.066 CLOG text=/Ky529/k rgb=0.70,0.70,0.70 order=0
+620047.074   -> HIDDEN
+620047.300 HEAL party3 school=1 amount=? flag=
+620047.300   -> HIDDEN
+620047.300 PHEAL party3 school=1 flag=
+620047.790 CAST player 6077 base=6077,6077 key=nil
+620048.620 START player 6478
+620049.051 HEAL party2 school=1 amount=? flag=
+620049.051   -> HIDDEN
+620049.051 PHEAL party2 school=1 flag=
+620049.051 CLOG text=/Ky792/k rgb=0.70,0.70,0.70 order=0
+620049.368 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620049.368 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620049.368   -> HIDDEN
+620049.743 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=false
+620049.743 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620049.743   -> HIDDEN
+620049.810 HIT nameplate1 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620049.810 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620049.810   -> HIDDEN
+620049.893 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620049.893 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620049.893   -> HIDDEN
+620050.001 HIT nameplate1 school=8 amount=? flag= fps=120 threat=0 group=true,true,false npc=secret target=false
+620050.001 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620050.001   -> HIDDEN
+620050.069 HEAL player school=1 amount=? flag=
+620050.069 CLOG text=/Ky539/k rgb=0.70,0.70,0.70 order=0
+620050.077   -> HIDDEN
+620050.466 HIT nameplate1 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620050.466 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620050.466   -> HIDDEN
+620050.500 HIT nameplate1 school=32 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620050.500 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620050.500   -> HIDDEN
+620050.517 HEAL party4 school=1 amount=? flag=
+620050.517   -> HIDDEN
+620050.517 PHEAL party4 school=1 flag=
+620050.675 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=false
+620050.675 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620050.675   -> HIDDEN
+620050.792 HEAL party1 school=1 amount=? flag=
+620050.792   -> HIDDEN
+620050.792 PHEAL party1 school=1 flag=
+620050.792 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=0
+620050.859 HIT nameplate1 school=1 amount=? flag= fps=120 threat=0 group=true,true,false npc=secret target=false
+620050.859 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620050.859   -> HIDDEN
+620051.810 HIT nameplate1 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620051.810 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620051.810   -> HIDDEN
+620051.844 HIT nameplate1 school=2 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=false
+620051.844 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620051.844   -> HIDDEN
+620052.061 HEAL party2 school=1 amount=? flag=
+620052.061   -> HIDDEN
+620052.061 PHEAL party2 school=1 flag=
+620052.061 CLOG text=/Ky792/k rgb=0.70,0.70,0.70 order=0
+620052.504 HIT nameplate1 school=16 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620052.504 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620052.504   -> HIDDEN
+620052.512 HIT nameplate1 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620052.512 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620052.512   -> HIDDEN
+620053.064 HEAL player school=1 amount=? flag=
+620053.064 CLOG text=/Ky539/k rgb=0.70,0.70,0.70 order=0
+620053.072   -> HIDDEN
+620053.072 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620053.072 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620053.072   -> HIDDEN
+620053.472 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=false
+620053.472 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620053.472   -> HIDDEN
+620053.622 CAST player 6478 base=6478,6478 key=nil
+620053.667 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=false
+620053.667 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620053.667   -> HIDDEN
+620053.786 HEAL party1 school=1 amount=? flag=
+620053.786   -> HIDDEN
+620053.786 PHEAL party1 school=1 flag=
+620053.786 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=0
+620054.300 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=false
+620054.300 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620054.300   -> HIDDEN
+620054.542 HIT nameplate1 school=8 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620054.542 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620054.542   -> HIDDEN
+620054.709 HIT nameplate1 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620054.709 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620054.709   -> HIDDEN
+620054.800 HIT nameplate1 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620054.800 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620054.800   -> HIDDEN
+620055.051 HEAL party2 school=1 amount=? flag=
+620055.051   -> HIDDEN
+620055.051 PHEAL party2 school=1 flag=
+620055.051 CLOG text=/Ky792/k rgb=0.70,0.70,0.70 order=0
+620055.161 HIT nameplate1 school=1 amount=? flag=CRITICAL fps=118 threat=0 group=true,true,false npc=secret target=false
+620055.161 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620055.161   -> HIDDEN
+620055.301 HIT nameplate1 school=16 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=false
+620055.301 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620055.301   -> HIDDEN
+620055.310 HIT nameplate1 school=1 amount=? flag=GLANCING fps=117 threat=0 group=true,true,false npc=secret target=false
+620055.310 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620055.310   -> HIDDEN
+620055.843 HIT nameplate1 school=2 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=false
+620055.843 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620055.843   -> HIDDEN
+620055.860 HIT nameplate1 school=1 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=false
+620055.860 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620055.860   -> HIDDEN
+620056.068 HEAL player school=1 amount=? flag=
+620056.068 CLOG text=/Ky539/k rgb=0.70,0.70,0.70 order=0
+620056.076   -> HIDDEN
+620056.279 HIT nameplate1 school=1 amount=? flag=GLANCING fps=115 threat=0 group=true,true,false npc=secret target=false
+620056.279 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620056.279   -> HIDDEN
+620056.796 HEAL party1 school=1 amount=? flag=
+620056.796   -> HIDDEN
+620056.796 PHEAL party1 school=1 flag=
+620056.796 CLOG text=/Ky812/k rgb=0.70,0.70,0.70 order=0
+620057.155 HIT nameplate1 school=1 amount=? flag=GLANCING fps=115 threat=0 group=true,true,false npc=secret target=false
+620057.155 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620057.155   -> HIDDEN
+620057.482 HIT nameplate1 school=1 amount=? flag= fps=115 threat=0 group=true,true,false npc=secret target=false
+620057.482 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620057.482   -> HIDDEN
+620058.021 HIT nameplate1 school=16 amount=? flag=CRITICAL fps=116 threat=0 group=true,true,false npc=secret target=false
+620058.021 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620058.021   -> HIDDEN
+620058.029 HIT nameplate1 school=2 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=false
+620058.029 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620058.029   -> HIDDEN
+620058.073 HIT nameplate1 school=1 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=false
+620058.073 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620058.073   -> HIDDEN
+620058.115 HIT nameplate1 school=16 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=false
+620058.115 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret
+620058.115   -> HIDDEN
+620058.432 HEAL player school=1 amount=? flag=
+620058.432 CLOG text=/Ky1231/k rgb=0.70,0.70,0.70 order=0
+620058.432 CAST player 15431 base=15431,15431 key=nil
+620058.432 HEAL party1 school=1 amount=? flag=
+620058.432   -> HIDDEN
+620058.432 PHEAL party1 school=1 flag=
+620058.432 CLOG text=/Ky874/k rgb=0.70,0.70,0.70 order=0
+620058.432 HEAL party4 school=1 amount=? flag=
+620058.432   -> HIDDEN
+620058.432 PHEAL party4 school=1 flag=
+620058.432 CLOG text=/Ky1232/k rgb=0.70,0.70,0.70 order=0
+620058.432 HEAL party3 school=1 amount=? flag=
+620058.432   -> HIDDEN
+620058.432 PHEAL party3 school=1 flag=
+620058.432 CLOG text=/Ky1233/k rgb=0.70,0.70,0.70 order=0
+620058.432 HEAL party2 school=1 amount=? flag=
+620058.432   -> HIDDEN
+620058.432 PHEAL party2 school=1 flag=
+620058.432 CLOG text=/Ky1234/k rgb=0.70,0.70,0.70 order=0
+620058.432 CLOG text=/Ky1235/k rgb=0.70,0.70,0.70 order=0
+620058.432 HIT nameplate1 school=2 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=false
+620058.432 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620058.432   -> HIDDEN
+620058.432 CLOG text=/Ky1236/k rgb=0.70,0.70,0.70 order=0
+620058.432 HIT nameplate1 school=32 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=false
+620058.432 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620058.432   -> HIDDEN
+620058.462   -> HIDDEN
+620058.462 HEAL player school=1 amount=? flag=
+620058.462 CLOG text=/Ky1237/k rgb=0.70,0.70,0.70 order=0
+620058.472   -> HIDDEN
+620058.616 HIT nameplate1 school=1 amount=? flag=GLANCING fps=116 threat=0 group=true,true,false npc=secret target=false
+620058.616 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620058.616   -> HIDDEN
+620058.845 HIT nameplate1 school=1 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=false
+620058.845 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620058.845   -> HIDDEN
+620059.070 HEAL player school=1 amount=? flag=
+620059.070 CLOG text=/Ky529/k rgb=0.70,0.70,0.70 order=0
+620059.094   -> HIDDEN
+620059.520 HIT nameplate1 school=1 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=false
+620059.520 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620059.520   -> HIDDEN
+620059.710 HIT nameplate1 school=1 amount=? flag=GLANCING fps=116 threat=0 group=true,true,false npc=secret target=false
+620059.710 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620059.710   -> HIDDEN
+620059.785 HEAL party1 school=1 amount=? flag=
+620059.785   -> HIDDEN
+620059.785 PHEAL party1 school=1 flag=
+620059.785 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=0
+620059.852 HIT nameplate1 school=1 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=false
+620059.852 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620059.852   -> HIDDEN
+620059.887 START player 596
+620060.022 HIT nameplate1 school=2 amount=? flag= fps=116 threat=0 group=true,true,false npc=secret target=false
+620060.022 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620060.022   -> HIDDEN
+620060.114 HIT nameplate1 school=1 amount=? flag=GLANCING fps=116 threat=0 group=true,true,false npc=secret target=false
+620060.114 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620060.114   -> HIDDEN
+620060.700 HIT nameplate1 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=false
+620060.700 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620060.700   -> HIDDEN
+620060.725 HIT nameplate1 school=1 amount=? flag=BLOCK_REDUCED fps=118 threat=0 group=true,true,false npc=secret target=false
+620060.725 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620060.725   -> HIDDEN
+620060.994 HIT nameplate1 school=2 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=false
+620060.994 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620060.994   -> HIDDEN
+620061.477 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620061.477 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620061.477   -> HIDDEN
+620061.644 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=false
+620061.644 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620061.644   -> HIDDEN
+620062.020 HIT nameplate1 school=2 amount=? flag= fps=120 threat=0 group=true,true,false npc=secret target=false
+620062.020 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620062.020   -> HIDDEN
+620062.417 HIT nameplate1 school=16 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620062.417 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620062.417   -> HIDDEN
+620062.467 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620062.467 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620062.467   -> HIDDEN
+620062.786 HEAL party1 school=1 amount=? flag=
+620062.786   -> HIDDEN
+620062.786 PHEAL party1 school=1 flag=
+620062.786 CLOG text=/Ky782/k rgb=0.70,0.70,0.70 order=0
+620062.819 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=true
+620062.819 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620062.819   -> HIDDEN
+620063.036 HIT nameplate1 school=2 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620063.036 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620063.036   -> HIDDEN
+620063.161 HEAL player school=1 amount=? flag=
+620063.161 CLOG text=/Ky1238/k rgb=0.70,0.70,0.70 order=0
+620063.161 CAST player 596 base=596,596 key=nil
+620063.161 HEAL party3 school=1 amount=? flag=
+620063.161   -> HIDDEN
+620063.161 PHEAL party3 school=1 flag=
+620063.161 CLOG text=/Ky1239/k rgb=0.70,0.70,0.70 order=0
+620063.161 HEAL party2 school=1 amount=? flag=
+620063.161   -> HIDDEN
+620063.161 PHEAL party2 school=1 flag=
+620063.161 CLOG text=/Ky1240/k rgb=0.70,0.70,0.70 order=0
+620063.161 HEAL party1 school=1 amount=? flag=
+620063.161   -> HIDDEN
+620063.161 PHEAL party1 school=1 flag=
+620063.161 CLOG text=/Ky1241/k rgb=0.70,0.70,0.70 order=0
+620063.161 HEAL party4 school=1 amount=? flag=
+620063.161   -> HIDDEN
+620063.161 PHEAL party4 school=1 flag=
+620063.161 CLOG text=/Ky1242/k rgb=0.70,0.70,0.70 order=0
+620063.179   -> HIDDEN
+620063.491 HIT nameplate1 school=1 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620063.491 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620063.491   -> HIDDEN
+620063.534 HIT nameplate1 school=8 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620063.534 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620063.534   -> HIDDEN
+620064.025 HIT nameplate1 school=2 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620064.025 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620064.025   -> HIDDEN
+620064.495 HIT nameplate1 school=1 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620064.495 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620064.495   -> HIDDEN
+620064.495 HIT nameplate1 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=true
+620064.495 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620064.495   -> HIDDEN
+620064.523 HIT nameplate1 school=32 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620064.523 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620064.523   -> HIDDEN
+620064.540 HEAL party3 school=1 amount=? flag=
+620064.540   -> HIDDEN
+620064.540 PHEAL party3 school=1 flag=
+620064.716 HIT nameplate1 school=2 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620064.716 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620064.716   -> HIDDEN
+620065.033 HIT nameplate1 school=2 amount=? flag= fps=118 threat=0 group=true,true,false npc=secret target=true
+620065.033 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620065.033   -> HIDDEN
+620065.150 CAST player 5019 base=5019,5019 key=nil
+620065.150 SWING 1.5000001192093 kind=2
+620065.213 HIT nameplate1 school=16 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620065.213 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620065.213   -> HIDDEN
+620065.376 HIT nameplate1 school=8 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620065.376 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret
+620065.376   -> HIDDEN
+620065.451 CLOG text=/Ky1243/k rgb=0.70,0.70,0.70 order=0
+620065.451 HIT nameplate1 school=32 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620065.451 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620065.451   -> HIDDEN
+620066.126 HIT nameplate1 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=true
+620066.126 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620066.126   -> HIDDEN
+620066.135 HIT nameplate1 school=1 amount=? flag=GLANCING fps=118 threat=0 group=true,true,false npc=secret target=true
+620066.135 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620066.135   -> HIDDEN
+620066.260 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=true
+620066.260 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620066.260   -> HIDDEN
+620066.651 CAST player 5019 base=5019,5019 key=nil
+620066.651 SWING 1.5000001192093 kind=2
+620066.950 CLOG text=/Ky1244/k rgb=0.70,0.70,0.70 order=0
+620066.950 HIT nameplate1 school=32 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620066.950 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620066.950   -> HIDDEN
+620068.176 CAST player 5019 base=5019,5019 key=nil
+620068.176 SWING 1.5000001192093 kind=2
+620068.464 CLOG text=/Ky1244/k rgb=0.70,0.70,0.70 order=0
+620068.472 HIT nameplate1 school=32 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620068.472 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620068.472   -> HIDDEN
+620068.506 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620068.506 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620068.506   -> HIDDEN
+620068.556 HIT nameplate1 school=32 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620068.556 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620068.556   -> HIDDEN
+620069.518 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620069.518 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620069.518   -> HIDDEN
+620069.693 CAST player 5019 base=5019,5019 key=nil
+620069.693 SWING 1.5000001192093 kind=2
+620069.984 CLOG text=/Ky1245/k rgb=0.70,0.70,0.70 order=0
+620069.984 HIT nameplate1 school=32 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620069.984 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620069.984   -> HIDDEN
+620070.059 HIT nameplate1 school=32 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620070.059 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620070.059   -> HIDDEN
+620070.514 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620070.514 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620070.514   -> HIDDEN
+620071.198 CAST player 5019 base=5019,5019 key=nil
+620071.198 SWING 1.5000001192093 kind=2
+620071.496 CLOG text=/Ky1246/k rgb=0.70,0.70,0.70 order=0
+620071.496 HIT nameplate1 school=32 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620071.496 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620071.496   -> HIDDEN
+620071.513 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620071.513 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620071.513   -> HIDDEN
+620071.555 HIT nameplate1 school=1 amount=? flag= fps=119 threat=0 group=true,true,false npc=secret target=true
+620071.555 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620071.555   -> HIDDEN
+620071.906 HIT nameplate1 school=1 amount=? flag=GLANCING fps=119 threat=0 group=true,true,false npc=secret target=true
+620071.906 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620071.906   -> HIDDEN
+620072.711 CAST player 5019 base=5019,5019 key=nil
+620072.711 SWING 1.5000001192093 kind=2
+620073.010 CLOG text=/Ky1247/k rgb=1.00,1.00,1.00 order=0
+620073.010 CLOG text=/Ky1248/k rgb=0.70,0.70,0.70 order=0
+620073.010 HIT nameplate1 school=32 amount=? flag= fps=117 threat=0 group=true,true,false npc=secret target=true
+620073.010 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620073.010   -> HIDDEN
+620073.528 HIT nameplate1 school=1 amount=? flag=GLANCING fps=116 threat=0 group=true,true,false npc=secret target=false
+620073.528 PROBE amount=secret meter=session:29,secret:secret,secret:secret,secret:secret,secret:secret,secret:secret
+620073.528   -> HIDDEN
+620074.615 TEACH session 29 dur=81
+620074.615 TEACH row 19277 total=463 overkill=0 override=19277
+620074.615 TEACH row 75 total=304 overkill=0 override=75
+620074.615 TEACH row 2767 total=256 overkill=0 override=2767
+620074.615 TEACH row 1260198 total=215 overkill=0 override=1260198
+620074.615 TEACH row 15431 total=86 overkill=0 override=15431
+620074.615 TEACH clean seen=0 meter=1324 -> group
+620074.615 TEACH 19277 tally=0 meter=463 verdict=unpaired
+620074.615 TEACH 75 tally=0 meter=304 verdict=unpaired
+620074.615 TEACH 2767 tally=0 meter=256 verdict=unpaired
+620074.615 TEACH 1260198 tally=0 meter=215 verdict=unpaired
+620074.615 TEACH 15431 tally=0 meter=86 verdict=unpaired
+620074.615 TEACH heal 596 meter=2198 over=0
+620074.615 TEACH heal 6077 meter=2160 over=0
+620074.615 TEACH heal 6064 meter=1583 over=0
+620074.615 TEACH heal 23459 meter=649 over=0
+620074.615 TEACH heal 19277 meter=256 over=0
+620074.615 TEACH heal 1260198 meter=101 over=0
+620074.615 PROBE meterfields session:29 {combatSpells={1={amountPerSecond=5.6564126014709,combatSpellDetails={amount=0,classification=,isMob=false,isPet=false,unitClassFilename=,unitName=},creatureName=,isAvoidable=false,isDeadly=false,overkillAmount=0,spellID=19277,totalAmount=463},2={amountPerSecond=3.7139294147491,combatSpellDetails={amount=0,classification=,isMob=false,isPet=false,unitClassFilename=,unitName=},creatureName=,isAvoidable=false,isDeadly=false,overkillAmount=0,spellID=75,totalAmount=304},3={amountPerSecond=3.1275196075439,combatSpellDetails={amount=0,classification=,isMob=false,isPet=false,unitClassFilename=,unitName=},creatureName=,isAvoidable=false,isDeadly=false,overkillAmount=0,spellID=2767,totalAmount=256},4={amountPerSecond=2.6266276836395,combatSpellDetails={amount=0,classification=,isMob=false,isPet=false,unitClassFilename=,unitName=},creatureName=,isAvoidable=false,isDeadly=false,overkillAmount=0,spellID=1260198,totalAmount=215},5={amountPerSecond=1.0506510734558,combatSpellDetails={amount=0,classification=,isMob=false,isPet=false,unitClassFilename=,unitName=},creatureName=,isAvoidable=false,isDeadly=false,overkillAmount=0,spellID=15431,totalAmount=86}},maxAmount=463,totalAmount=1324}
+620160.360 START player 8690
+620170.366 CAST player 8690 base=8690,8690 key=nil
