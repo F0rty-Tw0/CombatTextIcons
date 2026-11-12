@@ -775,4 +775,7 @@ return function(T)
     T.RunFile("checks_owner.lua")
     T.RunFile("checks_owner_replay.lua")
     T.RunFile("checks_owner_route.lua")
+    T.RunFile("checks_owner_saved.lua")
+    T.RunFile("checks_owner_wiring.lua")
+    T.RunFile("checks_owner_heals.lua")
 end
