@@ -200,11 +200,11 @@ end
 -- frame; else once any heal is learned it waits for its frame's casts, hits and running trains, which may name it
 -- (waiting). On Forever every heal on you waits, and its frame's casts, your own hit on its stamp and learned HoT
 -- ticks may name it (LockedHeals.Claim). While Owner is live the channel's tick is still held at the heal's arrival, so
--- the channel is asked at the flush instead (FlushHeals). A heal on you nothing names draws the question mark when solo and the area
--- is clear. A heal on a party member stays hidden. A HoT's ticks are a learned train's (Heals.lua): the tick
--- tracker's own HoT instances took like-timed heals of any size and outlived the HoT (synthetic: foreign heals and a
--- 720 rune drawn under Renew 139, 4.6 % of the case's heals; the real heal logs: no heal named that way). Heals do not
--- count toward the crowd check (overheal).
+-- the channel is asked at the flush instead (FlushHeals). A heal on you nothing names draws the question mark when solo
+-- and the area is clear. A heal on a party member stays hidden. A HoT's ticks are a learned train's (Heals.lua): the
+-- tick tracker's own HoT instances took like-timed heals of any size and outlived the HoT (synthetic: foreign heals and
+-- a 720 rune drawn under Renew 139, 4.6 % of the case's heals; the real heal logs: no heal named that way). Heals do
+-- not count toward the crowd check (overheal).
 function PlayerHits.Heal(unit, flagText, amount, school, now)
     PlayerHits.FlushHeals(now)
     if ns.Debug then

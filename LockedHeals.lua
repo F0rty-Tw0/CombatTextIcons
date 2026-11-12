@@ -163,6 +163,7 @@ function LockedHeals.Learn(healRows, run, cast, damageRows)
     if fight.group then
         Clear(drew)
         Clear(hotDrew)
+
         return
     end
     local rows = PlainIDs(healRows)

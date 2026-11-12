@@ -1,6 +1,6 @@
 -- Combat Text Icons: Blizzard's own combat text. The addon turns Blizzard's outgoing numbers off while it draws them
--- and gives them back on /cti off, at logout, and on Forever while grouped without Owner (SyncBlizzard). Core.SuppressBlizzard,
--- Core.RestoreBlizzard and Core.SyncBlizzard are these.
+-- and gives them back on /cti off, at logout, and on Forever while grouped without Owner (SyncBlizzard).
+-- Core.SuppressBlizzard, Core.RestoreBlizzard and Core.SyncBlizzard are these.
 
 local _, ns = ...
 

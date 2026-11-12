@@ -1,3 +1,6 @@
+-- Combat Text Icons: the route clock. ns.Now() is the time a hit is judged at: GetTime(), or the stamp Owner set while
+-- it routes a held hit (ns.SetRouteClock).
+
 local _, ns = ...
 
 local routeAt

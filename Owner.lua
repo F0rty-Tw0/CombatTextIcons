@@ -1,9 +1,9 @@
 -- Combat Text Icons: who owns a grouped hit. The Combat Log's own-action lines (lines) and the meter's events (events)
 -- are paired by their stamps (Owner.Match, a pure function). A grouped hit waits here (Owner.Hit) until a line owns it
 -- or its stamp is too old, then goes to HitRoute (Owner.Flush).
--- Run 2, replayed offline by the script clog_match.lua: 36 lines paired cleanly on one stamp, 1 needed the ranking and
--- 1 needed the 0.05 s window. Both passes pair only settled stamps (older than the flush's `now`), so a stamp's own
--- hit or line arriving later in the frame keeps its claim.
+-- Run 2, replayed offline by a matcher script kept in the session handoff data (not in this repo): 36 lines paired
+-- cleanly on one stamp, 1 needed the ranking and 1 needed the 0.05 s window. Both passes pair only settled stamps
+-- (older than the flush's `now`), so a stamp's own hit or line arriving later in the frame keeps its claim.
 
 local _, ns = ...
 
@@ -16,7 +16,8 @@ local SLACK = 1e-9 -- float stamps like 10.05 - 10.0 must still count as 0.05
 
 local HEAL_SCORE, OWN_SCORE, TARGET_SCORE, BOTH_SCORE = 3, 4, 2, 1
 
--- A heal scores 3. A hit scores 4 for an own school (every school when own is nil), 2 for the target, and 1 more for both.
+-- A heal scores 3. A hit scores 4 for an own school (every school when own is nil), 2 for the target, and 1 more for
+-- both.
 local function Score(event, own)
     if event.kind == "heal" then return HEAL_SCORE end
     local isOwn = own == nil or own[event.school]
@@ -146,7 +147,7 @@ function Owner.Line(order, now)
     if not Plain(order) or not Plain(now) or order ~= 0 then return end
     lines[#lines + 1] = { now = now }
     ns.PlayerHits.QueueFlush()
-    if Owner.OnLine then Owner.OnLine() end
+    Owner.OnLine()
 end
 
 -- A grouped hit, held until its stamp settles. Its HIT line is written now, as HitRoute would have written it.
@@ -304,7 +305,7 @@ end
 -- release returns at once; a throw still frees the guard. The fight's end also resets the cast count (OwnerActive.lua).
 function Owner.Flush(now, force)
     if flushing then return end
-    if now == nil and Owner.OnFlushAll then Owner.OnFlushAll() end
+    if now == nil then Owner.OnFlushAll() end
     flushing = true
     local ok, err = pcall(Run, now, force)
     flushing = false
