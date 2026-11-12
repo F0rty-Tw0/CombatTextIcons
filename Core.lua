@@ -271,7 +271,7 @@ function Core.UNIT_SPELLCAST_CHANNEL_START(unit, castGUID, spellID)
 end
 
 function Core.UNIT_SPELLCAST_CHANNEL_STOP(unit, castGUID)
-    Tracker.OnChannelStop(GetTime(), castGUID)
+    ns.Owner.ChannelStop(GetTime(), castGUID)
 end
 
 function Core.GROUP_ROSTER_UPDATE()

@@ -115,6 +115,7 @@ local lines = {} -- the Combat Log's own-action lines, { now }, in arrival order
 local hits = {} -- grouped hits held until their stamp settles, in arrival order
 local heals = {} -- heals not yet decided: { kind = "heal", now, school, onYou, index }
 local decided = {} -- decided[at][index] = whether a line owned the index-th heal on you at `at`
+local stops = {} -- channel stops held behind a hit on their stamp: { now, castGUID }, oldest first
 local flushing = false
 
 -- The own schools for the matcher: every school counts as own when none is locked yet.
@@ -281,12 +282,31 @@ local function Prune(now)
     end
 end
 
+-- Lands the channel stops no hit waits behind any more (Owner.Pending), oldest first.
+local function ApplyStops()
+    local kept = {}
+    for _, stop in ipairs(stops) do
+        local waits = Owner.Pending(stop.now)
+        if waits then kept[#kept + 1] = stop else ns.Tracker.OnChannelStop(stop.now, stop.castGUID) end
+    end
+    stops = kept
+end
+
 local function Run(now, force)
     local cut = now or math.huge
     PassOneSettled(cut)
     PassTwoLeft(cut)
     Release(cut, now, force)
+    ApplyStops()
     Prune(now)
+end
+
+-- A channel's stop at `now`. The channel's last tick may still be held here and routes only while the Tracker still has
+-- the channel, so the stop lands once no hit on its stamp waits: at once, or at the release that frees it.
+function Owner.ChannelStop(now, castGUID)
+    stops[#stops + 1] = { now = now, castGUID = castGUID }
+    ApplyStops()
+    if #stops > 0 then ns.PlayerHits.QueueFlush() end
 end
 
 -- The frame's end (`now`), a forced release, or the fight's end (`now` nil: everything settles). A call from inside a
@@ -310,7 +330,7 @@ function Owner.HealOwned(at, index)
 end
 
 function Owner.Waiting()
-    return #hits > 0 or #lines > 0 or #heals > 0
+    return #hits > 0 or #lines > 0 or #heals > 0 or #stops > 0
 end
 
 function Owner.PlateGone(plate)
@@ -319,4 +339,5 @@ end
 
 function Owner.Drop()
     lines, hits, heals, decided = {}, {}, {}, {}
+    ApplyStops()
 end

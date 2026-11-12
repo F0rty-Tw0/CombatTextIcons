@@ -332,4 +332,54 @@ return function(T)
             rig.syncs == 1 and Owner.Waiting() == true and Owner.Pending(10.03) == true)
         Clean()
     end
+
+    -- 1.6 A channel's stop waits for the tick Owner still holds (Core.UNIT_SPELLCAST_CHANNEL_STOP -> Owner.ChannelStop)
+    do
+        -- Drain Life (234153) channeling since 600 on nameplate1. The route stub names each released tick through the
+        -- Tracker, as HitRoute does: spell[n] is the n-th routed hit's answer.
+        local function Rig()
+            local rig = { spell = {} }
+            rig.ns = T.BootSpells(function() CombatTextIconsCharDB = { lockedSchools = { [589] = { school = 32, strays = 0 } } } end)
+            rig.S = T.State()
+            rig.plate = T.Plate("nameplate1")
+            rig.S.plates.nameplate1, rig.S.target = rig.plate, "nameplate1"
+            local ns = rig.ns
+            ns.HitRoute.Route = function(hit) rig.spell[#rig.spell + 1] = ns.Tracker.Identify(hit.plate, hit.school, 500, "", hit.now) or false end
+            ns.PlayerHits.FlushHeals = function() end
+            ns.Tracker.OnChannelStart(234153, 600, "Cast-A")
+            return rig
+        end
+        local function Tick(rig, at) rig.ns.Owner.Hit(rig.plate, "nameplate1", "", 500, 32, at) rig.ns.Owner.Line(0, at) end
+        local function Stop(rig, at) rig.S.now = at rig.ns.Core.UNIT_SPELLCAST_CHANNEL_STOP("player", "Cast-A") end
+        local rig, Owner
+
+        rig = Rig() Owner = rig.ns.Owner
+        Tick(rig, 601.3)
+        Stop(rig, 601.3)
+        Owner.Flush(601.3)
+        Check("channel stop: a tick held on the stop's stamp keeps the channel until it is released",
+            #rig.spell == 0 and Owner.Waiting() == true)
+        Owner.Flush(601.4)
+        Check("channel stop: the held final tick routes with the channel's identity", rig.spell[1] == 234153)
+        Check("channel stop: the stop lands once the tick is out", rig.ns.Tracker.Identify(rig.plate, 32, 500, "", 602) == nil
+            and Owner.Waiting() == false)
+
+        rig = Rig() Owner = rig.ns.Owner
+        Stop(rig, 601.3)
+        Check("channel stop: with no tick held the stop lands at once", rig.ns.Tracker.Identify(rig.plate, 32, 500, "", 601.3) == nil)
+
+        rig = Rig() Owner = rig.ns.Owner
+        Tick(rig, 601.3)
+        Stop(rig, 601.3)
+        Owner.Flush(nil)
+        Check("channel stop: the fight's end routes the tick, then stops the channel",
+            rig.spell[1] == 234153 and rig.ns.Tracker.Identify(rig.plate, 32, 500, "", 602) == nil)
+
+        rig = Rig() Owner = rig.ns.Owner
+        Tick(rig, 601.3)
+        Stop(rig, 601.3)
+        Owner.Drop()
+        Check("channel stop: Drop forgets the held tick and still stops the channel",
+            #rig.spell == 0 and Owner.Waiting() == false and rig.ns.Tracker.Identify(rig.plate, 32, 500, "", 602) == nil)
+    end
 end
