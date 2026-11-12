@@ -772,7 +772,7 @@ return function(T)
         local second = CombatTextIconsDB.debugLog[2]
         Check("probe: a client without the Combat Log's lines says so and registers nothing", second ~= nil
             and second:find("PROBE clog COMBAT_LOG_MESSAGE=false PLAYER_SWING=false PLAYER_REGEN_DISABLED=false "
-            .. "lines=none filter=none$") ~= nil)
+            .. "UNIT_COMBAT=false PLAYER_REGEN_ENABLED=false lines=none filter=none$") ~= nil)
         slash.ns.Debug = nil
     end
 
@@ -791,7 +791,7 @@ return function(T)
         local log = CombatTextIconsDB.debugLog
         Check("probe: the lines are switched on and the picked filter is named", log[2] ~= nil
             and log[2]:find("PROBE clog COMBAT_LOG_MESSAGE=true PLAYER_SWING=true PLAYER_REGEN_DISABLED=true "
-            .. "lines=switched filter=1:My_actions$") ~= nil and enabled == true)
+            .. "UNIT_COMBAT=true PLAYER_REGEN_ENABLED=true lines=switched filter=1:My_actions$") ~= nil and enabled == true)
         probe.scripts.OnEvent(probe, "COMBAT_LOG_MESSAGE", Secret("text"), 1, 0.5, Secret(0), 2)
         probe.scripts.OnEvent(probe, "PLAYER_SWING", false, 1)
         Check("probe: a line logs its words as secret and its plain colour",
@@ -801,6 +801,29 @@ return function(T)
         probe.scripts.OnEvent(probe, "PLAYER_REGEN_DISABLED")
         Check("probe: a fight start switches the lines back on when the tab turned them off",
             log[5] ~= nil and log[5]:find("PROBE clog lines=switched filter=1:My_actions$") ~= nil and enabled)
+
+        -- v2 (2026-11-12): heals on party members, and the meter's fields after the fight
+        probe.scripts.OnEvent(probe, "UNIT_COMBAT", "party2", "HEAL", "CRITICAL", Secret(900), 2)
+        probe.scripts.OnEvent(probe, "UNIT_COMBAT", "nameplate1", "HEAL", "", Secret(900), 2)
+        probe.scripts.OnEvent(probe, "UNIT_COMBAT", "party1", "WOUND", "", Secret(900), 1)
+        Check("probe: a heal on a party member logs its unit, school and flag; other units and wounds log nothing",
+            log[6] ~= nil and log[6]:find("PHEAL party2 school=2 flag=CRITICAL$") ~= nil and log[7] == nil)
+        local sessions, source = C_DamageMeter.GetAvailableCombatSessions, C_DamageMeter.GetCombatSessionSourceFromID
+        C_DamageMeter.GetAvailableCombatSessions = function() return { { sessionID = 3 }, { sessionID = 9 } } end
+        C_DamageMeter.GetCombatSessionSourceFromID = function(id)
+            return { combatSpells = { { spellID = 589, totalAmount = Secret(40), details = { hits = 3 } } }, name = "me" }
+        end
+        local queued = #rig.S.timers
+        probe.scripts.OnEvent(probe, "PLAYER_REGEN_ENABLED")
+        Check("probe: a fight end logs nothing at once", log[7] == nil and #rig.S.timers == queued + 1)
+        rig.S.timers[#rig.S.timers].fn()
+        Check("probe: a second after a fight the newest session's fields log, nested and secret-safe", log[7] ~= nil
+            and log[7]:find("PROBE meterfields session:9 {combatSpells={1={details={hits=3},spellID=589,totalAmount=secret}},"
+            .. "name=me}$", 1, false) ~= nil)
+        C_DamageMeter.GetAvailableCombatSessions = function() error("sessions broke") end
+        rig.S.timers[#rig.S.timers].fn()
+        Check("probe: a failed meter read logs err", log[8] ~= nil and log[8]:find("PROBE meterfields err .*sessions broke") ~= nil)
+        C_DamageMeter.GetAvailableCombatSessions, C_DamageMeter.GetCombatSessionSourceFromID = sessions, source
         SlashCmdList.COMBATTEXTICONS("debug")
         Check("probe: /cti debug off switches the lines back off", enabled == false)
         C_EventUtils, C_CombatLog, Blizzard_CombatLog_Filters = nil, nil, nil

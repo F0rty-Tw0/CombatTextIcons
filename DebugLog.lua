@@ -53,7 +53,9 @@ end
 -- filter only your own actions print one, so a line in a hit's frame may mark the hit yours (the idea behind
 -- Shuklock's Scrolling Battle Text). The game makes these lines only while they are switched on, which the Combat
 -- Log tab does when it shows; C_CombatLog.SetFilteredEventsEnabled keeps them on. /cti debug logs each line
--- (CLOG) and swing (SWING) beside the HIT lines, to judge in game whether they pair.
+-- (CLOG) and swing (SWING) beside the HIT lines, to judge in game whether they pair. v2 (2026-11-12, after the
+-- dungeon run) adds heals on party members (PHEAL: a heal of yours on them prints a line too) and the meter's fields
+-- after each fight (PROBE meterfields).
 local lineFrame -- made on the first /cti debug
 local switchedOn -- this probe switched the lines on
 
@@ -93,6 +95,33 @@ local function ShowShade(value)
     return DebugLog.ShowValue(value)
 end
 
+-- A meter value for the log: secret, a scalar as text, or (to `depth` levels) a table as {key=value,...} sorted.
+local function ShowField(value, depth)
+    if issecretvalue(value) then return "secret" end
+    if type(value) ~= "table" then return tostring(value) end
+    if depth <= 0 then return "table" end
+    local parts = {}
+    for key, field in pairs(value) do parts[#parts + 1] = tostring(key) .. "=" .. ShowField(field, depth - 1) end
+    table.sort(parts)
+    return "{" .. table.concat(parts, ",") .. "}"
+end
+
+-- 2026-11-12: does the meter hold a per-spell hit count (a ground truth for grouped ownership)? Logs every field of
+-- the newest session's player source after a fight, its spell rows two levels deep.
+local function LogMeterFields()
+    if not ns.Debug then return end
+    local ok, text = pcall(function()
+        local newest
+        for _, session in ipairs(C_DamageMeter.GetAvailableCombatSessions()) do
+            if not newest or session.sessionID > newest then newest = session.sessionID end
+        end
+        if not newest then return "no-sessions" end
+        local source = C_DamageMeter.GetCombatSessionSourceFromID(newest, ns.Meter.DAMAGE_DONE, UnitGUID("player"))
+        return "session:" .. newest .. " " .. ShowField(source, 4) -- source > combatSpells > row > row's tables
+    end)
+    ns.Debug("PROBE meterfields %s", ok and text or "err " .. tostring(text))
+end
+
 local function OnLineEvent(_, event, ...)
     if not ns.Debug then return end
     if event == "COMBAT_LOG_MESSAGE" then
@@ -102,6 +131,14 @@ local function OnLineEvent(_, event, ...)
     elseif event == "PLAYER_SWING" then
         local first, kind = ...
         ns.Debug("SWING %s kind=%s", DebugLog.ShowValue(first), DebugLog.ShowValue(kind))
+    elseif event == "UNIT_COMBAT" then -- 2026-11-12: a heal on a party member, whose line a heal of yours prints
+        local unit, action, flag, _, school = ...
+        local isParty = Plain(unit) and type(unit) == "string" and unit:match("^party%d$")
+        if isParty and Plain(action) and action == "HEAL" then
+            ns.Debug("PHEAL %s school=%s flag=%s", unit, DebugLog.ShowValue(school), DebugLog.ShowValue(flag))
+        end
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        C_Timer.After(1, LogMeterFields) -- the meter's rows settle after the fight
     else -- PLAYER_REGEN_DISABLED: the Combat Log tab hiding switches the lines off again
         local state = KeepLinesOn()
         if state ~= "on" then ns.Debug("PROBE clog lines=%s filter=%s", state, ShowFilter()) end
@@ -113,7 +150,8 @@ function DebugLog.StartLines()
     lineFrame = lineFrame or CreateFrame("Frame")
     lineFrame:SetScript("OnEvent", OnLineEvent)
     local answers = {}
-    for _, event in ipairs({ "COMBAT_LOG_MESSAGE", "PLAYER_SWING", "PLAYER_REGEN_DISABLED" }) do
+    for _, event in ipairs({ "COMBAT_LOG_MESSAGE", "PLAYER_SWING", "PLAYER_REGEN_DISABLED", "UNIT_COMBAT",
+        "PLAYER_REGEN_ENABLED" }) do
         local registered = Valid(event) and pcall(lineFrame.RegisterEvent, lineFrame, event)
         answers[#answers + 1] = event .. "=" .. tostring(registered and true or false)
     end
