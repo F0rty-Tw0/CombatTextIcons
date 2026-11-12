@@ -181,6 +181,30 @@ return function(T)
         H.Learn({ Row(PROC) }, {}, {})
         Check("lockedheals learn: a drawn row present in the read resets strikes to 0", rig.store.lockedHeals[PROC].strikes == 0)
 
+        -- a grouped fight's read changes no saved row (spec 2026-11-12 Saved state)
+        local HOT = { { spellID = 139, slot = "139@10@1" } }
+        rig, H = Fresh(nil, { [PROC] = { strikes = 0 } })
+        local dropped = {}
+        rig.ns.Ticks.DropHeal = function(id) dropped[#dropped + 1] = id end
+        Drawn(rig, H) -- a proc draw: drew[PROC] ...
+        rig.fits = function() return HOT end
+        H.Claim({}, { { amount = Secret(9) } }, 103, false, false) -- ... and a HoT draw: hotDrew[139] = 103
+        H.Learn({ Row(77) }, { group = true, at = 100, ended = 110 }, {}, { Row(77) })
+        Check("lockedheals learn: a grouped read saves no new row, strikes no proc row, drops no HoT",
+            rig.store.lockedHeals[77] == nil and rig.store.lockedHeals[PROC].strikes == 0 and #dropped == 0)
+        H.Learn({ Row(77) }, { at = 100, ended = 110 }, {})
+        Check("lockedheals learn: a grouped read clears the draws, so the next read strikes and drops nothing from them",
+            rig.store.lockedHeals[PROC].strikes == 0 and #dropped == 0)
+        rig, H = Fresh(nil, { [OTHER] = { strikes = 0 } })
+        rig.own[OTHER] = true
+        H.Learn({ Row(OTHER) }, { group = true }, {})
+        Check("lockedheals learn: a grouped read keeps a saved row that is an own cast", rig.store.lockedHeals[OTHER] ~= nil)
+        rig, H = Fresh(nil, { [PROC] = { strikes = 0 } })
+        Drawn(rig, H)
+        H.Learn({ Row(77) }, { at = 100, ended = 110 }, {})
+        Check("lockedheals learn: guard, the same read ungrouped strikes the drawn proc row",
+            rig.store.lockedHeals[PROC].strikes == 1)
+
         rig, H = Fresh(nil, { [PROC] = { strikes = 0 } })
         Drawn(rig, H)
         H.Learn({ Row(OTHER) }, {}, {})

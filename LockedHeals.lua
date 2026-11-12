@@ -158,6 +158,13 @@ end
 function LockedHeals.Learn(healRows, run, cast, damageRows)
     if not ns.IsForever then return end
     local fight = type(run) == "table" and run or {}
+    -- A grouped fight never learns: its draws came from owned heals, while Blizzard's numbers and other players' heals
+    -- share the meter's rows. Forget the draws so the next read does not judge them.
+    if fight.group then
+        Clear(drew)
+        Clear(hotDrew)
+        return
+    end
     local rows = PlainIDs(healRows)
     local damage = PlainIDs(damageRows)
     local harmful = type(cast) == "table" and cast or {}
