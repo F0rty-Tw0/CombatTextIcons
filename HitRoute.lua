@@ -45,15 +45,24 @@ end
 
 -- Every popup over an enemy plate goes through here. On Forever while grouped it draws nothing: Blizzard's numbers are
 -- back there (BlizzardText.Sync) and the addon names only DoT ticks (2026-11-10 dungeon log: 50 of 2861 hits), so a
--- drawn tick showed twice. The routes still run: learning and the ledger are untouched.
+-- drawn tick showed twice. The routes still run: learning and the ledger are untouched. While Owner is active
+-- (ns.Owner.IsActive) the hits it released are yours and draw, grouped or not.
 local function DrawPlate(...)
-    if ns.IsForever and InGroup() then return end
+    if ns.IsForever and InGroup() and not ns.Owner.IsActive() then return end
     return Display.Plate(...)
 end
 
 local function IsTarget(unit)
     local ok, isTarget = pcall(UnitIsUnit, unit, "target")
     return ok and Plain(isTarget) and isTarget
+end
+
+-- Whether the hit was on your target: an owned hit (Owner's release) answers with the target it had at arrival, since
+-- the target may have changed by the release; any other hit asks the unit now.
+local function OnTarget(unit, owned)
+    if owned then return owned.isTarget == true end
+
+    return IsTarget(unit)
 end
 
 -- The unit's GUID when plain, else nil.
@@ -281,8 +290,8 @@ end
 
 -- Draws a hit on your target that a learned swing entry names (Procs.NameSwing) and tallies it; returns whether it drew.
 -- A hit on a cast's stamp (`candidates`, Casts.Candidates) is the cast's to explain, never a swing.
-local function SwingWound(plate, unit, school, amount, flagText, candidates, now)
-    if not (Teacher.NotCrowded() and IsTarget(unit)) then return false end
+local function SwingWound(plate, unit, school, amount, flagText, candidates, now, owned)
+    if not (Teacher.NotCrowded() and OnTarget(unit, owned)) then return false end
     for _, cast in ipairs(candidates) do
         if cast.castAt == now then return false end
     end
@@ -686,12 +695,15 @@ end
 -- you, drawn or not. Strangers' wounds on other mobs never reach the teacher, so they count for nothing
 -- (run 153349Z: strangers on 8 nearby dummies made both reads crowded). Frame mates reach the area pass only
 -- (Teacher.Mate), never the crowd check.
-local function Wound(plate, unit, flagText, amount, school, now)
+-- `owned`: the hit Owner released as yours (grouped Forever, HitRoute.Route). It is solo whatever the group and the
+-- threat list say, but the fight stays marked grouped (Teacher.Grouped), so its read never learns. Owner logged its
+-- HIT line at arrival.
+local function Wound(plate, unit, flagText, amount, school, now, owned)
     FrameHit(amount, school, now, flagText, plate)
-    local fightsYou = FightsYou(unit, now)
+    local fightsYou = owned ~= nil or FightsYou(unit, now)
     local grouped = InGroup()
     if grouped then Teacher.Grouped() end
-    local solo = fightsYou and not grouped
+    local solo = (fightsYou and not grouped) or owned ~= nil
     -- a dummy's hit no one fights waits for its frame's end (held), plain school and amount only (its mate check)
     local holds = not fightsYou and not grouped and type(school) == "number" and type(amount) == "number"
         and Plain(school) and Plain(amount) and NoThreatList(unit)
@@ -703,9 +715,11 @@ local function Wound(plate, unit, flagText, amount, school, now)
     end
     local text = HitText(flagText, amount)
     if ns.Debug then
-        ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit, ShowValue(school),
-            ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowThreat(unit), ShowGroup(), ShowNPC(unit),
-            ShowIsTarget(unit))
+        if not owned then
+            ns.Debug("HIT %s school=%s amount=%s flag=%s fps=%.0f threat=%s group=%s npc=%s target=%s", unit,
+                ShowValue(school), ShowValue(amount), ShowValue(flagText), GetFramerate(), ShowThreat(unit), ShowGroup(),
+                ShowNPC(unit), ShowIsTarget(unit))
+        end
         if not Plain(amount) then ns.Debug("PROBE amount=%s meter=%s", ShowRaw(amount), Teacher.ProbeMeter()) end
     end
     -- A crowded fight draws only like-sized ticks (Tracker.Identify) and CrowdFits casts (Casts.Claim).
@@ -713,7 +727,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
     local spellID = Tracker.Identify(plate, school, amount, flagText, now, crowded)
     local named = spellID and spellID ~= Tracker.UNKNOWN
     if fightsYou or named then
-        Teacher.Seen(amount, now, school, plate, IsTarget(unit))
+        Teacher.Seen(amount, now, school, plate, OnTarget(unit, owned))
     end
     -- A learned proc (exact meter sums) outranks a learned DoT's answer (votes) or an ambiguous one.
     local voted = spellID == Tracker.UNKNOWN or (spellID and Learn.Get(spellID))
@@ -792,7 +806,7 @@ local function Wound(plate, unit, flagText, amount, school, now)
         candidates = Casts.Candidates(plate, now, school) -- one list for all: drawing changes no cast log
         -- a learned swing's hit, in its tight band and rhythm on your target (Procs.NameSwing), before a rhythm proc's
         -- padded band takes it
-        if SwingWound(plate, unit, school, amount, flagText, candidates, now) then return end
+        if SwingWound(plate, unit, school, amount, flagText, candidates, now, owned) then return end
         if RhythmWound(plate, stream, school, amount, flagText, candidates, now) then return end
     end
     -- A learned stack spell's tick (Casts.StackTick) takes a hit nothing named on a mob fighting you, after the
@@ -910,12 +924,19 @@ local function EnemyHit(unit, event, flagText, amount, school, now)
     if not CanAttack(unit) then return end
     local plate = C_NamePlate.GetNamePlateForUnit(unit, false)
     if not Plain(plate) or plate:IsForbidden() then return end
-    if event == "WOUND" then
+    if event == "WOUND" and ns.Owner.Active() then
+        ns.Owner.Hit(plate, unit, flagText, amount, school, now)
+    elseif event == "WOUND" then
         Wound(plate, unit, flagText, amount, school, now)
     elseif MISSES[event] then
         Tracker.OnMiss(plate, now)
         Miss(plate, unit, event, now)
     end
+end
+
+-- A hit Owner released as yours (Owner.Flush): `hit` is its arrival snapshot, routed as a solo hit at its own stamp.
+function HitRoute.Route(hit)
+    Wound(hit.plate, hit.unit, hit.flagText, hit.amount, hit.school, hit.now, hit)
 end
 
 -- A removed plate forgets the hits yours drew on it (Core.NAME_PLATE_UNIT_REMOVED).
