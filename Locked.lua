@@ -101,6 +101,14 @@ function Locked.Init(store)
     end
 end
 
+-- Locked.Schools(): a fresh set of every saved entry's school, shared or not.
+function Locked.Schools()
+    local set = {}
+    for _, entry in pairs(schools) do set[entry.school] = true end
+
+    return set
+end
+
 function Locked.Forget()
     ClearMemory()
     Clear(schools)

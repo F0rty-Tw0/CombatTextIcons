@@ -6,6 +6,7 @@
 ## SavedVariablesPerCharacter: CombatTextIconsCharDB
 
 Spells.lua
+Clock.lua
 Learn.lua
 Streams.lua
 Meter.lua

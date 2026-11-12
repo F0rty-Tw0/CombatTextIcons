@@ -772,4 +772,5 @@ return function(T)
     T.RunFile("checks_panel.lua")
     T.RunFile("checks_progress.lua")
     T.RunFile("checks_heals.lua")
+    T.RunFile("checks_owner.lua")
 end
