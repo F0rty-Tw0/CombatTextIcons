@@ -191,7 +191,8 @@ return function(T)
     Check("owner replay run 2: at least 90% of owned hits are clean (offline 36 of 38)", owned > 0 and clean / owned >= 0.90)
     Check("owner replay run 2: every owned hit has a live line within 0.05 s in the log", lineNear == owned)
     Check("owner replay run 2: every hit ends owned or hidden (302)", R2.hits == 302 and owned + R2.hidden == 302)
-    Check("owner replay run 2: strangers' hits stay off the screen (plate draws <= owned hits)", R2.plateDraws <= owned)
+    Check("owner replay run 2: each owned hit draws on its plate and no stranger's does (plate draws == owned hits)",
+        R2.plateDraws == owned)
     local off = Replay(lines, { owner = false })
     Check("owner replay run 2: Owner inactive -> today's grouped behavior, nothing owned, nothing drawn on plates",
         #off.owned == 0 and off.plateDraws == 0)
