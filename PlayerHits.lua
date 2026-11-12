@@ -25,27 +25,37 @@ local waiting, frameCasts = {}, { ids = {} }
 -- line), so only then does the frame know its casts; its hits (frameHits, HitRoute.FrameHits) come with them.
 local flushQueued = false -- a flush waits on C_Timer.After(0)
 
--- A named heal on you (a claim or a channel's). On Forever while grouped it draws nothing: Blizzard's heal numbers are
--- back there (BlizzardText.Sync), so a self-heal would show twice, like the plate hits (HitRoute's DrawPlate).
-local function DrawHeal(texture, amount, flagText)
-    if ns.IsForever and InGroup() then return end
+-- Whether Owner is live and a Combat Log line of yours owned the index-th heal on you at the stamp `at`. A flip to off
+-- stores false first, so the heals its release flushes are unowned.
+local function Owned(at, index)
+    return ns.Owner.IsActive() and ns.Owner.HealOwned(at, index)
+end
+
+-- A named heal on you (a claim or a channel's). On Forever while grouped it draws only when Owner owns it: Blizzard's
+-- heal numbers are back there (BlizzardText.Sync), so a self-heal would show twice, like the plate hits (HitRoute's
+-- DrawPlate); a heal Owner owns is yours, so the addon draws it.
+local function DrawHeal(texture, amount, flagText, owned)
+    if ns.IsForever and InGroup() and not owned then return end
     Display.Player("heal", texture, amount, flagText)
 end
 
 -- A heal on you no channel named is drawn: with the icon of the spell that claimed it (on Forever
 -- LockedHeals.Claim: a direct, HoT or proc fit; else Heals.Claim: its frame's
--- helpful cast, a learned size or share, or the tick of a running train), else as any unexplained heal on you: the question mark solo while the area is clear, else hidden.
-local function DrawOwnHeal(heal, castID)
+-- helpful cast, a learned size or share, or the tick of a running train), else as any unexplained heal on you: the
+-- question mark while the area is clear, else hidden. Both the icon and the question mark draw grouped only for a heal
+-- Owner owns (`owned`), which counts as solo; a grouped heal nobody owns stays hidden.
+local function DrawOwnHeal(heal, castID, owned)
+    local solo = not InGroup() or owned
     local route = "HIDDEN"
     if castID then
         route = "heal " .. castID
         Ledger.Add("heal", castID, heal.amount)
-        DrawHeal(SpellTexture(castID), heal.amount, heal.flagText)
-    elseif not InGroup() and MayQuestion(heal.amount) then
+        DrawHeal(SpellTexture(castID), heal.amount, heal.flagText, owned)
+    elseif solo and MayQuestion(heal.amount) then
         route = "unknown-solo"
         Ledger.Add("heal", UnknownKey(heal.school), heal.amount)
         Display.Player("heal", UnknownTexture(), heal.amount, heal.flagText)
-    elseif not InGroup() then
+    elseif solo then
         route = HiddenRoute()
     end
     if ns.Debug then ns.Debug("  -> %s", route) end
@@ -60,27 +70,96 @@ local function ProcClaim(claims, count)
     end
 end
 
+-- owned[index] for each of the `count` heals on you at the stamp `at`.
+local function OwnedFlags(at, count)
+    local owned = {}
+    for index = 1, count do owned[index] = Owned(at, index) end
+
+    return owned
+end
+
+-- The spell of the channel whose tick landed on the stamp `at`, asked only while Owner is live (the tick is routed at
+-- Owner's release, after the heal arrived), else nil.
+local function ChannelSpell(at)
+    if not ns.Owner.IsActive() then return nil end
+    local spellID = Tracker.ChannelHeal(at)
+    if spellID and SpellTexture(spellID) ~= nil then return spellID end
+end
+
+-- A heal of a channel at flush: drawn with the channel's icon when Owner owns it, else nothing.
+local function DrawChannelHeal(heal, spellID, owned)
+    if owned then
+        Ledger.Add("heal", spellID, heal.amount)
+        DrawHeal(SpellTexture(spellID), heal.amount, heal.flagText, true)
+    end
+    if ns.Debug then ns.Debug(owned and "  -> channel" or "  -> HIDDEN") end
+end
+
+-- The heals of one stamp whose owned flag is `isOwned`, with their places in the stamp: { heals = {}, indexes = {} }.
+local function Part(heals, owned, isOwned)
+    local part = { heals = {}, indexes = {} }
+    for index, heal in ipairs(heals) do
+        if owned[index] == isOwned then
+            part.heals[#part.heals + 1] = heal
+            part.indexes[#part.indexes + 1] = index
+        end
+    end
+
+    return part
+end
+
+-- Claims one part of a stamp's heals (nothing for an empty part) and maps the claims back to their places.
+local function ClaimPart(claims, part, casts, at, solo)
+    if #part.heals == 0 then return end
+    local named = ns.LockedHeals.Claim(casts, part.heals, at, HitRoute.OwnFrameAt(at), solo)
+    for place, index in ipairs(part.indexes) do claims[index] = named[place] end
+end
+
+-- claims[index] = the spell naming the index-th heal of the stamp. Retail: Heals.Claim. Forever: LockedHeals.Claim;
+-- with Owner live the heals a line owned claim as solo ones and the rest as the group allows, in two calls.
+local function ClaimHeals(entry, owned)
+    local heals, at = entry.heals, entry.at
+    local casts = frameCasts.at == at and frameCasts.ids or {}
+    if not ns.IsForever then
+        return Heals.Claim(casts, heals, HitRoute.FrameHits(at), at, not InGroup() and Teacher.AreaClear())
+    end
+    if not ns.Owner.IsActive() then
+        return ns.LockedHeals.Claim(casts, heals, at, HitRoute.OwnFrameAt(at), not InGroup())
+    end
+    local claims = {}
+    ClaimPart(claims, Part(heals, owned, true), casts, at, true)
+    ClaimPart(claims, Part(heals, owned, false), casts, at, not InGroup())
+
+    return claims
+end
+
+-- Draws one stamp's heals: all channel heals when a channel's tick landed on it, else by the claims. On Forever the
+-- claims then settle the drain hit TowHold holds for them (TowHold.Healed).
+local function SettleEntry(entry)
+    local heals, at = entry.heals, entry.at
+    local owned = OwnedFlags(at, #heals)
+    local channel = ChannelSpell(at)
+    local claims = channel and {} or ClaimHeals(entry, owned)
+    if ns.IsForever then TowHold.Healed(at, ProcClaim(claims, #heals)) end
+    for index, heal in ipairs(heals) do
+        if channel then
+            DrawChannelHeal(heal, channel, owned[index])
+        else
+            DrawOwnHeal(heal, claims[index], owned[index])
+        end
+    end
+end
+
 -- Draws the waiting heals, oldest stamp first, once their frame is over: `now` past its stamp, or nil (the fight ended;
 -- the replays end each frame with it too). Each waits for at most one frame: an event of a later one flushes them
 -- first, unless Owner still holds a hit on that stamp (Owner.Pending): the walk stops there, so a held stamp keeps its
--- own heals until Owner releases it. On Forever the frame's claims then settle the drain hit TowHold holds for them
--- (TowHold.Healed).
+-- own heals until Owner releases it.
 function PlayerHits.FlushHeals(now)
     while waiting[1] do
         local entry = waiting[1]
         if (now and now <= entry.at) or ns.Owner.Pending(entry.at) then return end
         table.remove(waiting, 1)
-        local heals = entry.heals
-        local casts = frameCasts.at == entry.at and frameCasts.ids or {}
-        local hits, at = HitRoute.FrameHits(entry.at), entry.at
-        local claims
-        if ns.IsForever then
-            claims = ns.LockedHeals.Claim(casts, heals, at, HitRoute.OwnFrameAt(at), not InGroup())
-            TowHold.Healed(at, ProcClaim(claims, #heals))
-        else
-            claims = Heals.Claim(casts, heals, hits, at, not InGroup() and Teacher.AreaClear())
-        end
-        for index, heal in ipairs(heals) do DrawOwnHeal(heal, claims[index]) end
+        SettleEntry(entry)
     end
 end
 
@@ -120,7 +199,8 @@ end
 -- A heal on you or a party member. On you: the heal of a channel (Drain Life) whose damage tick landed in this same
 -- frame; else once any heal is learned it waits for its frame's casts, hits and running trains, which may name it
 -- (waiting). On Forever every heal on you waits, and its frame's casts, your own hit on its stamp and learned HoT
--- ticks may name it (LockedHeals.Claim). A heal on you nothing names draws the question mark when solo and the area
+-- ticks may name it (LockedHeals.Claim). While Owner is live the channel's tick is still held at the heal's arrival, so
+-- the channel is asked at the flush instead (FlushHeals). A heal on you nothing names draws the question mark when solo and the area
 -- is clear. A heal on a party member stays hidden. A HoT's ticks are a learned train's (Heals.lua): the tick
 -- tracker's own HoT instances took like-timed heals of any size and outlived the HoT (synthetic: foreign heals and a
 -- 720 rune drawn under Renew 139, 4.6 % of the case's heals; the real heal logs: no heal named that way). Heals do not
@@ -134,7 +214,8 @@ function PlayerHits.Heal(unit, flagText, amount, school, now)
         TowHold.Release(now)
         Teacher.Healed(amount, flagText, now)
     end
-    local spellID = unit == "player" and Tracker.ChannelHeal(now) or nil
+    local asksChannel = unit == "player" and not ns.Owner.IsActive()
+    local spellID = asksChannel and Tracker.ChannelHeal(now) or nil
     local texture = spellID and SpellTexture(spellID) or nil
     if texture ~= nil then
         Ledger.Add("heal", spellID, amount)

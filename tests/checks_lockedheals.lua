@@ -454,6 +454,100 @@ return function(T)
         Check("owner heals: the queued flush calls Owner.Flush(GetTime()) first and re-queues while Owner waits",
             last and last.now == 10.04 and last.force == nil and #timers == queued + 1 and #rig.claims == 1)
 
-        -- TASK 3.2 CHECKS
+        -- an owned heal on a lone helpful cast: direct fit, icon grouped; unowned: nothing
+        rig = OwnerRig()
+        rig.owned["10:1"] = true
+        rig.Heal(10, Secret(9))
+        rig.ns.PlayerHits.NoteHelpful(17, 10)
+        rig.ns.PlayerHits.FlushHeals(11)
+        Check("owner heals: an owned heal on your helpful cast draws its icon grouped, Claim solo",
+            #rig.draws == 1 and rig.draws[1].texture == Texture(17) and rig.claims[1].solo == true
+            and rig.log[#rig.log] == "  -> heal 17")
+        rig = OwnerRig()
+        rig.Heal(10, Secret(9))
+        rig.ns.PlayerHits.NoteHelpful(17, 10)
+        rig.ns.PlayerHits.FlushHeals(11)
+        Check("owner heals: an unowned heal draws nothing, Claim not solo, route HIDDEN",
+            #rig.draws == 0 and rig.claims[1].solo == false and rig.log[#rig.log] == "  -> HIDDEN")
+
+        -- two heals, the second owned: two Claims (owned first), claims map back by index
+        rig = OwnerRig()
+        rig.owned["10:2"] = true
+        rig.Heal(10, Secret(9))
+        rig.Heal(10, Secret(8))
+        rig.ns.PlayerHits.NoteHelpful(17, 10)
+        rig.ns.PlayerHits.FlushHeals(11)
+        Check("owner heals: owned and unowned heals claim apart; the owned second heal gets the cast's icon",
+            #rig.claims == 2 and rig.claims[1].solo == true and rig.claims[1].n == 1
+            and rig.claims[2].solo == false and rig.claims[2].n == 1
+            and #rig.draws == 1 and rig.draws[1].texture == Texture(17) and Has(rig.log, "  -> HIDDEN")
+            and rig.log[#rig.log] == "  -> heal 17")
+
+        -- nothing names an owned heal: '?'; an unowned one draws nothing
+        rig = OwnerRig()
+        rig.owned["10:2"] = true
+        rig.Heal(10, Secret(9))
+        rig.Heal(10, Secret(8))
+        rig.ns.PlayerHits.FlushHeals(11)
+        Check("owner heals: an unnamed owned heal draws '?', the unowned one beside it nothing",
+            #rig.draws == 1 and rig.draws[1].texture == rig.ns.Meter.UNKNOWN_ICON
+            and rig.log[#rig.log] == "  -> unknown-solo")
+
+        -- channel heal: the tick is still held at arrival, so no arrival-time ask; asked at flush
+        rig = OwnerRig()
+        rig.owned["10:1"] = true
+        rig.Heal(10, Secret(5))
+        Check("owner heals: with Owner on a heal skips the arrival Tracker.ChannelHeal ask and waits",
+            #rig.channelCalls == 0 and #rig.draws == 0)
+        rig.channelAt = 10 -- the tick was routed at the release
+        rig.ns.PlayerHits.FlushHeals(11)
+        Check("owner heals: an owned channel heal draws the tick's icon at flush, no Claim, Ledger counts it",
+            #rig.draws == 1 and rig.draws[1].texture == Texture(CHANNEL) and #rig.claims == 0
+            and rig.ledger == 1 and rig.log[#rig.log] == "  -> channel")
+        rig = OwnerRig()
+        rig.Heal(10, Secret(5))
+        rig.channelAt = 10
+        rig.ns.PlayerHits.FlushHeals(11)
+        Check("owner heals: an unowned channel heal draws nothing, no Claim, no Ledger entry",
+            #rig.draws == 0 and #rig.claims == 0 and rig.ledger == 0)
+
+        -- guard: Owner off, solo: a channel heal draws at arrival as today
+        rig = OwnerRig({ active = false, group = false })
+        rig.channelAt = 10
+        rig.Heal(10, Secret(5))
+        Check("owner heals: guard, Owner off: the channel heal draws at arrival", #rig.draws == 1 and #rig.channelCalls == 1)
+
+        -- End to end with the real Owner: the Owner-on twin of checks_forever.lua "drain: grouped -> no plate draw for
+        -- the hit". A shadow hit and its heal share stamp 100, two live lines own both, the wand cast forces the release.
+        local DRAIN, WAND = 1260198, 5019
+        local real = T.Boot(function(S)
+            S.interface = 16001
+            S.group = true
+            S.harmful[2652], S.harmful[19261] = false, false
+            CombatTextIconsCharDB = { lockedHealsV = 2, lockedHeals = { [DRAIN] = { strikes = 0 } },
+                lockedSchools = { [589] = { school = 32, strays = 0 } } }
+        end)
+        local State, Core, Owner = T.State(), real.Core, real.Owner
+        IsInRaid = function() return false end
+        C_CombatLog = { AreFilteredEventsEnabled = function() return true end, SetFilteredEventsEnabled = function() end }
+        Blizzard_CombatLog_Filters = { currentFilter = 1, filters = { { name = "My actions" } } }
+        COMBATLOG = { IsShown = function() return false end }
+        local plateTexture, healDrawn
+        real.Teacher.area = "clear"
+        real.Display.Plate = function(_, texture) plateTexture = texture end
+        real.Display.Player = function(kind) if kind == "heal" then healDrawn = true end end
+        real.Debug = function() end
+        Check("owner heals: precondition, the real Owner is active in the grouped Forever rig",
+            Owner.KeepLinesOn() ~= nil and Owner.Active() == true)
+        State.now = 100
+        Core.UNIT_COMBAT("nameplate1", "WOUND", "", Secret(31), 32)
+        Core.UNIT_COMBAT("player", "HEAL", "", Secret(9), 1)
+        Owner.Line(0, 100)
+        Owner.Line(0, 100)
+        State.now = 100.2
+        Core.UNIT_SPELLCAST_SUCCEEDED("player", "c", WAND)
+        Check("owner heals: grouped drain with the real Owner draws the claimed row on the plate and the heal",
+            plateTexture == Texture(DRAIN) and healDrawn == true)
+        IsInRaid, C_CombatLog, Blizzard_CombatLog_Filters, COMBATLOG = nil, nil, nil, nil
     end
 end
