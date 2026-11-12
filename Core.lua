@@ -234,7 +234,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
             if unit == "player" then
                 local plainPlate = Plain(plate) and plate or nil
                 ns.Locked.NoteCast(spellID, now, plainPlate)
-                if ns.IsForever then ns.Owner.Cast(now) end -- only Forever counts casts that bring no line
+                if ns.IsForever then ns.Owner.Cast() end -- only Forever counts casts that bring no line
                 tickKey = keyed and plainPlate or nil
                 ns.Ticks.NoteCast(spellID, now, tickKey, "damage")
             end

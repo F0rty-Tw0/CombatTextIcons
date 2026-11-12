@@ -496,8 +496,8 @@ return function(T)
             forced and forced[2] == 100 and forced[3] == true and rig.Before("Flush", "FlushHeals")
             and rig.Before("Flush", "FlushMates") and rig.Before("Flush", "Decide") and rig.Before("Flush", "NoteCast"))
 
-        Check("wiring: a harmful player cast calls Owner.Cast(now) once",
-            rig.Count("Cast") == 1 and rig.Call("Cast")[2] == 100)
+        Check("wiring: a harmful player cast calls Owner.Cast once, with no argument",
+            rig.Count("Cast") == 1 and rig.Call("Cast").n == 1)
         rig.S.harmful[139] = false
         rig.Cast(101, "nameplate1", 139)
         rig.ns.Core.UNIT_SPELLCAST_SUCCEEDED("pet", "c", SWP)
