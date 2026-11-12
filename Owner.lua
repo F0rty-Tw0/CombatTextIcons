@@ -153,6 +153,7 @@ function Owner.Line(order, now)
     if not Plain(order) or not Plain(now) or order ~= 0 then return end
     lines[#lines + 1] = { now = now }
     ns.PlayerHits.QueueFlush()
+    if Owner.OnLine then Owner.OnLine() end
 end
 
 -- A grouped hit, held until its stamp settles. Its HIT line is written now, as HitRoute would have written it.
@@ -286,9 +287,10 @@ local function Run(now, force)
 end
 
 -- The frame's end (`now`), a forced release, or the fight's end (`now` nil: everything settles). A call from inside a
--- release returns at once; a throw still frees the guard.
+-- release returns at once; a throw still frees the guard. The fight's end also resets the cast count (OwnerActive.lua).
 function Owner.Flush(now, force)
     if flushing then return end
+    if now == nil and Owner.OnFlushAll then Owner.OnFlushAll() end
     flushing = true
     local ok, err = pcall(Run, now, force)
     flushing = false

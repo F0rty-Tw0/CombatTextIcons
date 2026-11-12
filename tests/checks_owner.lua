@@ -164,4 +164,109 @@ return function(T)
         Owner.Flush(10.02)
         Check("owner: a failing route resets the clock and the next hit still routes", calls == 2 and rig.ns.Now() == 10.02)
     end
+
+    -- 1.4 Active, switch-on and liveness
+    do
+        local function Rig(interface, group)
+            local rig = { on = false, setCalls = {}, syncs = 0, routes = 0, shown = false }
+            IsInRaid, C_CombatLog, Blizzard_CombatLog_Filters, COMBATLOG = nil, nil, nil, nil -- clean boot: from Task 2.4 PLAYER_LOGIN calls Owner.KeepLinesOn
+            rig.ns = T.Boot(function(S) S.interface = interface or 16001 S.group = group ~= false end)
+            rig.S = T.State()
+            IsInRaid = function() return false end
+            C_CombatLog = {
+                AreFilteredEventsEnabled = function() return rig.on end,
+                SetFilteredEventsEnabled = function(value)
+                    if rig.setError then error("refused") end
+                    rig.on = value rig.setCalls[#rig.setCalls + 1] = value
+                end,
+            }
+            Blizzard_CombatLog_Filters = { currentFilter = 1, filters = { { name = "My actions" } } }
+            COMBATLOG = { IsShown = function() return rig.shown end }
+            rig.ns.Core.SyncBlizzard = function() rig.syncs = rig.syncs + 1 end
+            rig.ns.HitRoute.Route = function() rig.routes = rig.routes + 1 end
+            rig.ns.PlayerHits.FlushHeals = function() end
+            return rig
+        end
+        local function Clean() IsInRaid, C_CombatLog, Blizzard_CombatLog_Filters, COMBATLOG = nil, nil, nil, nil end
+        local rig, Owner
+
+        rig = Rig() Owner = rig.ns.Owner
+        Check("active: lines never switched on -> not active", Owner.Active() == false)
+        Check("active: KeepLinesOn switches them on and says so", Owner.KeepLinesOn() == "switched" and rig.on == true)
+        Check("active: Forever, party, lines on, My actions -> active", Owner.Active() == true and Owner.IsActive() == true)
+        Check("active: KeepLinesOn reports on when already on", Owner.KeepLinesOn() == "on")
+        rig.syncs = 0
+        Owner.Active()
+        Check("active: an unchanged answer does not sync again", rig.syncs == 0)
+        Blizzard_CombatLog_Filters.filters[1].name = "Everything"
+        Check("active: IsActive is the cached read, no recompute", Owner.IsActive() == true)
+        Check("active: another filter -> not active, and Blizzard sync ran", Owner.Active() == false and rig.syncs == 1)
+        Blizzard_CombatLog_Filters = nil
+        Check("active: no filter table -> not active", Owner.Active() == false)
+        Blizzard_CombatLog_Filters = { currentFilter = 1, filters = { { name = "My actions" } } }
+        IsInRaid = function() return true end
+        Check("active: raid -> not active", Owner.Active() == false)
+        IsInRaid = function() error("restricted") end
+        Check("active: a failing IsInRaid counts as raid", Owner.Active() == false)
+        IsInRaid = nil
+        Check("active: no IsInRaid counts as raid", Owner.Active() == false)
+        Clean()
+
+        rig = Rig(120105) Owner = rig.ns.Owner Owner.KeepLinesOn()
+        Check("active: retail -> never active", Owner.Active() == false)
+        Clean()
+        rig = Rig(16001, false) Owner = rig.ns.Owner Owner.KeepLinesOn()
+        Check("active: solo -> not active", Owner.Active() == false)
+        Clean()
+        rig = Rig() Owner = rig.ns.Owner C_CombatLog = nil
+        Check("active: C_CombatLog missing -> KeepLinesOn none, not active", Owner.KeepLinesOn() == "none" and Owner.Active() == false)
+        Clean()
+        rig = Rig() Owner = rig.ns.Owner rig.setError = true
+        Check("active: switch-on refused -> err, not active", Owner.KeepLinesOn() == "err" and Owner.Active() == false)
+        Clean()
+
+        -- LinesOff
+        rig = Rig() Owner = rig.ns.Owner Owner.KeepLinesOn() Owner.LinesOff()
+        Check("lines: LinesOff switches off what Owner switched on", rig.setCalls[#rig.setCalls] == false)
+        rig = Rig() Owner = rig.ns.Owner rig.on = true Owner.KeepLinesOn() Owner.LinesOff()
+        Check("lines: LinesOff leaves lines Owner did not switch on", #rig.setCalls == 0)
+        rig = Rig() Owner = rig.ns.Owner Owner.KeepLinesOn() rig.shown = true Owner.LinesOff()
+        Check("lines: LinesOff leaves them on while the Combat Log tab shows", #rig.setCalls == 1)
+        Clean()
+
+        -- Liveness
+        rig = Rig() Owner = rig.ns.Owner Owner.KeepLinesOn() Owner.Active()
+        local S = rig.S
+        S.timers = {}
+        Owner.Cast(1) Owner.Cast(1.5)
+        Check("live: two casts start no check", #S.timers == 0)
+        Owner.Cast(2) Owner.Cast(2.5)
+        Check("live: the third cast starts one 2 s check, no more", #S.timers == 1 and S.timers[1].delay == 2)
+        S.timers[1].fn()
+        Check("live: 3 casts and no line -> dead -> not active", Owner.Active() == false)
+        Owner.Line(1, 5)
+        Check("live: a backlog line does not revive", Owner.Active() == false)
+        Owner.Line(0, 5)
+        Check("live: a live line clears dead -> active again", Owner.Active() == true)
+        S.timers = {}
+        Owner.Cast(6) Owner.Cast(6.5) Owner.Cast(7)
+        Owner.Line(0, 7.5)
+        S.timers[1].fn()
+        Check("live: a line between the casts and the check -> still active", Owner.Active() == true)
+        Owner.Cast(8) Owner.Cast(8.5) Owner.Flush(nil)
+        Owner.Cast(9)
+        Check("live: Flush(nil) resets the cast count (fight end)", #S.timers == 1)
+
+        -- Flip false mid-flush (Review Focus 4)
+        rig = Rig() Owner = rig.ns.Owner Owner.KeepLinesOn() Owner.Active()
+        Owner.Hit("p1", "nameplate1", "", 5, 32, 10) Owner.Line(0, 10) Owner.Hit("p2", "nameplate2", "", 5, 32, 10.0)
+        local seen = {}
+        rig.ns.HitRoute.Route = function(hit) seen[#seen + 1] = hit.unit Owner.Active() end
+        Blizzard_CombatLog_Filters.filters[1].name = "Everything"
+        rig.syncs = 0
+        Check("active: turning false returns false", Owner.Active() == false)
+        Check("active: flipping false routes the held owned hit once, no recursion", #seen == 1 and rig.syncs == 1)
+        Check("active: the flip's flush left nothing waiting", Owner.Waiting() == false)
+        Clean()
+    end
 end
