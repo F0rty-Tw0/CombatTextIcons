@@ -375,24 +375,33 @@ local function InheritOnce(entry, spellID, school)
     if delay then entry.lock, entry.provisional = delay, true end
 end
 
--- The hit on `spellID`'s key on `plate`: forms its lock, fits it, or re-learns an inherited delay it misses; only a hit
--- aimed at the key learns. Returns the entry when the hit fits its lock, else nil.
-local function ObserveLock(plate, spellID, school, now, castTime)
+-- The hit on `spellID`'s key on `plate`: fits its lock, or (lockless, or an inherited delay it misses) adds the key to
+-- `forms` to learn from it; only a hit aimed at the key learns. Returns the entry when the hit fits its lock, else nil.
+local function ObserveLock(plate, spellID, school, now, castTime, forms)
     local entry = Entry(plate, spellID, school)
     local delay = now - castTime
     local aimedAt = castPlate[spellID] == plate or delay < STAMP
     local learns = aimedAt or castPlate[spellID] == nil
     if entry.fresh and aimedAt then InheritOnce(entry, spellID, school) end
-    if not entry.lock then
-        if learns then Form(entry, delay, castTime) end
-    elseif Fit(entry, spellID, delay, castTime, plate) then
+    if entry.lock and Fit(entry, spellID, delay, castTime, plate) then
         entry.provisional = nil
         Ticks.NoteHitSchool(spellID, school)
 
         return entry
-    elseif entry.provisional and learns then
-        Form(entry, delay, castTime)
-        if entry.fit then entry.provisional = nil end
+    end
+    if learns and (not entry.lock or entry.provisional) then forms[#forms + 1] = { entry, delay, castTime } end
+end
+
+-- The keys ObserveLock queued learn from the hit, unless it fits a DoT's tick slot: run 7 (2026-11-13), with SW:P and
+-- Devouring Plague alternating, a tick landed about 1.0 s into each Shoot cycle and the wand key locked on it, 0.2 s
+-- before the Shoots.
+local function LearnForms(forms, tick)
+    if tick then return end
+
+    for _, queued in ipairs(forms) do
+        local entry = queued[1]
+        Form(entry, queued[2], queued[3])
+        if entry.provisional and entry.fit then entry.provisional = nil end
     end
 end
 
@@ -439,8 +448,9 @@ function Locked.Observe(plate, school, now)
     local lockFitting = {}
     ReadOwnSchools(school, now, fitting)
 
+    local forms = {}
     for spellID, castTime in pairs(casts) do
-        local entry = not OwnsOtherSchool(spellID, school) and ObserveLock(plate, spellID, school, now, castTime)
+        local entry = not OwnsOtherSchool(spellID, school) and ObserveLock(plate, spellID, school, now, castTime, forms)
         if entry then
             fitting[spellID] = castTime
             lockFitting[spellID] = entry
@@ -452,6 +462,7 @@ function Locked.Observe(plate, school, now)
         slots[fit.spellID] = fit.slot
         fitting[fit.spellID] = fitting[fit.spellID] or true -- a tick-only spell has no cast time and no Mark
     end
+    LearnForms(forms, next(slots) ~= nil)
 
     local fits = CountKeys(fitting)
     if fits == 0 then

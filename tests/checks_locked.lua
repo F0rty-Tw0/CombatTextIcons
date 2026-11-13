@@ -199,6 +199,15 @@ return function(T)
         Check("locked relock: two misses off one cast don't move the lock",
             AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 20.9, 5019, 1 }, { "cast", 22, "q" }, { "cast", 24, "q" },
                 { "hit", "q", 24.2, nil, 0 }, { "hit", "q", 24.3, nil, 0 }, { "cast", 25, "q" }, { "hit", "q", 25.9, 5019, 1 } }))
+        -- Run 7 (2026-11-13): a DoT tick at 0.9 after each cast taught the wand key its delay. Ticks.Fits names SW:P
+        -- for the hits at 10.9 and 12.9, so they teach no lock and 14.9 only starts a pair.
+        local L, _, ns = Fresh()
+        local tickAt = { [10.9] = true, [12.9] = true }
+        ns.Ticks.Fits = function(_, _, _, now) return tickAt[now] and { { spellID = 589, slot = 1 } } or {} end
+        ns.Ticks.Take = function() end
+        Check("locked: a hit a DoT tick slot fits teaches no lock", Run(L, {
+            { "cast", 10, "p" }, { "hit", "p", 10.9, 589, 1 }, { "cast", 12, "p" }, { "hit", "p", 12.9, 589, 1 },
+            { "cast", 14, "p" }, { "hit", "p", 14.9, nil, 0 } }))
         -- F1 (run 6): 5019 and 8102 both lock 0.9, so hits 14.9-18.9 fit both and name neither; those fits no longer
         -- keep the locks, so casts 16-20 break them and 20.9 only starts a new pair.
         Check("locked: a fit that names no spell alone doesn't keep the lock", Run(Fresh(), {
