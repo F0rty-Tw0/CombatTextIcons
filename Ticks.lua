@@ -39,7 +39,7 @@ local MAX_DELAYS = 16   -- delays a cast keeps, oldest dropped
 local REFINE = 0.25     -- share of the gap to a taken tick's estimate that the saved period moves
 
 -- Direct-damage spells with no DoT: Mind Blast and Smite (every rank, since Forever doesn't fold ranks; capture:
--- `CAST player 8102 base=8102,8102`), and Forever's 1309595 nuke. A listed spell on a cast stamp is no partner, so
+-- `CAST player 8102 base=8102,8102`), and Forever's 1309595 nuke (both ranks). A listed spell on a cast stamp is no partner, so
 -- the instant cast queued with it (SW:P after Mind Blast) is still alone and learns; a listed spell never learns. A
 -- list, not "has a cast bar": a hard cast with its own DoT (Holy Fire) would teach its partner that DoT (spec
 -- 2026-11-07-forever-swp-stamp-partner).
@@ -51,6 +51,7 @@ local TICKLESS = {
     [585] = 2, [591] = 2, [598] = 2, [984] = 2, [1004] = 2, [6060] = 2,
     [10933] = 2, [10934] = 2, -- Smite
     [1309595] = 32, -- a Forever instant shadow nuke (runs 6-7, 2026-11-13: one hit on its cast stamp, ~350 per cast)
+    [1309633] = 32, -- its rank 2 (run 8, 2026-11-13: one hit on its cast stamp, ~490 per cast, 0 of 7 named)
 }
 Ticks.TICKLESS = TICKLESS -- read-only
 
