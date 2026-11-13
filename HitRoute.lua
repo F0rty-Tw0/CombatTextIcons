@@ -149,8 +149,9 @@ local function UnknownTexture()
 end
 
 -- frameHits = { at = a frame's stamp, list = its hits on enemy plates, each { amount, school, flagText, plate,
--- spellID = the icon it drew, nil when none } }: a heal on you in that frame may be a learned share of one
--- (Heals.Claim), a held hit like one drawn is that spell's (LikeDrawn)
+-- spellID = the icon it drew, nil when none, afterCast = a Mind Blast or Smite of its school was cast on its plate
+-- in this frame before it was logged } }: a heal on you in that frame may be a learned share of one (Heals.Claim),
+-- a held hit like one drawn is that spell's (LikeDrawn)
 local frameHits = { list = {} }
 
 -- mine[plate] = the stamp of the newest hit drawn with your icon on that plate (Drawn); a removed plate forgets it.
@@ -171,7 +172,9 @@ local function FrameHit(amount, school, now, flagText, plate)
         HitRoute.FlushMates(now)
         frameHits = { at = now, list = {} }
     end
-    frameHits.list[#frameHits.list + 1] = { amount = amount, school = school, flagText = flagText, plate = plate }
+    local afterCast = Plain(school) and ns.Locked.TicklessCast(plate, school, now) ~= nil
+    frameHits.list[#frameHits.list + 1] = { amount = amount, school = school, flagText = flagText, plate = plate,
+        afterCast = afterCast }
 end
 
 -- A hit was drawn with this spell's icon: the teacher tallies it, a running heal train of its row ticks
@@ -492,13 +495,15 @@ local function DrawTracked(plate, school, amount, flagText, now, spellID, lockAg
 end
 
 -- A hit held on a Mind Blast or Smite's cast stamp (HoldTickless) at its frame's end: that spell's own when it is the
--- only hit of its school on its plate in the frame (frameHits counts hits the tracker named too), else the tick the
--- tracker named it (`hit.tracked`), else the question mark route it was held from (Question), since a second hit there
--- may be a DoT's tick.
+-- only hit of its school on its plate logged after the cast in the frame (frameHits counts hits the tracker named
+-- too), else the tick the tracker named it (`hit.tracked`), else the question mark route it was held from (Question),
+-- since a second hit there may be a DoT's tick. A hit logged before the cast is not the cast's: in runs 7-9
+-- (2026-11-13) every nuke stamp with a hit had one logged after its cast, and run 9 lost 2 nukes to a tick logged
+-- before it.
 local function DrawTickless(hit)
     local hits, frameList = 0, frameHits.at == hit.at and frameHits.list or {}
     for _, entry in ipairs(frameList) do
-        if Plain(entry.school) and entry.school == hit.school and entry.plate == hit.plate then hits = hits + 1 end
+        if entry.afterCast and entry.school == hit.school and entry.plate == hit.plate then hits = hits + 1 end
     end
     local tracked = hit.tracked
     if hits ~= 1 and tracked then

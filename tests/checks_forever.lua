@@ -281,6 +281,12 @@ return function(T)
         drew = Frame(rig, 800, "nameplate1", { MIND_BLAST, SWP }, { { "nameplate1", 32 }, { "nameplate2", 32 } })
         Check("tickless: a shadow hit on another plate in the frame does not stop Mind Blast's own",
             Drew(drew, "tex:" .. MIND_BLAST))
+        -- Run 9 (2026-11-13): a tick logged on the stamp before the cast (log order H C H) left the nuke's hit as '?'.
+        -- In runs 7-9 every nuke stamp with a hit had one logged after its cast, so a hit logged before it is not the cast's.
+        rig.Hit(900, "nameplate1", Secret(31), 32)
+        drew = Frame(rig, 900, "nameplate1", { MIND_BLAST }, { { "nameplate1", 32 } })
+        Check("tickless: a shadow hit logged on the stamp before the cast does not stop Mind Blast's own",
+            Drew(drew, "tex:" .. MIND_BLAST))
 
         -- the one spell a lock fits (Locked.Observe's sole) wins over the cast stamp
         local locked = Rig(nil, true)
