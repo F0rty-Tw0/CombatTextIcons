@@ -409,14 +409,16 @@ end
 -- A hit nothing fits, aimed at a locked key, is no tick and no lock fit: the key keeps its delay, and a second such hit
 -- from another cast within DELAY_TOL moves the lock there (range changed; run 6: Shoots 0.9 s → 0.24 s). Only a period
 -- with no fit keeps such a hit (Settle drops them), so a DoT tick the tracker doesn't know yet can't steal a lock the
--- casts still fit. Returns the spell when exactly one key re-locked (the hit is its), else nil.
+-- casts still fit. A hit on the cast's own stamp moves nothing: run 8 (2026-11-13) re-locked Mind Flay at 0 from two
+-- hits on its recast stamps, and a channel never hits at 0. Returns the spell when exactly one key re-locked (the hit
+-- is its), else nil.
 local function Relock(plate, school, now)
     local relocked
     for spellID, castTime in pairs(casts) do
         local entry = locks[plate] and locks[plate][spellID] and locks[plate][spellID][school]
         local delay = now - castTime
-        local aimedAt = castPlate[spellID] == plate or delay < STAMP
-        local learns = entry and entry.lock and not entry.provisional and not entry.fit and aimedAt
+        local learns = entry and entry.lock and not entry.provisional and not entry.fit and delay >= STAMP
+            and castPlate[spellID] == plate
             and not IsUsed(spellID, castTime, plate) and not OwnsOtherSchool(spellID, school)
         if learns then
             Form(entry, delay, castTime)

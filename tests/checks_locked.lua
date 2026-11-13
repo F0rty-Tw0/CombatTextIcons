@@ -196,6 +196,11 @@ return function(T)
             AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 20.9, 5019, 1 }, { "cast", 22, "q" }, { "hit", "q", 22.2, nil, 0 },
                 { "hit", "q", 22.9, 5019, 1 }, { "cast", 24, "q" }, { "hit", "q", 24.2, nil, 0 }, { "hit", "q", 24.9, 5019, 1 },
                 { "cast", 26, "q" }, { "hit", "q", 26.2, nil, 0 }, { "hit", "q", 26.9, 5019, 1 } }))
+        -- Run 8 (2026-11-13): a hit on Mind Flay's recast stamp re-locked it at 0 and drew Mind Flay; a channel never
+        -- hits at 0, and a lock's range move lands later than its stamp.
+        Check("locked relock: two hits on their casts' own stamps don't move the lock",
+            AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 20.9, 5019, 1 }, { "cast", 22, "q" }, { "hit", "q", 22.9, 5019, 1 },
+                { "cast", 24, "q" }, { "hit", "q", 24, nil, 0 }, { "cast", 26, "q" }, { "hit", "q", 26, nil, 0 } }))
         Check("locked relock: two misses off one cast don't move the lock",
             AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 20.9, 5019, 1 }, { "cast", 22, "q" }, { "cast", 24, "q" },
                 { "hit", "q", 24.2, nil, 0 }, { "hit", "q", 24.3, nil, 0 }, { "cast", 25, "q" }, { "hit", "q", 25.9, 5019, 1 } }))
