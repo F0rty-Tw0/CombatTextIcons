@@ -40,6 +40,7 @@ local FOLLOW = 0.25    -- how far a fit moves the lock toward its delay
 local OWN_WINDOW = 1.5 -- a cast this close before a hit can own its school
 local STRAYS_MAX = 2   -- strays that retire an own-school entry
 local STAMP = 0.01     -- a hit this soon after its cast is on the cast's stamp
+local CHAIN = 3.3      -- a recast this soon after the last one can meet that channel's last tick (Mind Flay: 3 s)
 
 local issecretvalue = issecretvalue or function() return false end
 local function IsNumber(value) return not issecretvalue(value) and type(value) == "number" end
@@ -51,6 +52,8 @@ local casts = {}
 local locks = {}
 -- [spellID] = the plate the spell's newest cast was aimed at (nil when none)
 local castPlate = {}
+-- [spellID] = true when the spell's newest cast came within CHAIN of the one before it
+local chained = {}
 -- [spellID][school] = the lock of the last fit that named the spell alone. It survives fights and plates, so a fresh key
 -- starts locked at its first aimed hit (InheritOnce). In memory only: Init and Forget clear it.
 local inherited = {}
@@ -77,6 +80,7 @@ local function ClearLive()
     Clear(locks)
     Clear(used)
     Clear(castPlate)
+    Clear(chained)
     firstHitRead = false
 end
 
@@ -201,6 +205,7 @@ function Locked.NoteCast(spellID, now, plate)
     if not ns.IsForever then return end
     if casts[spellID] == now then return end
     castPlate[spellID] = plate
+    chained[spellID] = casts[spellID] ~= nil and now - casts[spellID] <= CHAIN or nil
 
     for _, bySpell in pairs(locks) do
         for _, entry in pairs(bySpell[spellID] or {}) do
@@ -378,9 +383,14 @@ end
 
 -- The hit on `spellID`'s key on `plate`: fits its lock, or (lockless, or an inherited delay it misses) adds the key to
 -- `forms` to learn from it; only a hit aimed at the key learns. Returns the entry when the hit fits its lock, else nil.
+-- A channel never hits on its own cast stamp: a hit there is the last channel's tick when the cast is chained, else
+-- another spell's, and it neither fits nor teaches. Run 10 (2026-11-13): a Mind Flay locked at 0 by chained recasts
+-- drew Mind Flay for the SW:P tick on the stamp of a Mind Flay cast 32 s after the last one.
 local function ObserveLock(plate, spellID, school, now, castTime, forms)
-    local entry = Entry(plate, spellID, school)
     local delay = now - castTime
+    if delay < STAMP and ns.Flat.Channelled(spellID) and not chained[spellID] then return end
+
+    local entry = Entry(plate, spellID, school)
     local aimedAt = castPlate[spellID] == plate or delay < STAMP
     local learns = aimedAt or castPlate[spellID] == nil
     if entry.fresh and aimedAt then InheritOnce(entry, spellID, school) end

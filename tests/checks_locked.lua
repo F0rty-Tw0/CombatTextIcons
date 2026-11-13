@@ -221,6 +221,20 @@ return function(T)
         L.NoteCast(1309633, 10, "p")
         Check("tickless: its rank 2, 1309633, owns a shadow hit on its cast stamp",
             L.TicklessCast("p", 32, 10) == 1309633)
+        -- Run 10 (2026-11-13): chained Mind Flays locked it at 0 (the last channel's tick lands on the recast stamp), and
+        -- a fresh Mind Flay 32 s after the last one drew Mind Flay for the SW:P tick on its cast stamp. A channel's
+        -- own-stamp hit is its spell's only while the cast follows another one of it.
+        local function ChainedThenFresh(channel)
+            local chain, _, chainNs = Fresh()
+            if channel then chainNs.Flat.Channel(15407) end
+            return Run(chain, { { "cast", 10, "p", 15407 }, { "cast", 12.5, "p", 15407 }, { "hit", "p", 12.5, nil, 0 },
+                { "cast", 15, "p", 15407 }, { "hit", "p", 15, nil, 0 }, { "cast", 17.5, "p", 15407 },
+                { "hit", "p", 17.5, 15407, 1 }, { "cast", 50, "p", 15407 },
+                { "hit", "p", 50, (not channel) and 15407 or nil, (not channel) and 1 or 0 } })
+        end
+        Check("locked: a channel's lock at 0 names only a hit on a chained recast's stamp", ChainedThenFresh(true))
+        Check("locked: a lock at 0 of a spell that never channels still names a fresh cast's stamp hit",
+            ChainedThenFresh(false))
         -- F1 (run 6): 5019 and 8102 both lock 0.9, so hits 14.9-18.9 fit both and name neither; those fits no longer
         -- keep the locks, so casts 16-20 break them and 20.9 only starts a new pair.
         Check("locked: a fit that names no spell alone doesn't keep the lock", Run(Fresh(), {
