@@ -461,10 +461,11 @@ local function Question(plate, school, amount, flagText, now, cast, candidates, 
     DrawPlate(plate, UnknownTexture(), HitText(flagText, amount), flagText, school)
 end
 
--- Question for a held hit (Hold*): its fields are the route's, `sole` and `route` as Question's.
+-- Question for a held hit (Hold*): its fields are the route's, `sole` and `route` as Question's. With no `sole`, the
+-- hit's own `sole` (the lock's answer TowHold.Hold kept) is the answer.
 local function QuestionHeld(hit, sole, route)
-    return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates, sole, route,
-        hit.entry)
+    return Question(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, hit.cast, hit.candidates, sole or hit.sole,
+        route, hit.entry)
 end
 
 -- A held share (HoldShare) at its frame's end: drawn as its proc when a later share in its frame drew it (that one
@@ -749,7 +750,9 @@ local function Wound(plate, unit, flagText, amount, school, now, owned)
     end
     -- A tick that a lock gives to another spell, or that several spells fit, is no sure DoT tick (Locked.Observe): it
     -- runs the later routes, and when none of them names it, Question draws the question mark or keeps it hidden (a
-    -- crowded area, a school no clear read saw).
+    -- crowded area, a school no clear read saw). The one other spell that fits (`lockSole`) is Question's answer once the
+    -- holds pass: run 5 (2026-11-13) drew a Shoot 0.16 s after its cast as Devouring Plague's tick due 0.27 s later.
+    local lockSole = named and fits == 1 and sole ~= spellID and sole or nil
     local doubted = fits >= 2 or (fits == 1 and sole ~= spellID)
     if named and doubted then named, sole = false, nil end
     if named then
@@ -899,10 +902,10 @@ local function Wound(plate, unit, flagText, amount, school, now, owned)
         -- a lone secret shadow hit while Touch of Weakness is armed may be its proc, unless a heal on you comes with it;
         -- with one proc row saved it may be the drain's, which that row's heal names (TowHold.Hold)
         local held = lockedAsk and ns.TowHold.Hold(plate, school, amount, flagText, now, cast, candidates,
-            frameHits.list[#frameHits.list])
+            frameHits.list[#frameHits.list], lockSole)
         if held then return end
 
-        return Question(plate, school, amount, flagText, now, cast, candidates, sole)
+        return Question(plate, school, amount, flagText, now, cast, candidates, sole or lockSole)
     end
     if holds then return Hold(plate, flagText, amount, school, now, kind, record, stream) end
     if ns.Debug then ns.Debug("  -> HIDDEN") end

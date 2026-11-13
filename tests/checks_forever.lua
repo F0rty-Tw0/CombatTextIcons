@@ -557,6 +557,27 @@ return function(T)
         FireTimers(rig, 100.2)
         Check("drain: ... and the 0.2 s timer draws it '?'", RoutesSince(rig, mark)[1] == ROUTE_UNKNOWN)
 
+        -- The tracker names SW:P, only the wand's lock fits (run 5's Shoot): the hold runs first, the wand replaces '?'.
+        local function DoubtedRig()
+            local doubted = DrainRig({ DRAIN })
+            doubted.ns.Tracker.Identify = function() return SWP end
+            doubted.ns.Locked.Observe = function() return WAND, 1 end
+            return doubted
+        end
+        rig = DoubtedRig()
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        FireTimers(rig, 100.2)
+        Check("drain: a hit the tracker names SW:P but only the wand's lock fits is held, then drawn as the wand",
+            Logged(rig, "  .. drain") and RoutesSince(rig, mark)[1] == "  -> locked " .. WAND)
+        rig = DoubtedRig()
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100.2, "nameplate1", WAND)
+        Check("drain: ... and with a heal on its stamp it draws the drain, not the wand",
+            Has(RoutesSince(rig, mark), DRAIN_ROUTE) and not Has(RoutesSince(rig, mark), "  -> locked " .. WAND))
+
         rig = DrainRig({ DRAIN })
         rig.Cast(90, "nameplate1", TOW2)
         mark = #rig.log

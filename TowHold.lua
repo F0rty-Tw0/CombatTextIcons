@@ -14,7 +14,7 @@ ns.TowHold = TowHold
 -- The one solo secret shadow hit held while Touch of Weakness is armed or one proc row is saved (Hold), kept apart from
 -- the route's held hits so Core.FlushMates never draws it: { at, plate, school, amount, flagText, cast, candidates, proc
 -- (the proc ID armed when it was held, or nil), entry (its frameHits entry, which Decide tags), healed (a heal on its
--- stamp came; Healed draws it when that heal is flushed), healAt (that heal's stamp) }, or nil. Decide draws it as the
+-- stamp came; Healed draws it when that heal is flushed), healAt (that heal's stamp), sole (Hold's) }, or nil. Decide draws it as the
 -- proc, Release gives it back to the question mark or marks it healed, Healed draws a healed one as the row that
 -- claimed its heal, and `/cti off` drops it (Drop).
 local towHeld
@@ -76,8 +76,9 @@ end
 -- and returns true when it holds the hit, false when the route goes on. It is held while Touch of Weakness is armed
 -- or exactly one proc row is saved, and no candidate is held yet. A heal on you already waiting on the hit's own stamp
 -- (S10 run 1 235793.592: the drain's heal is logged before its hit) blocks the hold unless a row is saved; then the
--- candidate is healed at once. `entry`: the hit's frame entry, the newest (Wound added it).
-function TowHold.Hold(plate, school, amount, flagText, now, cast, candidates, entry)
+-- candidate is healed at once. `entry`: the hit's frame entry, the newest (Wound added it). `sole`: the one spell whose
+-- lock fits the hit while the tracker named another (Wound's lockSole), drawn in place of '?' when neither proc names it.
+function TowHold.Hold(plate, school, amount, flagText, now, cast, candidates, entry, sole)
     if school ~= 32 or towHeld then return false end
 
     local proc = ns.Tow.Armed(now)
@@ -86,7 +87,8 @@ function TowHold.Hold(plate, school, amount, flagText, now, cast, candidates, en
     if not (proc or row) or (healWaits and not row) then return false end
 
     towHeld = { at = now, plate = plate, school = school, amount = amount, flagText = flagText, cast = cast,
-        candidates = candidates, proc = proc, entry = entry, healed = healWaits, healAt = healWaits and now or nil }
+        candidates = candidates, proc = proc, entry = entry, healed = healWaits, healAt = healWaits and now or nil,
+        sole = sole }
     if ns.Debug then ns.Debug(proc and "  .. tow" or "  .. drain") end
     pcall(C_Timer.After, TOW_TIMER, function() TowHold.Decide(GetTime()) end)
 

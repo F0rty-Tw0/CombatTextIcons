@@ -881,8 +881,10 @@ return function(T)
 
         local rig = Routed({ tracker = SWP, observe = { OTHER, 1 } })
         local draw = rig.Hit()
-        Check("route: a tick of the DoT that another spell fits draws ? (secret amount, no error)",
-            draw and draw.texture == rig.ns.Meter.UNKNOWN_ICON and rig.Route() == ROUTE_UNKNOWN and #rig.drew == 0)
+        -- run 5 (2026-11-13): a Shoot 0.16 s after its cast, named as Devouring Plague's tick due 0.27 s later
+        Check("route: a hit the tracker names as a DoT tick but only another spell's lock fits draws that spell",
+            draw and draw.texture == Texture(OTHER) and rig.Route() == ROUTE_LOCKED and #rig.drew == 1
+            and rig.drew[1] == OTHER)
 
         rig = Routed({ tracker = SWP, observe = { nil, 2 } })
         draw = rig.Hit()
