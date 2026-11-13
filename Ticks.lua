@@ -38,10 +38,11 @@ local MISS_CASTS = 3    -- checked casts in a row with no fit that retire a save
 local MAX_DELAYS = 16   -- delays a cast keeps, oldest dropped
 local REFINE = 0.25     -- share of the gap to a taken tick's estimate that the saved period moves
 
--- Direct-damage spells with no DoT: Mind Blast and Smite, every rank, since Forever doesn't fold ranks (capture:
--- `CAST player 8102 base=8102,8102`). A listed spell on a cast stamp is no partner, so the instant cast queued with it
--- (SW:P after Mind Blast) is still alone and learns; a listed spell never learns. A list, not "has a cast bar": a hard
--- cast with its own DoT (Holy Fire) would teach its partner that DoT (spec 2026-11-07-forever-swp-stamp-partner).
+-- Direct-damage spells with no DoT: Mind Blast and Smite (every rank, since Forever doesn't fold ranks; capture:
+-- `CAST player 8102 base=8102,8102`), and Forever's 1309595 nuke. A listed spell on a cast stamp is no partner, so
+-- the instant cast queued with it (SW:P after Mind Blast) is still alone and learns; a listed spell never learns. A
+-- list, not "has a cast bar": a hard cast with its own DoT (Holy Fire) would teach its partner that DoT (spec
+-- 2026-11-07-forever-swp-stamp-partner).
 -- The value is the spell's school (Mind Blast shadow 32, Smite holy 2): Locked.TicklessCast names a lone hit of that
 -- school on the cast's stamp as the spell's own.
 local TICKLESS = {
@@ -49,6 +50,7 @@ local TICKLESS = {
     [10945] = 32, [10946] = 32, [10947] = 32, -- Mind Blast
     [585] = 2, [591] = 2, [598] = 2, [984] = 2, [1004] = 2, [6060] = 2,
     [10933] = 2, [10934] = 2, -- Smite
+    [1309595] = 32, -- a Forever instant shadow nuke (runs 6-7, 2026-11-13: one hit on its cast stamp, ~350 per cast)
 }
 Ticks.TICKLESS = TICKLESS -- read-only
 

@@ -208,6 +208,10 @@ return function(T)
         Check("locked: a hit a DoT tick slot fits teaches no lock", Run(L, {
             { "cast", 10, "p" }, { "hit", "p", 10.9, 589, 1 }, { "cast", 12, "p" }, { "hit", "p", 12.9, 589, 1 },
             { "cast", 14, "p" }, { "hit", "p", 14.9, nil, 0 } }))
+        L = Fresh()
+        L.NoteCast(1309595, 10, "p")
+        Check("tickless: the Forever shadow nuke 1309595 owns a shadow hit on its cast stamp",
+            L.TicklessCast("p", 32, 10) == 1309595)
         -- F1 (run 6): 5019 and 8102 both lock 0.9, so hits 14.9-18.9 fit both and name neither; those fits no longer
         -- keep the locks, so casts 16-20 break them and 20.9 only starts a new pair.
         Check("locked: a fit that names no spell alone doesn't keep the lock", Run(Fresh(), {

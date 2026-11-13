@@ -242,6 +242,18 @@ return function(T)
         Check("tickless: a tick the tracker names on the stamp still counts as a second shadow hit",
             not Drew(drew, "tex:" .. MIND_BLAST))
 
+        -- Run 7 (2026-11-13): the lone hit of the 1309595 nuke drew as the SW:P tick due on its stamp. Alone in its
+        -- frame, it is the cast's.
+        ticking = Rig(function()
+            CombatTextIconsCharDB.lockedTicks = { [SWP] = { period = P, kind = "damage", school = 32, misses = 0 } }
+        end, true)
+        Frame(ticking, 250 - 3 * P, "nameplate1", { SWP }, {})
+        ticking.Hit(250 - 2 * P, "nameplate1", Secret(31), 32)
+        ticking.Hit(250 - P, "nameplate1", Secret(31), 32)
+        drew = Frame(ticking, 250, "nameplate1", { MIND_BLAST }, { { "nameplate1", 32 } })
+        Check("tickless: a lone hit on the stamp draws the cast, not the tick the tracker names there",
+            drew[1] == "tex:" .. MIND_BLAST)
+
         -- Rig re-Boots the harness (GetTime, plates): the checks below need a rig newer than `ticking`
         rig = Rig(nil, true)
         drew = Frame(rig, 300, "nameplate1", { MIND_BLAST }, { { "nameplate2", 32 } })

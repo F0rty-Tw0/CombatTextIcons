@@ -478,13 +478,28 @@ local function DrawShare(hit)
     DrawPlate(hit.plate, SpellTexture(hit.share), HitText(hit.flagText, hit.amount), hit.flagText, hit.school)
 end
 
+-- A hit the tracker names `spellID` (a DoT's tick) draws it; `lockAgrees`: Locked.Observe named it too.
+local function DrawTracked(plate, school, amount, flagText, now, spellID, lockAgrees)
+    if ns.Debug then ns.Debug("  -> tracker %s", ShowValue(spellID)) end
+    if lockAgrees then ns.Locked.Drew(spellID) end
+    Drawn(spellID, amount)
+    if Learn.Get(spellID) then Teacher.Ticked(school, amount, flagText, spellID, now, plate) end
+    Ledger.Add("damage", spellID, amount)
+    return DrawPlate(plate, SpellTexture(spellID), HitText(flagText, amount), flagText, school)
+end
+
 -- A hit held on a Mind Blast or Smite's cast stamp (HoldTickless) at its frame's end: that spell's own when it is the
--- only hit of its school on its plate in the frame (frameHits counts hits the tracker named too), else the question mark
--- route it was held from (Question), since a second hit there may be a DoT's tick.
+-- only hit of its school on its plate in the frame (frameHits counts hits the tracker named too), else the tick the
+-- tracker named it (`hit.tracked`), else the question mark route it was held from (Question), since a second hit there
+-- may be a DoT's tick.
 local function DrawTickless(hit)
     local hits, frameList = 0, frameHits.at == hit.at and frameHits.list or {}
     for _, entry in ipairs(frameList) do
         if Plain(entry.school) and entry.school == hit.school and entry.plate == hit.plate then hits = hits + 1 end
+    end
+    local tracked = hit.tracked
+    if hits ~= 1 and tracked then
+        return DrawTracked(hit.plate, hit.school, hit.amount, hit.flagText, hit.at, tracked.spellID, tracked.lockAgrees)
     end
     if hits ~= 1 then return QuestionHeld(hit) end
 
@@ -625,11 +640,11 @@ end
 -- Holds a solo secret hit that is the school of the Mind Blast or Smite `spellID` (Locked.TicklessCast) cast on this
 -- stamp and aimed at its plate until its frame ends: the frame shows whether it is the only hit of that school there.
 -- DrawTickless decides.
-local function HoldTickless(plate, school, amount, flagText, now, spellID, cast, candidates)
+local function HoldTickless(plate, school, amount, flagText, now, spellID, cast, candidates, tracked)
     HitRoute.FlushMates(now)
     if held.at ~= now then held = { at = now, hits = {} } end
     held.hits[#held.hits + 1] = { plate = plate, school = school, amount = amount, flagText = flagText, at = now,
-        tickless = spellID, cast = cast, candidates = candidates }
+        tickless = spellID, cast = cast, candidates = candidates, tracked = tracked }
     if ns.Debug then ns.Debug("  .. tickless") end
     QueueFlush()
 end
@@ -753,16 +768,13 @@ local function Wound(plate, unit, flagText, amount, school, now, owned)
     -- crowded area, a school no clear read saw). The one other spell that fits (`lockSole`) is Question's answer once the
     -- holds pass: run 5 (2026-11-13) drew a Shoot 0.16 s after its cast as Devouring Plague's tick due 0.27 s later.
     local lockSole = named and fits == 1 and sole ~= spellID and sole or nil
-    local doubted = fits >= 2 or (fits == 1 and sole ~= spellID)
+    -- A hit on a tickless cast's own stamp (Locked.TicklessCast) is no sure tick either: run 7 (2026-11-13) drew 5 of
+    -- 23 hits of the 1309595 nuke as SW:P ticks; HoldTickless decides.
+    local onTickless = named and asksLocked and ns.Locked.TicklessCast(plate, school, now)
+    local doubted = fits >= 2 or (fits == 1 and sole ~= spellID) or onTickless
+    local tracked = onTickless and { spellID = spellID, lockAgrees = sole == spellID }
     if named and doubted then named, sole = false, nil end
-    if named then
-        if ns.Debug then ns.Debug("  -> tracker %s", ShowValue(spellID)) end
-        if sole == spellID then ns.Locked.Drew(spellID) end
-        Drawn(spellID, amount)
-        if Learn.Get(spellID) then Teacher.Ticked(school, amount, flagText, spellID, now, plate) end
-        Ledger.Add("damage", spellID, amount)
-        return DrawPlate(plate, SpellTexture(spellID), text, flagText, school)
-    end
+    if named then return DrawTracked(plate, school, amount, flagText, now, spellID, sole == spellID) end
     if not claimed then
         kind, record = Casts.Claim(plate, school, now, Streams.NormalAmount(amount, flagText), crowded,
             flagText)
@@ -897,7 +909,9 @@ local function Wound(plate, unit, flagText, amount, school, now, owned)
         -- a lone secret hit of a Mind Blast or Smite's school on its cast stamp is that spell's (HoldTickless)
         local lockedAsk = asksLocked and sole == nil
         local tickless = lockedAsk and ns.Locked.TicklessCast(plate, school, now)
-        if tickless then return HoldTickless(plate, school, amount, flagText, now, tickless, cast, candidates) end
+        if tickless then
+            return HoldTickless(plate, school, amount, flagText, now, tickless, cast, candidates, tracked)
+        end
 
         -- a lone secret shadow hit while Touch of Weakness is armed may be its proc, unless a heal on you comes with it;
         -- with one proc row saved it may be the drain's, which that row's heal names (TowHold.Hold)
