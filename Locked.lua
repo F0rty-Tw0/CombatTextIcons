@@ -10,8 +10,10 @@
 -- while range holds. Per (plate, spell, school) a lock learns that delay: until it has one it keeps the delay and cast
 -- of its last KEPT_HITS hits, and a hit within DELAY_TOL of a kept one from a different cast (the repeat test: one
 -- cast cannot lock) forms the lock at the mean of the two, pairing with the nearest. A hit fits a lock within
--- DELAY_TOL of it when its cast has not named a hit yet, and moves it. Each cast of the spell closes the period of the
--- one before it: a period without a fit is a miss, BREAK_CASTS misses clear the lock and its delays. A fit also tells
+-- DELAY_TOL of it when its cast has not named a hit yet; only a fit that names the spell alone moves the lock and counts
+-- for its period. Each cast of the spell closes the period of the one before it: a period without a fit is a miss,
+-- BREAK_CASTS misses clear the lock and its delays. After a miss, two aimed hits nothing fits, from different casts and
+-- within DELAY_TOL of each other, move the lock to them and the second names the spell (range changed). A fit also tells
 -- Ticks the school the spell's own hits have (Ticks.NoteHitSchool), for its cast-free test, and Ticks.Fits gets the
 -- spells whose lock the hit fits: that hit is their own and joins no other spell's tick delays. A lockless or
 -- provisional key learns only from a hit aimed at it: on the plate the spell's newest cast aims at (or any plate when
@@ -252,15 +254,22 @@ local function Form(entry, delay, castTime)
     Clear(entry.kept)
 end
 
--- Whether the hit fits this key's lock; a fit moves the lock.
+-- Whether the hit fits this key's lock. Only a fit that names the spell alone counts (Settle): run 6 (2026-11-13), SW:P
+-- ticks fitting a stale 0.9 s wand lock as `?` kept it from breaking while the Shoots had moved to 0.24 s.
 local function Fit(entry, spellID, delay, castTime, plate)
     local close = math.abs(delay - entry.lock) <= DELAY_TOL
     if not close or IsUsed(spellID, castTime, plate) then return false end
 
-    entry.lock = (1 - FOLLOW) * entry.lock + FOLLOW * delay
-    entry.fit = true
+    entry.pending = delay
 
     return true
+end
+
+-- The fit named its spell alone: it moves the lock, keeps it, and drops the misses kept for a re-lock.
+local function Settle(entry)
+    entry.lock = (1 - FOLLOW) * entry.lock + FOLLOW * entry.pending
+    entry.fit = true
+    Clear(entry.kept)
 end
 
 local function Mark(spellID, castTime, plate)
@@ -387,6 +396,30 @@ local function ObserveLock(plate, spellID, school, now, castTime)
     end
 end
 
+-- A hit nothing fits, aimed at a locked key, is no tick and no lock fit: the key keeps its delay, and a second such hit
+-- from another cast within DELAY_TOL moves the lock there (range changed; run 6: Shoots 0.9 s → 0.24 s). Only a period
+-- with no fit keeps such a hit (Settle drops them), so a DoT tick the tracker doesn't know yet can't steal a lock the
+-- casts still fit. Returns the spell when exactly one key re-locked (the hit is its), else nil.
+local function Relock(plate, school, now)
+    local relocked
+    for spellID, castTime in pairs(casts) do
+        local entry = locks[plate] and locks[plate][spellID] and locks[plate][spellID][school]
+        local delay = now - castTime
+        local aimedAt = castPlate[spellID] == plate or delay < STAMP
+        local learns = entry and entry.lock and not entry.provisional and not entry.fit and aimedAt
+            and not IsUsed(spellID, castTime, plate) and not OwnsOtherSchool(spellID, school)
+        if learns then
+            Form(entry, delay, castTime)
+            if entry.fit then relocked = relocked == nil and spellID or false end
+        end
+    end
+    if not relocked then return nil end
+
+    Mark(relocked, casts[relocked], plate)
+
+    return relocked
+end
+
 -- Only a lock fit that named its spell alone is inherited: a wand lock formed from SW:P ticks never names one.
 local function Inherit(spellID, school, lock)
     inherited[spellID] = inherited[spellID] or {}
@@ -421,10 +454,15 @@ function Locked.Observe(plate, school, now)
     end
 
     local fits = CountKeys(fitting)
+    if fits == 0 then
+        local relocked = Relock(plate, school, now)
+        if relocked then return relocked, 1 end
+    end
     if fits ~= 1 then return nil, fits end
 
     local sole = next(fitting)
     if lockFitting[sole] then
+        Settle(lockFitting[sole])
         Mark(sole, fitting[sole], plate)
         Inherit(sole, school, lockFitting[sole].lock)
     end

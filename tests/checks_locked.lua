@@ -185,21 +185,29 @@ return function(T)
         Check("locked inherit: an inherited lock that doesn't fit re-learns as a lockless key would", relearned)
         Check("locked inherit: the re-learned delay is inherited next",
             Run(L, { { "end" }, { "cast", 40, "r" }, { "hit", "r", 40.2, 5019, 1 } }))
-        Check("locked inherit: after its first fit an inherited lock no longer re-learns",
+        -- Re-lock (run 6, 2026-11-13): Shoots moved from 0.9 s to 0.24 s and the old lock never let go. 0.2 misses the
+        -- lock (kept); cast 26 closes a missed period, so the second 0.2 re-locks there and names; 0.2 then fits.
+        Check("locked relock: after a missed period, two hits nothing fits from different casts move the lock",
             AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 20.9, 5019, 1 }, { "cast", 22, "q" }, { "hit", "q", 22.9, 5019, 1 },
-                { "cast", 24, "q" }, { "hit", "q", 24.2, nil, 0 }, { "cast", 26, "q" }, { "hit", "q", 26.2, nil, 0 },
-                { "cast", 28, "q" }, { "hit", "q", 28.2, nil, 0 } }))
-        -- 0.5 misses 0.9 and is kept; casts 22-26 break the inherited lock; 0.3 pairs into a new lock; 0.7 misses it twice.
-        Check("locked inherit: after a break a new lock no longer re-learns",
-            AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 20.5, nil, 0 }, { "cast", 22, "q" }, { "cast", 24, "q" },
-                { "cast", 26, "q" }, { "hit", "q", 26.3, nil, 0 }, { "cast", 28, "q" }, { "hit", "q", 28.3, nil, 0 },
-                { "cast", 30, "q" }, { "hit", "q", 30.7, nil, 0 }, { "cast", 32, "q" }, { "hit", "q", 32.7, nil, 0 },
-                { "cast", 34, "q" }, { "hit", "q", 34.3, 5019, 1 } }))
-        -- 1.2 misses 0.9 and pairs into a lock at 1.2; 0.6 misses it twice.
-        Check("locked inherit: a lock re-learned from a pair no longer re-learns",
-            AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 21.2, nil, 0 }, { "cast", 22, "q" }, { "hit", "q", 23.2, nil, 0 },
-                { "cast", 24, "q" }, { "hit", "q", 24.6, nil, 0 }, { "cast", 26, "q" }, { "hit", "q", 26.6, nil, 0 },
-                { "cast", 28, "q" }, { "hit", "q", 29.2, 5019, 1 } }))
+                { "cast", 24, "q" }, { "hit", "q", 24.2, nil, 0 }, { "cast", 26, "q" }, { "hit", "q", 26.2, 5019, 1 },
+                { "cast", 28, "q" }, { "hit", "q", 28.2, 5019, 1 } }))
+        -- A tick the tracker doesn't know, at 0.2 after each cast, while the Shoots still fit 0.9.
+        Check("locked relock: a lock its casts still fit keeps it, whatever else misses",
+            AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 20.9, 5019, 1 }, { "cast", 22, "q" }, { "hit", "q", 22.2, nil, 0 },
+                { "hit", "q", 22.9, 5019, 1 }, { "cast", 24, "q" }, { "hit", "q", 24.2, nil, 0 }, { "hit", "q", 24.9, 5019, 1 },
+                { "cast", 26, "q" }, { "hit", "q", 26.2, nil, 0 }, { "hit", "q", 26.9, 5019, 1 } }))
+        Check("locked relock: two misses off one cast don't move the lock",
+            AfterNamed({ { "cast", 20, "q" }, { "hit", "q", 20.9, 5019, 1 }, { "cast", 22, "q" }, { "cast", 24, "q" },
+                { "hit", "q", 24.2, nil, 0 }, { "hit", "q", 24.3, nil, 0 }, { "cast", 25, "q" }, { "hit", "q", 25.9, 5019, 1 } }))
+        -- F1 (run 6): 5019 and 8102 both lock 0.9, so hits 14.9-18.9 fit both and name neither; those fits no longer
+        -- keep the locks, so casts 16-20 break them and 20.9 only starts a new pair.
+        Check("locked: a fit that names no spell alone doesn't keep the lock", Run(Fresh(), {
+            { "cast", 10, "p" }, { "cast", 10, "p", 8102 }, { "hit", "p", 10.9, nil, 0 },
+            { "cast", 12, "p" }, { "cast", 12, "p", 8102 }, { "hit", "p", 12.9, nil, 0 },
+            { "cast", 14, "p" }, { "cast", 14, "p", 8102 }, { "hit", "p", 14.9, nil, 2 },
+            { "cast", 16, "p" }, { "cast", 16, "p", 8102 }, { "hit", "p", 16.9, nil, 2 },
+            { "cast", 18, "p" }, { "cast", 18, "p", 8102 }, { "hit", "p", 18.9, nil, 2 },
+            { "cast", 20, "p" }, { "cast", 20, "p", 8102 }, { "hit", "p", 20.9, nil, 0 } }))
         local AIM_Q = { { "cast", 20, "q" }, { "hit", "q", 20.9, nil, 0 } }
         local _
         _, L = AfterNamed()
