@@ -431,6 +431,16 @@ local function MayQuestion(amount)
     return Teacher.AreaClear() or ns.IsForever and issecretvalue(amount) and Teacher.NotCrowded()
 end
 
+-- A hit drawn as `sole`, the one spell Locked.Observe fit it to, under the debug `route`; `entry` as Question's.
+local function DrawLocked(plate, school, amount, flagText, now, sole, route, entry)
+    if ns.Debug then ns.Debug("  -> %s %s", route, ShowValue(sole)) end
+    Drawn(sole, amount, entry and now, entry)
+    ns.Locked.Drew(sole)
+    Ledger.Add("damage", sole, amount)
+
+    return DrawPlate(plate, SpellTexture(sole), HitText(flagText, amount), flagText, school)
+end
+
 -- A solo hit on a mob fighting you that nothing named: the teacher learns from it (Teacher.Unknown), and it draws the
 -- question mark while MayQuestion holds and the school is one a clear read saw. `cast` is Casts.SoleCast at the hit.
 -- `sole` (Locked.Observe from Wound, or Locked.TicklessCast via DrawTickless) is the one spell that fits the hit: it
@@ -448,14 +458,7 @@ local function Question(plate, school, amount, flagText, now, cast, candidates, 
         if ns.Debug then ns.Debug("  -> HIDDEN (school)") end
         return
     end
-    if sole then
-        if ns.Debug then ns.Debug("  -> %s %s", route or "locked", ShowValue(sole)) end
-        Drawn(sole, amount, entry and now, entry)
-        ns.Locked.Drew(sole)
-        Ledger.Add("damage", sole, amount)
-
-        return DrawPlate(plate, SpellTexture(sole), HitText(flagText, amount), flagText, school)
-    end
+    if sole then return DrawLocked(plate, school, amount, flagText, now, sole, route or "locked", entry) end
     if ns.Debug then ns.Debug("  -> unknown-solo") end
     Ledger.Add("damage", UnknownKey(school), amount)
     DrawPlate(plate, UnknownTexture(), HitText(flagText, amount), flagText, school)
@@ -809,6 +812,9 @@ local function Wound(plate, unit, flagText, amount, school, now, owned)
             Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now, school), flagText,
                 Casts.Candidates(plate, now, school))
         end
+        -- One lock fit (Locked.Observe) names a hit the tracker can't split: run 8 (2026-11-13) drew 106 such hits
+        -- '?', and in its replay 13 of 25 had one fit (9 Mind Flay, 3 Devouring Plague, 1 Mind Blast).
+        if sole then return DrawLocked(plate, school, amount, flagText, now, sole, "unknown-locked") end
         Ledger.Add("damage", UnknownKey(school), amount)
         return DrawPlate(plate, UnknownTexture(), text, flagText, school)
     end

@@ -965,7 +965,13 @@ return function(T)
 
         rig = Routed({ tracker = "UNKNOWN", observe = { OTHER, 1 } })
         draw = rig.Hit()
-        Check("route: an UNKNOWN tracker answer draws ? even with one fit",
+        Check("route: an UNKNOWN tracker answer draws the one spell a lock fits",
+            draw and draw.texture == Texture(OTHER) and rig.Route() == "  -> unknown-locked " .. OTHER
+            and #rig.drew == 1 and rig.drew[1] == OTHER)
+
+        rig = Routed({ tracker = "UNKNOWN", observe = { nil, 2 } })
+        draw = rig.Hit()
+        Check("route: an UNKNOWN tracker answer with two fits draws ?",
             draw and draw.texture == rig.ns.Meter.UNKNOWN_ICON and #rig.drew == 0)
 
         -- Real Locked, no stubs: three casts and hits at one delay; the lock forms on the second hit and names the third.

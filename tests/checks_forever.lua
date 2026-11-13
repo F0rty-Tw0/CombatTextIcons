@@ -288,6 +288,18 @@ return function(T)
         drew = Frame(locked, 100, "nameplate1", { MIND_BLAST }, { { "nameplate1", 32 } })
         Check("tickless: a hit a lock names on Mind Blast's stamp draws the lock's spell", drew[1] == "tex:5019")
         Check("tickless: its route stays 'locked <id>'", locked.Route() == "  -> locked 5019")
+
+        -- Run 8 (2026-11-13): a hit the tracker can't split (UNKNOWN) drew '?' though one lock fit it.
+        local unsplit = Rig(nil, true)
+        unsplit.ns.Tracker.Identify = function() return unsplit.ns.Tracker.UNKNOWN end
+        unsplit.ns.Locked.Observe = function() return 15407, 1 end
+        drew = Frame(unsplit, 100, "nameplate1", {}, { { "nameplate1", 32 } })
+        Check("unknown: a hit the tracker can't split draws the one spell a lock fits", drew[1] == "tex:15407")
+        Check("unknown: its route is 'unknown-locked <id>'", unsplit.Route() == "  -> unknown-locked 15407")
+        unsplit.ns.Locked.Observe = function() return nil, 2 end
+        drew = Frame(unsplit, 200, "nameplate1", {}, { { "nameplate1", 32 } })
+        Check("unknown: two lock fits keep the tracker's '?'",
+            drew[1] == unsplit.ns.Meter.UNKNOWN_ICON and unsplit.Route() == "  -> tracker unknown")
     end
 
     -- The route lines ("  -> ...") the debug log gained since `mark`, a #rig.log.
