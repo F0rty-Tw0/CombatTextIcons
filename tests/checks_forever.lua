@@ -306,6 +306,14 @@ return function(T)
         drew = Frame(unsplit, 200, "nameplate1", {}, { { "nameplate1", 32 } })
         Check("unknown: two lock fits keep the tracker's '?'",
             drew[1] == unsplit.ns.Meter.UNKNOWN_ICON and unsplit.Route() == "  -> tracker unknown")
+        -- Runs 10 and 11 (2026-11-13/14): 2 nuke hits each that the tracker couldn't split drew '?' on the nuke's stamp.
+        unsplit.ns.Locked.Observe = function() return nil, 0 end
+        drew = Frame(unsplit, 300, "nameplate1", { MIND_BLAST }, { { "nameplate1", 32 } })
+        Check("unknown: a hit the tracker can't split, alone on Mind Blast's stamp, draws Mind Blast",
+            drew[1] == "tex:" .. MIND_BLAST and unsplit.Route() == TICKLESS_ROUTE)
+        unsplit.ns.Locked.Observe = function() return 15407, 1 end
+        drew = Frame(unsplit, 400, "nameplate1", { MIND_BLAST }, { { "nameplate1", 32 } })
+        Check("unknown: the one spell a lock fits still wins over Mind Blast's stamp", drew[1] == "tex:15407")
     end
 
     -- The route lines ("  -> ...") the debug log gained since `mark`, a #rig.log.

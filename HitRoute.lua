@@ -813,6 +813,13 @@ local function Wound(plate, unit, flagText, amount, school, now, owned)
             return
         end
         if ns.Debug then ns.Debug("  -> tracker unknown") end
+        -- A hit on a Mind Blast or Smite's cast stamp that no lock fits waits for its frame as the later routes' does
+        -- (HoldTickless; DrawTickless's Question teaches it): runs 10 and 11 (2026-11-13/14) drew 2 nuke hits each '?'.
+        local tickless = asksLocked and not sole and ns.Locked.TicklessCast(plate, school, now)
+        if tickless then
+            return HoldTickless(plate, school, amount, flagText, now, tickless, Casts.SoleCast(plate, now, school),
+                Casts.Candidates(plate, now, school))
+        end
         if not InGroup() then
             Teacher.Unknown(plate, school, amount, now, Casts.SoleCast(plate, now, school), flagText,
                 Casts.Candidates(plate, now, school))
