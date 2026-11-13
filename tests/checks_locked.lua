@@ -216,6 +216,19 @@ return function(T)
         L.PlateGone("p")
         Check("locked inherit: PlateGone keeps the inherited delay",
             Run(L, { { "cast", 20, "q" }, { "hit", "q", 20.9, 5019, 1 } }))
+
+        -- Aim (run 5, 2026-11-13): SW:P's ticks on a second mob, timed from Shoots at the first, formed a wand lock there.
+        Check("locked aim: hits on a plate the casts don't aim at form no lock", Run(Fresh(), {
+            { "cast", 10, "p" }, { "hit", "q", 10.6, nil, 0 }, { "cast", 12, "p" }, { "hit", "q", 12.6, nil, 0 },
+            { "cast", 14, "p" }, { "hit", "q", 14.6, nil, 0 } }))
+        Check("locked aim: hits on the cast's own stamp form a lock on any plate (Holy Nova)", Run(Fresh(), {
+            { "cast", 10, "p" }, { "hit", "q", 10, nil, 0 }, { "cast", 12, "p" }, { "hit", "q", 12, nil, 0 },
+            { "cast", 14, "p" }, { "hit", "q", 14, 5019, 1 } }))
+        Check("locked inherit: a key first seen off-aim inherits at its first aimed hit",
+            AfterNamed({ { "cast", 20, "p" }, { "hit", "q", 20.5, nil, 0 }, { "cast", 22, "q" }, { "hit", "q", 22.9, 5019, 1 } }))
+        Check("locked inherit: a stamp delay is inherited on a plate the cast doesn't aim at", Run(Fresh(), {
+            { "cast", 10, "p" }, { "hit", "p", 10, nil, 0 }, { "cast", 12, "p" }, { "hit", "p", 12, nil, 0 },
+            { "cast", 14, "p" }, { "hit", "p", 14, 5019, 1 }, { "end" }, { "cast", 20, "p" }, { "hit", "q", 20, 5019, 1 } }))
     end
 
     do

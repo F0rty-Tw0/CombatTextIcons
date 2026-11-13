@@ -13,9 +13,12 @@
 -- DELAY_TOL of it when its cast has not named a hit yet, and moves it. Each cast of the spell closes the period of the
 -- one before it: a period without a fit is a miss, BREAK_CASTS misses clear the lock and its delays. A fit also tells
 -- Ticks the school the spell's own hits have (Ticks.NoteHitSchool), for its cast-free test, and Ticks.Fits gets the
--- spells whose lock the hit fits: that hit is their own and joins no other spell's tick delays. A lock fit that names
--- its spell alone leaves its delay inherited: a new key on the plate the spell's newest cast aims at starts at it,
--- provisional until its first fit, and a hit that misses it learns as a lockless key would.
+-- spells whose lock the hit fits: that hit is their own and joins no other spell's tick delays. A lockless or
+-- provisional key learns only from a hit aimed at it: on the plate the spell's newest cast aims at (or any plate when
+-- the cast has none), or on the cast's own stamp (Holy Nova hits every plate there). Run 5 (2026-11-13): SW:P's ticks
+-- on a second mob, timed from Shoots at the first, formed a 0.58 s wand lock there. A lock fit that names its spell
+-- alone leaves its delay inherited: a fresh key starts at it on its first hit aimed at its plate or stamp, provisional
+-- until its first fit, and a hit that misses it learns as a lockless key would.
 -- Rule 3, the tick join (Ticks.lua): a spell whose tick the hit is (Ticks.Fits: near a whole number of its learned
 -- periods after its newest cast on the plate) fits too; a spell that also fits Rule 1 or Rule 2 counts once. When the
 -- sole fit has such a tick, Observe takes its slot (Ticks.Take).
@@ -34,19 +37,20 @@ local BREAK_CASTS = 3  -- casts without a fit that clear a lock
 local FOLLOW = 0.25    -- how far a fit moves the lock toward its delay
 local OWN_WINDOW = 1.5 -- a cast this close before a hit can own its school
 local STRAYS_MAX = 2   -- strays that retire an own-school entry
+local STAMP = 0.01     -- a hit this soon after its cast is on the cast's stamp
 
 local issecretvalue = issecretvalue or function() return false end
 local function IsNumber(value) return not issecretvalue(value) and type(value) == "number" end
 
 -- [spellID] = the spell's newest cast time
 local casts = {}
--- [plate][spellID][school] = { lock, miss, fit, provisional, kept = { { delay, cast }, ... } }; provisional: the lock
--- is an inherited delay with no fit yet
+-- [plate][spellID][school] = { lock, miss, fit, provisional, fresh, kept = { { delay, cast }, ... } }; provisional: the
+-- lock is an inherited delay with no fit yet; fresh: no hit aimed at the key has come yet (ObserveLock inherits then)
 local locks = {}
 -- [spellID] = the plate the spell's newest cast was aimed at (nil when none)
 local castPlate = {}
--- [spellID][school] = the lock of the last fit that named the spell alone. It survives fights and plates, so a new key on
--- the plate a cast aims at starts locked (NewEntry). In memory only: Init and Forget clear it.
+-- [spellID][school] = the lock of the last fit that named the spell alone. It survives fights and plates, so a fresh key
+-- starts locked at its first aimed hit (InheritOnce). In memory only: Init and Forget clear it.
 local inherited = {}
 -- [spellID][castTime] = true: that cast named a hit, on any plate
 local used = {}
@@ -171,21 +175,11 @@ function Locked.Drew(spellID)
     counts[spellID] = (counts[spellID] or 0) + 1
 end
 
--- A new key on the plate the spell's newest cast aimed at starts at the inherited delay, provisional until its first fit
--- (Observe); any other new key starts lockless.
-local function NewEntry(plate, spellID, school)
-    local entry = { miss = 0, fit = false, kept = {} }
-    local delay = inherited[spellID] and inherited[spellID][school]
-    if delay and castPlate[spellID] == plate then entry.lock, entry.provisional = delay, true end
-
-    return entry
-end
-
 local function Entry(plate, spellID, school)
     locks[plate] = locks[plate] or {}
     locks[plate][spellID] = locks[plate][spellID] or {}
     local bySchool = locks[plate][spellID]
-    bySchool[school] = bySchool[school] or NewEntry(plate, spellID, school)
+    bySchool[school] = bySchool[school] or { miss = 0, fit = false, kept = {}, fresh = true }
 
     return bySchool[school]
 end
@@ -365,19 +359,29 @@ local function CountKeys(set)
     return count
 end
 
--- The hit on `spellID`'s key on `plate`: forms its lock, fits it, or re-learns an inherited delay it misses. Returns the
--- entry when the hit fits its lock, else nil.
+-- A fresh key's first hit aimed at its plate or stamp starts it at the inherited delay, provisional until its first fit.
+local function InheritOnce(entry, spellID, school)
+    entry.fresh = nil
+    local delay = inherited[spellID] and inherited[spellID][school]
+    if delay then entry.lock, entry.provisional = delay, true end
+end
+
+-- The hit on `spellID`'s key on `plate`: forms its lock, fits it, or re-learns an inherited delay it misses; only a hit
+-- aimed at the key learns. Returns the entry when the hit fits its lock, else nil.
 local function ObserveLock(plate, spellID, school, now, castTime)
     local entry = Entry(plate, spellID, school)
     local delay = now - castTime
+    local aimedAt = castPlate[spellID] == plate or delay < STAMP
+    local learns = aimedAt or castPlate[spellID] == nil
+    if entry.fresh and aimedAt then InheritOnce(entry, spellID, school) end
     if not entry.lock then
-        Form(entry, delay, castTime)
+        if learns then Form(entry, delay, castTime) end
     elseif Fit(entry, spellID, delay, castTime, plate) then
         entry.provisional = nil
         Ticks.NoteHitSchool(spellID, school)
 
         return entry
-    elseif entry.provisional then
+    elseif entry.provisional and learns then
         Form(entry, delay, castTime)
         if entry.fit then entry.provisional = nil end
     end
