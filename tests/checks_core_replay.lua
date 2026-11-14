@@ -281,9 +281,11 @@ return function(T)
 
         return true
     end
-    -- Floors: measured 11, 27 and 8 (2026-11-10), less 1 each. Ceilings: the measured counts, so a drain drawn for a
-    -- heal the claim did not name fails here too (that leak drew 28 in S11R1).
-    for _, case in ipairs({ { "S10R1", S10R1, 10, 11 }, { "S11R1", S11R1, 26, 27 }, { "S12R1", S12R1, 7, 8 } }) do
+    -- Floors: measured 11, 24 and 8, less 1 each. Ceilings: the measured counts, so a drain drawn for a heal the claim
+    -- did not name fails here too (that leak drew 28 in S11R1). S11R1 drew 27 until Devouring Plague's self-heal stood
+    -- the proc fit down (2026-11-15): 263549.864, 263552.902 and 263555.872 are DP 2944's ticks, in a fight whose
+    -- meter row had 1 drain (total 51); the meter's S11R1 totals add to about 15 drains.
+    for _, case in ipairs({ { "S10R1", S10R1, 10, 11 }, { "S11R1", S11R1, 23, 24 }, { "S12R1", S12R1, 7, 8 } }) do
         local label, replay, floor, ceiling = case[1], case[2], case[3], case[4]
         local count, off = Drains(replay)
         T.Note(string.format("CORE %s drain=%d off=%d", label, count, off))

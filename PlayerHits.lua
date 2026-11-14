@@ -108,10 +108,26 @@ local function Part(heals, owned, isOwned)
     return part
 end
 
+-- The self-healing DoTs (LockedHeals.SELF_DOTS) whose tick landed on the stamp `at`, each once: a frame hit drawn as
+-- one, or the drain hold's candidate whose lock fits one (TowHold.SoleAt).
+local function SelfDots(at)
+    local dots, seen = {}, {}
+    local function Add(id)
+        if id and ns.LockedHeals.SELF_DOTS[id] and not seen[id] then
+            seen[id] = true
+            dots[#dots + 1] = id
+        end
+    end
+    for _, entry in ipairs(HitRoute.FrameHits(at)) do Add(entry.spellID) end
+    Add(TowHold.SoleAt(at))
+
+    return dots
+end
+
 -- Claims one part of a stamp's heals (nothing for an empty part) and maps the claims back to their places.
 local function ClaimPart(claims, part, casts, at, solo)
     if #part.heals == 0 then return end
-    local named = ns.LockedHeals.Claim(casts, part.heals, at, HitRoute.OwnFrameAt(at), solo)
+    local named = ns.LockedHeals.Claim(casts, part.heals, at, HitRoute.OwnFrameAt(at), solo, SelfDots(at))
     for place, index in ipairs(part.indexes) do claims[index] = named[place] end
 end
 
@@ -124,7 +140,7 @@ local function ClaimHeals(entry, owned)
         return Heals.Claim(casts, heals, HitRoute.FrameHits(at), at, not InGroup() and Teacher.AreaClear())
     end
     if not ns.Owner.IsActive() then
-        return ns.LockedHeals.Claim(casts, heals, at, HitRoute.OwnFrameAt(at), not InGroup())
+        return ns.LockedHeals.Claim(casts, heals, at, HitRoute.OwnFrameAt(at), not InGroup(), SelfDots(at))
     end
     local claims = {}
     ClaimPart(claims, Part(heals, owned, true), casts, at, true)

@@ -179,6 +179,7 @@ function Core.PLAYER_REGEN_ENABLED()
     Teacher.Finish(GetTime())
     ns.Locked.EndFight()
     ns.Ticks.EndFight()
+    ns.LockedHeals.EndFight()
 end
 
 -- The combat-start hook: the ledger opens a fight and the teacher starts tallying what
@@ -234,6 +235,7 @@ function Core.UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
             if unit == "player" then
                 local plainPlate = Plain(plate) and plate or nil
                 ns.Locked.NoteCast(spellID, now, plainPlate)
+                ns.LockedHeals.NoteCast(spellID, now) -- Vampiric Embrace arms its self-heal window
                 if ns.IsForever then ns.Owner.Cast() end -- only Forever counts casts that bring no line
                 tickKey = keyed and plainPlate or nil
                 ns.Ticks.NoteCast(spellID, now, tickKey, "damage")

@@ -713,6 +713,81 @@ return function(T)
         rig.Cast(100.3, "nameplate1", WAND)
         Check("drain: a hit healed by a heal that never waits is not named by a later stamp's claim",
             not Has(RoutesSince(rig, mark), DRAIN_ROUTE))
+
+        -- Self-heals of your own hit: Vampiric Embrace's window and a Devouring Plague tick heal you on the hit's
+        -- stamp, so the proc fit stands down (run 13, 2026-11-14: 299 heals and 55 hits drawn as the drain against
+        -- about 23 meter procs; LockedHeals.SelfHeals).
+        local VE, DP = 15286, 19277
+        local function HealTexture(rig)
+            for index = #rig.draws, 1, -1 do
+                if rig.draws[index].kind == "heal" then return rig.draws[index].texture end
+            end
+        end
+        rig = DrainRig({ DRAIN })
+        rig.Cast(90, "nameplate1", VE)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100.2, "nameplate1", WAND)
+        routes = RoutesSince(rig, mark)
+        Check("self-heal: inside Vampiric Embrace's window a shadow hit's same-stamp heal draws VE, the hit no drain",
+            Has(routes, "  -> heal " .. VE) and HealTexture(rig) == "tex:" .. VE and not Has(routes, DRAIN_ROUTE))
+
+        rig = DrainRig({ DRAIN })
+        rig.Cast(78, "nameplate1", VE)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100.2, "nameplate1", WAND)
+        Check("self-heal: 22 s after Vampiric Embrace the window is over and the drain draws as before",
+            Has(RoutesSince(rig, mark), DRAIN_ROUTE))
+
+        rig = DrainRig({ DRAIN })
+        rig.Cast(95, "nameplate1", VE)
+        rig.S.now = 96
+        rig.ns.Core.PLAYER_REGEN_ENABLED()
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100.2, "nameplate1", WAND)
+        Check("self-heal: the fight's end closes Vampiric Embrace's window (the next pull is another mob)",
+            Has(RoutesSince(rig, mark), DRAIN_ROUTE))
+
+        -- S11R1 263549.864: a held hit only Devouring Plague's tick slot fits, with a heal on its stamp, is DP's tick
+        -- and DP's self-heal, not the drain (that fight's meter had 1 drain; the drain hold drew 4).
+        local function DotRig(trackerID, byLock)
+            local dot = DrainRig({ DRAIN })
+            dot.ns.Tracker.Identify = function() return trackerID end
+            dot.ns.Locked.Observe = function() return DP, 1, byLock end
+            return dot
+        end
+        rig = DotRig(SWP, false)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100.2, "nameplate1", WAND)
+        routes = RoutesSince(rig, mark)
+        Check("self-heal: a held hit only DP's tick slot fits, healed on its stamp, draws DP and its heal DP",
+            Has(routes, "  -> locked " .. DP) and Has(routes, "  -> heal " .. DP) and not Has(routes, DRAIN_ROUTE))
+
+        rig = DotRig(DP, true)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100.2, "nameplate1", WAND)
+        routes = RoutesSince(rig, mark)
+        Check("self-heal: a heal on the stamp of a hit drawn as DP draws DP",
+            Has(routes, "  -> tracker " .. DP) and Has(routes, "  -> heal " .. DP) and HealTexture(rig) == "tex:" .. DP)
+
+        rig = DotRig(DP, true)
+        rig.Cast(90, "nameplate1", VE)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100.2, "nameplate1", WAND)
+        routes = RoutesSince(rig, mark)
+        Check("self-heal: DP's tick inside Vampiric Embrace's window fits both, so the heal draws '?'",
+            Has(routes, ROUTE_UNKNOWN) and not Has(routes, "  -> heal " .. DP) and not Has(routes, "  -> heal " .. VE))
     end
 
     -- 4. Debug lines ------------------------------------------------------------------------

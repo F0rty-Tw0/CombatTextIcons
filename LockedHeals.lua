@@ -1,6 +1,7 @@
--- Combat Text Icons: Forever heal router. Names the spell behind each heal on you once its frame ends. Three fits:
--- a lone helpful cast on the stamp (direct), a learned HoT period (hot), the one saved proc row when your own hit
--- landed (proc). Direct and proc fit only solo: in a group a heal on your stamp may be another player's.
+-- Combat Text Icons: Forever heal router. Names the spell behind each heal on you once its frame ends. Four fits:
+-- a lone helpful cast on the stamp (direct), a learned HoT period (hot), a self-heal of your own hit on the stamp
+-- (self: Vampiric Embrace's window, a Devouring Plague tick), else the one saved proc row when your own hit landed
+-- (proc). Direct, self and proc fit only solo: in a group a heal on your stamp may be another player's.
 
 local _, ns = ...
 
@@ -9,6 +10,23 @@ ns.LockedHeals = LockedHeals
 
 local STRIKES_MAX = 2 -- strikes that drop a saved proc row
 local LOCKED_HEALS_V = 2 -- the saved rows' learning rule; a store saved under another is emptied once (Init)
+
+-- Vampiric Embrace (Forever): while it is on your target each of your shadow hits heals you on the hit's stamp (meter
+-- row 15290). Run 13 (2026-11-14): 150 of 215 own shadow hits within its window had a heal on their stamp, 145 of 535
+-- outside it; the rate fell to the outside one about 21 s after the cast. The proc fit named every one of those
+-- heals the 1260198 drain (299 heals drawn as it against about 23 meter procs) and the drain hold drew their hits
+-- as the drain (55 against about 23).
+local VE_CAST = 15286
+local VE_WINDOW = 21
+
+-- Devouring Plague (Forever) heals you on each of its ticks (run 13: meter heal row 19277 beside its damage row); the
+-- proc fit named those heals the drain too. 2944 and 19277 are from logs, the other ranks Classic data.
+LockedHeals.SELF_DOTS = { -- read-only
+    [2944] = true, [19276] = true, [19277] = true, [19278] = true, [19279] = true, [19280] = true,
+}
+
+-- Your Vampiric Embrace cast's time, or nil: NoteCast arms it, EndFight clears it (the next pull is another mob).
+local veAt
 
 local issecretvalue = issecretvalue or function() return false end
 local function IsNumber(value) return not issecretvalue(value) and type(value) == "number" end
@@ -42,6 +60,17 @@ function LockedHeals.Forget()
     Clear(saved)
     Clear(drew)
     Clear(hotDrew)
+    veAt = nil
+end
+
+-- A harmful player cast of `spellID` at `now`: Vampiric Embrace arms its window (or re-arms it).
+function LockedHeals.NoteCast(spellID, now)
+    if ns.IsForever and spellID == VE_CAST then veAt = now end
+end
+
+-- The fight is over: Vampiric Embrace's window ends with its mob.
+function LockedHeals.EndFight()
+    veAt = nil
 end
 
 -- The only saved proc row's ID, or nil when none or several are saved
@@ -66,11 +95,24 @@ local function HasKind(list, kind)
     return false
 end
 
+-- The spells whose own hit on the stamp `at` heals you: Vampiric Embrace inside its window, and each of `dots` (the
+-- Devouring Plague ranks whose tick landed on the stamp; PlayerHits.SelfDots).
+local function SelfHeals(at, dots)
+    local ids = {}
+    if veAt and at >= veAt and at - veAt <= VE_WINDOW then ids[#ids + 1] = VE_CAST end
+    for _, id in ipairs(dots or {}) do ids[#ids + 1] = id end
+
+    return ids
+end
+
 -- Returns claims[index] = spellID for each heal that exactly one spell fits. castIDs: your helpful casts on the stamp;
--- ownAt: whether your own hit landed on it; solo: not in a group (direct and proc fit only then).
-function LockedHeals.Claim(castIDs, heals, at, ownAt, solo)
+-- ownAt: whether your own hit landed on it; solo: not in a group (direct, self and proc fit only then); dots: the
+-- self-healing DoTs whose tick landed on the stamp (SelfHeals). A self-heal source on the stamp replaces the proc fit:
+-- the drain's heal hides among them, so its row names none of them.
+function LockedHeals.Claim(castIDs, heals, at, ownAt, solo, dots)
     local claims = {}
     if not ns.IsForever then return claims end
+    local selfIDs = solo and ownAt and SelfHeals(at, dots) or {}
     for index = 1, #heals do
         local kinds, slots, ids = {}, {}, {}
         if solo and #castIDs == 1 then Fit(kinds, ids, castIDs[1], "direct") end
@@ -78,7 +120,8 @@ function LockedHeals.Claim(castIDs, heals, at, ownAt, solo)
             Fit(kinds, ids, fit.spellID, "hot")
             slots[fit.spellID] = slots[fit.spellID] or fit.slot
         end
-        local row = solo and ownAt and OnlyRow()
+        for _, id in ipairs(selfIDs) do Fit(kinds, ids, id, "self") end
+        local row = #selfIDs == 0 and solo and ownAt and OnlyRow()
         if row then Fit(kinds, ids, row, "proc") end
         if #ids == 1 then
             local id = ids[1]

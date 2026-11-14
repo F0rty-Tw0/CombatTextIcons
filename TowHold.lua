@@ -95,6 +95,12 @@ function TowHold.Hold(plate, school, amount, flagText, now, cast, candidates, en
     return true
 end
 
+-- The `sole` lock spell of the candidate held on stamp `at`, or nil (PlayerHits.SelfDots: a held Devouring Plague tick
+-- explains the heal on its stamp).
+function TowHold.SoleAt(at)
+    if towHeld and towHeld.at == at then return towHeld.sole end
+end
+
 -- `/cti off` drops the held candidate: the timer then decides nothing.
 function TowHold.Drop()
     towHeld = nil
