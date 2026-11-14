@@ -470,8 +470,13 @@ function Locked.Observe(plate, school, now)
         end
     end
 
+    -- a cast that already named its hit on this plate owns no second one, so it keeps no tick out (Ticks.Fits)
+    local spent = {}
+    for spellID, castTime in pairs(casts) do
+        if IsUsed(spellID, castTime, plate) then spent[spellID] = true end
+    end
     local slots = {}
-    for _, fit in ipairs(Ticks.Fits(plate, "damage", school, now, lockFitting)) do
+    for _, fit in ipairs(Ticks.Fits(plate, "damage", school, now, lockFitting, spent)) do
         slots[fit.spellID] = fit.slot
         fitting[fit.spellID] = fitting[fit.spellID] or true -- a tick-only spell has no cast time and no Mark
     end

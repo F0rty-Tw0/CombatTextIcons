@@ -213,6 +213,17 @@ return function(T)
         Check("locked: a hit a DoT tick slot fits teaches no lock", Run(L, {
             { "cast", 10, "p" }, { "hit", "p", 10.9, 589, 1 }, { "cast", 12, "p" }, { "hit", "p", 12.9, 589, 1 },
             { "cast", 14, "p" }, { "hit", "p", 14.9, nil, 0 } }))
+        -- Run 12 (2026-11-14): a DoT tick 0.02 s after a Shoot's own hit fit nothing, because Ticks kept the Shoot's
+        -- window shut. Ticks.Fits gets the casts that already named a hit on the plate (`spent`).
+        L, _, ns = Fresh()
+        local spentAt = {}
+        ns.Ticks.Fits = function(_, _, _, now, _, spent) spentAt[now] = spent and spent[5019] == true return {} end
+        Lock(L)
+        L.NoteCast(5019, 15.5, "p")
+        local named = L.Observe("p", 32, 16.4)
+        L.Observe("p", 32, 16.42)
+        Check("locked: Ticks.Fits hears that the Shoot already named its hit, only after it did",
+            named == 5019 and spentAt[16.4] == false and spentAt[16.42] == true)
         L = Fresh()
         L.NoteCast(1309595, 10, "p")
         Check("tickless: the Forever shadow nuke 1309595 owns a shadow hit on its cast stamp",

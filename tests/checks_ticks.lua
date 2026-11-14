@@ -243,6 +243,20 @@ return function(T)
         Check("ticks: a tick 0.2 s after a cast known to hit its own school joins no delay", Empty(store))
     end
 
+    -- Run 12 (2026-11-14): Shoots every 1.5 s, shadow, landed on SW:P's and Devouring Plague's ticks. The Shoot's own
+    -- hit named the wand, then the tick 0.02 s later fit nothing and drew '?'. A cast that already named its hit
+    -- (`spent`) can't own a second one, so it keeps no tick out.
+    do
+        local X = Fresh(nil, { [594] = Saved(3.0, "damage", 32) })
+        X.NoteHitSchool(5019, 32)
+        X.NoteCast(594, 10, "p", "damage")
+        X.NoteCast(5019, 15.8, "p", "damage")
+        local blocked = X.Fits("p", "damage", 32, 16.0)
+        local free = X.Fits("p", "damage", 32, 16.0, nil, { [5019] = true })
+        Check("ticks: a tick 0.2 s after a shadow Shoot fits only once the Shoot has named its own hit",
+            #blocked == 0 and Only(free, 594))
+    end
+
     do -- a wand rhythm after SW:P's first tick: Shoot every 1.8 s from 13.0, each hit 0.6 s after its cast, so the
         -- arcane hits land 3.6, 5.4, 7.2, 9.0, 10.8 s after SW:P's cast: 3.6, 2 * 3.6 and 3 * 3.6 among them
         local X, store = Fresh()

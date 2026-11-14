@@ -254,13 +254,14 @@ function Ticks.NoteCast(spellID, now, key, kind)
     end
 end
 
-local function CastFree(kind, school, now)
+-- `spent`: the casts whose hit on the key a lock already named; such a cast has had its hit, so it can't own this one.
+local function CastFree(kind, school, now, spent)
     if kind == "heal" then return lastCastAt ~= now end
     if now - lastCastAt > CAST_GAP then return true end
 
     for spellID in pairs(stamp.ids) do
         local known = hitSchools[spellID]
-        if known == nil or known == school then return false end
+        if not spent[spellID] and (known == nil or known == school) then return false end
     end
 
     return true
@@ -327,10 +328,13 @@ local function Learn(casts, kind, school, now, hitOf)
     end
 end
 
--- Ticks.Fits(key, kind, school, now, hitOf): learns first when the event is cast-free, then returns the saved spells
--- the event fits, as { spellID, slot } (never nil). `hitOf` (optional, [spellID] = any): the spells whose cast lock the
--- event fits (Locked.lua Rule 2), so it is their own hit and joins no other spell's delays.
-function Ticks.Fits(key, kind, school, now, hitOf)
+-- Ticks.Fits(key, kind, school, now, hitOf, spent): learns first when the event is cast-free, then returns the saved
+-- spells the event fits, as { spellID, slot } (never nil). `hitOf` (optional, [spellID] = any): the spells whose cast
+-- lock the event fits (Locked.lua Rule 2), so it is their own hit and joins no other spell's delays. `spent` (optional,
+-- [spellID] = true): the spells whose newest cast already named a hit on the key, so they keep no tick out (CastFree).
+-- Run 12 (2026-11-14): shadow Shoots every 1.5 s landed on SW:P's and Devouring Plague's ticks, and each tick, 0.02 s
+-- after the Shoot's own hit, drew '?'.
+function Ticks.Fits(key, kind, school, now, hitOf, spent)
     local fits = {}
     estimates = {}
     if not ns.IsForever or not IsNumber(now) then return fits end
@@ -339,7 +343,7 @@ function Ticks.Fits(key, kind, school, now, hitOf)
     local casts = newest[key]
     if not casts then return fits end
 
-    local free = CastFree(kind, school, now)
+    local free = CastFree(kind, school, now, spent or {})
     if free then Learn(casts, kind, school, now, hitOf or {}) end
     -- a damage event that may be a fresh cast's own hit names no tick: it keeps the cast alive, but the slot stays free
     local named = free or kind == "heal"
