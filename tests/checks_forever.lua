@@ -595,25 +595,41 @@ return function(T)
         FireTimers(rig, 100.2)
         Check("drain: ... and the 0.2 s timer draws it '?'", RoutesSince(rig, mark)[1] == ROUTE_UNKNOWN)
 
-        -- The tracker names SW:P, only the wand's lock fits (run 5's Shoot): the hold runs first, the wand replaces '?'.
-        local function DoubtedRig()
+        -- The tracker names SW:P, only the wand's lock fits (run 5's Shoot): the wand draws at once, no hold. Run 12
+        -- (2026-11-14): Shoots on DoT ticks were held and a same-stamp heal claimed them; one fight drew 11 drains for a
+        -- meter total of 87 (about 2 drains of 43).
+        -- byLock: the wand's fit is its cast lock (true) or only a tick slot (false)
+        local function DoubtedRig(byLock)
             local doubted = DrainRig({ DRAIN })
             doubted.ns.Tracker.Identify = function() return SWP end
-            doubted.ns.Locked.Observe = function() return WAND, 1 end
+            doubted.ns.Locked.Observe = function() return WAND, 1, byLock ~= false end
             return doubted
         end
         rig = DoubtedRig()
         mark = #rig.log
         rig.Hit(100, "nameplate1", Secret(31), 32)
-        FireTimers(rig, 100.2)
-        Check("drain: a hit the tracker names SW:P but only the wand's lock fits is held, then drawn as the wand",
-            Logged(rig, "  .. drain") and RoutesSince(rig, mark)[1] == "  -> locked " .. WAND)
+        Check("drain: a hit the tracker names SW:P but only the wand's lock fits draws the wand at once, unheld",
+            not Logged(rig, "  .. drain") and RoutesSince(rig, mark)[1] == "  -> locked " .. WAND)
         rig = DoubtedRig()
         mark = #rig.log
         rig.Hit(100, "nameplate1", Secret(31), 32)
         Heal(rig, 100)
         rig.Cast(100.2, "nameplate1", WAND)
-        Check("drain: ... and with a heal on its stamp it draws the drain, not the wand",
+        Check("drain: ... and a heal on its stamp doesn't make it the drain",
+            RoutesSince(rig, mark)[1] == "  -> locked " .. WAND and not Has(RoutesSince(rig, mark), DRAIN_ROUTE))
+        -- S12R1 278948.988: a Touch of Weakness proc (meter row) fit only SW:P's tick slot, so a tick-only fit still holds.
+        rig = DoubtedRig(false)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        FireTimers(rig, 100.2)
+        Check("drain: a hit only another spell's tick slot fits is held, then drawn as that spell",
+            Logged(rig, "  .. drain") and RoutesSince(rig, mark)[1] == "  -> locked " .. WAND)
+        rig = DoubtedRig(false)
+        mark = #rig.log
+        rig.Hit(100, "nameplate1", Secret(31), 32)
+        Heal(rig, 100)
+        rig.Cast(100.2, "nameplate1", WAND)
+        Check("drain: ... and with a heal on its stamp it draws the drain",
             Has(RoutesSince(rig, mark), DRAIN_ROUTE) and not Has(RoutesSince(rig, mark), "  -> locked " .. WAND))
 
         rig = DrainRig({ DRAIN })

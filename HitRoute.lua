@@ -741,10 +741,10 @@ local function Wound(plate, unit, flagText, amount, school, now, owned)
     local holds = not fightsYou and not grouped and type(school) == "number" and type(amount) == "number"
         and Plain(school) and Plain(amount) and NoThreatList(unit)
     if solo and Plain(school) then OwnHit(school, now) end
-    local sole, fits = nil, 0
+    local sole, fits, byLock = nil, 0, false
     local asksLocked = ns.IsForever and solo and Plain(school) and not Plain(amount)
     if asksLocked then
-        sole, fits = ns.Locked.Observe(plate, school, now)
+        sole, fits, byLock = ns.Locked.Observe(plate, school, now)
     end
     local text = HitText(flagText, amount)
     if ns.Debug then
@@ -932,9 +932,13 @@ local function Wound(plate, unit, flagText, amount, school, now, owned)
         end
 
         -- a lone secret shadow hit while Touch of Weakness is armed may be its proc, unless a heal on you comes with it;
-        -- with one proc row saved it may be the drain's, which that row's heal names (TowHold.Hold)
-        local held = lockedAsk and ns.TowHold.Hold(plate, school, amount, flagText, now, cast, candidates,
-            frameHits.list[#frameHits.list], lockSole)
+        -- with one proc row saved it may be the drain's, which that row's heal names (TowHold.Hold). A hit only another
+        -- spell's cast lock fits (`lockSole` with `byLock`) is that spell's, not held: run 12 (2026-11-14) held Shoots
+        -- that landed on DoT ticks, and a heal on their stamp drew 11 drains in a fight whose meter had about 2. A
+        -- lockSole that is only a tick slot is still held: S12R1's Touch of Weakness proc at 278948.988 fit SW:P's.
+        local castLocked = lockSole and byLock
+        local held = lockedAsk and not castLocked and ns.TowHold.Hold(plate, school, amount, flagText, now, cast,
+            candidates, frameHits.list[#frameHits.list], lockSole)
         if held then return end
 
         return Question(plate, school, amount, flagText, now, cast, candidates, sole or lockSole)

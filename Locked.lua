@@ -448,8 +448,9 @@ local function Inherit(spellID, school, lock)
     inherited[spellID][school] = lock
 end
 
--- A solo secret hit of `school` on `plate` at `now`: `sole, fits`. Moves locks and marks casts as it goes, and takes
--- the tick slot of a sole fit that Ticks.Fits named.
+-- A solo secret hit of `school` on `plate` at `now`: `sole, fits, byLock` (byLock: the sole fit is its cast lock, a
+-- re-lock included, not only a tick slot or an own school). Moves locks and marks casts as it goes, and takes the tick
+-- slot of a sole fit that Ticks.Fits named.
 function Locked.Observe(plate, school, now)
     if not firstHitRead then
         firstHitRead = true
@@ -485,7 +486,7 @@ function Locked.Observe(plate, school, now)
     local fits = CountKeys(fitting)
     if fits == 0 then
         local relocked = Relock(plate, school, now)
-        if relocked then return relocked, 1 end
+        if relocked then return relocked, 1, true end
     end
     if fits ~= 1 then return nil, fits end
 
@@ -497,5 +498,5 @@ function Locked.Observe(plate, school, now)
     end
     if slots[sole] then Ticks.Take(sole, slots[sole]) end
 
-    return sole, fits
+    return sole, fits, lockFitting[sole] ~= nil
 end
